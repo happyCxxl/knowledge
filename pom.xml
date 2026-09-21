@@ -1,0 +1,204 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <!-- 统一以官方 spring-boot-starter-parent 管理依赖版本 -->
+  <parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>3.2.5</version>
+    <relativePath/>
+  </parent>
+
+  <groupId>com.knowledge</groupId>
+  <artifactId>knowledge</artifactId>
+  <version>5.1.0</version>
+  <name>knowledge</name>
+  <packaging>pom</packaging>
+
+  <properties>
+    <java.version>21</java.version>
+    <spring-cloud.version>2023.0.1</spring-cloud.version>
+    <spring-cloud-alibaba.version>2023.0.1.0</spring-cloud-alibaba.version>
+    <mybatis-plus.version>3.5.5</mybatis-plus.version>
+    <druid.version>1.2.23</druid.version>
+    <milvus.version>2.5.5</milvus.version>
+  </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>com.knowledge</groupId>
+        <artifactId>knowledge-common</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.knowledge</groupId>
+        <artifactId>knowledge-biz</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>com.knowledge</groupId>
+        <artifactId>knowledge-api</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.knowledge</groupId>
+        <artifactId>knowledge-worker</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+
+      <!-- Spring Cloud / Spring Cloud Alibaba（Nacos 相关 starter 的版本来源） -->
+      <dependency>
+        <groupId>org.springframework.cloud</groupId>
+        <artifactId>spring-cloud-dependencies</artifactId>
+        <version>${spring-cloud.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>com.alibaba.cloud</groupId>
+        <artifactId>spring-cloud-alibaba-dependencies</artifactId>
+        <version>${spring-cloud-alibaba.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+
+      <!-- MyBatis-Plus（平台钉版 3.5.4 与 Boot 3.2/Spring 6.1 有两处已知不兼容：
+           factoryBeanObjectType、ddlApplicationRunner NullBean，升级 3.5.5 修复；Boot 3 环境用 spring-boot3-starter） -->
+      <dependency>
+        <groupId>com.baomidou</groupId>
+        <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
+        <version>${mybatis-plus.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.baomidou</groupId>
+        <artifactId>mybatis-plus-annotation</artifactId>
+        <version>${mybatis-plus.version}</version>
+      </dependency>
+
+      <!-- mybatis-spring 显式钉版（3.5.5 起自带 3.0.3；防御传递版本漂移） -->
+      <dependency>
+        <groupId>org.mybatis</groupId>
+        <artifactId>mybatis-spring</artifactId>
+        <version>3.0.3</version>
+      </dependency>
+
+      <!-- Druid 连接池（Boot 3 专用 starter） -->
+      <dependency>
+        <groupId>com.alibaba</groupId>
+        <artifactId>druid-spring-boot-3-starter</artifactId>
+        <version>${druid.version}</version>
+      </dependency>
+
+      <!-- Milvus 官方 SDK（worker 直接依赖 io.milvus.*，版本钉版） -->
+      <dependency>
+        <groupId>io.milvus</groupId>
+        <artifactId>milvus-sdk-java</artifactId>
+        <version>${milvus.version}</version>
+      </dependency>
+
+      <!-- 统一钉版：Tika 3.1.0 要求 commons-compress 1.27.x；平台 easyexcel(3.1.1)→POI 4.1.2
+           传递的 1.21 更近会覆盖，导致运行时 ZipArchiveInputStream.getNextEntry() NoSuchMethodError -->
+      <dependency>
+        <groupId>org.apache.commons</groupId>
+        <artifactId>commons-compress</artifactId>
+        <version>1.27.1</version>
+      </dependency>
+
+      <!-- 统一钉版：Tika 3.1.0 的 OOXML 深层探测（OPCPackageDetector）依赖 POI 5.4.0 + xmlbeans；
+           平台 easyexcel(3.1.1) 传递的 POI 4.1.2 更近会顶掉 5.4.0 且 xmlbeans 缺失，
+           深层探测加载失败（NoClassDefFoundError: org.apache.xmlbeans.XmlObject）后 Tika 静默降级，
+           标准 docx 被误判为 application/x-tika-ooxml / application/zip -->
+      <dependency>
+        <groupId>org.apache.poi</groupId>
+        <artifactId>poi</artifactId>
+        <version>5.4.0</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.poi</groupId>
+        <artifactId>poi-ooxml</artifactId>
+        <version>5.4.0</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.poi</groupId>
+        <artifactId>poi-scratchpad</artifactId>
+        <version>5.4.0</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.poi</groupId>
+        <artifactId>poi-ooxml-lite</artifactId>
+        <version>5.4.0</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.xmlbeans</groupId>
+        <artifactId>xmlbeans</artifactId>
+        <version>5.3.0</version>
+      </dependency>
+
+      <!-- 统一钉版：PDFBox 3.0.4 为 Tika 3.1.0 实测传递版本（设计 9.5.3 示例 3.0.5 为占位），
+           B02 直接调用 PDFBox API（worker 提升为直接依赖），与 Tika 传递版对齐避免二次冲突 -->
+      <dependency>
+        <groupId>org.apache.pdfbox</groupId>
+        <artifactId>pdfbox</artifactId>
+        <version>3.0.4</version>
+      </dependency>
+
+      <!-- 统一钉版：milvus-sdk-java 2.5.5（经 common-milvus 传递）按 protobuf-java 3.24.0
+           生成代码（调用 LazyStringArrayList.emptyList() 公开方法）；平台传递的 3.21.9 运行时
+           IllegalAccessError（该方法非 public）导致 MilvusClientV2 启动失败 -->
+      <dependency>
+        <groupId>com.google.protobuf</groupId>
+        <artifactId>protobuf-java</artifactId>
+        <version>3.24.0</version>
+      </dependency>
+    </dependencies>
+
+  </dependencyManagement>
+
+  <modules>
+    <module>knowledge-api</module>
+    <module>knowledge-biz</module>
+    <module>knowledge-common</module>
+    <module>knowledge-worker</module>
+  </modules>
+
+  <profiles>
+    <!--
+      run-tests：仅本地/手动验证单元测试时激活（mvn ... -Prun-tests）。
+      企业父 pom 默认对 maven-compiler-plugin 的 default-testCompile 硬编码 skip=true（跳过测试编译），
+      且父 pom 继承的 surefire 2.12.4 不支持 JUnit 5；本 profile 覆盖为 skip=false 并升级 surefire 3.x
+      以便编译并运行 src/test 下的 Jupiter 单测。默认不激活，不影响常规打包构建。
+    -->
+    <profile>
+      <id>run-tests</id>
+      <build>
+        <plugins>
+          <plugin>
+            <artifactId>maven-compiler-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>default-testCompile</id>
+                <phase>test-compile</phase>
+                <goals>
+                  <goal>testCompile</goal>
+                </goals>
+                <configuration>
+                  <skip>false</skip>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-surefire-plugin</artifactId>
+            <version>3.2.5</version>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
+</project>

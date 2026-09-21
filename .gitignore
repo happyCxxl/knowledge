@@ -1,0 +1,26 @@
+# 构建产物
+target/
+*.class
+
+# 本地运行日志（仅根目录；源码包里如有同名目录不受影响）
+/logs/
+
+# 本地运行时数据（解析等环节产物，不入库；仅根目录——
+# 注意：不锚定会误伤源码中任意层级的 common 包目录（如 com.youzhicai.common））
+/common/
+
+# 本地产物目录（knowledge.artifact.storage=local 默认 ./data/artifacts；仅根目录）
+/data/
+
+# Docker 数据卷（MySQL/Redis/Milvus 持久化数据，不入库）
+docker/volumes/
+
+# IntelliJ IDEA（整目录不入库）
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# 操作系统
+.DS_Store
+Thumbs.db
