@@ -57,4 +57,23 @@ class KnowledgeBaseRulesTest {
     void enableWhenStatusNullShouldThrow() {
         assertThrows(KnowledgeException.class, () -> KnowledgeBaseRules.checkCanEnable(kb(null)));
     }
+
+    @Test
+    void submitWhenActiveShouldPass() {
+        assertDoesNotThrow(() -> KnowledgeBaseRules.checkCanSubmit(kb(KnowledgeBaseStatus.ACTIVE.getCode())));
+    }
+
+    @Test
+    void submitWhenDisabledShouldThrow() {
+        KnowledgeException e = assertThrows(KnowledgeException.class,
+                () -> KnowledgeBaseRules.checkCanSubmit(kb(KnowledgeBaseStatus.DISABLED.getCode())));
+        assertEquals(ErrorCode.KB_NOT_ACTIVE, e.getErrorCode());
+    }
+
+    @Test
+    void submitWhenStatusNullShouldThrow() {
+        KnowledgeException e = assertThrows(KnowledgeException.class,
+                () -> KnowledgeBaseRules.checkCanSubmit(kb(null)));
+        assertEquals(ErrorCode.KB_NOT_ACTIVE, e.getErrorCode());
+    }
 }

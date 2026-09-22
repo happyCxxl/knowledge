@@ -1,0 +1,38 @@
+package com.knowledge.common.domain.entity;
+
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.knowledge.infra.domain.base.BaseInfo;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+
+import java.time.LocalDateTime;
+
+/**
+ * 文件结果（kb_file_result）：一次提交 = 一行结果，是各环节任务的挂靠锚点。
+ * 同一文件重复提交复用 kb_source_file、但新建本行（历史运行产物随之留存）。
+ *
+ * @author cxxl
+ */
+@Data
+@EqualsAndHashCode(callSuper = true)
+@TableName("kb_file_result")
+public class KbFileResult extends BaseInfo {
+
+    /** 主键 */
+    @TableId(type = IdType.ASSIGN_ID)
+    private Long id;
+
+    /** 所属知识库（强制归属） */
+    private Long knowledgeBaseId;
+
+    /** 原始文件引用（kb_source_file.id） */
+    private Long sourceFileId;
+
+    /** 创建用户 ID */
+    private Long userId;
+
+    /** 逻辑删除时间 */
+    private LocalDateTime deletedAt;
+}

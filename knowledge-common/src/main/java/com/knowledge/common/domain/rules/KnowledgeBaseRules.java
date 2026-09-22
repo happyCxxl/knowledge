@@ -52,4 +52,16 @@ public final class KnowledgeBaseRules {
             throw new KnowledgeException(ErrorCode.KB_STATUS_ILLEGAL, "默认知识库不可停用或删除");
         }
     }
+
+    /**
+     * 提交校验：仅启用状态的知识库可接收文档提交。
+     *
+     * @param kb 知识库实体
+     * @throws KnowledgeException 非启用状态（KB_NOT_ACTIVE 40421）
+     */
+    public static void checkCanSubmit(KnowledgeBase kb) {
+        if (ObjectUtil.isNull(kb.getStatus()) || !ObjectUtil.equal(kb.getStatus(), KnowledgeBaseStatus.ACTIVE.getCode())) {
+            throw new KnowledgeException(ErrorCode.KB_NOT_ACTIVE);
+        }
+    }
 }

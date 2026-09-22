@@ -25,6 +25,7 @@
     <mybatis-plus.version>3.5.5</mybatis-plus.version>
     <druid.version>1.2.23</druid.version>
     <milvus.version>2.5.5</milvus.version>
+    <minio.version>8.5.12</minio.version>
   </properties>
 
   <dependencyManagement>
@@ -59,6 +60,18 @@
         <groupId>com.knowledge</groupId>
         <artifactId>knowledge-worker</artifactId>
         <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.knowledge</groupId>
+        <artifactId>knowledge-file-center</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+
+      <!-- MinIO Java SDK（knowledge-file-center 对象存储实现，版本钉版） -->
+      <dependency>
+        <groupId>io.minio</groupId>
+        <artifactId>minio</artifactId>
+        <version>${minio.version}</version>
       </dependency>
 
       <!-- Spring Cloud / Spring Cloud Alibaba（Nacos 相关 starter 的版本来源） -->
@@ -150,7 +163,7 @@
       </dependency>
 
       <!-- 统一钉版：PDFBox 3.0.4 为 Tika 3.1.0 实测传递版本（设计 9.5.3 示例 3.0.5 为占位），
-           B02 直接调用 PDFBox API（worker 提升为直接依赖），与 Tika 传递版对齐避免二次冲突 -->
+           文档解析环节直接调用 PDFBox API（worker 提升为直接依赖），与 Tika 传递版对齐避免二次冲突 -->
       <dependency>
         <groupId>org.apache.pdfbox</groupId>
         <artifactId>pdfbox</artifactId>
@@ -171,11 +184,12 @@
 
   <modules>
     <module>knowledge-infra</module>
+    <module>knowledge-common</module>
+    <module>knowledge-file-center</module>
     <module>knowledge-auth</module>
     <module>knowledge-api</module>
-    <module>knowledge-biz</module>
-    <module>knowledge-common</module>
     <module>knowledge-worker</module>
+    <module>knowledge-biz</module>
   </modules>
 
   <profiles>

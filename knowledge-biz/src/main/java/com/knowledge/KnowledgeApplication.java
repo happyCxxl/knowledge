@@ -6,7 +6,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 
 @SpringBootApplication
-@MapperScan({"com.knowledge.biz.mapper", "com.knowledge.auth.mapper"})
+@MapperScan({"com.knowledge.biz.mapper", "com.knowledge.auth.mapper", "com.knowledge.filecenter.mapper"})
 public class KnowledgeApplication {
 
     public static void main(String[] args) {

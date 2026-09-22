@@ -37,9 +37,20 @@ knowledge:
     jwt:
       secret: knowledge-jwt-secret-change-me-in-production
       ttl-days: 7
+  file:
+    max-size: 104857600
+    enabled-formats: PDF,DOC,DOCX,XLS,XLSX
+    temp-file-threshold: 10485760
 
-# B09 检索能力分层解锁：预留能力清单（RetrievalCapability 枚举名，逗号分隔；一期全关，
-# 解锁 = 加枚举名，规则结构/前端/引擎零迁移）
+# 文件服务：MinIO 连接与桶
+file-center:
+  endpoint: http://localhost:9000
+  access-key: minioadmin
+  secret-key: minioadmin
+  file-bucket: files
+  artifact-bucket: artifacts
+
+# 检索能力分层解锁：预留能力清单（RetrievalCapability 枚举名，逗号分隔；解锁 = 加枚举名）
 retrieval:
   capabilities:
     enabled: ""
