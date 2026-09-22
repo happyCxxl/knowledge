@@ -67,7 +67,8 @@ class ParseTaskRunnerTest {
     @BeforeEach
     void setUp() {
         runner = new ParseTaskRunner(pipelineTaskDbService, fileResultDbService, sourceFileDbService,
-                pipelineProductDbService, fileStorage, parsePipeline,
+                new ProductPersistence(pipelineProductDbService, pipelineTaskDbService, fileStorage),
+                fileStorage, parsePipeline,
                 new ParseProperties(), new StepLogPersistence(stepLogDbService));
     }
 

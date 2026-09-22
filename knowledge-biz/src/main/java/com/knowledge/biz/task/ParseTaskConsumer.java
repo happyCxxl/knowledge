@@ -22,11 +22,12 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.time.Duration;
 
 /**
- * 解析消费循环：BRPOP 阻塞叫醒（空队零开销睡眠）→ 扫库领批 QUEUED 的 PARSE 任务 →
- * 提交线程池执行（看门狗按环节超时，超时回写 FAILED(EXECUTOR_TIMEOUT)）。
- * 多实例防重靠"条件更新领任务"（受影响行数=1 才执行，见 ParseTaskRunner）。
+ * 解析消费循环：BRPOP 阻塞叫醒（空队零开销睡眠）→ 扫库领批 QUEUED 的 PARSE/STRUCTURE 任务 →
+ * 按 stage 分发到对应 Runner，线程池执行（看门狗按环节超时，超时回写 FAILED(EXECUTOR_TIMEOUT)）。
+ * 多实例防重靠"条件更新领任务"（受影响行数=1 才执行，见各 Runner）。
  * 其他环节任务的领批与分发随各自环节 Runner 落地后接入。
  *
  * @author cxxl
@@ -40,6 +41,7 @@ public class ParseTaskConsumer {
     private final KbPipelineTaskDbService pipelineTaskDbService;
     private final TaskQueueProperties properties;
     private final ParseTaskRunner runner;
+    private final StructureTaskRunner structureRunner;
 
     private volatile boolean running = false;
     private ThreadPoolExecutor watchdogPool;
@@ -78,8 +80,9 @@ public class ParseTaskConsumer {
                     continue;
                 }
                 // 消息内容仅参考（DB 是唯一账本）：被叫醒才扫库领批
-                List<KbPipelineTask> batch = pipelineTaskDbService
-                        .listQueuedByStage(PipelineStage.PARSE.name(), properties.getClaimBatchSize());
+                List<KbPipelineTask> batch = pipelineTaskDbService.listQueuedByStages(
+                        List.of(PipelineStage.PARSE.name(), PipelineStage.STRUCTURE.name()),
+                        properties.getClaimBatchSize());
                 for (KbPipelineTask task : batch) {
                     dispatch(task);
                 }
@@ -95,6 +98,9 @@ public class ParseTaskConsumer {
             if (PipelineStage.PARSE.name().equals(task.getStage())) {
                 watchdogPool.execute(() -> runWithTimeout(task.getId(),
                         properties.timeoutOf(PipelineStage.PARSE.name()), () -> runner.run(task.getId())));
+            } else if (PipelineStage.STRUCTURE.name().equals(task.getStage())) {
+                watchdogPool.execute(() -> runWithTimeout(task.getId(),
+                        properties.timeoutOf(PipelineStage.STRUCTURE.name()), () -> structureRunner.run(task.getId())));
             } else {
                 // 未知环节：跳过并告警（后续环节加 Runner 即接入，主循环零改动）
                 log.warn("未知环节任务跳过, taskId={}, stage={}", task.getId(), task.getStage());
@@ -105,7 +111,7 @@ public class ParseTaskConsumer {
     }
 
     /** 看门狗：Future 限时等待；超时协作中断并回写 FAILED(EXECUTOR_TIMEOUT) */
-    private void runWithTimeout(Long taskId, java.time.Duration timeout, Runnable action) {
+    private void runWithTimeout(Long taskId, Duration timeout, Runnable action) {
         Future<?> future = null;
         try {
             future = runnerPool.submit(action);

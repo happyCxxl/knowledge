@@ -69,6 +69,15 @@ public interface KbPipelineTaskDbService extends InfraDbService<KbPipelineTask> 
     List<KbPipelineTask> listQueuedByStage(String stage, int limit);
 
     /**
+     * 扫库领批（多环节）：QUEUED + 环节在给定集合内，id 升序，限量。
+     *
+     * @param stages 环节集合（PipelineStage 枚举名）
+     * @param limit  本次领取上限
+     * @return 待执行任务列表
+     */
+    List<KbPipelineTask> listQueuedByStages(List<String> stages, int limit);
+
+    /**
      * 条件更新领任务：QUEUED → RUNNING + 开始时间（防多实例重复领取）。
      *
      * @param id 任务 ID

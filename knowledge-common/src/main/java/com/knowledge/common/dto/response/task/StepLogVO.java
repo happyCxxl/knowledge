@@ -1,5 +1,6 @@
 package com.knowledge.common.dto.response.task;
 
+import com.knowledge.common.domain.entity.KbPipelineStepLog;
 import com.knowledge.common.domain.task.StepLogFields;
 import lombok.Data;
 
@@ -45,4 +46,11 @@ public class StepLogVO implements StepLogFields {
 
     /** 错误信息 */
     private String error;
+
+    /** 实体 → VO（公共字段拷贝）。 */
+    public static StepLogVO of(KbPipelineStepLog step) {
+        StepLogVO vo = new StepLogVO();
+        vo.copyFrom(step);
+        return vo;
+    }
 }

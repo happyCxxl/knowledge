@@ -82,6 +82,19 @@ public class KbPipelineTaskDbServiceImpl extends InfraDbServiceImpl<KbPipelineTa
     }
 
     @Override
+    public List<KbPipelineTask> listQueuedByStages(List<String> stages, int limit) {
+        if (stages == null || stages.isEmpty()) {
+            return List.of();
+        }
+        LambdaQueryWrapper<KbPipelineTask> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.in(KbPipelineTask::getStage, stages)
+                .eq(KbPipelineTask::getStatus, PipelineTaskStatus.QUEUED.name())
+                .orderByAsc(KbPipelineTask::getId)
+                .last("LIMIT " + limit);
+        return list(queryWrapper);
+    }
+
+    @Override
     public int claim(Long id) {
         LambdaUpdateWrapper<KbPipelineTask> updateWrapper = new LambdaUpdateWrapper<>();
         updateWrapper.eq(KbPipelineTask::getId, id)

@@ -3,7 +3,6 @@ package com.knowledge.biz.task;
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.knowledge.biz.service.db.KbFileResultDbService;
-import com.knowledge.biz.service.db.KbPipelineProductDbService;
 import com.knowledge.biz.service.db.KbPipelineTaskDbService;
 import com.knowledge.biz.service.db.KbSourceFileDbService;
 import com.knowledge.common.domain.entity.KbFileResult;
@@ -16,7 +15,6 @@ import com.knowledge.common.domain.parse.ParseResult;
 import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.enums.task.PipelineTaskErrorCode;
 import com.knowledge.common.enums.task.PipelineTaskStatus;
-import com.knowledge.common.enums.task.RowStatus;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
 import com.knowledge.common.utils.JsonUtil;
@@ -29,7 +27,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
 /**
@@ -47,7 +44,7 @@ public class ParseTaskRunner {
     private final KbPipelineTaskDbService pipelineTaskDbService;
     private final KbFileResultDbService fileResultDbService;
     private final KbSourceFileDbService sourceFileDbService;
-    private final KbPipelineProductDbService pipelineProductDbService;
+    private final ProductPersistence productPersistence;
     private final FileStorage fileStorage;
     private final ParsePipeline parsePipeline;
     private final ParseProperties parseProperties;
@@ -116,27 +113,14 @@ public class ParseTaskRunner {
         }
     }
 
-    /** 写产物存储 + 阶段产物引用 + 子步骤记录（成功/PARTIAL_SUCCESS 路径）；返回 PARSE 产物行 */
-    private KbPipelineProduct persistProduct(KbPipelineTask task, KbFileResult fileResult, ParseOutcome outcome) {
+    /** 写产物存储 + 阶段产物引用 + 子步骤记录（成功/PARTIAL_SUCCESS 路径） */
+    private void persistProduct(KbPipelineTask task, KbFileResult fileResult, ParseOutcome outcome) {
         ParseResult parseResult = Objects.requireNonNull(outcome.getParseResult(), "解析结果为空");
-        String json = JsonUtil.toJsonStr(parseResult);
-        byte[] content = json.getBytes(StandardCharsets.UTF_8);
-        String artifactId = fileStorage.putObject(content);
-
-        KbPipelineProduct product = new KbPipelineProduct();
-        product.setFileResultId(fileResult.getId());
-        product.setStage(PipelineStage.PARSE.name());
-        product.setCapabilitySnapshot(JsonUtil.toJsonStr(parseResult.getCapabilitySnapshot()));
-        product.setArtifactId(artifactId);
-        product.setContentHash(artifactId);
-        product.setStatus(RowStatus.ACTIVE.name());
-        pipelineProductDbService.save(product);
-        pipelineTaskDbService.updateProductId(task.getId(), product.getId());
-
+        KbPipelineProduct product = productPersistence.persist(task, PipelineStage.PARSE, null,
+                JsonUtil.toJsonStr(parseResult.getCapabilitySnapshot()), parseResult);
         stepLogPersistence.save(task.getId(), outcome.getStepLogs());
         log.info("===> ParseTaskRunner 解析完成, taskId={}, fileResultId={}, status={}, artifactId={}",
-                task.getId(), fileResult.getId(), outcome.getSuggestedStatus(), artifactId);
-        return product;
+                task.getId(), fileResult.getId(), outcome.getSuggestedStatus(), product.getArtifactId());
     }
 
     /** 失败终态回写：统一留痕（带 taskId + 错误码，便于按任务关联排查）。 */

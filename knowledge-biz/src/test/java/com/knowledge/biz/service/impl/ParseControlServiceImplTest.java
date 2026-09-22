@@ -4,7 +4,9 @@ import com.knowledge.biz.service.db.KbFileResultDbService;
 import com.knowledge.biz.service.db.KbPipelineProductDbService;
 import com.knowledge.biz.service.db.KbPipelineStepLogDbService;
 import com.knowledge.biz.service.db.KbPipelineTaskDbService;
+import com.knowledge.biz.service.support.TaskDetailSupport;
 import com.knowledge.biz.task.TaskQueueSupport;
+import com.knowledge.biz.task.TaskTriggerSupport;
 import com.knowledge.common.domain.entity.KbFileResult;
 import com.knowledge.common.domain.entity.KbPipelineProduct;
 import com.knowledge.common.domain.entity.KbPipelineStepLog;
@@ -60,8 +62,10 @@ class ParseControlServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        service = new ParseControlServiceImpl(fileResultDbService, pipelineTaskDbService,
-                pipelineProductDbService, stepLogDbService, taskQueue, fileStorage);
+        // 触发/详情助手为纯委托类，用真实实例（mock 会让返回失真）
+        service = new ParseControlServiceImpl(fileResultDbService, pipelineProductDbService,
+                stepLogDbService, new TaskTriggerSupport(pipelineTaskDbService, taskQueue),
+                new TaskDetailSupport(pipelineTaskDbService), fileStorage);
     }
 
     private KbFileResult fileResult() {

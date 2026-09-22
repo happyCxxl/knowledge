@@ -20,5 +20,11 @@ public enum PipelineTaskErrorCode {
     RATIO_BELOW_THRESHOLD,
 
     /** 解析执行异常兜底 */
-    PARSE_FAILED
+    PARSE_FAILED,
+
+    /** 组装空树（上游产物缺失/无任何可组装元素） */
+    STRUCTURE_EMPTY,
+
+    /** 组装执行异常兜底 */
+    STRUCTURE_FAILED
 }
