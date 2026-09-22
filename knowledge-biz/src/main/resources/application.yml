@@ -33,6 +33,10 @@ knowledge:
     show-sql: false
   operation-log:
     enabled: false
+  auth:
+    jwt:
+      secret: knowledge-jwt-secret-change-me-in-production
+      ttl-days: 7
 
 # B09 检索能力分层解锁：预留能力清单（RetrievalCapability 枚举名，逗号分隔；一期全关，
 # 解锁 = 加枚举名，规则结构/前端/引擎零迁移）

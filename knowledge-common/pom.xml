@@ -29,6 +29,12 @@
             <artifactId>knowledge-infra</artifactId>
         </dependency>
 
+        <!-- 安全上下文（SecurityUtils 读取当前用户） -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-core</artifactId>
+        </dependency>
+
         <!-- MyBatis-Plus 注解（实体映射，无运行时重依赖）；版本与根 pom mybatis-plus.version 对齐 -->
         <dependency>
             <groupId>com.baomidou</groupId>

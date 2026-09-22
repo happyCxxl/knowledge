@@ -107,6 +107,11 @@
             <artifactId>knowledge-worker</artifactId>
         </dependency>
 
+        <dependency>
+            <groupId>com.knowledge</groupId>
+            <artifactId>knowledge-auth</artifactId>
+        </dependency>
+
         <!-- 显式声明 easyexcel（平台 upms-api → common-excel 传递）并排除其 poi-ooxml-schemas 4.1.2：
              与 worker 侧 Tika 3.1.0 传递的 POI 5.4.0（poi-ooxml-lite）产生同名 schema 类冲突；
              本服务不使用 excel 能力，easyexcel 仅保留依赖完整性 -->

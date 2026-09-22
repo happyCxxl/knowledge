@@ -36,6 +36,11 @@
       </dependency>
       <dependency>
         <groupId>com.knowledge</groupId>
+        <artifactId>knowledge-auth</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.knowledge</groupId>
         <artifactId>knowledge-common</artifactId>
         <version>${project.version}</version>
       </dependency>
@@ -166,6 +171,7 @@
 
   <modules>
     <module>knowledge-infra</module>
+    <module>knowledge-auth</module>
     <module>knowledge-api</module>
     <module>knowledge-biz</module>
     <module>knowledge-common</module>
