@@ -1,0 +1,55 @@
+package com.knowledge.common.domain.rules;
+
+import cn.hutool.core.util.ObjectUtil;
+import com.knowledge.common.domain.entity.KnowledgeBase;
+import com.knowledge.common.enums.knowledge.KnowledgeBaseStatus;
+import com.knowledge.common.error.ErrorCode;
+import com.knowledge.common.exception.KnowledgeException;
+
+/**
+ * 知识库状态规则：status 两态（启用/停用）迁移校验 + 默认库保护。
+ *
+ * @author cxxl
+ */
+public final class KnowledgeBaseRules {
+
+    private KnowledgeBaseRules() {
+    }
+
+    /**
+     * 停用校验：仅启用状态（ACTIVE=1）可停用。
+     *
+     * @param kb 知识库实体
+     * @throws KnowledgeException 非启用状态（KB_STATUS_ILLEGAL 40402）
+     */
+    public static void checkCanDisable(KnowledgeBase kb) {
+        if (ObjectUtil.isNull(kb.getStatus()) || !ObjectUtil.equal(kb.getStatus(), KnowledgeBaseStatus.ACTIVE.getCode())) {
+            throw new KnowledgeException(ErrorCode.KB_STATUS_ILLEGAL, "仅启用状态的知识库可以停用");
+        }
+    }
+
+    /**
+     * 启用校验：仅停用状态（DISABLED=0）可启用。
+     *
+     * @param kb 知识库实体
+     * @throws KnowledgeException 非停用状态（KB_STATUS_ILLEGAL 40402）
+     */
+    public static void checkCanEnable(KnowledgeBase kb) {
+        if (ObjectUtil.isNull(kb.getStatus()) || !ObjectUtil.equal(kb.getStatus(), KnowledgeBaseStatus.DISABLED.getCode())) {
+            throw new KnowledgeException(ErrorCode.KB_STATUS_ILLEGAL, "仅停用状态的知识库可以启用");
+        }
+    }
+
+    /**
+     * 默认知识库保护校验：默认库（default_flag=1）不可停用/删除。
+     * 启用不拦截，允许把异常置停的默认库修回启用态。
+     *
+     * @param kb 知识库实体
+     * @throws KnowledgeException 默认库（KB_STATUS_ILLEGAL 40402）
+     */
+    public static void checkNotDefault(KnowledgeBase kb) {
+        if (ObjectUtil.isNotNull(kb) && Integer.valueOf(1).equals(kb.getDefaultFlag())) {
+            throw new KnowledgeException(ErrorCode.KB_STATUS_ILLEGAL, "默认知识库不可停用或删除");
+        }
+    }
+}
