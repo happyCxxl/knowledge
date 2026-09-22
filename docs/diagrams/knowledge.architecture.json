@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "knowledge 知识库系统架构",
+    "quality_profile": "showcase",
+    "views": [
+      { "id": "doc-pipeline", "label": "文件处理主链路", "focus": ["frontend", "biz", "redis", "task-exec", "pipeline", "milvus"], "note": "文档从提交、入队、分发到向量化的主路径。" },
+      { "id": "retrieval", "label": "检索与审计", "focus": ["biz", "mysql", "milvus"], "note": "同步检索的向量召回与知识库/审计落库。" }
+    ]
+  },
+  "components": [
+    { "id": "frontend", "type": "frontend", "label": "前端管理后台", "sublabel": "REST 接入", "pos": [40, 280], "size": [130, 60] },
+    { "id": "biz", "type": "backend", "label": "知识库控制面", "sublabel": "biz · 编排/管理/检索/评测", "pos": [250, 280], "size": [150, 60] },
+    { "id": "redis", "type": "database", "label": "Redis", "sublabel": "List + BRPOP 叫号器", "pos": [490, 280], "size": [120, 60] },
+    { "id": "task-exec", "type": "backend", "label": "任务执行器", "sublabel": "biz.task · 消费循环", "pos": [700, 280], "size": [150, 60] },
+    { "id": "pipeline", "type": "backend", "label": "文件处理链", "sublabel": "worker · 文档处理链", "pos": [940, 280], "size": [150, 60] },
+    { "id": "llmgate", "type": "external", "label": "模型网关", "sublabel": "llm-pool-gateway", "pos": [940, 120], "size": [130, 60] },
+    { "id": "mysql", "type": "database", "label": "MySQL", "sublabel": "kb_* 表 · 任务账本", "pos": [490, 460], "size": [130, 60] },
+    { "id": "milvus", "type": "database", "label": "Milvus", "sublabel": "向量索引", "pos": [940, 460], "size": [120, 60] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "knowledge 后端单体（biz + worker）", "wraps": ["biz", "task-exec", "pipeline"] }
+  ],
+  "connections": [
+    { "id": "fe-biz", "from": "frontend", "to": "biz", "label": "REST 调用", "variant": "emphasis" },
+    { "id": "biz-redis", "from": "biz", "to": "redis", "label": "LPUSH 入队", "variant": "emphasis" },
+    { "id": "redis-exec", "from": "redis", "to": "task-exec", "label": "BRPOP 唤醒", "variant": "emphasis" },
+    { "id": "exec-pipeline", "from": "task-exec", "to": "pipeline", "label": "按 stage 分发", "variant": "emphasis" },
+    { "id": "pipeline-milvus", "from": "pipeline", "to": "milvus", "label": "写入向量索引", "variant": "emphasis", "fromSide": "bottom", "toSide": "top" },
+    { "id": "pipeline-llm", "from": "pipeline", "to": "llmgate", "label": "Embedding / LLM", "fromSide": "top", "toSide": "bottom" },
+    { "id": "exec-mysql", "from": "task-exec", "to": "mysql", "label": "扫库领批 / 状态回写", "fromSide": "bottom", "toSide": "top" },
+    { "id": "biz-mysql", "from": "biz", "to": "mysql", "label": "CRUD / 审计", "fromSide": "bottom", "toSide": "top" },
+    { "id": "biz-milvus", "from": "biz", "to": "milvus", "label": "向量召回", "fromSide": "top", "toSide": "right", "via": [[325, 80], [1140, 80], [1140, 490]] }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "四模块分层", "items": ["api 对外契约（一期空壳）", "biz 控制面：编排 / 管理 / 检索 / 评测", "worker 执行面：解析 / 组装 / 预处理 / 切片 / 向量化 / 索引", "common 领域模型：实体 / 值对象 / 枚举 / DTO"] },
+    { "dot": "emerald", "title": "任务衔接机制", "items": ["DB 任务表是唯一状态账本", "Redis List + BRPOP 只当叫号器", "启动补偿 + 孤儿恢复 + 超时重试"] },
+    { "dot": "violet", "title": "检索与关键机制", "items": ["检索：biz 同步经 VectorIndexPort 向量召回 + RRF 融合", "worker 经 FileManagerPort 访问 file-manager 文件服务", "Port/Adapter 六边形 + 策略快照版本化 + 内容哈希寻址"] }
+  ]
+}

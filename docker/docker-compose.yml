@@ -1,0 +1,104 @@
+# ============================================================================
+# 本地开发基础设施编排：MySQL 8 + Redis 7 + Milvus standalone 2.5.5
+# 用法（Docker Desktop 启动后，在本目录执行）：
+#   docker compose up -d          # 后台启动全部容器（首次会自动拉镜像）
+#   docker compose ps             # 查看状态
+#   docker compose down           # 停止（数据保留在 volumes/，不删除）
+#   docker compose down -v        # 停止并删除数据卷（重置环境）
+# 注意：
+#   - MySQL 首次初始化会按文件名序执行 sql 目录下的全部迁移脚本（挂载到 /docker-entrypoint-initdb.d）
+#   - MySQL 密码 root123 与 application.yml 保持一致
+#   - Milvus SDK 版本 2.5.5 与镜像 v2.5.5 对齐（worker 依赖钉版，见根 pom）
+# ============================================================================
+name: knowledge
+
+services:
+
+  mysql:
+    container_name: knowledge-mysql
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+      TZ: Asia/Shanghai
+    ports:
+      - "3306:3306"
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_general_ci
+    volumes:
+      - ./volumes/mysql:/var/lib/mysql
+      - ../knowledge-biz/src/main/resources/sql:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-proot123"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  redis:
+    container_name: knowledge-redis
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  etcd:
+    container_name: milvus-etcd
+    image: quay.io/coreos/etcd:v3.5.16
+    environment:
+      - ETCD_AUTO_COMPACTION_MODE=revision
+      - ETCD_AUTO_COMPACTION_RETENTION=1000
+      - ETCD_QUOTA_BACKEND_BYTES=4294967296
+      - ETCD_SNAPSHOT_COUNT=50000
+    volumes:
+      - ./volumes/etcd:/etcd
+    command: etcd -advertise-client-urls=http://127.0.0.1:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  minio:
+    container_name: milvus-minio
+    # MinIO 官方已弃用 Docker Hub 的 minio/minio（旧标签被清理），改用 quay.io 源
+    image: quay.io/minio/minio:RELEASE.2024-07-10T18-41-49Z
+    environment:
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+    volumes:
+      - ./volumes/minio:/minio_data
+    command: minio server /minio_data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  milvus:
+    container_name: milvus-standalone
+    image: milvusdb/milvus:v2.5.5
+    command: ["milvus", "run", "standalone"]
+    security_opt:
+      - seccomp:unconfined
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000
+    volumes:
+      - ./volumes/milvus:/var/lib/milvus
+    ports:
+      - "19530:19530"
+      - "9091:9091"
+    depends_on:
+      etcd:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+      interval: 30s
+      timeout: 20s
+      retries: 5
