@@ -16,13 +16,19 @@
     <packaging>jar</packaging>
 
     <properties>
-        <java.version>17</java.version>
-        <maven.compiler.source>17</maven.compiler.source>
-        <maven.compiler.target>17</maven.compiler.target>
+        <java.version>21</java.version>
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
     <dependencies>
+        <!-- 数据与规范层（公共字段基类 / 通用数据访问基类 / MyBatis-Plus 统一配置） -->
+        <dependency>
+            <groupId>com.knowledge</groupId>
+            <artifactId>knowledge-infra</artifactId>
+        </dependency>
+
         <!-- MyBatis-Plus 注解（实体映射，无运行时重依赖）；版本与根 pom mybatis-plus.version 对齐 -->
         <dependency>
             <groupId>com.baomidou</groupId>
@@ -78,7 +84,7 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.11.0</version>
                 <configuration>
-                    <release>17</release>
+                    <release>21</release>
                 </configuration>
             </plugin>
         </plugins>
