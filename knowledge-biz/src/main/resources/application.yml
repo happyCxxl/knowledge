@@ -41,6 +41,13 @@ knowledge:
     max-size: 104857600
     enabled-formats: PDF,DOC,DOCX,XLS,XLSX
     temp-file-threshold: 10485760
+  task:
+    queue-key: knowledge:task:queue
+    wakeup-timeout: 5s
+    compensate-threshold: 5m
+    low-freq-sweep-enabled: false
+    low-freq-sweep-interval: 10m
+    sweep-lock-ttl: 30s
 
 # 文件服务：MinIO 连接与桶
 file-center:

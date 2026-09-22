@@ -84,6 +84,12 @@
             <artifactId>druid-spring-boot-3-starter</artifactId>
         </dependency>
 
+        <!-- Redis（任务唤醒队列与补偿锁） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+
         <!-- hutool 工具类（平台标准，版本与平台 BOM hutool.version 一致） -->
         <dependency>
             <groupId>cn.hutool</groupId>
