@@ -26,5 +26,11 @@ public enum PipelineTaskErrorCode {
     STRUCTURE_EMPTY,
 
     /** 组装执行异常兜底 */
-    STRUCTURE_FAILED
+    STRUCTURE_FAILED,
+
+    /** 预处理空输入（上游统一结构无任何可处理元素/上游产物缺失） */
+    PREPROCESS_EMPTY,
+
+    /** 预处理执行异常兜底 */
+    PREPROCESS_FAILED
 }

@@ -63,6 +63,9 @@ public enum ErrorCode {
     /** 文件结果不存在 */
     FILE_RESULT_NOT_FOUND(40432, "文件结果不存在"),
 
+    /** 策略版本不存在或未启用 */
+    STRATEGY_VERSION_NOT_FOUND(40433, "预处理策略版本不存在或未启用"),
+
     /** 解析已成功或部分成功，禁止重跑 */
     PARSE_ALREADY_SUCCEEDED(40437, "解析已成功或部分成功，无需重跑"),
 

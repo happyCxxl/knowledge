@@ -62,7 +62,7 @@ public class ParseControlServiceImpl implements ParseControlService {
         KbFileResult fileResult = fileResultDbService.getById(fileResultId);
         ThrowUtil.throwIf(ObjectUtil.isNull(fileResult), ErrorCode.FILE_RESULT_NOT_FOUND);
         // 手动逐环节口径：本接口 = "触发解析"（首次解析 / 失败后重跑同一个入口；成功后禁止重跑）
-        return triggerSupport.trigger(fileResultId, PipelineStage.PARSE, null, "解析", true);
+        return triggerSupport.trigger(fileResultId, PipelineStage.PARSE, null, null, "解析", true);
     }
 
     @Override

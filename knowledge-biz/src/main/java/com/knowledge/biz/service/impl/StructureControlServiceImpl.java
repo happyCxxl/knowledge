@@ -63,7 +63,7 @@ public class StructureControlServiceImpl implements StructureControlService {
         KbPipelineProduct parseProduct = requireParseProduct(fileResultId, upstreamProductId);
         ThrowUtil.throwIf(ObjectUtil.isNull(parseProduct), ErrorCode.FILE_RESULT_NOT_FOUND,
                 "解析产物不存在，请先触发解析");
-        return triggerSupport.trigger(fileResultId, PipelineStage.STRUCTURE, parseProduct.getId(), "组装", false);
+        return triggerSupport.trigger(fileResultId, PipelineStage.STRUCTURE, parseProduct.getId(), null, "组装", false);
     }
 
     @Override
