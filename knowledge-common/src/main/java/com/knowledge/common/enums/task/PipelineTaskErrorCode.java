@@ -8,5 +8,17 @@ package com.knowledge.common.enums.task;
 public enum PipelineTaskErrorCode {
 
     /** 执行超时（孤儿恢复判定） */
-    EXECUTOR_TIMEOUT
+    EXECUTOR_TIMEOUT,
+
+    /** 文件深层损坏（入口探测未发现，解析时暴露） */
+    PARSE_CORRUPTED,
+
+    /** 扫描件暂不支持（OCR 预留，一期不接） */
+    SCANNED_UNSUPPORTED,
+
+    /** 成功单元占比低于门槛（90%） */
+    RATIO_BELOW_THRESHOLD,
+
+    /** 解析执行异常兜底 */
+    PARSE_FAILED
 }

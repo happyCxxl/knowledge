@@ -24,6 +24,12 @@ public class TaskQueueProperties {
     /** 消费侧 BRPOP 阻塞时长 */
     private Duration wakeupTimeout = Duration.ofSeconds(5);
 
+    /** 任务执行线程池并发 */
+    private int concurrency = 2;
+
+    /** 每次叫醒扫库领批上限（超出留待下次叫醒） */
+    private int claimBatchSize = 10;
+
     /** 启动补偿：QUEUED 且创建时间早于此阈值才补投 */
     private Duration compensateThreshold = Duration.ofMinutes(5);
 

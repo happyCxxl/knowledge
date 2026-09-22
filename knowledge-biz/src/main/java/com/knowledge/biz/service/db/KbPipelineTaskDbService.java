@@ -58,4 +58,30 @@ public interface KbPipelineTaskDbService extends InfraDbService<KbPipelineTask> 
      * @return 受影响行数
      */
     int finish(Long id, String status, String errorCode, String errorMsg);
+
+    /**
+     * 扫库领批（单环节）：QUEUED + 指定环节，id 升序，限量。
+     *
+     * @param stage 环节（PipelineStage 枚举名）
+     * @param limit 本次领取上限
+     * @return 待执行任务列表
+     */
+    List<KbPipelineTask> listQueuedByStage(String stage, int limit);
+
+    /**
+     * 条件更新领任务：QUEUED → RUNNING + 开始时间（防多实例重复领取）。
+     *
+     * @param id 任务 ID
+     * @return 受影响行数；=1 才表示领取成功、可执行
+     */
+    int claim(Long id);
+
+    /**
+     * 成功运行回写产物引用。
+     *
+     * @param taskId    任务 ID
+     * @param productId 产物 ID（kb_pipeline_product.id）
+     * @return 受影响行数
+     */
+    int updateProductId(Long taskId, Long productId);
 }

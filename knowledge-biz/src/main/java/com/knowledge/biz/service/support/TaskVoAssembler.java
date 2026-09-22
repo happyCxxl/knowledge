@@ -20,13 +20,7 @@ public class TaskVoAssembler {
      */
     public StageStatusVO toStageStatusVO(KbPipelineTask task) {
         StageStatusVO vo = new StageStatusVO();
-        vo.setStage(task.getStage());
-        vo.setTaskId(task.getId());
-        vo.setStatus(task.getStatus());
-        vo.setErrorCode(task.getErrorCode());
-        vo.setErrorMsg(task.getErrorMsg());
-        vo.setStartedAt(task.getStartedAt());
-        vo.setFinishedAt(task.getFinishedAt());
+        vo.applyFrom(task);
         return vo;
     }
 }

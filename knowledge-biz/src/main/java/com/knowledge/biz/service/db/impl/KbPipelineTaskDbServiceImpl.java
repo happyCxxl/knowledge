@@ -70,4 +70,32 @@ public class KbPipelineTaskDbServiceImpl extends InfraDbServiceImpl<KbPipelineTa
                 .set(KbPipelineTask::getFinishedAt, LocalDateTime.now());
         return baseMapper.update(null, updateWrapper);
     }
+
+    @Override
+    public List<KbPipelineTask> listQueuedByStage(String stage, int limit) {
+        LambdaQueryWrapper<KbPipelineTask> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(KbPipelineTask::getStage, stage)
+                .eq(KbPipelineTask::getStatus, PipelineTaskStatus.QUEUED.name())
+                .orderByAsc(KbPipelineTask::getId)
+                .last("LIMIT " + limit);
+        return list(queryWrapper);
+    }
+
+    @Override
+    public int claim(Long id) {
+        LambdaUpdateWrapper<KbPipelineTask> updateWrapper = new LambdaUpdateWrapper<>();
+        updateWrapper.eq(KbPipelineTask::getId, id)
+                .eq(KbPipelineTask::getStatus, PipelineTaskStatus.QUEUED.name())
+                .set(KbPipelineTask::getStatus, PipelineTaskStatus.RUNNING.name())
+                .set(KbPipelineTask::getStartedAt, LocalDateTime.now());
+        return baseMapper.update(null, updateWrapper);
+    }
+
+    @Override
+    public int updateProductId(Long taskId, Long productId) {
+        LambdaUpdateWrapper<KbPipelineTask> updateWrapper = new LambdaUpdateWrapper<>();
+        updateWrapper.eq(KbPipelineTask::getId, taskId)
+                .set(KbPipelineTask::getProductId, productId);
+        return baseMapper.update(null, updateWrapper);
+    }
 }

@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
  * @author cxxl
  */
 @Data
-public class StageStatusVO {
+public class StageStatusVO implements TaskStatusView {
 
     /** 环节（PipelineStage 枚举名，如 PARSE） */
     private String stage;
