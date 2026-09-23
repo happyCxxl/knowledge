@@ -2,6 +2,7 @@ package com.knowledge.biz.service.impl;
 
 import com.knowledge.biz.service.ChunkControlService;
 import com.knowledge.biz.service.IndexComboService;
+import com.knowledge.biz.service.IndexSetService;
 import com.knowledge.biz.service.PreprocessControlService;
 import com.knowledge.biz.service.db.KbAuditLogDbService;
 import com.knowledge.biz.service.db.KbChunkSetDbService;
@@ -47,7 +48,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.beans.factory.ObjectProvider;
 
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -69,6 +70,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -125,13 +127,15 @@ class IndexSetServiceImplTest {
     private IndexSetServiceImpl service;
 
     @BeforeEach
+    @SuppressWarnings("unchecked")
     void setUp() {
+        ObjectProvider<IndexSetService> selfProvider = mock(ObjectProvider.class);
         service = new IndexSetServiceImpl(knowledgeBaseDbService, indexSetDbService, indexVersionDbService,
                 pipelineTaskDbService, fileResultDbService, chunkSetDbService, embeddingSetDbService,
                 strategyVersionDbService, kbAuditLogDbService, indexComboService, chunkControlService,
                 preprocessControlService, productDbService, lineageResolver, indexRowAssembler,
-                indexComboReconciler, milvusIndexPort, taskQueue, null);
-        ReflectionTestUtils.setField(service, "self", service);
+                indexComboReconciler, milvusIndexPort, taskQueue, selfProvider);
+        lenient().when(selfProvider.getObject()).thenReturn(service);
     }
 
     private ComboSnapshot comboAll() {

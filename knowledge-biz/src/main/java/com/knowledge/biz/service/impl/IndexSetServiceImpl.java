@@ -53,7 +53,7 @@ import com.knowledge.worker.indexing.search.VectorQuery;
 import com.knowledge.worker.preprocessing.strategy.PreprocessStrategy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.annotation.Lazy;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -100,9 +100,8 @@ public class IndexSetServiceImpl implements IndexSetService {
     private final IndexComboReconciler indexComboReconciler;
     private final MilvusIndexPort milvusIndexPort;
     private final TaskQueueSupport taskQueue;
-    /** 自身代理（发布经代理调用保证事务生效） */
-    @Lazy
-    private final IndexSetService self;
+    /** 自身引用提供者（发布经代理调用保证事务生效；ObjectProvider 惰性解析，解除 Bean 自引用循环） */
+    private final ObjectProvider<IndexSetService> self;
 
     @Override
     public void onFileProductsReady(Long fileResultId) {
@@ -263,7 +262,7 @@ public class IndexSetServiceImpl implements IndexSetService {
             return;
         }
         try {
-            self.publish(version.getId());
+            self.getObject().publish(version.getId());
         } catch (Exception e) {
             log.warn("===> IndexSetServiceImpl 自动发布失败，停留 READY 等管理员, versionId={}", version.getId(), e);
         }
