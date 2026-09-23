@@ -43,4 +43,15 @@ public class KbChunkSetDbServiceImpl extends InfraDbServiceImpl<KbChunkSetMapper
                 .orderByAsc(KbChunkSet::getId);
         return list(queryWrapper);
     }
+
+    @Override
+    public List<KbChunkSet> listByFileResultIds(List<Long> fileResultIds) {
+        if (fileResultIds == null || fileResultIds.isEmpty()) {
+            return List.of();
+        }
+        LambdaQueryWrapper<KbChunkSet> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.in(KbChunkSet::getFileResultId, fileResultIds)
+                .orderByAsc(KbChunkSet::getId);
+        return list(queryWrapper);
+    }
 }

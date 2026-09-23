@@ -46,4 +46,15 @@ public class KbPipelineStrategyVersionDbServiceImpl
                 .orderByDesc(KbPipelineStrategyVersion::getId);
         return list(queryWrapper);
     }
+
+    @Override
+    public KbPipelineStrategyVersion getByTypeAndNameAndVersion(String type, String name, String version) {
+        LambdaQueryWrapper<KbPipelineStrategyVersion> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(KbPipelineStrategyVersion::getType, type)
+                .eq(KbPipelineStrategyVersion::getName, name)
+                .eq(KbPipelineStrategyVersion::getVersion, version)
+                .orderByDesc(KbPipelineStrategyVersion::getId)
+                .last("LIMIT 1");
+        return getOne(queryWrapper, false);
+    }
 }

@@ -22,6 +22,9 @@ public interface KbChunkSetDbService extends InfraDbService<KbChunkSet> {
      */
     KbChunkSet getLatestByFileResultId(Long fileResultId);
 
+    /** 批量查多文件全部切片集合（id 升序；组合枚举数据源） */
+    List<KbChunkSet> listByFileResultIds(List<Long> fileResultIds);
+
     /**
      * 查单文件全部切片集合（id 升序；执行链血缘统计数据源）。
      */

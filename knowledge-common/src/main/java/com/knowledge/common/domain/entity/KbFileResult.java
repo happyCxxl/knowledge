@@ -27,6 +27,9 @@ public class KbFileResult extends BaseInfo {
     /** 所属知识库（强制归属） */
     private Long knowledgeBaseId;
 
+    /** 用户归属（检索强制过滤口径，一期统一 ADMIN） */
+    private String owner;
+
     /** 原始文件引用（kb_source_file.id） */
     private Long sourceFileId;
 

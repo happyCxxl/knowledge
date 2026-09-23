@@ -4,12 +4,17 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.knowledge.common.domain.entity.KbFileResult;
 import com.knowledge.infra.persistence.InfraDbService;
 
+import java.util.List;
+
 /**
  * 文件结果数据访问服务（kb_file_result）。
  *
  * @author cxxl
  */
 public interface KbFileResultDbService extends InfraDbService<KbFileResult> {
+
+    /** 取知识库下全部文件结果（id 升序；索引构建枚举数据源） */
+    List<KbFileResult> listByKb(Long knowledgeBaseId);
 
     /**
      * 按知识库分页查文件结果（id 倒序，新→旧）。

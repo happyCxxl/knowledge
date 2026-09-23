@@ -41,3 +41,10 @@ CREATE TABLE kb_index_version
     PRIMARY KEY (id),
     UNIQUE KEY idx_set_version (index_set_id, version_no)
 )  COMMENT ='索引版本行：组合快照 + 状态机 + 发布/退役留痕';
+
+-- ----------------------------------------------------------------------------
+-- 阶段 16 追加：kb_file_result.owner —— 用户归属（检索强制过滤口径，一期统一 ADMIN）
+-- ----------------------------------------------------------------------------
+ALTER TABLE kb_file_result
+    ADD COLUMN owner VARCHAR(64) NOT NULL DEFAULT 'ADMIN' COMMENT '用户归属（检索强制过滤口径，一期统一 ADMIN）' AFTER knowledge_base_id,
+    ADD KEY idx_owner (owner);

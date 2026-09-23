@@ -9,6 +9,8 @@ import com.knowledge.common.domain.entity.KbFileResult;
 import com.knowledge.infra.persistence.InfraDbServiceImpl;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+
 /**
  * 文件结果数据访问服务实现。
  *
@@ -24,5 +26,13 @@ public class KbFileResultDbServiceImpl extends InfraDbServiceImpl<KbFileResultMa
         queryWrapper.eq(KbFileResult::getKnowledgeBaseId, knowledgeBaseId)
                 .orderByDesc(KbFileResult::getId);
         return page(new Page<>(current, size), queryWrapper);
+    }
+
+    @Override
+    public List<KbFileResult> listByKb(Long knowledgeBaseId) {
+        LambdaQueryWrapper<KbFileResult> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(KbFileResult::getKnowledgeBaseId, knowledgeBaseId)
+                .orderByAsc(KbFileResult::getId);
+        return list(queryWrapper);
     }
 }

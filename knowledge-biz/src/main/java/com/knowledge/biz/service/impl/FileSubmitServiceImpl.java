@@ -69,6 +69,9 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class FileSubmitServiceImpl implements FileSubmitService {
 
+    /** 用户归属默认值（检索强制过滤口径，一期统一 ADMIN） */
+    private static final String DEFAULT_OWNER = "ADMIN";
+
     private final KnowledgeBaseDbService knowledgeBaseDbService;
     private final KbSourceFileDbService sourceFileDbService;
     private final KbFileResultDbService fileResultDbService;
@@ -134,6 +137,7 @@ public class FileSubmitServiceImpl implements FileSubmitService {
 
         KbFileResult fileResult = new KbFileResult();
         fileResult.setKnowledgeBaseId(kb.getId());
+        fileResult.setOwner(DEFAULT_OWNER);
         fileResult.setSourceFileId(sourceFile.getId());
         fileResult.setUserId(userId);
         fileResultDbService.save(fileResult);

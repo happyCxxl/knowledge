@@ -23,5 +23,14 @@ public enum AuditActionType {
     BIND,
 
     /** 逻辑删除 */
-    DELETE
+    DELETE,
+
+    /** 索引发布（step-13 B08） */
+    PUBLISH_INDEX,
+
+    /** 索引回退（step-13 B08） */
+    ROLLBACK_INDEX,
+
+    /** 索引候选回收（step-13 B08） */
+    RECYCLE_INDEX
 }

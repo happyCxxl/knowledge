@@ -50,5 +50,17 @@ public enum PipelineTaskErrorCode {
     EMBED_CONSISTENCY_FAILED,
 
     /** 向量化执行异常兜底 */
-    EMBED_FAILED
+    EMBED_FAILED,
+
+    /** 索引构建：组合产物不完整（缺口明细见 kb_index_version.build_error） */
+    INDEX_INCOMPLETE,
+
+    /** 索引构建：向量维度不一致（跨产物/与 collection 维度冲突） */
+    INDEX_DIMENSION_MISMATCH,
+
+    /** 索引构建：一致性校验失败（本版本 chunkId 与产物集合不一致，已清候选） */
+    INDEX_CONSISTENCY_FAILED,
+
+    /** 索引构建执行异常兜底（Milvus 写失败等） */
+    INDEX_BUILD_FAILED
 }

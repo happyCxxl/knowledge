@@ -1,5 +1,6 @@
 package com.knowledge.biz.task;
 
+import com.knowledge.biz.service.IndexSetService;
 import com.knowledge.biz.service.db.KbChunkSetDbService;
 import com.knowledge.biz.service.db.KbEmbeddingRecordDbService;
 import com.knowledge.biz.service.db.KbEmbeddingSetDbService;
@@ -13,6 +14,7 @@ import com.knowledge.common.domain.embed.EmbedOutcome;
 import com.knowledge.common.domain.embed.EmbeddingRecord;
 import com.knowledge.common.domain.embed.EmbeddingSet;
 import com.knowledge.common.domain.entity.KbChunkSet;
+import com.knowledge.common.domain.entity.KbEmbeddingRecord;
 import com.knowledge.common.domain.entity.KbEmbeddingSet;
 import com.knowledge.common.domain.entity.KbFileResult;
 import com.knowledge.common.domain.entity.KbPipelineProduct;
@@ -80,6 +82,8 @@ class EmbedTaskRunnerTest {
     private FileStorage fileStorage;
     @Mock
     private EmbedderPort embedder;
+    @Mock
+    private IndexSetService indexSetService;
 
     private EmbedTaskRunner runner;
 
@@ -88,7 +92,7 @@ class EmbedTaskRunnerTest {
         EmbedProperties embedProperties = new EmbedProperties();
         runner = new EmbedTaskRunner(pipelineTaskDbService, fileResultDbService,
                 pipelineProductDbService, chunkSetDbService, embeddingSetDbService,
-                embeddingRecordDbService, fileStorage, embedder,
+                embeddingRecordDbService, fileStorage, indexSetService, embedder,
                 new EmbedStrategyParser(embedProperties, new StaticModelCatalog()),
                 new ChunkStrategyParser(new ChunkProperties()),
                 embedProperties, new ChunkProperties(),
@@ -220,6 +224,7 @@ class EmbedTaskRunnerTest {
         verify(embeddingRecordDbService).saveBatch(any(), eq(500));
         verify(stepLogDbService).save(any());
         verify(pipelineTaskDbService).finish(70L, PipelineTaskStatus.SUCCESS.name(), null, null);
+        verify(indexSetService).onFileProductsReady(10L);
     }
 
     @Test
@@ -319,7 +324,8 @@ class EmbedTaskRunnerTest {
         runner.run(70L);
 
         verify(pipelineTaskDbService).finish(70L, PipelineTaskStatus.PARTIAL_SUCCESS.name(), null, null);
-        ArgumentCaptor<Collection> batchCaptor = ArgumentCaptor.forClass(Collection.class);
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Collection<KbEmbeddingRecord>> batchCaptor = ArgumentCaptor.forClass(Collection.class);
         verify(embeddingRecordDbService).saveBatch(batchCaptor.capture(), eq(500));
         assertEquals(2, batchCaptor.getValue().size());
     }

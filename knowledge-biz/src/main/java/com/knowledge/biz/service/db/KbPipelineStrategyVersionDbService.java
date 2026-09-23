@@ -26,4 +26,7 @@ public interface KbPipelineStrategyVersionDbService extends InfraDbService<KbPip
      * 取类型下启用中的版本（新→旧）。
      */
     List<KbPipelineStrategyVersion> listEnabledByType(String type);
+
+    /** 按类型+名称+版本取任意状态版本行（无 → null；索引组合回填数据源） */
+    KbPipelineStrategyVersion getByTypeAndNameAndVersion(String type, String name, String version);
 }

@@ -2,6 +2,7 @@ package com.knowledge.biz.task;
 
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
+import com.knowledge.biz.service.IndexSetService;
 import com.knowledge.biz.service.db.KbChunkSetDbService;
 import com.knowledge.biz.service.db.KbEmbeddingRecordDbService;
 import com.knowledge.biz.service.db.KbEmbeddingSetDbService;
@@ -62,6 +63,7 @@ public class EmbedTaskRunner {
     private final KbEmbeddingSetDbService embeddingSetDbService;
     private final KbEmbeddingRecordDbService embeddingRecordDbService;
     private final FileStorage fileStorage;
+    private final IndexSetService indexSetService;
     private final EmbedderPort embedder;
     private final EmbedStrategyParser strategyParser;
     private final ChunkStrategyParser chunkStrategyParser;
@@ -127,7 +129,10 @@ public class EmbedTaskRunner {
 
             EmbedOutcome outcome = embedder.embed(context);
             TaskRunnerSupport.complete(pipelineTaskDbService, stepLogPersistence, taskId, outcome,
-                    () -> persistProduct(task, fileResult, chunkProduct, strategy, outcome),
+                    () -> {
+                        persistProduct(task, fileResult, chunkProduct, strategy, outcome);
+                        notifyIndexSet(fileResult.getId());
+                    },
                     this::finishFailed);
         } catch (Exception e) {
             log.error("向量化任务执行异常, taskId={}", taskId, e);
@@ -186,19 +191,7 @@ public class EmbedTaskRunner {
         KbPipelineProduct product = productPersistence.persist(task, PipelineStage.EMBED,
                 chunkProduct.getId(), JsonUtil.toJsonStr(strategy), embeddingSet);
 
-        KbEmbeddingSet setRow = new KbEmbeddingSet();
-        setRow.setFileResultId(fileResult.getId());
-        setRow.setChunkSetRef(embeddingSet.getChunkSetRef());
-        setRow.setEmbeddingSetId(embeddingSet.getEmbeddingSetId());
-        setRow.setStrategyVersion(embeddingSet.getStrategyVersion());
-        setRow.setModel(embeddingSet.getModel());
-        setRow.setDimension(embeddingSet.getDimension());
-        setRow.setMetric(embeddingSet.getMetric());
-        setRow.setNormalized(embeddingSet.isNormalized());
-        setRow.setRecordCount(embeddingSet.getRecordCount());
-        setRow.setCachedCount(embeddingSet.getCachedCount());
-        setRow.setStatus(RowStatus.ACTIVE.name());
-        setRow.setArtifactId(product.getArtifactId());
+        KbEmbeddingSet setRow = buildSetRow(fileResult, embeddingSet, product.getArtifactId());
         embeddingSetDbService.save(setRow);
 
         List<KbEmbeddingRecord> recordRows = new ArrayList<>();
@@ -211,6 +204,24 @@ public class EmbedTaskRunner {
         log.info("===> EmbedTaskRunner 向量化完成, taskId={}, fileResultId={}, status={}, recordCount={}, cachedCount={}, artifactId={}",
                 task.getId(), fileResult.getId(), outcome.getSuggestedStatus(),
                 embeddingSet.getRecordCount(), embeddingSet.getCachedCount(), product.getArtifactId());
+    }
+
+    /** 向量集合账本行（文件 + 集合 + 产物引用；状态 ACTIVE） */
+    private KbEmbeddingSet buildSetRow(KbFileResult fileResult, EmbeddingSet embeddingSet, String artifactId) {
+        KbEmbeddingSet setRow = new KbEmbeddingSet();
+        setRow.setFileResultId(fileResult.getId());
+        setRow.setChunkSetRef(embeddingSet.getChunkSetRef());
+        setRow.setEmbeddingSetId(embeddingSet.getEmbeddingSetId());
+        setRow.setStrategyVersion(embeddingSet.getStrategyVersion());
+        setRow.setModel(embeddingSet.getModel());
+        setRow.setDimension(embeddingSet.getDimension());
+        setRow.setMetric(embeddingSet.getMetric());
+        setRow.setNormalized(embeddingSet.isNormalized());
+        setRow.setRecordCount(embeddingSet.getRecordCount());
+        setRow.setCachedCount(embeddingSet.getCachedCount());
+        setRow.setStatus(RowStatus.ACTIVE.name());
+        setRow.setArtifactId(artifactId);
+        return setRow;
     }
 
     private KbEmbeddingRecord toKbRecord(Long embeddingSetId, EmbeddingRecord record) {
@@ -234,6 +245,15 @@ public class EmbedTaskRunner {
                 taskId, errorCode, errorMsg);
         pipelineTaskDbService.finish(taskId, PipelineTaskStatus.FAILED.name(), errorCode,
                 StrUtil.isBlank(errorMsg) ? null : truncate(errorMsg));
+    }
+
+    /** 文件产物就绪 → 索引自动构建判定（失败不阻断向量化任务终态） */
+    private void notifyIndexSet(Long fileResultId) {
+        try {
+            indexSetService.onFileProductsReady(fileResultId);
+        } catch (Exception e) {
+            log.warn("索引自动构建回调异常, fileResultId={}", fileResultId, e);
+        }
     }
 
     private String truncate(String message) {
