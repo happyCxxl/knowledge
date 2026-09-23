@@ -3,6 +3,8 @@ package com.knowledge.biz.service.db;
 import com.knowledge.common.domain.entity.KbChunkSet;
 import com.knowledge.infra.persistence.InfraDbService;
 
+import java.util.List;
+
 /**
  * 切片产物集合数据访问服务。
  *
@@ -19,4 +21,9 @@ public interface KbChunkSetDbService extends InfraDbService<KbChunkSet> {
      * 取文件结果最新的切片集合（无 → null；向量化血缘回填数据源）。
      */
     KbChunkSet getLatestByFileResultId(Long fileResultId);
+
+    /**
+     * 查单文件全部切片集合（id 升序；执行链血缘统计数据源）。
+     */
+    List<KbChunkSet> listByFileResultId(Long fileResultId);
 }

@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.knowledge.common.dto.request.knowledge.KnowledgeBaseCreateDto;
 import com.knowledge.common.dto.request.knowledge.KnowledgeBaseUpdateDto;
 import com.knowledge.common.dto.request.knowledge.StrategyBindingUpdateDto;
+import com.knowledge.common.dto.request.knowledge.StrategyBindingsUpdateRequest;
 import com.knowledge.common.dto.response.knowledge.KnowledgeBaseVO;
 import com.knowledge.common.dto.response.knowledge.StrategyBindingVO;
 
@@ -64,4 +65,11 @@ public interface KnowledgeBaseService {
      */
     @SuppressWarnings("SameReturnValue")
     boolean bindStrategy(Long id, StrategyBindingUpdateDto dto);
+
+    /**
+     * 批量设置知识库策略集合（发布=知识库策略集合）：仅处理请求中出现的类型（幂等局部更新），
+     * 未提及类型不动；strategyVersionId 为 null = 解绑；逐类型审计 BIND。
+     */
+    @SuppressWarnings("SameReturnValue")
+    boolean bindStrategies(Long id, StrategyBindingsUpdateRequest request);
 }

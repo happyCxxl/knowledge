@@ -16,6 +16,7 @@ import com.knowledge.common.domain.rules.KnowledgeBaseRules;
 import com.knowledge.common.dto.request.knowledge.KnowledgeBaseCreateDto;
 import com.knowledge.common.dto.request.knowledge.KnowledgeBaseUpdateDto;
 import com.knowledge.common.dto.request.knowledge.StrategyBindingUpdateDto;
+import com.knowledge.common.dto.request.knowledge.StrategyBindingsUpdateRequest;
 import com.knowledge.common.dto.response.knowledge.KnowledgeBaseVO;
 import com.knowledge.common.dto.response.knowledge.StrategyBindingVO;
 import com.knowledge.common.enums.knowledge.AuditActionType;
@@ -34,8 +35,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -172,7 +175,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     @Transactional(rollbackFor = Exception.class)
     public boolean bindStrategy(Long id, StrategyBindingUpdateDto dto) {
         KnowledgeBase kb = knowledgeBaseDbService.getActiveById(id);
-        ThrowUtil.throwIf(!isBindingEnabled(kb),
+        ThrowUtil.throwIf(isBindingDisabled(kb),
                 ErrorCode.PARAM_INVALID, "该知识库已关闭策略绑定（评测模式），禁止绑定策略");
         String type = dto.getStrategyType();
         ThrowUtil.throwIf(!StrategyVersionService.BINDABLE_TYPES.contains(type),
@@ -215,6 +218,35 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         kbAuditLogDbService.saveAudit(AuditActionType.BIND, AUDIT_OBJECT_TYPE, id, type + "=" + before, type + "=" + after);
         log.info("===> KnowledgeBaseServiceImpl bindStrategy 绑定知识库策略, id={}, type={}, versionId={}",
                 id, type, dto.getStrategyVersionId());
+        return true;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean bindStrategies(Long id, StrategyBindingsUpdateRequest request) {
+        KnowledgeBase kb = knowledgeBaseDbService.getActiveById(id);
+        ThrowUtil.throwIf(isBindingDisabled(kb),
+                ErrorCode.PARAM_INVALID, "该知识库已关闭策略绑定（评测模式），禁止绑定策略");
+        List<StrategyBindingsUpdateRequest.StrategyBindItem> bindings = request.getBindings();
+        ThrowUtil.throwIf(bindings == null || bindings.isEmpty(),
+                ErrorCode.PARAM_INVALID, "绑定列表不能为空");
+        // 白名单 + 请求内类型不重复
+        Set<String> seen = new HashSet<>();
+        for (StrategyBindingsUpdateRequest.StrategyBindItem item : bindings) {
+            String type = item.getStrategyType();
+            ThrowUtil.throwIf(!StrategyVersionService.BINDABLE_TYPES.contains(type),
+                    ErrorCode.PARAM_INVALID, "未知策略类型: " + type);
+            ThrowUtil.throwIf(!seen.add(type), ErrorCode.PARAM_INVALID, "策略类型重复: " + type);
+        }
+        // 局部更新：逐类型复用单类型绑定逻辑（校验/upsert/审计）；外层事务覆盖，任一项失败整体回滚
+        for (StrategyBindingsUpdateRequest.StrategyBindItem item : bindings) {
+            StrategyBindingUpdateDto dto = new StrategyBindingUpdateDto();
+            dto.setStrategyType(item.getStrategyType());
+            dto.setStrategyVersionId(item.getStrategyVersionId());
+            bindStrategy(id, dto);
+        }
+        log.info("===> KnowledgeBaseServiceImpl bindStrategies 批量绑定知识库策略集合, id={}, count={}",
+                id, bindings.size());
         return true;
     }
 
@@ -296,9 +328,9 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         }
     }
 
-    /** 绑定开关是否开启（null 视为开启，兼容存量数据） */
-    private boolean isBindingEnabled(KnowledgeBase kb) {
-        return kb == null || !Integer.valueOf(0).equals(kb.getStrategyBindingEnabled());
+    /** 绑定开关是否关闭（null 视为开启，兼容存量数据） */
+    private boolean isBindingDisabled(KnowledgeBase kb) {
+        return kb != null && Integer.valueOf(0).equals(kb.getStrategyBindingEnabled());
     }
 
     private KnowledgeBaseVO toVO(KnowledgeBase kb) {

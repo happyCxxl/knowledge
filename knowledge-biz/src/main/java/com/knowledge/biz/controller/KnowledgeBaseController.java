@@ -6,6 +6,7 @@ import com.knowledge.common.core.util.R;
 import com.knowledge.common.dto.request.knowledge.KnowledgeBaseCreateDto;
 import com.knowledge.common.dto.request.knowledge.KnowledgeBaseUpdateDto;
 import com.knowledge.common.dto.request.knowledge.StrategyBindingUpdateDto;
+import com.knowledge.common.dto.request.knowledge.StrategyBindingsUpdateRequest;
 import com.knowledge.common.dto.response.knowledge.KnowledgeBaseVO;
 import com.knowledge.common.dto.response.knowledge.StrategyBindingVO;
 import io.swagger.v3.oas.annotations.Operation;
@@ -110,5 +111,14 @@ public class KnowledgeBaseController {
             @Valid @RequestBody StrategyBindingUpdateDto dto) {
         log.info("===> KnowledgeBaseController bindStrategy 绑定知识库策略, id={}, type={}", id, dto.getStrategyType());
         return R.ok(knowledgeBaseService.bindStrategy(id, dto), "绑定成功");
+    }
+
+    @PutMapping("/{id}/strategy-bindings")
+    @Operation(summary = "批量设置知识库策略集合", description = "一次调用设置整套（发布=知识库策略集合）；strategyVersionId 为 null 解绑")
+    public R<Boolean> bindStrategies(
+            @Parameter(description = "知识库ID", required = true) @PathVariable("id") Long id,
+            @Valid @RequestBody StrategyBindingsUpdateRequest request) {
+        log.info("===> KnowledgeBaseController bindStrategies 批量绑定知识库策略集合, id={}", id);
+        return R.ok(knowledgeBaseService.bindStrategies(id, request), "绑定成功");
     }
 }

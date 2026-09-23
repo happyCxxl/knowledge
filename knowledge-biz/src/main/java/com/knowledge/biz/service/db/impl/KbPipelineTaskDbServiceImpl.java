@@ -72,16 +72,6 @@ public class KbPipelineTaskDbServiceImpl extends InfraDbServiceImpl<KbPipelineTa
     }
 
     @Override
-    public List<KbPipelineTask> listQueuedByStage(String stage, int limit) {
-        LambdaQueryWrapper<KbPipelineTask> queryWrapper = new LambdaQueryWrapper<>();
-        queryWrapper.eq(KbPipelineTask::getStage, stage)
-                .eq(KbPipelineTask::getStatus, PipelineTaskStatus.QUEUED.name())
-                .orderByAsc(KbPipelineTask::getId)
-                .last("LIMIT " + limit);
-        return list(queryWrapper);
-    }
-
-    @Override
     public List<KbPipelineTask> listQueuedByStages(List<String> stages, int limit) {
         if (stages == null || stages.isEmpty()) {
             return List.of();
@@ -105,10 +95,18 @@ public class KbPipelineTaskDbServiceImpl extends InfraDbServiceImpl<KbPipelineTa
     }
 
     @Override
-    public int updateProductId(Long taskId, Long productId) {
+    public void updateProductId(Long taskId, Long productId) {
         LambdaUpdateWrapper<KbPipelineTask> updateWrapper = new LambdaUpdateWrapper<>();
         updateWrapper.eq(KbPipelineTask::getId, taskId)
                 .set(KbPipelineTask::getProductId, productId);
-        return baseMapper.update(null, updateWrapper);
+        baseMapper.update(null, updateWrapper);
+    }
+
+    @Override
+    public List<KbPipelineTask> listByFileResultId(Long fileResultId) {
+        LambdaQueryWrapper<KbPipelineTask> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(KbPipelineTask::getFileResultId, fileResultId)
+                .orderByAsc(KbPipelineTask::getId);
+        return list(queryWrapper);
     }
 }

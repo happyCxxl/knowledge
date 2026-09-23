@@ -5,6 +5,8 @@ import com.knowledge.biz.mapper.KbChunkSetMapper;
 import com.knowledge.biz.service.db.KbChunkSetDbService;
 import com.knowledge.common.domain.entity.KbChunkSet;
 import com.knowledge.infra.persistence.InfraDbServiceImpl;
+
+import java.util.List;
 import org.springframework.stereotype.Service;
 
 /**
@@ -32,5 +34,13 @@ public class KbChunkSetDbServiceImpl extends InfraDbServiceImpl<KbChunkSetMapper
                 .orderByDesc(KbChunkSet::getId)
                 .last("LIMIT 1");
         return getOne(queryWrapper, false);
+    }
+
+    @Override
+    public List<KbChunkSet> listByFileResultId(Long fileResultId) {
+        LambdaQueryWrapper<KbChunkSet> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(KbChunkSet::getFileResultId, fileResultId)
+                .orderByAsc(KbChunkSet::getId);
+        return list(queryWrapper);
     }
 }

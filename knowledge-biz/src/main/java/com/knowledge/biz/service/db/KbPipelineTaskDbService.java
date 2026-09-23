@@ -23,6 +23,11 @@ public interface KbPipelineTaskDbService extends InfraDbService<KbPipelineTask> 
     KbPipelineTask getByFileResultIdAndStage(Long fileResultId, String stage);
 
     /**
+     * 按文件结果查全部环节任务（id 升序；执行链血缘数据源）。
+     */
+    List<KbPipelineTask> listByFileResultId(Long fileResultId);
+
+    /**
      * 批量查指定环节任务（列表行环节状态用）：fileResultIds 内 + stage，id 倒序
      * （调用方按 fileResultId 去重取第一条即最新任务）。
      *
@@ -60,15 +65,6 @@ public interface KbPipelineTaskDbService extends InfraDbService<KbPipelineTask> 
     int finish(Long id, String status, String errorCode, String errorMsg);
 
     /**
-     * 扫库领批（单环节）：QUEUED + 指定环节，id 升序，限量。
-     *
-     * @param stage 环节（PipelineStage 枚举名）
-     * @param limit 本次领取上限
-     * @return 待执行任务列表
-     */
-    List<KbPipelineTask> listQueuedByStage(String stage, int limit);
-
-    /**
      * 扫库领批（多环节）：QUEUED + 环节在给定集合内，id 升序，限量。
      *
      * @param stages 环节集合（PipelineStage 枚举名）
@@ -90,7 +86,6 @@ public interface KbPipelineTaskDbService extends InfraDbService<KbPipelineTask> 
      *
      * @param taskId    任务 ID
      * @param productId 产物 ID（kb_pipeline_product.id）
-     * @return 受影响行数
      */
-    int updateProductId(Long taskId, Long productId);
+    void updateProductId(Long taskId, Long productId);
 }
