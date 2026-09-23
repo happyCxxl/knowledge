@@ -40,6 +40,32 @@ class ChunkStrategyParserTest {
     }
 
     @Test
+    void seedSnapshotWithAllRoutesShouldApplyEveryRoute() {
+        String seed = "{\"routes\":{"
+                + "\"body\":{\"algorithm\":\"fixed-window\",\"params\":{\"len\":\"500\",\"overlap\":\"100\"}},"
+                + "\"table\":{\"algorithm\":\"context-merged\",\"params\":{\"leadMaxLen\":\"200\",\"groupThreshold\":\"30\",\"groupSize\":\"3\"}},"
+                + "\"image\":{\"algorithm\":\"caption-placeholder\"},"
+                + "\"fallback\":{\"algorithm\":\"fixed-window\",\"params\":{\"len\":\"500\",\"overlap\":\"100\"}}"
+                + "},"
+                + "\"pipeline\":{\"titlePathMaxLevel\":\"3\",\"parentChild\":\"ON\",\"tableInBodyFlow\":\"OFF\","
+                + "\"minMergeLen\":\"200\",\"structureOverlap\":\"0\",\"titleInContent\":\"ON\"}"
+                + "}";
+
+        ChunkStrategy strategy = parser.parse(seed);
+
+        assertEquals(ChunkAlgorithm.BODY_FIXED_WINDOW, strategy.routeAlgorithm(ChunkRoute.BODY));
+        assertEquals(500, strategy.route(ChunkRoute.BODY).intParam("len", -1));
+        assertEquals(100, strategy.route(ChunkRoute.BODY).intParam("overlap", -1));
+        assertEquals(ChunkAlgorithm.TABLE_CONTEXT_MERGED, strategy.routeAlgorithm(ChunkRoute.TABLE));
+        assertEquals(200, strategy.route(ChunkRoute.TABLE).intParam("leadMaxLen", -1));
+        assertEquals(ChunkAlgorithm.IMAGE_CAPTION_PLACEHOLDER, strategy.routeAlgorithm(ChunkRoute.IMAGE));
+        assertEquals(ChunkAlgorithm.FALLBACK_FIXED_WINDOW, strategy.routeAlgorithm(ChunkRoute.FALLBACK));
+        assertEquals("200", strategy.pipelineValue(PipelineKey.MIN_MERGE_LEN, ""));
+        assertEquals("ON", strategy.pipelineValue(PipelineKey.TITLE_IN_CONTENT, ""));
+        assertEquals("OFF", strategy.pipelineValue(PipelineKey.TABLE_IN_BODY_FLOW, ""));
+    }
+
+    @Test
     void blankSnapshotShouldFallbackToBuiltinDefault() {
         ChunkStrategy strategy = parser.parse(null);
         assertNotNull(strategy);
