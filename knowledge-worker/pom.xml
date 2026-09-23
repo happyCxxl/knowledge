@@ -40,6 +40,12 @@
             <artifactId>knowledge-model</artifactId>
         </dependency>
 
+        <!-- 向量库模块（Milvus 封装：客户端/集合/查询/口径） -->
+        <dependency>
+            <groupId>com.knowledge</groupId>
+            <artifactId>knowledge-vector</artifactId>
+        </dependency>
+
         <!-- Spring 基础（注解 / 配置属性 / 条件装配） -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

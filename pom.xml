@@ -71,6 +71,11 @@
         <artifactId>knowledge-model</artifactId>
         <version>${project.version}</version>
       </dependency>
+      <dependency>
+        <groupId>com.knowledge</groupId>
+        <artifactId>knowledge-vector</artifactId>
+        <version>${project.version}</version>
+      </dependency>
 
       <!-- MinIO Java SDK（knowledge-file-center 对象存储实现，版本钉版） -->
       <dependency>
@@ -194,6 +199,7 @@
     <module>knowledge-auth</module>
     <module>knowledge-api</module>
     <module>knowledge-model</module>
+    <module>knowledge-vector</module>
     <module>knowledge-worker</module>
     <module>knowledge-biz</module>
   </modules>

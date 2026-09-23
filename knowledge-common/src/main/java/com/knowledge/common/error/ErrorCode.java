@@ -57,6 +57,9 @@ public enum ErrorCode {
     /** 切片最大片长超过模型窗口 */
     EMBED_MODEL_INCOMPATIBLE(40435, "切片最大片长超过模型窗口，请更换模型或调整切片策略"),
 
+    /** 索引集合 schema 与声明不一致（回读校验失败） */
+    INDEX_COLLECTION_SCHEMA_MISMATCH(40447, "索引集合结构与声明不一致"),
+
     /** 策略已被知识库绑定，禁止物理删除 */
     STRATEGY_BOUND_DELETE_FORBIDDEN(40452, "策略已被知识库绑定，禁止删除（可停用代替）"),
 
