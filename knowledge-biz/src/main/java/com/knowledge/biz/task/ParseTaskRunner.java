@@ -97,16 +97,9 @@ public class ParseTaskRunner {
                 throw e;
             }
 
-            String suggested = outcome.getSuggestedStatus();
-            if (PipelineTaskStatus.SUCCESS.name().equals(suggested)
-                    || PipelineTaskStatus.PARTIAL_SUCCESS.name().equals(suggested)) {
-                persistProduct(task, fileResult, outcome);
-                // 手动逐环节口径：PARSE 完成后停在终态，统一结构由页面手动触发
-                pipelineTaskDbService.finish(taskId, suggested, null, null);
-            } else {
-                stepLogPersistence.save(taskId, outcome.getStepLogs());
-                finishFailed(taskId, outcome.getErrorCode(), outcome.getErrorMsg());
-            }
+            TaskRunnerSupport.complete(pipelineTaskDbService, stepLogPersistence, taskId, outcome,
+                    () -> persistProduct(task, fileResult, outcome),
+                    this::finishFailed);
         } catch (Exception e) {
             log.error("解析任务执行异常, taskId={}", taskId, e);
             finishFailed(taskId, PipelineTaskErrorCode.PARSE_FAILED.name(), truncate(String.valueOf(e.getMessage())));

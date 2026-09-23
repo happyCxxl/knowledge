@@ -38,9 +38,9 @@ class NoiseRuleTest {
         return element;
     }
 
-    private RuleContext context() {
+    private RuleContext context(String action) {
         PreprocessStrategy strategy = PreprocessStrategy.defaultStrategy();
-        strategy.rule(PreprocessRule.NOISE).setAction("MARK");
+        strategy.rule(PreprocessRule.NOISE).setAction(action);
         RuleContext context = new RuleContext();
         context.setStrategy(strategy);
         context.setProperties(new PreprocessProperties());
@@ -54,7 +54,7 @@ class NoiseRuleTest {
     @Test
     void markShouldSetNoiseStatus() {
         ViewElement element = element();
-        var outcome = rule.apply(element, context());
+        var outcome = rule.apply(element, context("MARK"));
 
         assertTrue(outcome.isMatched());
         assertEquals(ViewElementStatus.NOISE.name(), element.getStatus());
@@ -64,6 +64,8 @@ class NoiseRuleTest {
     @Test
     void excludeShouldNullNormalizedText() {
         ViewElement element = element();
+        rule.apply(element, context("EXCLUDE"));
+
         assertEquals(ViewElementStatus.EXCLUDED_NOISE.name(), element.getStatus());
         assertNull(element.getNormalizedText());
     }
@@ -73,7 +75,7 @@ class NoiseRuleTest {
         ViewElement element = element();
         element.setPage(1);
 
-        assertFalse(rule.apply(element, context()).isMatched());
+        assertFalse(rule.apply(element, context("MARK")).isMatched());
         assertEquals(ViewElementStatus.NORMAL.name(), element.getStatus());
     }
 }

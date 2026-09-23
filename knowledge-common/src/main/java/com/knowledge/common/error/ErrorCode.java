@@ -33,24 +33,6 @@ public enum ErrorCode {
     /** 文件不存在（文件档案查不到或取流失败） */
     FILE_NOT_FOUND(40410, "文件不存在"),
 
-    /** 文件格式不在白名单 */
-    FORMAT_NOT_ALLOWED(40411, "文件格式不支持"),
-
-    /** 文件超过大小上限 */
-    FILE_TOO_LARGE(40412, "文件超过大小上限"),
-
-    /** 文件损坏或为空 */
-    FILE_CORRUPTED(40413, "文件损坏或为空"),
-
-    /** 文件加密（无法读取内容） */
-    FILE_ENCRYPTED(40414, "文件已加密"),
-
-    /** 文件元数据与实际不符 */
-    METADATA_MISMATCH(40415, "文件元数据与实际不符"),
-
-    /** 图片文件（OCR 未开放） */
-    IMAGE_OCR_RESERVED(40416, "图片文件暂不支持"),
-
     /** 未传幂等键 */
     REQUEST_ID_MISSING(40420, "缺少幂等键"),
 
@@ -64,7 +46,7 @@ public enum ErrorCode {
     FILE_RESULT_NOT_FOUND(40432, "文件结果不存在"),
 
     /** 策略版本不存在或未启用 */
-    STRATEGY_VERSION_NOT_FOUND(40433, "预处理策略版本不存在或未启用"),
+    STRATEGY_VERSION_NOT_FOUND(40433, "策略版本不存在或未启用"),
 
     /** 解析已成功或部分成功，禁止重跑 */
     PARSE_ALREADY_SUCCEEDED(40437, "解析已成功或部分成功，无需重跑"),

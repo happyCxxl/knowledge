@@ -105,16 +105,9 @@ public class PreprocessTaskRunner {
             context.setUpstreamProductRef(structureProduct.getId());
 
             PreprocessOutcome outcome = preprocessor.preprocess(context);
-            String suggested = outcome.getSuggestedStatus();
-            if (PipelineTaskStatus.SUCCESS.name().equals(suggested)
-                    || PipelineTaskStatus.PARTIAL_SUCCESS.name().equals(suggested)) {
-                persistProduct(task, fileResult, structureProduct, strategy, outcome);
-                // 手动逐环节口径：PREPROCESS 完成后停在终态，切片由页面手动触发
-                pipelineTaskDbService.finish(taskId, suggested, null, null);
-            } else {
-                stepLogPersistence.save(taskId, outcome.getStepLogs());
-                finishFailed(taskId, outcome.getErrorCode(), outcome.getErrorMsg());
-            }
+            TaskRunnerSupport.complete(pipelineTaskDbService, stepLogPersistence, taskId, outcome,
+                    () -> persistProduct(task, fileResult, structureProduct, strategy, outcome),
+                    this::finishFailed);
         } catch (Exception e) {
             log.error("预处理任务执行异常, taskId={}", taskId, e);
             finishFailed(taskId, PipelineTaskErrorCode.PREPROCESS_FAILED.name(), truncate(String.valueOf(e.getMessage())));

@@ -122,12 +122,18 @@ class FieldNormalizeRuleTest {
     @Test
     void chineseDateWithTensDayShouldConvert() {
         ViewElement element = element("工期截至二〇二六年十二月三十一日");
+
+        rule.apply(element, context);
+
         assertTrue(element.getNormalizedText().contains("2026-12-31"));
     }
 
     @Test
     void separatorDateShouldUnifyAndPad() {
         ViewElement element = element("投标截止：2026/8/25");
+
+        rule.apply(element, context);
+
         assertTrue(element.getNormalizedText().contains("2026-08-25"));
     }
 

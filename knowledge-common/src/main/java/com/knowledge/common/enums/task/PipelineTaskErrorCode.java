@@ -32,5 +32,11 @@ public enum PipelineTaskErrorCode {
     PREPROCESS_EMPTY,
 
     /** 预处理执行异常兜底 */
-    PREPROCESS_FAILED
+    PREPROCESS_FAILED,
+
+    /** 切片空集（上游预处理视图无任何可切片元素/上游产物缺失） */
+    CHUNK_EMPTY,
+
+    /** 切片执行异常兜底 */
+    CHUNK_FAILED
 }

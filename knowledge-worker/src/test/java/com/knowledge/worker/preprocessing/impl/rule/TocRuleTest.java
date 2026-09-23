@@ -42,10 +42,10 @@ class TocRuleTest {
         return element;
     }
 
-    private RuleContext context(Map<Integer, Integer> tocCount,
+    private RuleContext context(String action, Map<Integer, Integer> tocCount,
                                 Set<String> tocRunIds) {
         PreprocessStrategy strategy = PreprocessStrategy.defaultStrategy();
-        strategy.rule(PreprocessRule.TOC).setAction("MARK");
+        strategy.rule(PreprocessRule.TOC).setAction(action);
         RuleContext context = new RuleContext();
         context.setStrategy(strategy);
         context.setProperties(new PreprocessProperties());
@@ -61,7 +61,7 @@ class TocRuleTest {
         Map<Integer, Integer> counts = new HashMap<>(Map.of(5, 3));
         ViewElement element = tocElement(5);
 
-        var outcome = rule.apply(element, context(counts, new HashSet<>()));
+        var outcome = rule.apply(element, context("MARK", counts, new HashSet<>()));
 
         assertTrue(outcome.isMatched());
         assertEquals(ViewElementStatus.MARKED_TOC.name(), element.getStatus());
@@ -72,7 +72,7 @@ class TocRuleTest {
         Map<Integer, Integer> counts = new HashMap<>(Map.of(5, 2));
         ViewElement element = tocElement(5);
 
-        assertFalse(rule.apply(element, context(counts, new HashSet<>())).isMatched());
+        assertFalse(rule.apply(element, context("MARK", counts, new HashSet<>())).isMatched());
         assertEquals(ViewElementStatus.NORMAL.name(), element.getStatus());
     }
 
@@ -81,7 +81,7 @@ class TocRuleTest {
         ViewElement element = tocElement(null);
         Set<String> runIds = new HashSet<>(Set.of("n-null"));
 
-        var outcome = rule.apply(element, context(new HashMap<>(), runIds));
+        var outcome = rule.apply(element, context("MARK", new HashMap<>(), runIds));
 
         assertTrue(outcome.isMatched());
         assertEquals(ViewElementStatus.MARKED_TOC.name(), element.getStatus());
@@ -89,7 +89,11 @@ class TocRuleTest {
 
     @Test
     void excludeShouldNullNormalizedText() {
+        Map<Integer, Integer> counts = new HashMap<>(Map.of(5, 3));
         ViewElement element = tocElement(5);
+
+        rule.apply(element, context("EXCLUDE", counts, new HashSet<>()));
+
         assertEquals(ViewElementStatus.EXCLUDED_TOC.name(), element.getStatus());
         assertNull(element.getNormalizedText());
     }
@@ -99,6 +103,6 @@ class TocRuleTest {
         ViewElement element = tocElement(5);
         element.setMarks(null);
 
-        assertFalse(rule.apply(element, context(new HashMap<>(Map.of(5, 3)), new HashSet<>())).isMatched());
+        assertFalse(rule.apply(element, context("MARK", new HashMap<>(Map.of(5, 3)), new HashSet<>())).isMatched());
     }
 }

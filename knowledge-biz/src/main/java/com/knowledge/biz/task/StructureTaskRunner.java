@@ -91,15 +91,9 @@ public class StructureTaskRunner {
             context.setProperties(structureProperties);
             AssembleOutcome outcome = documentAssembler.assemble(parseResult, context);
 
-            String suggested = outcome.getSuggestedStatus();
-            if (PipelineTaskStatus.SUCCESS.name().equals(suggested)
-                    || PipelineTaskStatus.PARTIAL_SUCCESS.name().equals(suggested)) {
-                persistProduct(task, parseProduct, outcome);
-                pipelineTaskDbService.finish(taskId, suggested, null, null);
-            } else {
-                stepLogPersistence.save(taskId, outcome.getStepLogs());
-                finishFailed(taskId, outcome.getErrorCode(), outcome.getErrorMsg());
-            }
+            TaskRunnerSupport.complete(pipelineTaskDbService, stepLogPersistence, taskId, outcome,
+                    () -> persistProduct(task, parseProduct, outcome),
+                    this::finishFailed);
         } catch (Exception e) {
             log.error("组装任务执行异常, taskId={}", taskId, e);
             finishFailed(taskId, PipelineTaskErrorCode.STRUCTURE_FAILED.name(), truncate(String.valueOf(e.getMessage())));

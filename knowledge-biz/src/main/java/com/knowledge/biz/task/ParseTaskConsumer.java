@@ -25,7 +25,7 @@ import java.util.concurrent.TimeoutException;
 import java.time.Duration;
 
 /**
- * 解析消费循环：BRPOP 阻塞叫醒（空队零开销睡眠）→ 扫库领批 QUEUED 的 PARSE/STRUCTURE/PREPROCESS 任务 →
+ * 解析消费循环：BRPOP 阻塞叫醒（空队零开销睡眠）→ 扫库领批 QUEUED 的 PARSE/STRUCTURE/PREPROCESS/CHUNK 任务 →
  * 按 stage 分发到对应 Runner，线程池执行（看门狗按环节超时，超时回写 FAILED(EXECUTOR_TIMEOUT)）。
  * 多实例防重靠"条件更新领任务"（受影响行数=1 才执行，见各 Runner）。
  * 其他环节任务的领批与分发随各自环节 Runner 落地后接入。
@@ -43,6 +43,7 @@ public class ParseTaskConsumer {
     private final ParseTaskRunner runner;
     private final StructureTaskRunner structureRunner;
     private final PreprocessTaskRunner preprocessRunner;
+    private final ChunkTaskRunner chunkRunner;
 
     private volatile boolean running = false;
     private ThreadPoolExecutor watchdogPool;
@@ -83,7 +84,7 @@ public class ParseTaskConsumer {
                 // 消息内容仅参考（DB 是唯一账本）：被叫醒才扫库领批
                 List<KbPipelineTask> batch = pipelineTaskDbService.listQueuedByStages(
                         List.of(PipelineStage.PARSE.name(), PipelineStage.STRUCTURE.name(),
-                                PipelineStage.PREPROCESS.name()),
+                                PipelineStage.PREPROCESS.name(), PipelineStage.CHUNK.name()),
                         properties.getClaimBatchSize());
                 for (KbPipelineTask task : batch) {
                     dispatch(task);
@@ -106,6 +107,9 @@ public class ParseTaskConsumer {
             } else if (PipelineStage.PREPROCESS.name().equals(task.getStage())) {
                 watchdogPool.execute(() -> runWithTimeout(task.getId(),
                         properties.timeoutOf(PipelineStage.PREPROCESS.name()), () -> preprocessRunner.run(task.getId())));
+            } else if (PipelineStage.CHUNK.name().equals(task.getStage())) {
+                watchdogPool.execute(() -> runWithTimeout(task.getId(),
+                        properties.timeoutOf(PipelineStage.CHUNK.name()), () -> chunkRunner.run(task.getId())));
             } else {
                 // 未知环节：跳过并告警（后续环节加 Runner 即接入，主循环零改动）
                 log.warn("未知环节任务跳过, taskId={}, stage={}", task.getId(), task.getStage());
