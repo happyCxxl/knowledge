@@ -366,11 +366,39 @@ class KnowledgeBaseServiceImplTest {
     @Test
     void detailWithoutBindingShouldLeaveSummaryEmpty() {
         when(knowledgeBaseDbService.getActiveById(2L)).thenReturn(kb(2L, 1));
+        when(strategyBindingDbService.getByKbAndType(2L, "PREPROCESS")).thenReturn(null);
         when(strategyBindingDbService.getByKbAndType(2L, "CHUNK")).thenReturn(null);
 
         KnowledgeBaseVO vo = service.detail(2L);
 
         assertNull(vo.getChunkStrategyVersionId());
         assertNull(vo.getChunkStrategyVersion());
+        assertNull(vo.getPreprocessStrategyVersionId());
+        assertNull(vo.getPreprocessStrategyVersion());
+    }
+
+    @Test
+    void detailShouldFillPreprocessBindingSummary() {
+        KnowledgeBase k = kb(2L, 1);
+        when(knowledgeBaseDbService.getActiveById(2L)).thenReturn(k);
+        KbStrategyBinding preprocessBinding = new KbStrategyBinding();
+        preprocessBinding.setId(2L);
+        preprocessBinding.setKnowledgeBaseId(2L);
+        preprocessBinding.setStrategyType("PREPROCESS");
+        preprocessBinding.setStrategyVersionId(77L);
+        when(strategyBindingDbService.getByKbAndType(2L, "PREPROCESS")).thenReturn(preprocessBinding);
+        KbPipelineStrategyVersion preprocessVersion = new KbPipelineStrategyVersion();
+        preprocessVersion.setId(77L);
+        preprocessVersion.setType("PREPROCESS");
+        preprocessVersion.setName("preproc-strict");
+        preprocessVersion.setVersion("v2");
+        when(strategyVersionDbService.getById(77L)).thenReturn(preprocessVersion);
+        when(strategyBindingDbService.getByKbAndType(2L, "CHUNK")).thenReturn(null);
+
+        KnowledgeBaseVO vo = service.detail(2L);
+
+        assertEquals(77L, vo.getPreprocessStrategyVersionId());
+        assertEquals("preproc-strict-v2", vo.getPreprocessStrategyVersion());
+        assertNull(vo.getChunkStrategyVersionId());
     }
 }

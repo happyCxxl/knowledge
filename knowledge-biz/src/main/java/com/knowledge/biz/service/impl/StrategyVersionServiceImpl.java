@@ -15,6 +15,7 @@ import com.knowledge.common.exception.KnowledgeException;
 import com.knowledge.common.exception.ThrowUtil;
 import com.knowledge.common.utils.JsonUtil;
 import com.knowledge.worker.chunking.strategy.ChunkAlgorithmSpec;
+import com.knowledge.worker.preprocessing.strategy.PreprocessAlgorithmSpec;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
@@ -53,39 +54,33 @@ public class StrategyVersionServiceImpl implements StrategyVersionService {
     public StrategyVersionVO create(StrategyVersionCreateDto dto) {
         ThrowUtil.throwIf(!SUPPORTED_TYPES.contains(dto.getType()),
                 ErrorCode.PARAM_INVALID, "未知策略类型: " + dto.getType());
-        String configSnapshot = resolveConfigSnapshot(dto.getType(), dto.getConfigSnapshot());
-        KbPipelineStrategyVersion row = new KbPipelineStrategyVersion();
-        row.setType(dto.getType());
-        row.setName(dto.getName().trim());
-        row.setVersion(dto.getVersion().trim());
-        row.setConfigSnapshot(configSnapshot);
-        row.setStatus(RowStatus.ACTIVE.name());
-        try {
-            strategyVersionDbService.save(row);
-        } catch (DuplicateKeyException e) {
-            throw new KnowledgeException(ErrorCode.PARAM_INVALID, "同环节同名版本已存在");
-        }
-        return toVO(row);
+        return register(dto.getType(), dto.getName(), dto.getVersion(), dto.getConfigSnapshot());
     }
 
     @Override
     public StrategyVersionVO update(Long id, StrategyVersionUpdateDto dto) {
         // 策略版本行不可变：编辑 = 复制新行（旧行原样保留；新版本号撞唯一键 → 40001）
         KbPipelineStrategyVersion old = requireById(id);
-        String configSnapshot = resolveConfigSnapshot(old.getType(), dto.getConfigSnapshot());
+        StrategyVersionVO vo = register(old.getType(), dto.getName(), dto.getVersion(), dto.getConfigSnapshot());
+        log.info("===> StrategyVersionServiceImpl 策略编辑=复制新版本, oldId={}, oldVersion={}, newName={}, newVersion={}",
+                old.getId(), old.getVersion(), vo.getName(), vo.getVersion());
+        return vo;
+    }
+
+    /** 注册新版本行（默认 ACTIVE；撞唯一键 40001） */
+    private StrategyVersionVO register(String type, String name, String version, String configSnapshot) {
+        String snapshot = resolveConfigSnapshot(type, configSnapshot);
         KbPipelineStrategyVersion row = new KbPipelineStrategyVersion();
-        row.setType(old.getType());
-        row.setName(dto.getName().trim());
-        row.setVersion(dto.getVersion().trim());
-        row.setConfigSnapshot(configSnapshot);
+        row.setType(type);
+        row.setName(name.trim());
+        row.setVersion(version.trim());
+        row.setConfigSnapshot(snapshot);
         row.setStatus(RowStatus.ACTIVE.name());
         try {
             strategyVersionDbService.save(row);
         } catch (DuplicateKeyException e) {
             throw new KnowledgeException(ErrorCode.PARAM_INVALID, "同环节同名版本已存在");
         }
-        log.info("===> StrategyVersionServiceImpl 策略编辑=复制新版本, oldId={}, oldVersion={}, newName={}, newVersion={}",
-                old.getId(), old.getVersion(), row.getName(), row.getVersion());
         return toVO(row);
     }
 
@@ -138,6 +133,7 @@ public class StrategyVersionServiceImpl implements StrategyVersionService {
         }
         String error = switch (type) {
             case "CHUNK" -> ChunkAlgorithmSpec.validate(config);
+            case "PREPROCESS" -> PreprocessAlgorithmSpec.validate(config);
             default -> null;
         };
         ThrowUtil.throwIf(error != null, ErrorCode.PARAM_INVALID, error);

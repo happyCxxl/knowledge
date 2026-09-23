@@ -40,6 +40,13 @@ public class KnowledgeBaseVO implements Serializable {
     /** 绑定的切片策略版本串（如 chunk-hybrid-v1，无绑定为 null） */
     private String chunkStrategyVersion;
 
+    /** 绑定的预处理策略版本行 ID（无绑定为 null） */
+    @JsonSerialize(using = ToStringSerializer.class)
+    private Long preprocessStrategyVersionId;
+
+    /** 绑定的预处理策略版本串（如 preproc-default-v1，无绑定为 null） */
+    private String preprocessStrategyVersion;
+
     /** 默认知识库标记：1=默认库（全库唯一，固定不可停用/删除）/ 0=普通库 */
     private Integer defaultFlag;
 

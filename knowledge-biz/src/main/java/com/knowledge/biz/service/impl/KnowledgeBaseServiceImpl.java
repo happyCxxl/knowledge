@@ -27,6 +27,7 @@ import com.knowledge.common.security.KnowledgeUser;
 import com.knowledge.common.security.SecurityUtils;
 import com.knowledge.common.utils.JsonUtil;
 import com.knowledge.worker.chunking.strategy.ChunkStrategy;
+import com.knowledge.worker.preprocessing.strategy.PreprocessStrategy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -225,23 +226,25 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         return version == null ? "失效" : version.getName() + "-" + version.getVersion();
     }
 
-    /** 详情：填充切片策略绑定摘要 */
+    /** 详情：填充预处理/切片策略绑定摘要 */
     private void fillStrategyBindings(KnowledgeBaseVO vo) {
-        fillBinding(vo);
+        fillBinding(vo, PreprocessStrategy.TYPE);
+        fillBinding(vo, ChunkStrategy.TYPE);
     }
 
-    /** 分页：批量填充切片策略绑定摘要（避免逐行查询） */
+    /** 分页：批量填充预处理/切片策略绑定摘要（避免逐行查询） */
     private void fillStrategyBindings(List<KnowledgeBaseVO> records) {
         if (records.isEmpty()) {
             return;
         }
         List<Long> kbIds = records.stream().map(KnowledgeBaseVO::getId).toList();
-        fillBindingForType(records, kbIds);
+        fillBindingForType(records, kbIds, PreprocessStrategy.TYPE);
+        fillBindingForType(records, kbIds, ChunkStrategy.TYPE);
     }
 
-    private void fillBindingForType(List<KnowledgeBaseVO> records, List<Long> kbIds) {
+    private void fillBindingForType(List<KnowledgeBaseVO> records, List<Long> kbIds, String type) {
         Map<Long, KbStrategyBinding> bindingByKb = strategyBindingDbService
-                .listActiveByTypeAndKbIds(ChunkStrategy.TYPE, kbIds).stream()
+                .listActiveByTypeAndKbIds(type, kbIds).stream()
                 .collect(Collectors.toMap(KbStrategyBinding::getKnowledgeBaseId, Function.identity(), (a, b) -> a));
         if (bindingByKb.isEmpty()) {
             return;
@@ -261,20 +264,30 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             if (version == null) {
                 continue;
             }
-            vo.setChunkStrategyVersionId(version.getId());
-            vo.setChunkStrategyVersion(version.getName() + "-" + version.getVersion());
+            applyBinding(vo, version);
         }
     }
 
-    private void fillBinding(KnowledgeBaseVO vo) {
-        KbStrategyBinding binding = strategyBindingDbService.getByKbAndType(vo.getId(), ChunkStrategy.TYPE);
+    private void fillBinding(KnowledgeBaseVO vo, String type) {
+        KbStrategyBinding binding = strategyBindingDbService.getByKbAndType(vo.getId(), type);
         KbPipelineStrategyVersion version = binding == null
                 ? null : strategyVersionDbService.getById(binding.getStrategyVersionId());
         if (version == null) {
             return;
         }
-        vo.setChunkStrategyVersionId(version.getId());
-        vo.setChunkStrategyVersion(version.getName() + "-" + version.getVersion());
+        applyBinding(vo, version);
+    }
+
+    /** 绑定摘要字段分发：按策略版本行类型落 VO 字段 */
+    private void applyBinding(KnowledgeBaseVO vo, KbPipelineStrategyVersion version) {
+        String fullVersion = version.getName() + "-" + version.getVersion();
+        if (ChunkStrategy.TYPE.equals(version.getType())) {
+            vo.setChunkStrategyVersionId(version.getId());
+            vo.setChunkStrategyVersion(fullVersion);
+        } else {
+            vo.setPreprocessStrategyVersionId(version.getId());
+            vo.setPreprocessStrategyVersion(fullVersion);
+        }
     }
 
     /** 绑定开关是否开启（null 视为开启，兼容存量数据） */

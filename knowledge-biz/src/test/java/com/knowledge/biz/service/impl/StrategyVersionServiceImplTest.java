@@ -29,7 +29,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * 策略版本服务单测：类型白名单 / 列表（启用中 vs 全部）/ 创建 / 编辑=复制新版本 / 启停 /
- * 删除（有绑定引用禁删）/ CHUNK 配置校验。
+ * 删除（有绑定引用禁删）/ CHUNK 与 PREPROCESS 配置校验。
  *
  * @author cxxl
  */
@@ -48,11 +48,11 @@ class StrategyVersionServiceImplTest {
         service = new StrategyVersionServiceImpl(strategyVersionDbService, strategyBindingDbService);
     }
 
-    private KbPipelineStrategyVersion row(Long id, String type, String name, String version, String status) {
+    private KbPipelineStrategyVersion row(Long id, String version, String status) {
         KbPipelineStrategyVersion row = new KbPipelineStrategyVersion();
         row.setId(id);
-        row.setType(type);
-        row.setName(name);
+        row.setType("CHUNK");
+        row.setName("chunk-hybrid");
         row.setVersion(version);
         row.setConfigSnapshot("{\"routes\":{}}");
         row.setStatus(status);
@@ -89,7 +89,7 @@ class StrategyVersionServiceImplTest {
     @Test
     void listEnabledShouldReturnMappedVersions() {
         when(strategyVersionDbService.listEnabledByType("CHUNK"))
-                .thenReturn(List.of(row(9L, "CHUNK", "chunk-hybrid", "v2", "ACTIVE")));
+                .thenReturn(List.of(row(9L, "v2", "ACTIVE")));
 
         List<StrategyVersionVO> vos = service.list("CHUNK", false);
 
@@ -102,7 +102,7 @@ class StrategyVersionServiceImplTest {
     @Test
     void listWithIncludeInactiveShouldReturnAll() {
         when(strategyVersionDbService.listByType("CHUNK"))
-                .thenReturn(List.of(row(10L, "CHUNK", "chunk-hybrid", "v1", "INACTIVE")));
+                .thenReturn(List.of(row(10L, "v1", "INACTIVE")));
 
         List<StrategyVersionVO> vos = service.list("CHUNK", true);
 
@@ -113,7 +113,7 @@ class StrategyVersionServiceImplTest {
 
     @Test
     void listWithUnknownTypeShouldReject() {
-        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.list("PREPROCESS", false));
+        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.list("INDEX", false));
         assertEquals(ErrorCode.PARAM_INVALID, e.getErrorCode());
         verify(strategyVersionDbService, never()).listEnabledByType(any());
     }
@@ -140,8 +140,9 @@ class StrategyVersionServiceImplTest {
 
     @Test
     void createWithUnknownTypeShouldReject() {
-        KnowledgeException e = assertThrows(KnowledgeException.class,
-                () -> service.create(chunkDtoWithType("INDEX")));
+        StrategyVersionCreateDto dto = chunkDto("{\"routes\":{}}");
+        dto.setType("INDEX");
+        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.create(dto));
         assertEquals(ErrorCode.PARAM_INVALID, e.getErrorCode());
         verify(strategyVersionDbService, never()).save(any());
     }
@@ -159,7 +160,7 @@ class StrategyVersionServiceImplTest {
     @Test
     void updateShouldCopyAsNewVersion() {
         // 策略版本行不可变：编辑 = 复制新行（旧行原样保留，新行按 dto 注册且默认 ACTIVE）
-        KbPipelineStrategyVersion existing = row(9L, "CHUNK", "chunk-hybrid", "v1", "INACTIVE");
+        KbPipelineStrategyVersion existing = row(9L, "v1", "INACTIVE");
         when(strategyVersionDbService.getById(9L)).thenReturn(existing);
 
         StrategyVersionVO vo = service.update(9L, updateDto());
@@ -191,7 +192,7 @@ class StrategyVersionServiceImplTest {
     @Test
     void enableShouldSetActive() {
         when(strategyVersionDbService.getById(9L))
-                .thenReturn(row(9L, "CHUNK", "chunk-hybrid", "v1", "INACTIVE"));
+                .thenReturn(row(9L, "v1", "INACTIVE"));
 
         StrategyVersionVO vo = service.enable(9L);
 
@@ -202,7 +203,7 @@ class StrategyVersionServiceImplTest {
     @Test
     void disableShouldSetInactive() {
         when(strategyVersionDbService.getById(9L))
-                .thenReturn(row(9L, "CHUNK", "chunk-hybrid", "v1", "ACTIVE"));
+                .thenReturn(row(9L, "v1", "ACTIVE"));
 
         StrategyVersionVO vo = service.disable(9L);
 
@@ -222,19 +223,19 @@ class StrategyVersionServiceImplTest {
     @Test
     void deleteShouldRemoveWhenNoBindingReference() {
         when(strategyVersionDbService.getById(9L))
-                .thenReturn(row(9L, "CHUNK", "chunk-hybrid", "v1", "ACTIVE"));
+                .thenReturn(row(9L, "v1", "ACTIVE"));
         when(strategyBindingDbService.existsByStrategyVersionId(9L)).thenReturn(false);
-        when(strategyVersionDbService.removeById((Serializable) 9L)).thenReturn(true);
+        when(strategyVersionDbService.removeById(9L)).thenReturn(true);
 
         assertTrue(service.delete(9L));
-        verify(strategyVersionDbService).removeById((Serializable) 9L);
+        verify(strategyVersionDbService).removeById(9L);
     }
 
     @Test
     void deleteShouldRejectWhenBoundByKnowledgeBase() {
         // 策略版本行不可变：有绑定引用禁物理删除（停用代替删除）
         when(strategyVersionDbService.getById(9L))
-                .thenReturn(row(9L, "CHUNK", "chunk-hybrid", "v1", "ACTIVE"));
+                .thenReturn(row(9L, "v1", "ACTIVE"));
         when(strategyBindingDbService.existsByStrategyVersionId(9L)).thenReturn(true);
 
         KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.delete(9L));
@@ -320,9 +321,69 @@ class StrategyVersionServiceImplTest {
         verify(strategyVersionDbService, never()).save(any());
     }
 
-    private StrategyVersionCreateDto chunkDtoWithType(String type) {
-        StrategyVersionCreateDto dto = chunkDto("{\"routes\":{}}");
-        dto.setType(type);
+    // ---------------- PREPROCESS 配置校验（结构/枚举/参数范围/自定义正则） ----------------
+
+    private StrategyVersionCreateDto preprocDto(String configSnapshot) {
+        StrategyVersionCreateDto dto = new StrategyVersionCreateDto();
+        dto.setType("PREPROCESS");
+        dto.setName("preproc-strict");
+        dto.setVersion("v2");
+        dto.setConfigSnapshot(configSnapshot);
         return dto;
+    }
+
+    @Test
+    void createPreprocWithValidConfigShouldSave() {
+        when(strategyVersionDbService.save(any(KbPipelineStrategyVersion.class))).thenAnswer(inv -> {
+            inv.getArgument(0, KbPipelineStrategyVersion.class).setId(13L);
+            return true;
+        });
+
+        StrategyVersionVO vo = service.create(preprocDto(
+                "{\"rules\":{\"headerFooter\":{\"action\":\"EXCLUDE\"},"
+                        + "\"toc\":{\"action\":\"MARK\",\"params\":{\"minLinesPerPage\":\"5\"}}},"
+                        + "\"custom\":{\"enabled\":\"ON\",\"rules\":[{\"pattern\":\"版权所有\\\\s*©.*\",\"action\":\"REMOVE\"}]}}"));
+
+        assertEquals(13L, vo.getId());
+        assertEquals("preproc-strict", vo.getName());
+    }
+
+    @Test
+    void createPreprocWithIllegalActionShouldReject() {
+        KnowledgeException e = assertThrows(KnowledgeException.class,
+                () -> service.create(preprocDto("{\"rules\":{\"headerFooter\":{\"action\":\"DELETE\"}}}")));
+        assertEquals(ErrorCode.PARAM_INVALID, e.getErrorCode());
+        assertEquals("处置方式非法: headerFooter.DELETE", e.getMessage());
+        verify(strategyVersionDbService, never()).save(any());
+    }
+
+    @Test
+    void createPreprocWithParamOutOfRangeShouldReject() {
+        KnowledgeException e = assertThrows(KnowledgeException.class,
+                () -> service.create(preprocDto(
+                        "{\"rules\":{\"toc\":{\"params\":{\"minLinesPerPage\":\"999\"}}}}")));
+        assertEquals(ErrorCode.PARAM_INVALID, e.getErrorCode());
+        assertEquals("参数越界: toc.minLinesPerPage（允许 1~50）", e.getMessage());
+        verify(strategyVersionDbService, never()).save(any());
+    }
+
+    @Test
+    void createPreprocWithInvalidRegexShouldReject() {
+        KnowledgeException e = assertThrows(KnowledgeException.class,
+                () -> service.create(preprocDto(
+                        "{\"custom\":{\"rules\":[{\"pattern\":\"(\",\"action\":\"REMOVE\"}]}}")));
+        assertEquals(ErrorCode.PARAM_INVALID, e.getErrorCode());
+        assertEquals("自定义规则存在不合法的正则表达式: (", e.getMessage());
+        verify(strategyVersionDbService, never()).save(any());
+    }
+
+    @Test
+    void createPreprocWithReplaceMissingReplacementShouldReject() {
+        KnowledgeException e = assertThrows(KnowledgeException.class,
+                () -> service.create(preprocDto(
+                        "{\"custom\":{\"rules\":[{\"pattern\":\"电话.*\",\"action\":\"REPLACE\"}]}}")));
+        assertEquals(ErrorCode.PARAM_INVALID, e.getErrorCode());
+        assertEquals("替换动作需填写替换文本", e.getMessage());
+        verify(strategyVersionDbService, never()).save(any());
     }
 }
