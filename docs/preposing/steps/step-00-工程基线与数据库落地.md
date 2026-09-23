@@ -1,6 +1,6 @@
 # 阶段 0：工程基线与数据库落地（实施文档）
 
-> 约定：每个实施阶段在 `docs/steps/` 落一份实施文档，记录目标、决策、任务清单、验收标准与执行结果。
+> 约定：每个实施阶段在 `` 落一份实施文档，记录目标、决策、任务清单、验收标准与执行结果。
 
 ## 元信息
 
@@ -17,8 +17,8 @@
 1. 多模块骨架：root pom + `knowledge-api`/`knowledge-biz`/`knowledge-common`/`knowledge-worker` 四模块占位、`KnowledgeApplication` 应用入口、`application.yml` 本地配置（Nacos 关闭）；
 2. 建库迁移脚本体系：`stage-00-建库.sql`（knowledge 库，自包含 `USE` 语句）；
 3. Docker 编排：MySQL 8 + Redis 7 + Milvus standalone（含 etcd/minio 依赖容器）；
-4. 文档骨架：`docs/README.md` + `实施手册.md`（阶段 1 落位）；
-5. `.gitignore` 基线（含 `/common/`、`/logs/`、`/data/` 等锚定修正）。
+4. 文档骨架：`../README.md` + `实施手册.md`（阶段 1 落位）；
+5. `../../../.gitignore` 基线（含 `/common/`、`/logs/`、`/data/` 等锚定修正）。
 
 ## 2. 本阶段决策（记录）
 

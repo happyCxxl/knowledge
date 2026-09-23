@@ -1,6 +1,6 @@
 # 阶段 10：切片策略扩展（实施文档）
 
-> 约定：每个实施阶段在 `docs/steps/` 落一份实施文档，记录目标、决策、任务清单、验收标准与执行结果。
+> 约定：每个实施阶段在 `` 落一份实施文档，记录目标、决策、任务清单、验收标准与执行结果。
 
 ## 元信息
 
@@ -33,7 +33,7 @@
 
 1. SQL：新建 `stage-10-切片策略扩展.sql`（5 条 CHUNK seed UPDATE 为 routes 包裹格式；pipeline 数值字符串化）；
 2. 单测：`ChunkStrategyParserTest` 增 seed 快照回归例（四路算法/参数/流程层断言）；新建 `ChunkAlgorithmSpecTest`（validate 6 例 + isSupported + defaultParams）；
-3. 验证：隔离 `mvn test` 全绿 + `tools/inspect-idea.ps1` 对暂存/修改文件 0 warning；
+3. 验证：隔离 `mvn test` 全绿 + `../../../tools/inspect-idea.ps1` 对暂存/修改文件 0 warning；
 4. 文档：本档案。
 
 ## 4. 验收标准

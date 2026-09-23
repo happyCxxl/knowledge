@@ -53,11 +53,6 @@
 
       <dependency>
         <groupId>com.knowledge</groupId>
-        <artifactId>knowledge-api</artifactId>
-        <version>${project.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>com.knowledge</groupId>
         <artifactId>knowledge-worker</artifactId>
         <version>${project.version}</version>
       </dependency>
@@ -197,7 +192,6 @@
     <module>knowledge-common</module>
     <module>knowledge-file-center</module>
     <module>knowledge-auth</module>
-    <module>knowledge-api</module>
     <module>knowledge-model</module>
     <module>knowledge-vector</module>
     <module>knowledge-worker</module>

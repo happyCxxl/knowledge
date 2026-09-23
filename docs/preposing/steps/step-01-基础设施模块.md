@@ -1,6 +1,6 @@
 # 阶段 1：基础设施模块 knowledge-infra（实施文档）
 
-> 约定：每个实施阶段在 `docs/steps/` 落一份实施文档，记录目标、决策、任务清单、验收标准与执行结果。
+> 约定：每个实施阶段在 `` 落一份实施文档，记录目标、决策、任务清单、验收标准与执行结果。
 
 ## 元信息
 
@@ -18,7 +18,7 @@
 2. 通用数据访问基类：`InfraBaseMapper<T>`（继承 MP BaseMapper）、`InfraDbService<T>`/`InfraDbServiceImpl<M,T>`；
 3. `MybatisPlusAutoConfiguration`：分页插件 + MySQL 方言；
 4. 自动装配清单 `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`；
-5. `docs/实施手册.md` 落位（模块架构 + 实施顺序 + 八步操作流程）。
+5. `../实施手册.md` 落位（模块架构 + 实施顺序 + 八步操作流程）。
 
 ## 2. 本阶段决策（记录）
 
