@@ -51,6 +51,12 @@ public enum ErrorCode {
     /** 解析已成功或部分成功，禁止重跑 */
     PARSE_ALREADY_SUCCEEDED(40437, "解析已成功或部分成功，无需重跑"),
 
+    /** 切片产物缺失（向量化上游） */
+    EMBED_UPSTREAM_MISSING(40434, "切片产物不存在，请先触发切片"),
+
+    /** 切片最大片长超过模型窗口 */
+    EMBED_MODEL_INCOMPATIBLE(40435, "切片最大片长超过模型窗口，请更换模型或调整切片策略"),
+
     /** 策略已被知识库绑定，禁止物理删除 */
     STRATEGY_BOUND_DELETE_FORBIDDEN(40452, "策略已被知识库绑定，禁止删除（可停用代替）"),
 

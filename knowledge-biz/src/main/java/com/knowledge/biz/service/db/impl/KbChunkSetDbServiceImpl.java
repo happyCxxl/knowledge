@@ -24,4 +24,13 @@ public class KbChunkSetDbServiceImpl extends InfraDbServiceImpl<KbChunkSetMapper
                 .last("LIMIT 1");
         return getOne(queryWrapper, false);
     }
+
+    @Override
+    public KbChunkSet getLatestByFileResultId(Long fileResultId) {
+        LambdaQueryWrapper<KbChunkSet> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(KbChunkSet::getFileResultId, fileResultId)
+                .orderByDesc(KbChunkSet::getId)
+                .last("LIMIT 1");
+        return getOne(queryWrapper, false);
+    }
 }

@@ -53,11 +53,11 @@ CREATE TABLE kb_embedding_record
 -- ① 默认复用：BGE-M3 + 账本复用开（省钱路径）
 INSERT INTO kb_pipeline_strategy_version (type, name, version, config_snapshot, status) VALUES
     ('EMBED', 'embed-default', 'v1',
-     '{"model":"huawei-BGE-M3","docTemplate":"{content}","queryTemplate":"{query}","batchSize":32,"timeoutMs":30000,"maxRetries":2,"cacheEnabled":"ON","includeParent":"OFF","skipEmpty":"ON","dimension":1024,"metric":"COSINE","normalized":true,"contextWindowTokens":8192,"batchLimit":64}',
+     '{"model":"text-embedding-v4","docTemplate":"{content}","queryTemplate":"{query}","batchSize":32,"timeoutMs":30000,"maxRetries":2,"cacheEnabled":"ON","includeParent":"OFF","skipEmpty":"ON","dimension":1024,"metric":"COSINE","normalized":true,"contextWindowTokens":8192,"batchLimit":64}',
      'ACTIVE');
 
 -- ② 强制重算：复用关（对比实验用——观察全量重算 vs 账本复用）
 INSERT INTO kb_pipeline_strategy_version (type, name, version, config_snapshot, status) VALUES
     ('EMBED', 'embed-nocache', 'v1',
-     '{"model":"huawei-BGE-M3","docTemplate":"{content}","queryTemplate":"{query}","batchSize":16,"timeoutMs":30000,"maxRetries":2,"cacheEnabled":"OFF","includeParent":"OFF","skipEmpty":"ON","dimension":1024,"metric":"COSINE","normalized":true,"contextWindowTokens":8192,"batchLimit":64}',
+     '{"model":"text-embedding-v4","docTemplate":"{content}","queryTemplate":"{query}","batchSize":16,"timeoutMs":30000,"maxRetries":2,"cacheEnabled":"OFF","includeParent":"OFF","skipEmpty":"ON","dimension":1024,"metric":"COSINE","normalized":true,"contextWindowTokens":8192,"batchLimit":64}',
      'ACTIVE');

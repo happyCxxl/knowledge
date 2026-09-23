@@ -8,6 +8,8 @@ import com.knowledge.common.dto.request.strategy.StrategyVersionUpdateDto;
 import com.knowledge.common.dto.response.strategy.StrategyVersionVO;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
+import com.knowledge.common.utils.JsonUtil;
+import com.knowledge.model.catalog.StaticModelCatalog;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -20,6 +22,7 @@ import java.io.Serializable;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -45,7 +48,8 @@ class StrategyVersionServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        service = new StrategyVersionServiceImpl(strategyVersionDbService, strategyBindingDbService);
+        service = new StrategyVersionServiceImpl(strategyVersionDbService, strategyBindingDbService,
+                new StaticModelCatalog());
     }
 
     private KbPipelineStrategyVersion row(Long id, String version, String status) {
@@ -384,6 +388,78 @@ class StrategyVersionServiceImplTest {
                         "{\"custom\":{\"rules\":[{\"pattern\":\"电话.*\",\"action\":\"REPLACE\"}]}}")));
         assertEquals(ErrorCode.PARAM_INVALID, e.getErrorCode());
         assertEquals("替换动作需填写替换文本", e.getMessage());
+        verify(strategyVersionDbService, never()).save(any());
+    }
+
+    // ---------------- EMBED 配置校验（模型目录/模板占位符/数值范围/枚举 + 保存时目录冗余进快照） ----------------
+
+    private StrategyVersionCreateDto embedDto(String configSnapshot) {
+        StrategyVersionCreateDto dto = new StrategyVersionCreateDto();
+        dto.setType("EMBED");
+        dto.setName("embed-default");
+        dto.setVersion("v1");
+        dto.setConfigSnapshot(configSnapshot);
+        return dto;
+    }
+
+    @Test
+    void createEmbedWithValidConfigShouldSaveAndEnrichSnapshot() {
+        ArgumentCaptor<KbPipelineStrategyVersion> captor = ArgumentCaptor.forClass(KbPipelineStrategyVersion.class);
+        when(strategyVersionDbService.save(any(KbPipelineStrategyVersion.class))).thenAnswer(inv -> {
+            inv.getArgument(0, KbPipelineStrategyVersion.class).setId(14L);
+            return true;
+        });
+
+        StrategyVersionVO vo = service.create(embedDto(
+                "{\"model\":\"text-embedding-v4\",\"docTemplate\":\"{content}\",\"queryTemplate\":\"{query}\","
+                        + "\"batchSize\":64,\"timeoutMs\":30000,\"maxRetries\":2,"
+                        + "\"cacheEnabled\":\"ON\",\"includeParent\":\"OFF\",\"skipEmpty\":\"ON\"}"));
+
+        assertEquals(14L, vo.getId());
+        verify(strategyVersionDbService).save(captor.capture());
+        java.util.Map<String, Object> snapshot = JsonUtil.toMap(captor.getValue().getConfigSnapshot());
+        // 保存时目录冗余进快照（dimension/metric/normalized/contextWindowTokens/batchLimit）
+        assertEquals(1024, snapshot.get("dimension"));
+        assertEquals("COSINE", snapshot.get("metric"));
+        assertEquals(Boolean.TRUE, snapshot.get("normalized"));
+        assertEquals(8192, snapshot.get("contextWindowTokens"));
+        assertNotNull(snapshot.get("batchLimit"));
+        assertEquals(64, snapshot.get("batchSize"));
+    }
+
+    @Test
+    void createEmbedWithUnknownModelShouldReject() {
+        KnowledgeException e = assertThrows(KnowledgeException.class,
+                () -> service.create(embedDto("{\"model\":\"no-such-model\"}")));
+        assertEquals(ErrorCode.PARAM_INVALID, e.getErrorCode());
+        assertEquals("模型不存在: no-such-model", e.getMessage());
+        verify(strategyVersionDbService, never()).save(any());
+    }
+
+    @Test
+    void createEmbedWithDisabledModelShouldReject() {
+        KnowledgeException e = assertThrows(KnowledgeException.class,
+                () -> service.create(embedDto("{\"model\":\"text-embedding-v3\"}")));
+        assertEquals(ErrorCode.PARAM_INVALID, e.getErrorCode());
+        assertEquals("模型未启用: text-embedding-v3", e.getMessage());
+        verify(strategyVersionDbService, never()).save(any());
+    }
+
+    @Test
+    void createEmbedWithTemplateMissingPlaceholderShouldReject() {
+        KnowledgeException e = assertThrows(KnowledgeException.class,
+                () -> service.create(embedDto("{\"model\":\"text-embedding-v4\",\"docTemplate\":\"{titlePath}\"}")));
+        assertEquals(ErrorCode.PARAM_INVALID, e.getErrorCode());
+        assertEquals("docTemplate 必须包含 {content} 占位符", e.getMessage());
+        verify(strategyVersionDbService, never()).save(any());
+    }
+
+    @Test
+    void createEmbedWithRangeViolationShouldReject() {
+        KnowledgeException e = assertThrows(KnowledgeException.class,
+                () -> service.create(embedDto("{\"model\":\"text-embedding-v4\",\"batchSize\":999}")));
+        assertEquals(ErrorCode.PARAM_INVALID, e.getErrorCode());
+        assertEquals("batchSize 越界（允许 1~128）", e.getMessage());
         verify(strategyVersionDbService, never()).save(any());
     }
 }

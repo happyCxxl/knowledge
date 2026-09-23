@@ -34,6 +34,12 @@
             <artifactId>knowledge-file-center</artifactId>
         </dependency>
 
+        <!-- 模型能力模块（向量化模型网关与目录） -->
+        <dependency>
+            <groupId>com.knowledge</groupId>
+            <artifactId>knowledge-model</artifactId>
+        </dependency>
+
         <!-- Spring 基础（注解 / 配置属性 / 条件装配） -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

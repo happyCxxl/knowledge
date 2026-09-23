@@ -38,5 +38,17 @@ public enum PipelineTaskErrorCode {
     CHUNK_EMPTY,
 
     /** 切片执行异常兜底 */
-    CHUNK_FAILED
+    CHUNK_FAILED,
+
+    /** 向量化空输入（上游切片产物缺失/为空） */
+    EMBED_EMPTY,
+
+    /** 切片最大片长超过模型窗口（前置校验不通过） */
+    EMBED_MODEL_INCOMPATIBLE,
+
+    /** 向量一致性校验失败（四关拦截） */
+    EMBED_CONSISTENCY_FAILED,
+
+    /** 向量化执行异常兜底 */
+    EMBED_FAILED
 }

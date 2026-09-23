@@ -155,8 +155,11 @@ foreach ($f in $jsonFiles) {
         elseif ($rel.StartsWith('file:///E:/workbuddy/knowledge/')) { $rel = $rel.Substring('file:///E:/workbuddy/knowledge/'.Length) }
         $rel = [Uri]::UnescapeDataString($rel).Replace('\', '/')
         if (-not $keep.Contains($rel)) { continue }
+        $id = $p.problem_class.id
+        # 依赖 CVE 告警与 Maven 插件索引假阳性不计入门禁（平台钉版口径，用户拍板）
+        if ($id -eq 'VulnerableLibrariesLocal' -or $id -eq 'MavenModelInspection') { continue }
         $desc = ([string]$p.description) -replace "`r?`n", ' '
-        $rows.Add("$rel|$($p.line)|$($p.problem_class.id)|$desc")
+        $rows.Add("$rel|$($p.line)|$id|$desc")
     }
 }
 $sorted = @($rows | Sort-Object)

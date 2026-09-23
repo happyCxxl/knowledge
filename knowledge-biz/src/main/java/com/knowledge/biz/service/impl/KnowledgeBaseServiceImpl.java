@@ -27,6 +27,7 @@ import com.knowledge.common.security.KnowledgeUser;
 import com.knowledge.common.security.SecurityUtils;
 import com.knowledge.common.utils.JsonUtil;
 import com.knowledge.worker.chunking.strategy.ChunkStrategy;
+import com.knowledge.worker.embedding.strategy.EmbedStrategy;
 import com.knowledge.worker.preprocessing.strategy.PreprocessStrategy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -226,13 +227,14 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         return version == null ? "失效" : version.getName() + "-" + version.getVersion();
     }
 
-    /** 详情：填充预处理/切片策略绑定摘要 */
+    /** 详情：填充预处理/切片/向量化策略绑定摘要 */
     private void fillStrategyBindings(KnowledgeBaseVO vo) {
         fillBinding(vo, PreprocessStrategy.TYPE);
         fillBinding(vo, ChunkStrategy.TYPE);
+        fillBinding(vo, EmbedStrategy.TYPE);
     }
 
-    /** 分页：批量填充预处理/切片策略绑定摘要（避免逐行查询） */
+    /** 分页：批量填充预处理/切片/向量化策略绑定摘要（避免逐行查询） */
     private void fillStrategyBindings(List<KnowledgeBaseVO> records) {
         if (records.isEmpty()) {
             return;
@@ -240,6 +242,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         List<Long> kbIds = records.stream().map(KnowledgeBaseVO::getId).toList();
         fillBindingForType(records, kbIds, PreprocessStrategy.TYPE);
         fillBindingForType(records, kbIds, ChunkStrategy.TYPE);
+        fillBindingForType(records, kbIds, EmbedStrategy.TYPE);
     }
 
     private void fillBindingForType(List<KnowledgeBaseVO> records, List<Long> kbIds, String type) {
@@ -284,6 +287,9 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         if (ChunkStrategy.TYPE.equals(version.getType())) {
             vo.setChunkStrategyVersionId(version.getId());
             vo.setChunkStrategyVersion(fullVersion);
+        } else if (EmbedStrategy.TYPE.equals(version.getType())) {
+            vo.setEmbedStrategyVersionId(version.getId());
+            vo.setEmbedStrategyVersion(fullVersion);
         } else {
             vo.setPreprocessStrategyVersionId(version.getId());
             vo.setPreprocessStrategyVersion(fullVersion);

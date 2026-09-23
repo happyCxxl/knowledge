@@ -16,10 +16,10 @@ import java.util.Set;
 public interface StrategyVersionService {
 
     /** 已支持管理/列表/注册的策略类型（其余类型随环节实现加入） */
-    Set<String> SUPPORTED_TYPES = Set.of("PREPROCESS", "CHUNK");
+    Set<String> SUPPORTED_TYPES = Set.of("PREPROCESS", "CHUNK", "EMBED");
 
     /** 知识库可绑定类型（其余类型随环节实现加入） */
-    Set<String> BINDABLE_TYPES = Set.of("PREPROCESS", "CHUNK");
+    Set<String> BINDABLE_TYPES = Set.of("PREPROCESS", "CHUNK", "EMBED");
 
     /**
      * 列表：includeInactive=false 只启用中（触发前下拉用），true 全部（管理用）；空/非法类型 40001。

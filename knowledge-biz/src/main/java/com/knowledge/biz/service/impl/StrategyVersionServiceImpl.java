@@ -14,7 +14,9 @@ import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
 import com.knowledge.common.exception.ThrowUtil;
 import com.knowledge.common.utils.JsonUtil;
+import com.knowledge.model.catalog.ModelCatalogPort;
 import com.knowledge.worker.chunking.strategy.ChunkAlgorithmSpec;
+import com.knowledge.worker.embedding.strategy.EmbedAlgorithmSpec;
 import com.knowledge.worker.preprocessing.strategy.PreprocessAlgorithmSpec;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -39,6 +41,8 @@ public class StrategyVersionServiceImpl implements StrategyVersionService {
     private final KbPipelineStrategyVersionDbService strategyVersionDbService;
 
     private final KbStrategyBindingDbService strategyBindingDbService;
+
+    private final ModelCatalogPort modelCatalog;
 
     @Override
     public List<StrategyVersionVO> list(String type, boolean includeInactive) {
@@ -117,10 +121,15 @@ public class StrategyVersionServiceImpl implements StrategyVersionService {
 
     /**
      * 策略配置校验：按各环节算法 Spec 校验；非法 40001。
+     * EMBED 校验通过后把模型目录冗余（dimension/metric/normalized/contextWindowTokens/batchLimit）打进快照落库。
      */
     private String resolveConfigSnapshot(String type, String configSnapshot) {
         validateConfig(type, configSnapshot);
-        return configSnapshot;
+        if (!"EMBED".equals(type)) {
+            return configSnapshot;
+        }
+        Map<String, Object> enriched = EmbedAlgorithmSpec.enrich(JsonUtil.toMap(configSnapshot), modelCatalog);
+        return JsonUtil.toJsonStr(enriched);
     }
 
     private void validateConfig(String type, String configSnapshot) {
@@ -134,6 +143,7 @@ public class StrategyVersionServiceImpl implements StrategyVersionService {
         String error = switch (type) {
             case "CHUNK" -> ChunkAlgorithmSpec.validate(config);
             case "PREPROCESS" -> PreprocessAlgorithmSpec.validate(config);
+            case "EMBED" -> EmbedAlgorithmSpec.validate(config, modelCatalog);
             default -> null;
         };
         ThrowUtil.throwIf(error != null, ErrorCode.PARAM_INVALID, error);
