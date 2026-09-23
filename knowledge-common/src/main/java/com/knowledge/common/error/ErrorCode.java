@@ -81,6 +81,12 @@ public enum ErrorCode {
     /** 评测冻结集禁止发布/回退 */
     INDEX_FROZEN_SCOPE_PUBLISH_FORBIDDEN(40449, "指定文件范围的评测冻结集禁止发布/回退"),
 
+    /** 检索规则不存在（或类型非 RETRIEVAL） */
+    RETRIEVAL_RULE_NOT_FOUND(40450, "检索规则不存在"),
+
+    /** 该检索能力尚未启用（预留能力锁定） */
+    RETRIEVAL_CAPABILITY_LOCKED(40451, "该检索能力尚未启用"),
+
     /** 策略已被知识库绑定，禁止物理删除 */
     STRATEGY_BOUND_DELETE_FORBIDDEN(40452, "策略已被知识库绑定，禁止删除（可停用代替）"),
 

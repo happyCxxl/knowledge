@@ -32,5 +32,8 @@ public enum AuditActionType {
     ROLLBACK_INDEX,
 
     /** 索引候选回收（step-13 B08） */
-    RECYCLE_INDEX
+    RECYCLE_INDEX,
+
+    /** 检索规则选优发布（step-14 B09/B10） */
+    RETRIEVAL_RULE_PUBLISH
 }

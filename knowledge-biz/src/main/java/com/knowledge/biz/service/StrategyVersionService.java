@@ -16,9 +16,9 @@ import java.util.Set;
 public interface StrategyVersionService {
 
     /** 已支持管理/列表/注册的策略类型（其余类型随环节实现加入） */
-    Set<String> SUPPORTED_TYPES = Set.of("PREPROCESS", "CHUNK", "EMBED");
+    Set<String> SUPPORTED_TYPES = Set.of("PREPROCESS", "CHUNK", "EMBED", "RETRIEVAL");
 
-    /** 知识库可绑定类型（其余类型随环节实现加入） */
+    /** KB 三件套可绑定类型（检索规则不绑 KB——走索引版本行 default_rule_id） */
     Set<String> BINDABLE_TYPES = Set.of("PREPROCESS", "CHUNK", "EMBED");
 
     /**

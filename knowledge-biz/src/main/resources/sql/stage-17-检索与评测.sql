@@ -16,7 +16,7 @@ CREATE TABLE kb_retrieval_run
     rule_id            BIGINT               DEFAULT NULL COMMENT '规则行 ID（kb_pipeline_strategy_version；引擎基线规则无行 ID 时为 NULL）',
     rule_name_version  VARCHAR(64) NOT NULL COMMENT '规则 name-version（快照冗余，展示用）',
     query              TEXT        NOT NULL COMMENT '查询文本',
-    result_snapshot    varchar(1024)        NOT NULL COMMENT '结果快照（命中列表全字段，执行时刻快照=评测证据）',
+    result_snapshot    JSON        NOT NULL COMMENT '结果快照（命中列表全字段，执行时刻快照=评测证据）',
     elapsed_ms         INT         NOT NULL DEFAULT 0 COMMENT '耗时（毫秒）',
     create_time        DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
     PRIMARY KEY (id),

@@ -5,6 +5,7 @@ import cn.hutool.core.util.StrUtil;
 import com.knowledge.biz.service.StrategyVersionService;
 import com.knowledge.biz.service.db.KbPipelineStrategyVersionDbService;
 import com.knowledge.biz.service.db.KbStrategyBindingDbService;
+import com.knowledge.biz.service.support.RetrievalRuleResolver;
 import com.knowledge.common.domain.entity.KbPipelineStrategyVersion;
 import com.knowledge.common.dto.request.strategy.StrategyVersionCreateDto;
 import com.knowledge.common.dto.request.strategy.StrategyVersionUpdateDto;
@@ -43,6 +44,8 @@ public class StrategyVersionServiceImpl implements StrategyVersionService {
     private final KbStrategyBindingDbService strategyBindingDbService;
 
     private final ModelCatalogPort modelCatalog;
+
+    private final RetrievalRuleResolver retrievalRuleResolver;
 
     @Override
     public List<StrategyVersionVO> list(String type, boolean includeInactive) {
@@ -133,6 +136,11 @@ public class StrategyVersionServiceImpl implements StrategyVersionService {
     }
 
     private void validateConfig(String type, String configSnapshot) {
+        if ("RETRIEVAL".equals(type)) {
+            // 检索规则：字段/取值白名单 + 参数边界 + 预留能力锁定（40001/40451）
+            retrievalRuleResolver.validate(configSnapshot);
+            return;
+        }
         ThrowUtil.throwIf(StrUtil.isBlank(configSnapshot), ErrorCode.PARAM_INVALID, "配置不能为空");
         Map<String, Object> config;
         try {

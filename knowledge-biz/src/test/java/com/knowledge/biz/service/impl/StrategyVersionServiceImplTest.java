@@ -2,6 +2,7 @@ package com.knowledge.biz.service.impl;
 
 import com.knowledge.biz.service.db.KbPipelineStrategyVersionDbService;
 import com.knowledge.biz.service.db.KbStrategyBindingDbService;
+import com.knowledge.biz.service.support.RetrievalRuleResolver;
 import com.knowledge.common.domain.entity.KbPipelineStrategyVersion;
 import com.knowledge.common.dto.request.strategy.StrategyVersionCreateDto;
 import com.knowledge.common.dto.request.strategy.StrategyVersionUpdateDto;
@@ -10,6 +11,7 @@ import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
 import com.knowledge.common.utils.JsonUtil;
 import com.knowledge.model.catalog.StaticModelCatalog;
+import com.knowledge.worker.retrieval.RetrievalRuleSpec;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,6 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -43,13 +46,15 @@ class StrategyVersionServiceImplTest {
     private KbPipelineStrategyVersionDbService strategyVersionDbService;
     @Mock
     private KbStrategyBindingDbService strategyBindingDbService;
+    @Mock
+    private RetrievalRuleResolver retrievalRuleResolver;
 
     private StrategyVersionServiceImpl service;
 
     @BeforeEach
     void setUp() {
         service = new StrategyVersionServiceImpl(strategyVersionDbService, strategyBindingDbService,
-                new StaticModelCatalog());
+                new StaticModelCatalog(), retrievalRuleResolver);
     }
 
     private KbPipelineStrategyVersion row(Long id, String version, String status) {
@@ -461,5 +466,64 @@ class StrategyVersionServiceImplTest {
         assertEquals(ErrorCode.PARAM_INVALID, e.getErrorCode());
         assertEquals("batchSize 越界（允许 1~128）", e.getMessage());
         verify(strategyVersionDbService, never()).save(any());
+    }
+
+    // ---------------- RETRIEVAL 配置校验（规则解析器收口：白名单/边界/预留能力锁定） ----------------
+
+    private StrategyVersionCreateDto retrievalDto(String configSnapshot) {
+        StrategyVersionCreateDto dto = new StrategyVersionCreateDto();
+        dto.setType("RETRIEVAL");
+        dto.setName("hybrid-rrf-k60-top10");
+        dto.setVersion("v1");
+        dto.setConfigSnapshot(configSnapshot);
+        return dto;
+    }
+
+    @Test
+    void createRetrievalWithValidConfigShouldSave() {
+        when(retrievalRuleResolver.validate(anyString())).thenReturn(new RetrievalRuleSpec());
+        when(strategyVersionDbService.save(any(KbPipelineStrategyVersion.class))).thenAnswer(inv -> {
+            inv.getArgument(0, KbPipelineStrategyVersion.class).setId(15L);
+            return true;
+        });
+
+        StrategyVersionVO vo = service.create(retrievalDto("{\"channel\":\"HYBRID\"}"));
+
+        assertEquals(15L, vo.getId());
+        assertEquals("RETRIEVAL", vo.getType());
+        verify(retrievalRuleResolver).validate("{\"channel\":\"HYBRID\"}");
+    }
+
+    @Test
+    void createRetrievalWithUnknownFieldShouldReject() {
+        when(retrievalRuleResolver.validate(anyString()))
+                .thenThrow(new KnowledgeException(ErrorCode.PARAM_INVALID, "未知检索规则字段: unknown"));
+
+        KnowledgeException e = assertThrows(KnowledgeException.class,
+                () -> service.create(retrievalDto("{\"channel\":\"HYBRID\",\"unknown\":1}")));
+
+        assertEquals(ErrorCode.PARAM_INVALID, e.getErrorCode());
+        verify(strategyVersionDbService, never()).save(any());
+    }
+
+    @Test
+    void createRetrievalWithLockedCapabilityShouldReject() {
+        when(retrievalRuleResolver.validate(anyString()))
+                .thenThrow(new KnowledgeException(ErrorCode.RETRIEVAL_CAPABILITY_LOCKED, "该检索能力尚未启用: 加权融合"));
+
+        KnowledgeException e = assertThrows(KnowledgeException.class,
+                () -> service.create(retrievalDto("{\"fusion\":{\"mode\":\"WEIGHTED\"}}")));
+
+        assertEquals(ErrorCode.RETRIEVAL_CAPABILITY_LOCKED, e.getErrorCode());
+        verify(strategyVersionDbService, never()).save(any());
+    }
+
+    @Test
+    void listRetrievalTypeShouldBeSupported() {
+        when(strategyVersionDbService.listEnabledByType("RETRIEVAL")).thenReturn(List.of());
+
+        service.list("RETRIEVAL", false);
+
+        verify(strategyVersionDbService).listEnabledByType("RETRIEVAL");
     }
 }
