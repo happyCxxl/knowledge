@@ -3,8 +3,10 @@ package com.knowledge.biz.service.db;
 import com.knowledge.common.domain.entity.KbPipelineStrategyVersion;
 import com.knowledge.infra.persistence.InfraDbService;
 
+import java.util.List;
+
 /**
- * 环节策略版本数据访问服务（只读；管理接口随策略管理阶段落地）。
+ * 环节策略版本数据访问服务。
  *
  * @author cxxl
  */
@@ -16,7 +18,12 @@ public interface KbPipelineStrategyVersionDbService extends InfraDbService<KbPip
     KbPipelineStrategyVersion getLatestEnabledByType(String type);
 
     /**
-     * 按类型 + 版本号取启用版本（无 → null）。
+     * 取类型下全部版本（含停用，新→旧）。
      */
-    KbPipelineStrategyVersion getEnabledByTypeAndVersion(String type, String version);
+    List<KbPipelineStrategyVersion> listByType(String type);
+
+    /**
+     * 取类型下启用中的版本（新→旧）。
+     */
+    List<KbPipelineStrategyVersion> listEnabledByType(String type);
 }

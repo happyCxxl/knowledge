@@ -33,6 +33,13 @@ public class KnowledgeBaseVO implements Serializable {
     /** 策略绑定开关：1 开启 / 0 关闭（测评模式，触发必须显式选策略） */
     private Integer strategyBindingEnabled;
 
+    /** 绑定的切片策略版本行 ID（无绑定为 null） */
+    @JsonSerialize(using = ToStringSerializer.class)
+    private Long chunkStrategyVersionId;
+
+    /** 绑定的切片策略版本串（如 chunk-hybrid-v1，无绑定为 null） */
+    private String chunkStrategyVersion;
+
     /** 默认知识库标记：1=默认库（全库唯一，固定不可停用/删除）/ 0=普通库 */
     private Integer defaultFlag;
 

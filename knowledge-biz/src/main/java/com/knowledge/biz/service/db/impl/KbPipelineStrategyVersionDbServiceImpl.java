@@ -8,6 +8,8 @@ import com.knowledge.common.enums.task.RowStatus;
 import com.knowledge.infra.persistence.InfraDbServiceImpl;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+
 /**
  * 环节策略版本数据访问服务实现。
  *
@@ -29,13 +31,19 @@ public class KbPipelineStrategyVersionDbServiceImpl
     }
 
     @Override
-    public KbPipelineStrategyVersion getEnabledByTypeAndVersion(String type, String version) {
+    public List<KbPipelineStrategyVersion> listByType(String type) {
         LambdaQueryWrapper<KbPipelineStrategyVersion> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(KbPipelineStrategyVersion::getType, type)
-                .eq(KbPipelineStrategyVersion::getVersion, version)
+                .orderByDesc(KbPipelineStrategyVersion::getId);
+        return list(queryWrapper);
+    }
+
+    @Override
+    public List<KbPipelineStrategyVersion> listEnabledByType(String type) {
+        LambdaQueryWrapper<KbPipelineStrategyVersion> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(KbPipelineStrategyVersion::getType, type)
                 .eq(KbPipelineStrategyVersion::getStatus, RowStatus.ACTIVE.name())
-                .orderByDesc(KbPipelineStrategyVersion::getId)
-                .last("LIMIT 1");
-        return getOne(queryWrapper, false);
+                .orderByDesc(KbPipelineStrategyVersion::getId);
+        return list(queryWrapper);
     }
 }

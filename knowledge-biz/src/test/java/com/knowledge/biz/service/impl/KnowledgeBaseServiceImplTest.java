@@ -3,11 +3,17 @@ package com.knowledge.biz.service.impl;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.knowledge.biz.service.db.KbAuditLogDbService;
+import com.knowledge.biz.service.db.KbPipelineStrategyVersionDbService;
+import com.knowledge.biz.service.db.KbStrategyBindingDbService;
 import com.knowledge.biz.service.db.KnowledgeBaseDbService;
+import com.knowledge.common.domain.entity.KbPipelineStrategyVersion;
+import com.knowledge.common.domain.entity.KbStrategyBinding;
 import com.knowledge.common.domain.entity.KnowledgeBase;
 import com.knowledge.common.dto.request.knowledge.KnowledgeBaseCreateDto;
 import com.knowledge.common.dto.request.knowledge.KnowledgeBaseUpdateDto;
+import com.knowledge.common.dto.request.knowledge.StrategyBindingUpdateDto;
 import com.knowledge.common.dto.response.knowledge.KnowledgeBaseVO;
+import com.knowledge.common.dto.response.knowledge.StrategyBindingVO;
 import com.knowledge.common.enums.knowledge.AuditActionType;
 import com.knowledge.common.enums.knowledge.KnowledgeBaseStatus;
 import com.knowledge.common.error.ErrorCode;
@@ -19,7 +25,9 @@ import org.mockito.ArgumentCaptor;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -31,7 +39,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 知识库管理应用服务单测。
+ * 知识库管理应用服务单测（含策略绑定）。
  *
  * @author cxxl
  */
@@ -41,13 +49,20 @@ class KnowledgeBaseServiceImplTest {
 
     private KbAuditLogDbService kbAuditLogDbService;
 
+    private KbStrategyBindingDbService strategyBindingDbService;
+
+    private KbPipelineStrategyVersionDbService strategyVersionDbService;
+
     private KnowledgeBaseServiceImpl service;
 
     @BeforeEach
     void setUp() {
         knowledgeBaseDbService = mock(KnowledgeBaseDbService.class);
         kbAuditLogDbService = mock(KbAuditLogDbService.class);
-        service = new KnowledgeBaseServiceImpl(knowledgeBaseDbService, kbAuditLogDbService);
+        strategyBindingDbService = mock(KbStrategyBindingDbService.class);
+        strategyVersionDbService = mock(KbPipelineStrategyVersionDbService.class);
+        service = new KnowledgeBaseServiceImpl(knowledgeBaseDbService, kbAuditLogDbService,
+                strategyBindingDbService, strategyVersionDbService);
     }
 
     private KnowledgeBase kb(long id, int status) {
@@ -63,6 +78,27 @@ class KnowledgeBaseServiceImplTest {
         KnowledgeBase k = kb(id, 1);
         k.setDefaultFlag(1);
         return k;
+    }
+
+    /** 有效绑定行（KB 2 绑定 CHUNK） */
+    private KbStrategyBinding binding(Long versionId) {
+        KbStrategyBinding binding = new KbStrategyBinding();
+        binding.setId(1L);
+        binding.setKnowledgeBaseId(2L);
+        binding.setStrategyType("CHUNK");
+        binding.setStrategyVersionId(versionId);
+        return binding;
+    }
+
+    /** 启用中的 CHUNK 策略版本行 */
+    private KbPipelineStrategyVersion chunkVersion() {
+        KbPipelineStrategyVersion row = new KbPipelineStrategyVersion();
+        row.setId(66L);
+        row.setType("CHUNK");
+        row.setName("chunk-hybrid");
+        row.setVersion("v1");
+        row.setStatus("ACTIVE");
+        return row;
     }
 
     @Test
@@ -211,11 +247,130 @@ class KnowledgeBaseServiceImplTest {
         page.setTotal(1);
         page.setRecords(List.of(kb(7L, 1)));
         when(knowledgeBaseDbService.pageByName(1L, 10L, "库7")).thenReturn(page);
+        when(strategyBindingDbService.listActiveByTypeAndKbIds(any(), any())).thenReturn(List.of());
 
         IPage<KnowledgeBaseVO> result = service.page(1, 10, "库7");
 
         assertEquals(1, result.getTotal());
         assertEquals(1, result.getRecords().size());
         assertEquals("库7", result.getRecords().getFirst().getName());
+    }
+
+    // ---------------- 策略绑定 ----------------
+
+    @Test
+    void strategyBindingShouldReturnBoundVersion() {
+        when(knowledgeBaseDbService.getActiveById(2L)).thenReturn(kb(2L, 1));
+        when(strategyBindingDbService.getByKbAndType(2L, "CHUNK")).thenReturn(binding(66L));
+        when(strategyVersionDbService.getById(66L)).thenReturn(chunkVersion());
+
+        StrategyBindingVO vo = service.strategyBinding(2L, "CHUNK");
+
+        assertEquals(66L, vo.getStrategyVersionId());
+        assertEquals("chunk-hybrid", vo.getStrategyName());
+        assertEquals("v1", vo.getStrategyVersion());
+    }
+
+    @Test
+    void strategyBindingWithUnknownTypeShouldReject() {
+        when(knowledgeBaseDbService.getActiveById(2L)).thenReturn(kb(2L, 1));
+
+        KnowledgeException e = assertThrows(KnowledgeException.class,
+                () -> service.strategyBinding(2L, "INDEX"));
+        assertEquals(ErrorCode.PARAM_INVALID, e.getErrorCode());
+    }
+
+    @Test
+    void bindStrategyShouldReuseExistingRow() {
+        when(knowledgeBaseDbService.getActiveById(2L)).thenReturn(kb(2L, 1));
+        when(strategyVersionDbService.getById(66L)).thenReturn(chunkVersion());
+        KbStrategyBinding existing = binding(55L);
+        existing.setDelFlag("1");
+        when(strategyBindingDbService.getAnyByKbAndType(2L, "CHUNK")).thenReturn(existing);
+
+        StrategyBindingUpdateDto dto = new StrategyBindingUpdateDto();
+        dto.setStrategyType("CHUNK");
+        dto.setStrategyVersionId(66L);
+
+        assertTrue(service.bindStrategy(2L, dto));
+
+        assertEquals("0", existing.getDelFlag());
+        assertEquals(66L, existing.getStrategyVersionId());
+        verify(strategyBindingDbService).updateById(existing);
+        verify(kbAuditLogDbService).saveAudit(
+                eq(AuditActionType.BIND), eq("KNOWLEDGE_BASE"), eq(2L), anyString(), anyString());
+    }
+
+    @Test
+    void bindStrategyWithNullVersionShouldUnbind() {
+        when(knowledgeBaseDbService.getActiveById(2L)).thenReturn(kb(2L, 1));
+        when(strategyBindingDbService.getByKbAndType(2L, "CHUNK")).thenReturn(binding(66L));
+
+        StrategyBindingUpdateDto dto = new StrategyBindingUpdateDto();
+        dto.setStrategyType("CHUNK");
+        dto.setStrategyVersionId(null);
+
+        assertTrue(service.bindStrategy(2L, dto));
+
+        ArgumentCaptor<KbStrategyBinding> captor = ArgumentCaptor.forClass(KbStrategyBinding.class);
+        verify(strategyBindingDbService).updateById(captor.capture());
+        assertEquals("1", captor.getValue().getDelFlag());
+        verify(kbAuditLogDbService).saveAudit(
+                eq(AuditActionType.BIND), eq("KNOWLEDGE_BASE"), eq(2L), anyString(), isNull());
+    }
+
+    @Test
+    void bindStrategyWithInactiveVersionShouldReject() {
+        when(knowledgeBaseDbService.getActiveById(2L)).thenReturn(kb(2L, 1));
+        KbPipelineStrategyVersion inactive = chunkVersion();
+        inactive.setStatus("INACTIVE");
+        when(strategyVersionDbService.getById(66L)).thenReturn(inactive);
+
+        StrategyBindingUpdateDto dto = new StrategyBindingUpdateDto();
+        dto.setStrategyType("CHUNK");
+        dto.setStrategyVersionId(66L);
+
+        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.bindStrategy(2L, dto));
+        assertEquals(ErrorCode.PARAM_INVALID, e.getErrorCode());
+        verify(strategyBindingDbService, never()).save(any());
+    }
+
+    @Test
+    void bindStrategyWhenBindingDisabledShouldReject() {
+        KnowledgeBase closed = kb(2L, 1);
+        closed.setStrategyBindingEnabled(0);
+        when(knowledgeBaseDbService.getActiveById(2L)).thenReturn(closed);
+
+        StrategyBindingUpdateDto dto = new StrategyBindingUpdateDto();
+        dto.setStrategyType("CHUNK");
+        dto.setStrategyVersionId(66L);
+
+        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.bindStrategy(2L, dto));
+        assertEquals(ErrorCode.PARAM_INVALID, e.getErrorCode());
+        verify(strategyBindingDbService, never()).save(any());
+    }
+
+    @Test
+    void detailShouldFillChunkBindingSummary() {
+        KnowledgeBase k = kb(2L, 1);
+        when(knowledgeBaseDbService.getActiveById(2L)).thenReturn(k);
+        when(strategyBindingDbService.getByKbAndType(2L, "CHUNK")).thenReturn(binding(66L));
+        when(strategyVersionDbService.getById(66L)).thenReturn(chunkVersion());
+
+        KnowledgeBaseVO vo = service.detail(2L);
+
+        assertEquals(66L, vo.getChunkStrategyVersionId());
+        assertEquals("chunk-hybrid-v1", vo.getChunkStrategyVersion());
+    }
+
+    @Test
+    void detailWithoutBindingShouldLeaveSummaryEmpty() {
+        when(knowledgeBaseDbService.getActiveById(2L)).thenReturn(kb(2L, 1));
+        when(strategyBindingDbService.getByKbAndType(2L, "CHUNK")).thenReturn(null);
+
+        KnowledgeBaseVO vo = service.detail(2L);
+
+        assertNull(vo.getChunkStrategyVersionId());
+        assertNull(vo.getChunkStrategyVersion());
     }
 }

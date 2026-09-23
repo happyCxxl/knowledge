@@ -51,6 +51,9 @@ public enum ErrorCode {
     /** 解析已成功或部分成功，禁止重跑 */
     PARSE_ALREADY_SUCCEEDED(40437, "解析已成功或部分成功，无需重跑"),
 
+    /** 策略已被知识库绑定，禁止物理删除 */
+    STRATEGY_BOUND_DELETE_FORBIDDEN(40452, "策略已被知识库绑定，禁止删除（可停用代替）"),
+
     /** 系统异常 */
     SYSTEM_ERROR(40500, "系统异常，请稍后重试");
 

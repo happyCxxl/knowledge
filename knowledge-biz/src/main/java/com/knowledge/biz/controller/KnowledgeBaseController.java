@@ -5,7 +5,9 @@ import com.knowledge.biz.service.KnowledgeBaseService;
 import com.knowledge.common.core.util.R;
 import com.knowledge.common.dto.request.knowledge.KnowledgeBaseCreateDto;
 import com.knowledge.common.dto.request.knowledge.KnowledgeBaseUpdateDto;
+import com.knowledge.common.dto.request.knowledge.StrategyBindingUpdateDto;
 import com.knowledge.common.dto.response.knowledge.KnowledgeBaseVO;
+import com.knowledge.common.dto.response.knowledge.StrategyBindingVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -91,5 +93,22 @@ public class KnowledgeBaseController {
             @Parameter(description = "知识库ID", required = true) @PathVariable("id") Long id) {
         log.info("===> KnowledgeBaseController delete 删除知识库, id={}", id);
         return R.ok(knowledgeBaseService.delete(id), "删除成功");
+    }
+
+    @GetMapping("/{id}/strategy-binding")
+    @Operation(summary = "查询知识库策略绑定", description = "按策略类型查知识库绑定（未绑定返回仅含 strategyType）")
+    public R<StrategyBindingVO> strategyBinding(
+            @Parameter(description = "知识库ID", required = true) @PathVariable("id") Long id,
+            @Parameter(description = "策略类型（CHUNK）", required = true) @RequestParam("strategyType") String strategyType) {
+        return R.ok(knowledgeBaseService.strategyBinding(id, strategyType));
+    }
+
+    @PutMapping("/{id}/strategy-binding")
+    @Operation(summary = "绑定/解绑知识库策略", description = "strategyVersionId 为 null 解绑；绑定校验类型/版本/启用状态")
+    public R<Boolean> bindStrategy(
+            @Parameter(description = "知识库ID", required = true) @PathVariable("id") Long id,
+            @Valid @RequestBody StrategyBindingUpdateDto dto) {
+        log.info("===> KnowledgeBaseController bindStrategy 绑定知识库策略, id={}, type={}", id, dto.getStrategyType());
+        return R.ok(knowledgeBaseService.bindStrategy(id, dto), "绑定成功");
     }
 }

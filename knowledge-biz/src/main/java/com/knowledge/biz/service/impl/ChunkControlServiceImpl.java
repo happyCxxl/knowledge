@@ -8,6 +8,8 @@ import com.knowledge.biz.service.db.KbFileResultDbService;
 import com.knowledge.biz.service.db.KbPipelineProductDbService;
 import com.knowledge.biz.service.db.KbPipelineStepLogDbService;
 import com.knowledge.biz.service.db.KbPipelineStrategyVersionDbService;
+import com.knowledge.biz.service.db.KbStrategyBindingDbService;
+import com.knowledge.biz.service.db.KnowledgeBaseDbService;
 import com.knowledge.biz.service.support.ChunkVoAssembler;
 import com.knowledge.biz.service.support.TaskDetailSupport;
 import com.knowledge.biz.task.TaskTriggerSupport;
@@ -17,7 +19,10 @@ import com.knowledge.common.domain.entity.KbFileResult;
 import com.knowledge.common.domain.entity.KbPipelineProduct;
 import com.knowledge.common.domain.entity.KbPipelineStrategyVersion;
 import com.knowledge.common.domain.entity.KbPipelineTask;
+import com.knowledge.common.domain.entity.KbStrategyBinding;
+import com.knowledge.common.domain.entity.KnowledgeBase;
 import com.knowledge.common.domain.rules.ChunkRules;
+import com.knowledge.common.domain.rules.KnowledgeBaseRules;
 import com.knowledge.common.dto.response.chunk.ChunkDetailVO;
 import com.knowledge.common.dto.response.chunk.ChunkTriggerVO;
 import com.knowledge.common.dto.response.task.StageTriggerVO;
@@ -52,6 +57,8 @@ public class ChunkControlServiceImpl implements ChunkControlService {
     private final KbPipelineProductDbService pipelineProductDbService;
     private final KbPipelineStepLogDbService stepLogDbService;
     private final KbPipelineStrategyVersionDbService strategyVersionDbService;
+    private final KbStrategyBindingDbService strategyBindingDbService;
+    private final KnowledgeBaseDbService knowledgeBaseDbService;
     private final TaskTriggerSupport triggerSupport;
     private final TaskDetailSupport detailSupport;
     private final KbChunkSetDbService chunkSetDbService;
@@ -71,7 +78,7 @@ public class ChunkControlServiceImpl implements ChunkControlService {
     public ChunkTriggerVO chunk(Long fileResultId, Long strategyVersionId, Long upstreamProductId) {
         KbFileResult fileResult = fileResultDbService.getById(fileResultId);
         ThrowUtil.throwIf(ObjectUtil.isNull(fileResult), ErrorCode.FILE_RESULT_NOT_FOUND);
-        ChunkStrategy strategy = resolveStrategy(strategyVersionId);
+        ChunkStrategy strategy = resolveStrategy(fileResult, strategyVersionId);
 
         // 可选指定上游预处理产物；缺省取最新
         KbPipelineProduct preprocessProduct = requirePreprocessProduct(fileResultId, upstreamProductId);
@@ -114,8 +121,8 @@ public class ChunkControlServiceImpl implements ChunkControlService {
         return vo;
     }
 
-    /** 策略解析三档：显式指定（40433 校验存在/类型/启用）→ 启用中最新 → 内置默认。 */
-    private ChunkStrategy resolveStrategy(Long strategyVersionId) {
+    /** 策略解析四档：显式指定（40433 校验存在/类型/启用）→ KB 绑定（开关开启时，失效回退告警）→ 启用中最新 → 内置默认。 */
+    private ChunkStrategy resolveStrategy(KbFileResult fileResult, Long strategyVersionId) {
         if (ObjectUtil.isNotNull(strategyVersionId)) {
             // 显式指定策略：按行 id 精确引用
             KbPipelineStrategyVersion row = strategyVersionDbService.getById(strategyVersionId);
@@ -125,6 +132,20 @@ public class ChunkControlServiceImpl implements ChunkControlService {
             ThrowUtil.throwIf(!RowStatus.ACTIVE.name().equals(row.getStatus()),
                     ErrorCode.STRATEGY_VERSION_NOT_FOUND, "策略已停用，请先启用后再触发");
             return toStrategy(row);
+        }
+        // KB 绑定档位：绑定开关开启且存在有效绑定则用之；绑定行失效（行缺失/停用）回退下一档并告警
+        KnowledgeBase kb = knowledgeBaseDbService.getActiveById(fileResult.getKnowledgeBaseId());
+        if (KnowledgeBaseRules.isStrategyBindingEnabled(kb)) {
+            KbStrategyBinding binding = strategyBindingDbService
+                    .getByKbAndType(fileResult.getKnowledgeBaseId(), ChunkStrategy.TYPE);
+            if (ObjectUtil.isNotNull(binding)) {
+                KbPipelineStrategyVersion bound = strategyVersionDbService.getById(binding.getStrategyVersionId());
+                if (ObjectUtil.isNotNull(bound) && RowStatus.ACTIVE.name().equals(bound.getStatus())) {
+                    return toStrategy(bound);
+                }
+                log.warn("===> ChunkControlServiceImpl 切片 KB 绑定策略失效，回退全局最新启用, fileResultId={}, bindingId={}",
+                        fileResult.getId(), binding.getId());
+            }
         }
         KbPipelineStrategyVersion latest = strategyVersionDbService.getLatestEnabledByType(ChunkStrategy.TYPE);
         return ObjectUtil.isNull(latest) ? strategyParser.defaultStrategy() : toStrategy(latest);

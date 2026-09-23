@@ -64,4 +64,11 @@ public final class KnowledgeBaseRules {
             throw new KnowledgeException(ErrorCode.KB_NOT_ACTIVE);
         }
     }
+
+    /**
+     * 策略绑定开关判定：null 或非 0 视为开启（兼容存量数据）。
+     */
+    public static boolean isStrategyBindingEnabled(KnowledgeBase kb) {
+        return kb == null || !Integer.valueOf(0).equals(kb.getStrategyBindingEnabled());
+    }
 }

@@ -3,7 +3,9 @@ package com.knowledge.biz.service;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.knowledge.common.dto.request.knowledge.KnowledgeBaseCreateDto;
 import com.knowledge.common.dto.request.knowledge.KnowledgeBaseUpdateDto;
+import com.knowledge.common.dto.request.knowledge.StrategyBindingUpdateDto;
 import com.knowledge.common.dto.response.knowledge.KnowledgeBaseVO;
+import com.knowledge.common.dto.response.knowledge.StrategyBindingVO;
 
 /**
  * 知识库管理应用服务（创建/更新/详情/分页/启停/逻辑删除 + 同事务审计）。
@@ -20,6 +22,7 @@ public interface KnowledgeBaseService {
     /**
      * 更新名称/描述/策略绑定开关。
      */
+    @SuppressWarnings("SameReturnValue")
     boolean update(KnowledgeBaseUpdateDto dto);
 
     /**
@@ -35,15 +38,30 @@ public interface KnowledgeBaseService {
     /**
      * 停用（仅启用状态可停用）。
      */
+    @SuppressWarnings("SameReturnValue")
     boolean disable(Long id);
 
     /**
      * 启用（仅停用状态可启用）。
      */
+    @SuppressWarnings("SameReturnValue")
     boolean enable(Long id);
 
     /**
      * 逻辑删除（del_flag='1'，无恢复接口）。
      */
+    @SuppressWarnings("SameReturnValue")
     boolean delete(Long id);
+
+    /**
+     * 查知识库某类型的策略绑定（未绑定返回仅含 strategyType 的空 VO）。
+     */
+    StrategyBindingVO strategyBinding(Long id, String strategyType);
+
+    /**
+     * 绑定/解绑知识库某类型策略：strategyVersionId 为 null 解绑（逻辑删除，重绑复用原行）；
+     * 非法（类型白名单/版本不存在/类型不匹配/停用/绑定开关关闭）→ 40001。
+     */
+    @SuppressWarnings("SameReturnValue")
+    boolean bindStrategy(Long id, StrategyBindingUpdateDto dto);
 }

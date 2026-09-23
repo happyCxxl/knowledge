@@ -7,6 +7,8 @@ import com.knowledge.biz.service.db.KbPipelineProductDbService;
 import com.knowledge.biz.service.db.KbPipelineStepLogDbService;
 import com.knowledge.biz.service.db.KbPipelineStrategyVersionDbService;
 import com.knowledge.biz.service.db.KbPipelineTaskDbService;
+import com.knowledge.biz.service.db.KbStrategyBindingDbService;
+import com.knowledge.biz.service.db.KnowledgeBaseDbService;
 import com.knowledge.biz.service.support.ChunkVoAssembler;
 import com.knowledge.biz.service.support.TaskDetailSupport;
 import com.knowledge.biz.task.TaskQueueSupport;
@@ -17,6 +19,8 @@ import com.knowledge.common.domain.entity.KbFileResult;
 import com.knowledge.common.domain.entity.KbPipelineProduct;
 import com.knowledge.common.domain.entity.KbPipelineStrategyVersion;
 import com.knowledge.common.domain.entity.KbPipelineTask;
+import com.knowledge.common.domain.entity.KbStrategyBinding;
+import com.knowledge.common.domain.entity.KnowledgeBase;
 import com.knowledge.common.dto.response.chunk.ChunkDetailVO;
 import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.enums.task.PipelineTaskStatus;
@@ -44,7 +48,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 切片控制面服务单测：策略解析三档 / 上游产物校验 / 防重复用 / 建任务快照入队 / 切片详情。
+ * 切片控制面服务单测：策略解析四档（显式/KB 绑定/最新启用/内置默认）/ 上游产物校验 / 防重复用 / 建任务快照入队 / 切片详情。
  *
  * @author cxxl
  */
@@ -67,6 +71,10 @@ class ChunkControlServiceImplTest {
     private KbChunkSetDbService chunkSetDbService;
     @Mock
     private KbChunkDbService chunkDbService;
+    @Mock
+    private KbStrategyBindingDbService strategyBindingDbService;
+    @Mock
+    private KnowledgeBaseDbService knowledgeBaseDbService;
 
     private ChunkControlServiceImpl service;
 
@@ -74,7 +82,7 @@ class ChunkControlServiceImplTest {
     void setUp() {
         // 触发/详情助手为纯委托类、组装器为纯映射类，用真实实例（mock 会让 VO 组装返回 null，断言失真）
         service = new ChunkControlServiceImpl(fileResultDbService, pipelineProductDbService,
-                stepLogDbService, strategyVersionDbService,
+                stepLogDbService, strategyVersionDbService, strategyBindingDbService, knowledgeBaseDbService,
                 new TaskTriggerSupport(pipelineTaskDbService, taskQueue),
                 new TaskDetailSupport(pipelineTaskDbService),
                 chunkSetDbService, chunkDbService,
@@ -99,6 +107,24 @@ class ChunkControlServiceImplTest {
         when(fileResultDbService.getById(10L)).thenReturn(fileResult());
         when(pipelineProductDbService.getByFileResultIdAndStage(10L, PipelineStage.PREPROCESS.name()))
                 .thenReturn(preprocessProduct());
+    }
+
+    /** 默认知识库（绑定开关未显式关闭 → 视为开启） */
+    private KnowledgeBase knowledgeBase() {
+        KnowledgeBase kb = new KnowledgeBase();
+        kb.setId(10L);
+        kb.setStrategyBindingEnabled(1);
+        return kb;
+    }
+
+    /** 有效绑定行：KB 10 绑定 CHUNK 策略版本 66 */
+    private KbStrategyBinding binding() {
+        KbStrategyBinding binding = new KbStrategyBinding();
+        binding.setId(1L);
+        binding.setKnowledgeBaseId(10L);
+        binding.setStrategyType(ChunkStrategy.TYPE);
+        binding.setStrategyVersionId(66L);
+        return binding;
     }
 
     private KbPipelineStrategyVersion chunkVersion(String name, String version) {
@@ -179,6 +205,66 @@ class ChunkControlServiceImplTest {
         ArgumentCaptor<KbPipelineTask> captor = ArgumentCaptor.forClass(KbPipelineTask.class);
         verify(pipelineTaskDbService).save(captor.capture());
         assertTrue(captor.getValue().getStrategySnapshot().contains("titleInContent"));
+    }
+
+    @Test
+    void boundStrategyShouldBeUsedWhenNoExplicitVersion() {
+        stubCommon();
+        when(knowledgeBaseDbService.getActiveById(10L)).thenReturn(knowledgeBase());
+        when(strategyBindingDbService.getByKbAndType(10L, ChunkStrategy.TYPE)).thenReturn(binding());
+        when(strategyVersionDbService.getById(66L)).thenReturn(chunkVersion("chunk-bound", "v3"));
+        when(pipelineTaskDbService.getByFileResultIdAndStage(10L, PipelineStage.CHUNK.name()))
+                .thenReturn(null);
+        when(pipelineTaskDbService.save(any(KbPipelineTask.class))).thenAnswer(inv -> {
+            inv.getArgument(0, KbPipelineTask.class).setId(43L);
+            return true;
+        });
+
+        var response = service.chunk(10L, null, null);
+
+        assertEquals("chunk-bound-v3", response.getStrategyVersion());
+        // 绑定生效时不查全局最新启用
+        verify(strategyVersionDbService, never()).getLatestEnabledByType(any());
+    }
+
+    @Test
+    void explicitStrategyShouldOverrideBinding() {
+        stubCommon();
+        when(strategyVersionDbService.getById(66L)).thenReturn(chunkVersion("chunk-explicit", "v4"));
+        when(pipelineTaskDbService.getByFileResultIdAndStage(10L, PipelineStage.CHUNK.name()))
+                .thenReturn(null);
+        when(pipelineTaskDbService.save(any(KbPipelineTask.class))).thenAnswer(inv -> {
+            inv.getArgument(0, KbPipelineTask.class).setId(44L);
+            return true;
+        });
+
+        var response = service.chunk(10L, 66L, null);
+
+        assertEquals("chunk-explicit-v4", response.getStrategyVersion());
+        // 显式指定时不经绑定档与全局最新档
+        verify(strategyBindingDbService, never()).getByKbAndType(any(), any());
+        verify(strategyVersionDbService, never()).getLatestEnabledByType(any());
+    }
+
+    @Test
+    void staleBindingShouldFallbackToLatestEnabled() {
+        // 绑定行指向的策略版本行缺失 → 失效回退全局最新启用
+        stubCommon();
+        when(knowledgeBaseDbService.getActiveById(10L)).thenReturn(knowledgeBase());
+        when(strategyBindingDbService.getByKbAndType(10L, ChunkStrategy.TYPE)).thenReturn(binding());
+        when(strategyVersionDbService.getById(66L)).thenReturn(null);
+        when(strategyVersionDbService.getLatestEnabledByType(ChunkStrategy.TYPE))
+                .thenReturn(chunkVersion("chunk-latest", "v5"));
+        when(pipelineTaskDbService.getByFileResultIdAndStage(10L, PipelineStage.CHUNK.name()))
+                .thenReturn(null);
+        when(pipelineTaskDbService.save(any(KbPipelineTask.class))).thenAnswer(inv -> {
+            inv.getArgument(0, KbPipelineTask.class).setId(45L);
+            return true;
+        });
+
+        var response = service.chunk(10L, null, null);
+
+        assertEquals("chunk-latest-v5", response.getStrategyVersion());
     }
 
     @Test

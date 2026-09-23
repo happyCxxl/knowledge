@@ -19,6 +19,9 @@ public enum AuditActionType {
     /** 启用 */
     ENABLE,
 
+    /** 策略绑定/解绑 */
+    BIND,
+
     /** 逻辑删除 */
     DELETE
 }
