@@ -76,7 +76,11 @@ if (-not $FilterOnly) {
         "-Didea.config.path=$fwd/config",
         "-Didea.system.path=$fwd/system",
         "-Didea.log.path=$fwd/log",
-        "-Didea.plugins.path=$fwd/plugins"
+        "-Didea.plugins.path=$fwd/plugins",
+        # 无头检测进程的内存上限：避免与用户开着的主 IDE 抢内存导致原生内存耗尽
+        "-Xmx1536m",
+        "-XX:MaxMetaspaceSize=512m",
+        "-XX:ReservedCodeCacheSize=192m"
     )
     $myVm = Join-Path $isolated 'idea.vmoptions'
     [System.IO.File]::WriteAllLines($myVm, $vmLines, (New-Object System.Text.UTF8Encoding($false)))

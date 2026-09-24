@@ -9,6 +9,9 @@
     "pnpm": ">=9"
   },
   "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview",
     "lint": "pnpm lint:format && pnpm lint:js && pnpm lint:types && pnpm lint:css && pnpm lint:files && pnpm lint:names",
     "lint:format": "prettier --check .",
     "lint:js": "eslint .",
@@ -28,6 +31,7 @@
   "devDependencies": {
     "@eslint/js": "^9.39.5",
     "@ls-lint/ls-lint": "^2.3.1",
+    "@vitejs/plugin-vue": "^6.0.9",
     "eslint": "^9.39.5",
     "eslint-plugin-vue": "^10.11.0",
     "husky": "^9.1.7",
@@ -38,6 +42,13 @@
     "stylelint-config-standard": "^40.0.0",
     "typescript": "5.9.3",
     "typescript-eslint": "^8.70.1",
+    "vite": "^8.3.0",
     "vue-tsc": "^3.3.11"
+  },
+  "dependencies": {
+    "element-plus": "^2.14.6",
+    "pinia": "^4.0.3",
+    "vue": "^3.5.43",
+    "vue-router": "^5.3.1"
   }
 }
