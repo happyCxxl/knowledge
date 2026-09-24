@@ -2,35 +2,44 @@
 .SYNOPSIS
   无头运行 IDEA 静态检查（inspect），只报告"将提交代码"上的告警，目标 0。
 .DESCRIPTION
-  1) 用隔离的 IDEA 配置目录（config/system/log/plugins 全部指向仓库外的 _idea_isolated）启动
+  1) 用隔离的 IDEA 配置目录（config/system/log/plugins 全部指向系统 TEMP 下 knowledge-idea-gate 目录）启动
      idea64.exe inspect，不读写用户真实 IDEA 配置（主题/词典/最近项目等一概不碰）；
   2) 解析输出 JSON，只保留「已暂存(git diff --cached) + 已修改(git diff) + -Extra 指定」文件上的告警，
-     写入仓库外的 _idea_staged_warnings.txt；
+     写入系统 TEMP 下 knowledge-idea-gate 目录的 _idea_staged_warnings.txt；
   3) 校验用户配置目录中 colors.scheme.xml / recentProjects.xml 在运行前后未被改动。
+  -Scope web：前端门禁口径——告警范围收口到 web/ 目录，并自动纳入 web/ 下未跟踪文件；
+    隔离目录与告警文件使用 _web 后缀，与后端互不干扰。
 .PARAMETER FilterOnly
   跳过检测，只对现有 _idea_inspect 结果重新过滤。
 .PARAMETER Extra
   额外纳入过滤的仓库内相对路径（未跟踪但属于当前阶段的文件），可多值。
+.PARAMETER Scope
+  门禁口径：空 = 后端（全仓、暂存+修改+Extra）；web = 前端（web/ 下，暂存+修改+未跟踪+Extra）。
 .EXAMPLE
   .\inspect-idea.ps1
   .\inspect-idea.ps1 -FilterOnly
   .\inspect-idea.ps1 -Extra 'knowledge-biz/src/main/java/com/knowledge/biz/task/TaskRunnerSupport.java'
+  .\inspect-idea.ps1 -Scope web
 #>
 [CmdletBinding()]
 param(
     [switch]$FilterOnly,
-    [string[]]$Extra = @()
+    [string[]]$Extra = @(),
+    [string]$Scope = ''
 )
 
 $ErrorActionPreference = 'Stop'
 
 $repo     = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$workRoot = Split-Path $repo -Parent
+$isWeb    = ($Scope -eq 'web')
+$suffix   = if ($isWeb) { '_web' } else { '' }
 $ideaHome = 'D:\devTools\idea\IntelliJ IDEA 2026.2.3'
 $ideaExe  = Join-Path $ideaHome 'bin\idea64.exe'
-$isolated = Join-Path $workRoot '_idea_isolated'
-$outDir   = Join-Path $workRoot '_idea_inspect'
-$warnFile = Join-Path $workRoot '_idea_staged_warnings.txt'
+# 运行产物统一放系统 TEMP（隔离配置/检测输出/告警结果），不污染仓库与工作目录
+$gateRoot = Join-Path $env:TEMP 'knowledge-idea-gate'
+$isolated = Join-Path $gateRoot "_idea_isolated$suffix"
+$outDir   = Join-Path $gateRoot "_idea_inspect$suffix"
+$warnFile = Join-Path $gateRoot "_idea_staged_warnings$suffix.txt"
 
 function Invoke-Inspection {
     $runCmd = Join-Path $isolated 'run.cmd'
@@ -133,12 +142,20 @@ if (-not $FilterOnly) {
 }
 
 # ---- 过滤：只保留「将提交代码」上的告警 ----
-Set-Location $repo
-$staged   = @(git diff --cached --name-only)
-$modified = @(git diff --name-only)
+$staged   = @(git -C $repo diff --cached --name-only)
+$modified = @(git -C $repo diff --name-only)
+$candidates = @($staged) + @($modified) + @($Extra)
+if ($isWeb) {
+    # 前端口径：web/ 下未跟踪文件（AI 生成的新文件）也纳入门禁
+    $candidates += @(git -C $repo ls-files --others --exclude-standard -- 'web/')
+}
 $keep = New-Object System.Collections.Generic.HashSet[string]
-foreach ($p in ($staged + $modified + $Extra)) {
-    if ($p) { [void]$keep.Add($p.Trim().Replace('\', '/')) }
+foreach ($p in $candidates) {
+    if ($p) {
+        $n = $p.Trim().Replace('\', '/')
+        if ($isWeb -and -not $n.StartsWith('web/')) { continue }
+        [void]$keep.Add($n)
+    }
 }
 
 $rows = New-Object System.Collections.Generic.List[string]

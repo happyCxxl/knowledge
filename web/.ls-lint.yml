@@ -1,0 +1,25 @@
+ls:
+  .dir: kebab-case
+  .js: kebab-case
+  .mjs: kebab-case
+  .ts: kebab-case
+  .css: kebab-case
+  .scss: kebab-case
+  .json: kebab-case
+  src:
+    components:
+      .vue: PascalCase
+    views:
+      .vue: PascalCase
+ignore:
+  - node_modules
+  - dist
+  - .git
+  - .idea
+  - .vscode
+  - .husky
+  - '**/*.config.*'
+  - .prettierrc.json
+  - .ls-lint.yml
+  - .npmrc
+  - .gitignore

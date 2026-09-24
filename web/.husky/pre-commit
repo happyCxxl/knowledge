@@ -1,0 +1,8 @@
+#!/bin/sh
+set -e
+if git diff --cached --name-only | grep -q '^web/'; then
+  cd "$(git rev-parse --show-toplevel)/web"
+  pnpm exec lint-staged --concurrent false
+  pnpm exec ls-lint
+  node scripts/check-naming.mjs
+fi

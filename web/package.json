@@ -1,0 +1,43 @@
+{
+  "name": "knowledge-web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "知识库前端（自用单体，界面纯中文）",
+  "packageManager": "pnpm@11.7.0",
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=9"
+  },
+  "scripts": {
+    "lint": "pnpm lint:format && pnpm lint:js && pnpm lint:types && pnpm lint:css && pnpm lint:files && pnpm lint:names",
+    "lint:format": "prettier --check .",
+    "lint:js": "eslint .",
+    "lint:types": "vue-tsc --noEmit",
+    "lint:css": "stylelint \"**/*.{css,vue}\" --allow-empty-input",
+    "lint:files": "ls-lint",
+    "lint:names": "node scripts/check-naming.mjs",
+    "lint:idea": "powershell -NoProfile -ExecutionPolicy Bypass -File ../tools/inspect-idea.ps1 -Scope web",
+    "format": "prettier --write .",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*": "prettier --write --ignore-unknown",
+    "*.{js,mjs,ts,vue}": "eslint --fix",
+    "*.{css,vue}": "stylelint --fix"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@ls-lint/ls-lint": "^2.3.1",
+    "eslint": "^9.39.5",
+    "eslint-plugin-vue": "^10.11.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.5.1",
+    "postcss-html": "^2.0.0",
+    "prettier": "^3.9.8",
+    "stylelint": "^17.15.0",
+    "stylelint-config-standard": "^40.0.0",
+    "typescript": "5.9.3",
+    "typescript-eslint": "^8.70.1",
+    "vue-tsc": "^3.3.11"
+  }
+}

@@ -1,0 +1,30 @@
+#!/bin/sh
+set -e
+# pre-push gate: IDEA headless inspection over the frontend files in the commits
+# being pushed (runs only when this push touches web/).
+# Fast checks (prettier/eslint/stylelint via lint-staged + ls-lint + naming) already
+# run at commit time via pre-commit.
+
+remote_sha=""
+while read local_ref local_sha remote_ref remote_sha; do
+  :
+done
+
+if [ -z "$remote_sha" ] || [ "$remote_sha" = "0000000000000000000000000000000000000000" ]; then
+  changed=$(git diff --name-only HEAD)
+else
+  changed=$(git diff --name-only "$remote_sha"...HEAD)
+fi
+
+web_files=$(printf '%s\n' "$changed" | grep '^web/' || true)
+if [ -n "$web_files" ]; then
+  echo "== pre-push: run IDEA inspection on frontend changes =="
+  cd "$(git rev-parse --show-toplevel)/web"
+  powershell -NoProfile -ExecutionPolicy Bypass -File ../tools/inspect-idea.ps1 -Scope web -Extra $web_files
+  warn_file="$TEMP/knowledge-idea-gate/_idea_staged_warnings_web.txt"
+  if [ -s "$warn_file" ]; then
+    echo "== pre-push: IDEA warnings found (0-warning gate failed), push blocked =="
+    cat "$warn_file"
+    exit 1
+  fi
+fi
