@@ -9,6 +9,8 @@ import com.knowledge.infra.domain.base.BaseInfo;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
+import java.io.Serial;
+
 /**
  * 提交日志（kb_submit_log）：每次提交一条（无论成败），
  * 是失败文件的留痕与幂等查询载体。
@@ -21,6 +23,9 @@ import lombok.EqualsAndHashCode;
 @EqualsAndHashCode(callSuper = true)
 @TableName("kb_submit_log")
 public class KbSubmitLog extends BaseInfo {
+
+    @Serial
+    private static final long serialVersionUID = 1L;
 
     /** 主键 */
     @TableId(type = IdType.ASSIGN_ID)
@@ -36,11 +41,11 @@ public class KbSubmitLog extends BaseInfo {
     private String fileId;
 
     /** 文件指纹（sha256；校验失败不可得时存空串，INSERT 恒写入） */
-    @TableField(insertStrategy = FieldStrategy.IGNORED)
+    @TableField(insertStrategy = FieldStrategy.ALWAYS)
     private String sha256;
 
     /** 文件名（文件不存在等场景不可得时存空串，同上） */
-    @TableField(insertStrategy = FieldStrategy.IGNORED)
+    @TableField(insertStrategy = FieldStrategy.ALWAYS)
     private String fileName;
 
     /** 建档回填的文件结果 ID（校验失败为空） */

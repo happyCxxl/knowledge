@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -43,10 +44,14 @@ public class PdfBoxDocumentParser implements DocumentParserPort {
     private static final String CAPABILITY = "pdfbox";
     private static final String CAPABILITY_VERSION = "3.0.4";
 
-    /** 页底截断判定：行底边进入页面底部比例 */
+    /**
+     * 页底截断判定：行底边进入页面底部比例
+     */
     private static final double PAGE_BOTTOM_RATIO = 0.95;
 
-    /** token 分词的空隙阈值（字符 x 间距 ÷ 字号） */
+    /**
+     * token 分词的空隙阈值（字符 x 间距 ÷ 字号）
+     */
     private static final double TOKEN_GAP_RATIO = 0.35;
 
     @Override
@@ -103,9 +108,11 @@ public class PdfBoxDocumentParser implements DocumentParserPort {
 
     // ---------------- 页提取 ----------------
 
-    /** 单页提取：字符级指标 → 行聚合（y 容差）→ token 分词 → 文字占比（行级 bbox 累计，防误伤稀疏页）。 */
+    /**
+     * 单页提取：字符级指标 → 行聚合（y 容差）→ token 分词 → 文字占比（行级 bbox 累计，防误伤稀疏页）。
+     */
     private PageContent extractPage(PDDocument doc, int pageNo, ParseContext context) throws IOException {
-        PositionStripper stripper = new PositionStripper(pageNo);
+        PositionStripper stripper = new PositionStripper();
         stripper.setStartPage(pageNo);
         stripper.setEndPage(pageNo);
         stripper.getText(doc);
@@ -146,14 +153,14 @@ public class PdfBoxDocumentParser implements DocumentParserPort {
                 lineChars.add(c);
                 lineY = (lineY + c.y) / 2;
             } else {
-                lines.add(buildLine(pageNo, pageHeight, lineChars));
+                lines.add(buildLine(pageNo, lineChars));
                 lineChars = new ArrayList<>();
                 lineChars.add(c);
                 lineY = c.y;
             }
         }
         if (!lineChars.isEmpty()) {
-            lines.add(buildLine(pageNo, pageHeight, lineChars));
+            lines.add(buildLine(pageNo, lineChars));
         }
 
         // 文字占比：行级 bbox 累计（行宽 × 行高，行高取 max(字符高, 字号×1.2)），
@@ -168,8 +175,10 @@ public class PdfBoxDocumentParser implements DocumentParserPort {
         return new PageContent(pageNo, pageWidth, pageHeight, metric, lines);
     }
 
-    /** 行构建：行内 x 排序 → token 分词（字符间距超阈值断词）→ 目录行特征判定。 */
-    private PageLine buildLine(int pageNo, double pageHeight, List<CharInfo> lineChars) {
+    /**
+     * 行构建：行内 x 排序 → token 分词（字符间距超阈值断词）→ 目录行特征判定。
+     */
+    private PageLine buildLine(int pageNo, List<CharInfo> lineChars) {
         lineChars.sort(Comparator.comparingDouble(c -> c.x));
         double x = lineChars.getFirst().x;
         double y = lineChars.stream().mapToDouble(c -> c.y).min().orElse(0);
@@ -209,7 +218,9 @@ public class PdfBoxDocumentParser implements DocumentParserPort {
                 first.fontName, first.bold, tokens, tocCandidate);
     }
 
-    /** 单页元素组装：页眉/页脚元素 → 正文按 y 顺序推进（表格候选块与段落互斥结算）。 */
+    /**
+     * 单页元素组装：页眉/页脚元素 → 正文按 y 顺序推进（表格候选块与段落互斥结算）。
+     */
     private void assemblePageElements(PageContent page, Map<String, HeaderFooterDetector.HeaderLine> headers,
                                       Map<String, HeaderFooterDetector.HeaderLine> footers,
                                       List<ParseElement> elements, ParseSource source, String fileId,
@@ -308,7 +319,9 @@ public class PdfBoxDocumentParser implements DocumentParserPort {
         return line.fontSize() * properties.getParagraphGapRatio();
     }
 
-    /** 结算表格候选块：形成表格则出 TABLE 元素；否则出 TABLE 事实并把块降级为段落 */
+    /**
+     * 结算表格候选块：形成表格则出 TABLE 元素；否则出 TABLE 事实并把块降级为段落
+     */
     private void flushTableBlock(List<PageLine> block, PageContent page, List<ParseElement> elements,
                                  ParseSource source, String fileId) {
         if (block.size() < 2) {
@@ -362,7 +375,9 @@ public class PdfBoxDocumentParser implements DocumentParserPort {
         elements.add(table);
     }
 
-    /** 段落元素组装：多行聚合 + 字体事实（取首行）+ 目录行特征。 */
+    /**
+     * 段落元素组装：多行聚合 + 字体事实（取首行）+ 目录行特征。
+     */
     private ParseElement toParagraphElement(List<PageLine> lines, String fileId) {
         PageLine first = lines.getFirst();
         PageLine last = lines.getLast();
@@ -389,7 +404,7 @@ public class PdfBoxDocumentParser implements DocumentParserPort {
     private static final class PositionStripper extends PDFTextStripper {
         private final List<CharInfo> chars = new ArrayList<>();
 
-        PositionStripper(int pageNo) throws IOException {
+        PositionStripper() {
             super();
         }
 
@@ -400,7 +415,7 @@ public class PdfBoxDocumentParser implements DocumentParserPort {
                 if (ObjectUtil.isNull(unicode)) {
                     continue;
                 }
-                boolean bold = tp.getFont().getName().toLowerCase().contains("bold");
+                boolean bold = tp.getFont().getName().toLowerCase(Locale.ROOT).contains("bold");
                 for (int i = 0; i < unicode.length(); ) {
                     int cp = unicode.codePointAt(i);
                     chars.add(new CharInfo(tp.getXDirAdj(), tp.getYDirAdj(), tp.getWidthDirAdj(),

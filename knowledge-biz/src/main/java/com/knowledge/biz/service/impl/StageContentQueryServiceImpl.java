@@ -9,7 +9,6 @@ import com.knowledge.biz.service.db.KbEmbeddingRecordDbService;
 import com.knowledge.biz.service.db.KbEmbeddingSetDbService;
 import com.knowledge.biz.service.db.KbFileResultDbService;
 import com.knowledge.biz.service.db.KbPipelineProductDbService;
-import com.knowledge.biz.service.db.KbPipelineTaskDbService;
 import com.knowledge.biz.service.support.TaskDetailSupport;
 import com.knowledge.common.domain.entity.KbChunk;
 import com.knowledge.common.domain.entity.KbChunkSet;
@@ -130,23 +129,20 @@ public class StageContentQueryServiceImpl implements StageContentQueryService {
                 item.setSeq(seq++);
                 item.setType(element.getType());
                 item.setDisplay(element.getText());
-                Map<String, Object> extra = new LinkedHashMap<>();
-                extra.put("source", source.getSource());
-                extra.put("provider", source.getProvider());
-                if (element.getPage() != null) {
-                    extra.put("page", element.getPage());
-                }
-                if (element.getRows() != null) {
-                    extra.put("rows", element.getRows());
-                }
-                if (element.getCols() != null) {
-                    extra.put("cols", element.getCols());
-                }
-                item.setExtra(extra);
+                item.setExtra(parseExtra(source, element));
                 items.add(item);
             }
         }
         return items;
+    }
+
+    /** 解析环节专属字段 + 公共页网格字段 */
+    private Map<String, Object> parseExtra(ParseSource source, ParseElement element) {
+        Map<String, Object> extra = new LinkedHashMap<>();
+        extra.put("source", source.getSource());
+        extra.put("provider", source.getProvider());
+        putPageGrid(extra, element.getPage(), element.getRows(), element.getCols());
+        return extra;
     }
 
     // ---------------- 组装：章节树元素 ----------------
@@ -165,23 +161,33 @@ public class StageContentQueryServiceImpl implements StageContentQueryService {
             item.setType(element.getType());
             item.setStatus(element.getConflictStatus());
             item.setDisplay(element.getText());
-            Map<String, Object> extra = new LinkedHashMap<>();
-            if (element.getLevel() != null) {
-                extra.put("level", element.getLevel());
-            }
-            if (element.getPage() != null) {
-                extra.put("page", element.getPage());
-            }
-            if (element.getRows() != null) {
-                extra.put("rows", element.getRows());
-            }
-            if (element.getCols() != null) {
-                extra.put("cols", element.getCols());
-            }
-            item.setExtra(extra);
+            item.setExtra(structureExtra(element));
             items.add(item);
         }
         return items;
+    }
+
+    /** 组装环节专属字段 + 公共页网格字段 */
+    private Map<String, Object> structureExtra(UnifiedElement element) {
+        Map<String, Object> extra = new LinkedHashMap<>();
+        if (element.getLevel() != null) {
+            extra.put("level", element.getLevel());
+        }
+        putPageGrid(extra, element.getPage(), element.getRows(), element.getCols());
+        return extra;
+    }
+
+    /** 页/行/列公共字段按非空并入 extra（解析/组装共用口径） */
+    private void putPageGrid(Map<String, Object> extra, Integer page, Integer rows, Integer cols) {
+        if (page != null) {
+            extra.put("page", page);
+        }
+        if (rows != null) {
+            extra.put("rows", rows);
+        }
+        if (cols != null) {
+            extra.put("cols", cols);
+        }
     }
 
     // ---------------- 预处理：视图元素（display + normalized + 状态） ----------------
@@ -226,19 +232,7 @@ public class StageContentQueryServiceImpl implements StageContentQueryService {
         }
         int seq = 1;
         for (KbChunk chunk : chunkDbService.listByChunkSetId(chunkSet.getId())) {
-            StageContentItemVO item = new StageContentItemVO();
-            item.setAlignKey(String.valueOf(seq));
-            item.setSeq(seq);
-            item.setType(chunk.getContentType());
-            item.setDisplay(chunk.getContent());
-            Map<String, Object> extra = new LinkedHashMap<>();
-            extra.put("chunkId", chunk.getChunkId());
-            extra.put("titlePath", chunk.getTitlePath());
-            extra.put("charCount", chunk.getCharCount());
-            extra.put("tokenCount", chunk.getTokenCount());
-            extra.put("parentChunkId", chunk.getParentChunkId());
-            item.setExtra(extra);
-            items.add(item);
+            items.add(itemOf(seq, chunk.getContentType(), null, chunk.getContent(), chunkExtra(chunk)));
             seq++;
         }
         return items;
@@ -253,22 +247,45 @@ public class StageContentQueryServiceImpl implements StageContentQueryService {
         }
         int seq = 1;
         for (KbEmbeddingRecord record : embeddingRecordDbService.listByEmbeddingSetId(embeddingSet.getId())) {
-            StageContentItemVO item = new StageContentItemVO();
-            item.setAlignKey(String.valueOf(seq));
-            item.setSeq(seq);
-            item.setType(record.getContentType());
-            item.setStatus(record.getStatus());
-            item.setDisplay(record.getInputText());
-            Map<String, Object> extra = new LinkedHashMap<>();
-            extra.put("chunkId", record.getChunkId());
-            extra.put("tokenCount", record.getTokenCount());
-            extra.put("cacheHit", record.getCacheHit());
-            extra.put("requestId", record.getRequestId());
-            item.setExtra(extra);
-            items.add(item);
+            items.add(itemOf(seq, record.getContentType(), record.getStatus(), record.getInputText(),
+                    embedExtra(record)));
             seq++;
         }
         return items;
+    }
+
+    /** 切片/向量化共用条目组装：对齐键取顺序号 */
+    private StageContentItemVO itemOf(int seq, String type, String status, String display,
+                                      Map<String, Object> extra) {
+        StageContentItemVO item = new StageContentItemVO();
+        item.setAlignKey(String.valueOf(seq));
+        item.setSeq(seq);
+        item.setType(type);
+        item.setStatus(status);
+        item.setDisplay(display);
+        item.setExtra(extra);
+        return item;
+    }
+
+    /** 切片环节专属字段 */
+    private Map<String, Object> chunkExtra(KbChunk chunk) {
+        Map<String, Object> extra = new LinkedHashMap<>();
+        extra.put("chunkId", chunk.getChunkId());
+        extra.put("titlePath", chunk.getTitlePath());
+        extra.put("charCount", chunk.getCharCount());
+        extra.put("tokenCount", chunk.getTokenCount());
+        extra.put("parentChunkId", chunk.getParentChunkId());
+        return extra;
+    }
+
+    /** 向量化环节专属字段 */
+    private Map<String, Object> embedExtra(KbEmbeddingRecord record) {
+        Map<String, Object> extra = new LinkedHashMap<>();
+        extra.put("chunkId", record.getChunkId());
+        extra.put("tokenCount", record.getTokenCount());
+        extra.put("cacheHit", record.getCacheHit());
+        extra.put("requestId", record.getRequestId());
+        return extra;
     }
 
     private <T> T readArtifact(String artifactId, Class<T> clazz) {

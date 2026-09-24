@@ -279,8 +279,9 @@ public class FileSubmitServiceImpl implements FileSubmitService {
         try {
             FileMetadata metadata = fileStorage.metadata(request.getFileId());
             fileName = StrUtil.blankToDefault(metadata.getFileName(), "");
-        } catch (Exception ignored) {
+        } catch (Exception e) {
             // 文件不存在等场景元数据不可得，fileName 留空
+            log.debug("元数据不可得, 文件名留空, fileId={}", request.getFileId());
         }
         KbSubmitLog failLog = new KbSubmitLog();
         failLog.setKnowledgeBaseId(knowledgeBaseId);

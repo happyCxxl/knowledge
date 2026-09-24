@@ -7,6 +7,8 @@ import com.knowledge.infra.domain.base.BaseCreateInfo;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
+import java.io.Serial;
+
 /**
  * 文件档案：上传文件的元数据记录（append-only）。
  *
@@ -16,6 +18,9 @@ import lombok.EqualsAndHashCode;
 @EqualsAndHashCode(callSuper = true)
 @TableName("kb_file_object")
 public class KbFileObject extends BaseCreateInfo {
+
+    @Serial
+    private static final long serialVersionUID = 1L;
 
     /** 主键 */
     @TableId(type = IdType.ASSIGN_ID)

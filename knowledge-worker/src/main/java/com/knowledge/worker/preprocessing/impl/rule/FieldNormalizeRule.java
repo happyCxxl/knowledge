@@ -128,8 +128,16 @@ public class FieldNormalizeRule implements CleanRule {
     private String normalize(String text, List<TraceEntry> traces, List<NormalizedField> fields, int[] changed,
                              PreprocessStrategy strategy) {
         String work = text;
+        work = normalizeAmount(work, traces, fields, changed, strategy);
+        work = normalizeDate(work, traces, fields, changed, strategy);
+        work = normalizeArea(work, traces, fields, changed, strategy);
+        normalizeCertNo(work, traces, fields, strategy);
+        return work;
+    }
 
-        // ① 金额（千分位去逗号 + 中文大写金额提取）
+    /** 金额：千分位去逗号 + 中文大写金额提取 */
+    private String normalizeAmount(String work, List<TraceEntry> traces, List<NormalizedField> fields,
+                                   int[] changed, PreprocessStrategy strategy) {
         if (strategy.boolParam(PreprocessRule.FIELD, PreprocessParam.FIELD_AMOUNT, true)) {
             work = replaceAll(work, THOUSAND_SEP, match -> {
                 String repl = match.group().replace(",", "");
@@ -154,8 +162,12 @@ public class FieldNormalizeRule implements CleanRule {
                 }
             }
         }
+        return work;
+    }
 
-        // ② 日期（干支纪年人工复核 + 中文日期/分隔符日期转 ISO）
+    /** 日期：干支纪年人工复核 + 中文日期/分隔符日期转 ISO */
+    private String normalizeDate(String work, List<TraceEntry> traces, List<NormalizedField> fields,
+                                 int[] changed, PreprocessStrategy strategy) {
         if (strategy.boolParam(PreprocessRule.FIELD, PreprocessParam.FIELD_DATE, true)) {
             Matcher ganzhiMatcher = GANZHI_YEAR.matcher(work);
             while (ganzhiMatcher.find()) {
@@ -194,8 +206,12 @@ public class FieldNormalizeRule implements CleanRule {
                 return iso;
             });
         }
+        return work;
+    }
 
-        // ③ 面积单位统一（10㎡ → 10平方米，提取 AREA 字段）
+    /** 面积单位统一（10㎡ → 10平方米，提取 AREA 字段） */
+    private String normalizeArea(String work, List<TraceEntry> traces, List<NormalizedField> fields,
+                                 int[] changed, PreprocessStrategy strategy) {
         if (strategy.boolParam(PreprocessRule.FIELD, PreprocessParam.FIELD_AREA, true)) {
             work = replaceAll(work, AREA_WITH_NUMBER, match -> {
                 String repl = match.group(1) + "平方米";
@@ -215,8 +231,12 @@ public class FieldNormalizeRule implements CleanRule {
                 return "平方米";
             });
         }
+        return work;
+    }
 
-        // ④ 证书号/注册号 → 提取字段（原文不变）
+    /** 证书号/注册号 → 提取字段（原文不变） */
+    private void normalizeCertNo(String work, List<TraceEntry> traces, List<NormalizedField> fields,
+                                 PreprocessStrategy strategy) {
         if (strategy.boolParam(PreprocessRule.FIELD, PreprocessParam.FIELD_CERT_NO, true)) {
             Matcher certMatcher = CERT_NO.matcher(work);
             while (certMatcher.find()) {
@@ -226,7 +246,6 @@ public class FieldNormalizeRule implements CleanRule {
                 fields.add(NormalizedField.of(PreprocessFieldType.CERT_NO.name(), certMatcher.group(2), null, "cert-extract-v1"));
             }
         }
-        return work;
     }
 
     private String matchPrefix(String text, Matcher matcher) {

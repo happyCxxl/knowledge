@@ -7,6 +7,8 @@ import com.knowledge.infra.domain.base.BaseInfo;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
+import java.io.Serial;
+
 /**
  * 知识库：一个业务场景 = 一个知识库。
  * 平台五件套继承自 {@link BaseInfo}。
@@ -17,6 +19,9 @@ import lombok.EqualsAndHashCode;
 @EqualsAndHashCode(callSuper = true)
 @TableName("kb_knowledge_base")
 public class KnowledgeBase extends BaseInfo {
+
+    @Serial
+    private static final long serialVersionUID = 1L;
 
     /** 主键 */
     @TableId(type = IdType.ASSIGN_ID)

@@ -80,72 +80,7 @@ public class IndexBuildTaskRunner {
                 finishFailed(taskId, PipelineTaskErrorCode.INDEX_BUILD_FAILED.name(), "构建命令缺失");
                 return;
             }
-            ComboSnapshot combo = order.getComboSnapshot();
-            Long kbId = order.getKnowledgeBaseId();
-            version.setStatus(IndexVersionStatus.BUILDING.name());
-            version.setBuildError(null);
-            indexVersionDbService.updateById(version);
-
-            // ① 完整性/维度/血缘校验 + expected（对账器实时重算，吸收并发追加）
-            IndexComboReconciler.ComboExpectation expected = indexComboReconciler.computeExpected(kbId, combo);
-            if (!expected.complete()) {
-                markFailed(version, expected.gap());
-                finishFailed(taskId, PipelineTaskErrorCode.INDEX_INCOMPLETE.name(), expected.gap());
-                return;
-            }
-            if (!expected.dimConsistent()) {
-                markFailed(version, expected.dimError());
-                finishFailed(taskId, PipelineTaskErrorCode.INDEX_DIMENSION_MISMATCH.name(), expected.dimError());
-                return;
-            }
-
-            // ② 集合生命周期（幂等 + 发布预热）
-            String collectionName = MilvusIndexPort.collectionName(kbId, version.getVersionNo());
-            try {
-                milvusIndexPort.ensureCollection(collectionName, expected.dimension());
-                milvusIndexPort.load(collectionName);
-            } catch (Exception e) {
-                markFailed(version, "集合初始化失败: " + truncate(String.valueOf(e.getMessage())));
-                finishFailed(taskId, PipelineTaskErrorCode.INDEX_BUILD_FAILED.name(),
-                        truncate(String.valueOf(e.getMessage())));
-                return;
-            }
-
-            // ②.5 评测冻结集回填（B8.1）：LIST 版本的行写入不依赖追加回调（产物就绪事件已发生，需回补）
-            if (combo.isListScope()) {
-                backfillFrozenScope(combo, collectionName);
-            }
-
-            // ③ 全量对账：产物 chunkId == 集合 chunkId（失败保留集合可重试，不影响在线）
-            List<String> actual = milvusIndexPort.listChunkIds(collectionName);
-            if (!expected.chunkIds().equals(new HashSet<>(actual))) {
-                String msg = "一致性校验失败: 产物 " + expected.chunkIds().size()
-                        + " 片 vs Milvus " + actual.size() + " 片（保留集合可重试）";
-                markFailed(version, msg);
-                finishFailed(taskId, PipelineTaskErrorCode.INDEX_CONSISTENCY_FAILED.name(), msg);
-                return;
-            }
-
-            // ④ READY + 活账本统计收敛（以对账时刻产物状态为准）
-            version.setStatus(IndexVersionStatus.READY.name());
-            version.setValidatedAt(LocalDateTime.now());
-            version.setChunkCount(expected.chunkIds().size());
-            version.setVectorCount(expected.vectorCount());
-            version.setBuildError(null);
-            indexVersionDbService.updateById(version);
-            pipelineTaskDbService.finish(taskId, PipelineTaskStatus.SUCCESS.name(), null, null);
-
-            // ⑤ 发布判定：COMPENSATE 恒自动；INCREMENT 且绑定开启自动；LIST 冻结集永不自动；其余停留 READY
-            if (shouldAutoPublish(kbId, combo, order.getTrigger())) {
-                try {
-                    indexSetService.publish(version.getId());
-                    log.info("===> IndexBuildTaskRunner 自动发布完成, kbId={}, versionNo={}",
-                            kbId, version.getVersionNo());
-                } catch (Exception e) {
-                    log.warn("===> IndexBuildTaskRunner 自动发布失败，停留 READY 等管理员, versionId={}",
-                            version.getId(), e);
-                }
-            }
+            executeBuild(taskId, version, order);
         } catch (Exception e) {
             log.error("索引构建任务执行异常, taskId={}", taskId, e);
             try {
@@ -160,6 +95,76 @@ public class IndexBuildTaskRunner {
             }
             finishFailed(taskId, PipelineTaskErrorCode.INDEX_BUILD_FAILED.name(),
                     truncate(String.valueOf(e.getMessage())));
+        }
+    }
+
+    /** 构建主流程：对账校验 → 集合生命周期 → 全量对账 → READY 收敛 → 发布判定 */
+    private void executeBuild(Long taskId, KbIndexVersion version, BuildOrder order) {
+        ComboSnapshot combo = order.getComboSnapshot();
+        Long kbId = order.getKnowledgeBaseId();
+        version.setStatus(IndexVersionStatus.BUILDING.name());
+        version.setBuildError(null);
+        indexVersionDbService.updateById(version);
+
+        // ① 完整性/维度/血缘校验 + expected（对账器实时重算，吸收并发追加）
+        IndexComboReconciler.ComboExpectation expected = indexComboReconciler.computeExpected(kbId, combo);
+        if (!expected.complete()) {
+            markFailed(version, expected.gap());
+            finishFailed(taskId, PipelineTaskErrorCode.INDEX_INCOMPLETE.name(), expected.gap());
+            return;
+        }
+        if (!expected.dimConsistent()) {
+            markFailed(version, expected.dimError());
+            finishFailed(taskId, PipelineTaskErrorCode.INDEX_DIMENSION_MISMATCH.name(), expected.dimError());
+            return;
+        }
+
+        // ② 集合生命周期（幂等 + 发布预热）
+        String collectionName = MilvusIndexPort.collectionName(kbId, version.getVersionNo());
+        try {
+            milvusIndexPort.ensureCollection(collectionName, expected.dimension());
+            milvusIndexPort.load(collectionName);
+        } catch (Exception e) {
+            markFailed(version, "集合初始化失败: " + truncate(String.valueOf(e.getMessage())));
+            finishFailed(taskId, PipelineTaskErrorCode.INDEX_BUILD_FAILED.name(),
+                    truncate(String.valueOf(e.getMessage())));
+            return;
+        }
+
+        // ②.5 评测冻结集回填（B8.1）：LIST 版本的行写入不依赖追加回调（产物就绪事件已发生，需回补）
+        if (combo.isListScope()) {
+            backfillFrozenScope(combo, collectionName);
+        }
+
+        // ③ 全量对账：产物 chunkId == 集合 chunkId（失败保留集合可重试，不影响在线）
+        List<String> actual = milvusIndexPort.listChunkIds(collectionName);
+        if (!expected.chunkIds().equals(new HashSet<>(actual))) {
+            String msg = "一致性校验失败: 产物 " + expected.chunkIds().size()
+                    + " 片 vs Milvus " + actual.size() + " 片（保留集合可重试）";
+            markFailed(version, msg);
+            finishFailed(taskId, PipelineTaskErrorCode.INDEX_CONSISTENCY_FAILED.name(), msg);
+            return;
+        }
+
+        // ④ READY + 活账本统计收敛（以对账时刻产物状态为准）
+        version.setStatus(IndexVersionStatus.READY.name());
+        version.setValidatedAt(LocalDateTime.now());
+        version.setChunkCount(expected.chunkIds().size());
+        version.setVectorCount(expected.vectorCount());
+        version.setBuildError(null);
+        indexVersionDbService.updateById(version);
+        pipelineTaskDbService.finish(taskId, PipelineTaskStatus.SUCCESS.name(), null, null);
+
+        // ⑤ 发布判定：COMPENSATE 恒自动；INCREMENT 且绑定开启自动；LIST 冻结集永不自动；其余停留 READY
+        if (shouldAutoPublish(kbId, combo, order.getTrigger())) {
+            try {
+                indexSetService.publish(version.getId());
+                log.info("===> IndexBuildTaskRunner 自动发布完成, kbId={}, versionNo={}",
+                        kbId, version.getVersionNo());
+            } catch (Exception e) {
+                log.warn("===> IndexBuildTaskRunner 自动发布失败，停留 READY 等管理员, versionId={}",
+                        version.getId(), e);
+            }
         }
     }
 

@@ -13,6 +13,7 @@ import org.apache.tika.sax.BodyContentHandler;
 import org.springframework.stereotype.Component;
 
 import java.io.InputStream;
+import java.util.Locale;
 
 /**
  * 损坏/加密探测步骤：试解析文件结构（只探测，不取全文）；
@@ -58,7 +59,7 @@ public class CorruptionProbeCheck implements FileCheck {
         Throwable t = e;
         int depth = 0;
         while (ObjectUtil.isNotNull(t) && depth++ < 10) {
-            String message = String.valueOf(t.getMessage()).toLowerCase();
+            String message = String.valueOf(t.getMessage()).toLowerCase(Locale.ROOT);
             if (message.contains("encrypt") || message.contains("password")) {
                 return true;
             }

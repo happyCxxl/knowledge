@@ -7,6 +7,7 @@ import com.knowledge.worker.embedding.EmbedProperties;
 
 import java.util.HashMap;
 import java.util.LinkedHashSet;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -64,7 +65,7 @@ public final class EmbedAlgorithmSpec {
         if (StrUtil.isBlank(value)) {
             return defaultValue;
         }
-        return value.trim().toUpperCase();
+        return value.trim().toUpperCase(Locale.ROOT);
     }
 
     /** 目录冗余回填：以模型目录为准覆盖 dimension/metric/normalized/contextWindowTokens/batchLimit */

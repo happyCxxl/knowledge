@@ -216,9 +216,11 @@ public class AssemblerPipeline implements DocumentAssemblerPort {
                     "疑似续表 " + continuation.getSuspectedCount() + " 处（放宽规则命中，默认接续 + 表头继承）"));
         }
         if (report.getTraceableRatio() < 1) {
+            int missingCount = report.getNormalizedCount()
+                    - (int) Math.round(report.getTraceableRatio() * report.getNormalizedCount());
             quality.getWarnings().add(QualityWarning.of(QualityWarningCode.PROVENANCE_MISSING, null, "WARN",
                     String.format("溯源可回溯占比 %.2f，%d 个元素缺原文定位",
-                            report.getTraceableRatio(), report.getNormalizedCount() - (int) Math.round(report.getTraceableRatio() * report.getNormalizedCount()))));
+                            report.getTraceableRatio(), missingCount)));
         }
         if (report.getNoisePageCount() > 0) {
             quality.getWarnings().add(QualityWarning.of(QualityWarningCode.NOISE_PAGE, null, "WARN",

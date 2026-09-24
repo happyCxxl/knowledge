@@ -31,6 +31,8 @@ public class StageContentItemVO {
     /** 检索文本（预处理环节用；其余环节与 display 相同或为空） */
     private String normalized;
 
-    /** 环节专属：解析=source/page/rows/cols；组装=level/conflictStatus；预处理=normalizedFields/cells（JSON 串）；切片=titlePath/charCount/tokenCount/parentChunkId；向量化=cacheHit/tokenCount/requestId/chunkId */
+    /** 环节专属：解析=source/page/rows/cols；组装=level/conflictStatus；
+     *  预处理=normalizedFields/cells（JSON 串）；切片=titlePath/charCount/tokenCount/parentChunkId；
+     *  向量化=cacheHit/tokenCount/requestId/chunkId */
     private Map<String, Object> extra;
 }

@@ -78,67 +78,9 @@ public class ChunkPipeline implements ChunkerPort {
         log.info("===> ChunkPipeline 开始切片, fileResultId={}, elements={}, strategy={}",
                 context.getFileResultId(), view.getElements().size(), strategy.fullVersion());
         Stats stats = new Stats();
-        boolean ruleFailure = false;
         List<Section> sections = new ArrayList<>();
         List<Chunk> orphans = new ArrayList<>();
-        Deque<String> titleStack = new ArrayDeque<>();
-        Section current = null;
-        ChunkAlgorithm bodyAlgorithm = strategy.routeAlgorithm(ChunkRoute.BODY);
-
-        long routeStartedNanos = System.nanoTime();
-        for (ViewElement element : view.getElements()) {
-            String status = element.getStatus();
-            if (status != null && PreprocessViewRules.CHUNK_SKIP_STATUSES.contains(status)) {
-                continue;
-            }
-            stats.routeMatched++;
-            String type = element.getType();
-            if (UnifiedElementType.TITLE.name().equals(type)) {
-                // 标题只作章节边界与 titlePath，不单独成片
-                flushBodyStrategy(sliceContext, current, orphans, stats);
-                String titleText = element.getNormalizedText();
-                updateTitleStack(titleStack, titleText, levelOf(sliceContext, element.getElementId()), strategy);
-                current = new Section(String.join(" > ", titleStack));
-                sections.add(current);
-                sliceContext.setTitlePath(new ArrayList<>(titleStack));
-                continue;
-            }
-            ChunkKind kind = route(type);
-            // 表格并入正文流：表格不再独立路由，Markdown 化后作为正文流内联单元交给正文算法
-            boolean inlineTable = kind == ChunkKind.TABLE && strategy.pipelineOn(PipelineKey.TABLE_IN_BODY_FLOW);
-            if (inlineTable) {
-                kind = ChunkKind.BODY;
-            }
-            if (kind != ChunkKind.BODY && bodyAlgorithm != null && bodyAlgorithm.flushOnContentBoundary()) {
-                // 正文聚合以表格/图片为界结算（正文组保持连续文本，不跨表格/图片合并）
-                flushBodyStrategy(sliceContext, current, orphans, stats);
-            }
-            try {
-                if (inlineTable) {
-                    dispatchInlineTable(element, sliceContext, current, orphans, stats);
-                } else {
-                    SliceStrategy slicer = registry.get(routeAlgorithmOf(strategy, kind));
-                    long startedNanos = System.nanoTime();
-                    List<Chunk> chunks = slicer.slice(element, sliceContext);
-                    stats.addNanos(kind, System.nanoTime() - startedNanos);
-                    fillTitlePath(chunks, sliceContext);
-                    attachToSection(current, orphans, chunks);
-                    stats.incr(kind, chunks);
-                    // 前导段落维护：每遇非空 BODY 元素更新（表+引导段落算法用）
-                    if (kind == ChunkKind.BODY && StrUtil.isNotBlank(element.getNormalizedText())) {
-                        sliceContext.setLeadParagraph(element.getNormalizedText());
-                    }
-                }
-            } catch (Exception e) {
-                ruleFailure = true;
-                stats.warn(kind);
-                outcome.getWarnings().add(kind.name() + " 切片器: " + element.getElementId() + ": "
-                        + StrUtil.maxLength(String.valueOf(e.getMessage()), 100));
-                log.warn("切片器异常, kind={}, elementId={}", kind, element.getElementId(), e);
-            }
-        }
-        stats.routeNanos = System.nanoTime() - routeStartedNanos;
-        flushBodyStrategy(sliceContext, current, orphans, stats);
+        boolean ruleFailure = routeElements(view, strategy, sliceContext, sections, orphans, stats, outcome);
 
         // 后置处理链（按章分别执行：结构重叠→碎片合并→标题入正文）
         for (Section section : sections) {
@@ -201,6 +143,71 @@ public class ChunkPipeline implements ChunkerPort {
                 context.getFileResultId(), ordered.size(), outcome.getSuggestedStatus(),
                 outcome.getWarnings().size());
         return outcome;
+    }
+
+    /** 逐元素路由分派：标题切章、内容按策略路由到对应切片器，单元素异常隔离为告警 */
+    private boolean routeElements(PreprocessView view, ChunkStrategy strategy, SliceContext sliceContext,
+                                  List<Section> sections, List<Chunk> orphans, Stats stats, ChunkOutcome outcome) {
+        boolean ruleFailure = false;
+        Deque<String> titleStack = new ArrayDeque<>();
+        Section current = null;
+        ChunkAlgorithm bodyAlgorithm = strategy.routeAlgorithm(ChunkRoute.BODY);
+
+        long routeStartedNanos = System.nanoTime();
+        for (ViewElement element : view.getElements()) {
+            String status = element.getStatus();
+            if (status != null && PreprocessViewRules.CHUNK_SKIP_STATUSES.contains(status)) {
+                continue;
+            }
+            stats.routeMatched++;
+            String type = element.getType();
+            if (UnifiedElementType.TITLE.name().equals(type)) {
+                // 标题只作章节边界与 titlePath，不单独成片
+                flushBodyStrategy(sliceContext, current, orphans, stats);
+                String titleText = element.getNormalizedText();
+                updateTitleStack(titleStack, titleText, levelOf(sliceContext, element.getElementId()), strategy);
+                current = new Section(String.join(" > ", titleStack));
+                sections.add(current);
+                sliceContext.setTitlePath(new ArrayList<>(titleStack));
+                continue;
+            }
+            ChunkKind kind = route(type);
+            // 表格并入正文流：表格不再独立路由，Markdown 化后作为正文流内联单元交给正文算法
+            boolean inlineTable = kind == ChunkKind.TABLE && strategy.pipelineOn(PipelineKey.TABLE_IN_BODY_FLOW);
+            if (inlineTable) {
+                kind = ChunkKind.BODY;
+            }
+            if (kind != ChunkKind.BODY && bodyAlgorithm != null && bodyAlgorithm.flushOnContentBoundary()) {
+                // 正文聚合以表格/图片为界结算（正文组保持连续文本，不跨表格/图片合并）
+                flushBodyStrategy(sliceContext, current, orphans, stats);
+            }
+            try {
+                if (inlineTable) {
+                    dispatchInlineTable(element, sliceContext, current, orphans, stats);
+                } else {
+                    SliceStrategy slicer = registry.get(routeAlgorithmOf(strategy, kind));
+                    long startedNanos = System.nanoTime();
+                    List<Chunk> chunks = slicer.slice(element, sliceContext);
+                    stats.addNanos(kind, System.nanoTime() - startedNanos);
+                    fillTitlePath(chunks, sliceContext);
+                    attachToSection(current, orphans, chunks);
+                    stats.incr(kind, chunks);
+                    // 前导段落维护：每遇非空 BODY 元素更新（表+引导段落算法用）
+                    if (kind == ChunkKind.BODY && StrUtil.isNotBlank(element.getNormalizedText())) {
+                        sliceContext.setLeadParagraph(element.getNormalizedText());
+                    }
+                }
+            } catch (Exception e) {
+                ruleFailure = true;
+                stats.warn(kind);
+                outcome.getWarnings().add(kind.name() + " 切片器: " + element.getElementId() + ": "
+                        + StrUtil.maxLength(String.valueOf(e.getMessage()), 100));
+                log.warn("切片器异常, kind={}, elementId={}", kind, element.getElementId(), e);
+            }
+        }
+        stats.routeNanos = System.nanoTime() - routeStartedNanos;
+        flushBodyStrategy(sliceContext, current, orphans, stats);
+        return ruleFailure;
     }
 
     // ---------------- 切片分派 ----------------

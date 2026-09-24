@@ -7,6 +7,8 @@ import com.knowledge.infra.domain.base.BaseInfo;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
+import java.io.Serial;
+
 /**
  * 用户（表：kb_user）。
  *
@@ -16,6 +18,9 @@ import lombok.EqualsAndHashCode;
 @EqualsAndHashCode(callSuper = true)
 @TableName("kb_user")
 public class User extends BaseInfo {
+
+    @Serial
+    private static final long serialVersionUID = 1L;
 
     /** 主键（雪花） */
     @TableId(type = IdType.ASSIGN_ID)

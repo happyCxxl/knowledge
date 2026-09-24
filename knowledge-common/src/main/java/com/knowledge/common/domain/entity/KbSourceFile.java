@@ -7,6 +7,8 @@ import com.knowledge.infra.domain.base.BaseCreateInfo;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
+import java.io.Serial;
+
 /**
  * 来源文件：文件服务的 fileId 引用与指纹。
  * 无逻辑删除与更新字段（append-only），继承 {@link BaseCreateInfo}。
@@ -18,6 +20,9 @@ import lombok.EqualsAndHashCode;
 @EqualsAndHashCode(callSuper = true)
 @TableName("kb_source_file")
 public class KbSourceFile extends BaseCreateInfo {
+
+    @Serial
+    private static final long serialVersionUID = 1L;
 
     /** 主键 */
     @TableId(type = IdType.ASSIGN_ID)

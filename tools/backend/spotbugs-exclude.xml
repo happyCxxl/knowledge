@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- SpotBugs 排除清单：以下豁免均有评审口径，逐条说明 -->
+<FindBugsFilter>
+    <!-- Lombok 生成访问器与 Spring 容器注入字段对外暴露可变对象：项目通用模式（DTO/Bean），
+         防御性拷贝与 Lombok 风格冲突且无实际收益，按评审口径整体豁免 -->
+    <Match>
+        <Bug pattern="EI_EXPOSE_REP"/>
+    </Match>
+    <Match>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+    <!-- 任务链与解析器统一捕获 Exception 归一化错误码：捕获范围即调用边界，按评审口径豁免 -->
+    <Match>
+        <Bug pattern="REC_CATCH_EXCEPTION"/>
+    </Match>
+    <!-- SpillBuffer：构造期 SHA-256 算法探测失败即抛（fail-fast 防御，JDK 必有该算法） -->
+    <Match>
+        <Class name="com.knowledge.worker.input.SpillBuffer"/>
+        <Bug pattern="CT_CONSTRUCTOR_THROW"/>
+    </Match>
+    <!-- ParseTaskConsumer：执行池字段仅启动期同步写入、运行期只读（配合 volatile 可见性），按评审口径豁免 -->
+    <Match>
+        <Class name="com.knowledge.biz.task.ParseTaskConsumer"/>
+        <Bug pattern="IS2_INCONSISTENT_SYNC,UWF_FIELD_NOT_INITIALIZED_IN_CONSTRUCTOR"/>
+    </Match>
+    <!-- Hutool ObjectUtil 判空为项目统一风格：SpotBugs 无法识别其 null 语义，将循环递推变量的判空
+         误报为空指针类告警；判空语义与原生 null 比较运行时等价，按评审口径方法级豁免 -->
+    <Match>
+        <Class name="com.knowledge.worker.parser.impl.parsers.PdfBoxDocumentParser"/>
+        <Method name="buildLine"/>
+        <Bug pattern="NP_ALWAYS_NULL,NP_LOAD_OF_KNOWN_NULL_VALUE,NP_NONNULL_PARAM_VIOLATION"/>
+    </Match>
+    <Match>
+        <Class name="com.knowledge.worker.parser.impl.parsers.PdfBoxDocumentParser"/>
+        <Method name="assemblePageElements"/>
+        <Bug pattern="NP_LOAD_OF_KNOWN_NULL_VALUE,NP_NONNULL_PARAM_VIOLATION"/>
+    </Match>
+    <Match>
+        <Class name="com.knowledge.worker.structure.impl.craft.StructureAssemblerImpl"/>
+        <Method name="buildOrderRelations"/>
+        <Bug pattern="NP_LOAD_OF_KNOWN_NULL_VALUE,NP_NONNULL_PARAM_VIOLATION"/>
+    </Match>
+</FindBugsFilter>

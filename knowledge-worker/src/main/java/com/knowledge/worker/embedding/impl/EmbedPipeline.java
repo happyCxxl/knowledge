@@ -16,9 +16,7 @@ import com.knowledge.common.enums.embed.EmbeddingModel;
 import com.knowledge.common.enums.embed.EmbedRecordStatus;
 import com.knowledge.common.enums.task.PipelineTaskErrorCode;
 import com.knowledge.common.enums.task.PipelineTaskStatus;
-import com.knowledge.common.enums.task.StepStatus;
 import com.knowledge.model.gateway.ModelGatewayPort;
-import com.knowledge.worker.chunking.ChunkProperties;
 import com.knowledge.worker.chunking.strategy.ChunkStrategy;
 import com.knowledge.worker.embedding.EmbedContext;
 import com.knowledge.worker.embedding.EmbedWindowRules;
@@ -29,11 +27,11 @@ import com.knowledge.worker.embedding.EmbedProperties;
 import com.knowledge.worker.embedding.strategy.EmbedStrategy;
 import com.knowledge.worker.embedding.strategy.EmbedStrategyParser;
 import com.knowledge.worker.embedding.template.InputTemplatePort;
+import com.knowledge.worker.pipeline.StepLogHelper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -95,15 +93,15 @@ public class EmbedPipeline implements EmbedderPort {
         int cachedCount = 0;
         long reuseNanos = 0;
         List<EmbeddingSet> history = ObjectUtil.defaultIfNull(context.getReuseCandidates(), List.of());
-        if (strategy.cacheOn() && !history.isEmpty() && !candidates.isEmpty()) {
+        if (strategy.cacheOn() && !history.isEmpty()) {
             long reuseStartedNanos = System.nanoTime();
-            cachedCount = resolveReuse(candidates, history, outcome);
+            cachedCount = resolveReuse(candidates, history);
             reuseNanos = System.nanoTime() - reuseStartedNanos;
         }
 
         // ⑤ 分批模型调用 + ⑥ 四关
         List<EmbeddingRecord> pending = candidates.stream()
-                .filter(r -> StrUtil.isBlank(r.getStatus()) || !EmbedRecordStatus.CACHED.name().equals(r.getStatus()))
+                .filter(r -> StrUtil.isBlank(r.getStatus()) || isNotCached(r))
                 .toList();
         List<EmbeddingRecord> pendingList = new ArrayList<>(pending);
         long batchStartedNanos = System.nanoTime();
@@ -173,15 +171,13 @@ public class EmbedPipeline implements EmbedderPort {
             record.setParentChunkId(chunk.getParentChunkId());
             // 父片跳过（includeParent 默认 OFF，只向量化子片）
             if (ChunkContentType.SECTION.name().equals(chunk.getContentType()) && !strategy.includeParentOn()) {
-                record.setStatus(EmbedRecordStatus.SKIPPED.name());
-                records.add(record);
+                markSkipped(records, record);
                 continue;
             }
             // 编码准备：原样输入 + 哈希 + token 估算
             String inputText = template.render(strategy.getDocTemplate(), chunk);
             if (StrUtil.isBlank(inputText) && strategy.skipEmptyOn()) {
-                record.setStatus(EmbedRecordStatus.SKIPPED.name());
-                records.add(record);
+                markSkipped(records, record);
                 continue;
             }
             record.setInputText(StrUtil.blankToDefault(inputText, ""));
@@ -195,11 +191,11 @@ public class EmbedPipeline implements EmbedderPort {
     // ---------------- ④ 复用判定（账本回溯） ----------------
 
     /** 新→旧回溯：返回命中数；命中 record 标 CACHED + 向量本体复制 */
-    private int resolveReuse(List<EmbeddingRecord> candidates, List<EmbeddingSet> history, EmbedOutcome outcome) {
+    private int resolveReuse(List<EmbeddingRecord> candidates, List<EmbeddingSet> history) {
         int cached = 0;
         for (EmbeddingSet previous : history) {
             List<EmbeddingRecord> misses = candidates.stream()
-                    .filter(r -> !EmbedRecordStatus.CACHED.name().equals(r.getStatus()))
+                    .filter(EmbedPipeline::isNotCached)
                     .toList();
             if (misses.isEmpty()) {
                 break; // miss 清零即停
@@ -246,7 +242,7 @@ public class EmbedPipeline implements EmbedderPort {
         for (int from = 0; from < pending.size(); from += batchSize) {
             totalBatches++;
             List<EmbeddingRecord> batch = new ArrayList<>(pending.subList(from, Math.min(from + batchSize, pending.size())));
-            BatchOutcome batchOutcome = callWithRetry(batch, strategy, outcome, result);
+            BatchOutcome batchOutcome = callWithRetry(batch, strategy, result);
             if (batchOutcome.consistencyRejected) {
                 result.consistencyRejected = true;
                 result.problems = batchOutcome.problems;
@@ -266,8 +262,7 @@ public class EmbedPipeline implements EmbedderPort {
         return result;
     }
 
-    private BatchOutcome callWithRetry(List<EmbeddingRecord> batch, EmbedStrategy strategy, EmbedOutcome outcome,
-                                       BatchResult result) {
+    private BatchOutcome callWithRetry(List<EmbeddingRecord> batch, EmbedStrategy strategy, BatchResult result) {
         int maxRetries = Math.max(0, ObjectUtil.defaultIfNull(strategy.getMaxRetries(), properties.getMaxRetries()));
         int timeoutMs = ObjectUtil.defaultIfNull(strategy.getTimeoutMs(), properties.getTimeoutMs());
         String requestId = IdUtil.randomUUID();
@@ -319,6 +314,17 @@ public class EmbedPipeline implements EmbedderPort {
         }
     }
 
+    /** 记录标 SKIPPED 并入列 */
+    private void markSkipped(List<EmbeddingRecord> records, EmbeddingRecord record) {
+        record.setStatus(EmbedRecordStatus.SKIPPED.name());
+        records.add(record);
+    }
+
+    /** 记录是否未命中复用缓存 */
+    private static boolean isNotCached(EmbeddingRecord record) {
+        return !EmbedRecordStatus.CACHED.name().equals(record.getStatus());
+    }
+
     // ---------------- ⑦ 组装 ----------------
 
     private EmbeddingSet assemble(EmbedContext context, EmbedStrategy strategy, List<EmbeddingRecord> records,
@@ -349,28 +355,13 @@ public class EmbedPipeline implements EmbedderPort {
                                             long precheckNanos, long encodeNanos, long reuseNanos,
                                             long gatewayNanos, long checkerNanos) {
         List<StepLogInfo> logs = new ArrayList<>();
-        logs.add(step("前置校验", "window-compat-v1", total, warnings.size(), precheckNanos));
-        logs.add(step("筛选与编码", "identity-encode-v1", candidates, 0, encodeNanos));
-        logs.add(step("复用判定", "ledger-reuse-v1", cached, 0, reuseNanos));
-        logs.add(step("模型调用", strategy.getModel(), pending - failedBatches, failedBatches, gatewayNanos));
-        logs.add(step("四关校验", "consistency-v1", pending, 0, checkerNanos));
+        logs.add(StepLogHelper.build("前置校验", "window-compat-v1", total, 0, warnings.size(), precheckNanos / 1_000_000));
+        logs.add(StepLogHelper.build("筛选与编码", "identity-encode-v1", candidates, 0, 0, encodeNanos / 1_000_000));
+        logs.add(StepLogHelper.build("复用判定", "ledger-reuse-v1", cached, 0, 0, reuseNanos / 1_000_000));
+        logs.add(StepLogHelper.build("模型调用", strategy.getModel(), pending - failedBatches, 0,
+                failedBatches, gatewayNanos / 1_000_000));
+        logs.add(StepLogHelper.build("四关校验", "consistency-v1", pending, 0, 0, checkerNanos / 1_000_000));
         return logs;
-    }
-
-    private StepLogInfo step(String stepName, String capability, int matched, int warnings, long nanos) {
-        StepLogInfo step = new StepLogInfo();
-        step.setStepName(stepName);
-        step.setStatus(StepStatus.SUCCESS.name());
-        step.setAttemptCount(1);
-        step.setCapabilityVersion(capability);
-        step.setStartedAt(LocalDateTime.now());
-        step.setFinishedAt(LocalDateTime.now());
-        step.setDuration((int) (nanos / 1_000_000));
-        step.setMatchedCount(matched);
-        step.setChangedCount(0);
-        step.setAvgLen(0);
-        step.setWarningCount(warnings);
-        return step;
     }
 
     /** 批次结果聚合 */

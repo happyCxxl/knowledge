@@ -298,28 +298,16 @@ public class PreprocessPipeline implements PreprocessorPort {
             RuleStat stat = stats.getOrDefault(rule.stepName(), new RuleStat());
             stepLogs.add(toStepLog(rule.stepName(), rule.name(), stat));
         }
-        StepLogInfo assembly = new StepLogInfo();
-        assembly.setStepName("视图组装");
-        assembly.setStatus(StepStatus.SUCCESS.name());
-        assembly.setAttemptCount(1);
-        assembly.setCapabilityVersion(strategy.fullVersion());
-        assembly.setStartedAt(LocalDateTime.now());
-        assembly.setFinishedAt(LocalDateTime.now());
-        assembly.setDuration((int) assemblyMillis);
-        assembly.setMatchedCount(elementCount);
-        assembly.setChangedCount(0);
-        assembly.setWarningCount(totalWarnings);
+        StepLogInfo assembly = StepLogHelper.build("视图组装", strategy.fullVersion(), elementCount, 0,
+                totalWarnings, assemblyMillis);
         stepLogs.add(assembly);
         return stepLogs;
     }
 
     private StepLogInfo toStepLog(String stepName, String ruleId, RuleStat stat) {
-        StepLogInfo step = new StepLogInfo();
-        step.setStepName(stepName);
+        StepLogInfo step = StepLogHelper.begin(stepName);
         step.setStatus(StepStatus.SUCCESS.name());
-        step.setAttemptCount(1);
         step.setCapabilityVersion(ruleId);
-        step.setStartedAt(LocalDateTime.now());
         step.setFinishedAt(LocalDateTime.now());
         step.setDuration((int) (stat.nanos / 1_000_000));
         step.setMatchedCount(stat.matched);

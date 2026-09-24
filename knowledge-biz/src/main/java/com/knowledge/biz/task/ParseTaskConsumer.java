@@ -47,8 +47,8 @@ public class ParseTaskConsumer {
     private final EmbedTaskRunner embedRunner;
 
     private volatile boolean running = false;
-    private ThreadPoolExecutor watchdogPool;
-    private ThreadPoolExecutor runnerPool;
+    private volatile ThreadPoolExecutor watchdogPool;
+    private volatile ThreadPoolExecutor runnerPool;
 
     /** 应用就绪后启动（单次；daemon 线程随进程退出） */
     @EventListener(ApplicationReadyEvent.class)

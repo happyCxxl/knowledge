@@ -7,6 +7,7 @@ import com.knowledge.infra.domain.base.BaseInfo;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
+import java.io.Serial;
 import java.time.LocalDateTime;
 
 /**
@@ -19,6 +20,9 @@ import java.time.LocalDateTime;
 @EqualsAndHashCode(callSuper = true)
 @TableName("kb_file_result")
 public class KbFileResult extends BaseInfo {
+
+    @Serial
+    private static final long serialVersionUID = 1L;
 
     /** 主键 */
     @TableId(type = IdType.ASSIGN_ID)

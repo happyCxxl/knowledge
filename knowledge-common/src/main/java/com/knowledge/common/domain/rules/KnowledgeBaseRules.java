@@ -23,9 +23,7 @@ public final class KnowledgeBaseRules {
      * @throws KnowledgeException 非启用状态（KB_STATUS_ILLEGAL 40402）
      */
     public static void checkCanDisable(KnowledgeBase kb) {
-        if (ObjectUtil.isNull(kb.getStatus()) || !ObjectUtil.equal(kb.getStatus(), KnowledgeBaseStatus.ACTIVE.getCode())) {
-            throw new KnowledgeException(ErrorCode.KB_STATUS_ILLEGAL, "仅启用状态的知识库可以停用");
-        }
+        requireStatus(kb, KnowledgeBaseStatus.ACTIVE, ErrorCode.KB_STATUS_ILLEGAL, "仅启用状态的知识库可以停用");
     }
 
     /**
@@ -35,9 +33,7 @@ public final class KnowledgeBaseRules {
      * @throws KnowledgeException 非停用状态（KB_STATUS_ILLEGAL 40402）
      */
     public static void checkCanEnable(KnowledgeBase kb) {
-        if (ObjectUtil.isNull(kb.getStatus()) || !ObjectUtil.equal(kb.getStatus(), KnowledgeBaseStatus.DISABLED.getCode())) {
-            throw new KnowledgeException(ErrorCode.KB_STATUS_ILLEGAL, "仅停用状态的知识库可以启用");
-        }
+        requireStatus(kb, KnowledgeBaseStatus.DISABLED, ErrorCode.KB_STATUS_ILLEGAL, "仅停用状态的知识库可以启用");
     }
 
     /**
@@ -60,8 +56,17 @@ public final class KnowledgeBaseRules {
      * @throws KnowledgeException 非启用状态（KB_NOT_ACTIVE 40421）
      */
     public static void checkCanSubmit(KnowledgeBase kb) {
-        if (ObjectUtil.isNull(kb.getStatus()) || !ObjectUtil.equal(kb.getStatus(), KnowledgeBaseStatus.ACTIVE.getCode())) {
-            throw new KnowledgeException(ErrorCode.KB_NOT_ACTIVE);
+        requireStatus(kb, KnowledgeBaseStatus.ACTIVE, ErrorCode.KB_NOT_ACTIVE, null);
+    }
+
+    /** 状态闸门公共实现：状态缺失或非预期即抛对应错误码 */
+    private static void requireStatus(KnowledgeBase kb, KnowledgeBaseStatus expected, ErrorCode errorCode,
+                                      String message) {
+        if (ObjectUtil.isNull(kb.getStatus()) || !ObjectUtil.equal(kb.getStatus(), expected.getCode())) {
+            if (message == null) {
+                throw new KnowledgeException(errorCode);
+            }
+            throw new KnowledgeException(errorCode, message);
         }
     }
 

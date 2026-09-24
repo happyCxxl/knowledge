@@ -23,6 +23,7 @@ import io.milvus.v2.service.index.request.CreateIndexReq;
 import io.milvus.v2.service.vector.request.QueryReq;
 import io.milvus.v2.service.vector.request.SearchReq;
 import io.milvus.v2.service.vector.request.UpsertReq;
+import io.milvus.v2.service.vector.request.data.BaseVector;
 import io.milvus.v2.service.vector.request.data.EmbeddedText;
 import io.milvus.v2.service.vector.request.data.FloatVec;
 import io.milvus.v2.service.vector.response.QueryResp;
@@ -112,15 +113,7 @@ public class MilvusKnowledgeCollection implements KnowledgeCollectionPort {
 
     @Override
     public List<ScoredRow> searchVector(String collectionName, List<Float> vector, int topK, String filter) {
-        SearchResp resp = milvusClientV2.search(SearchReq.builder()
-                .collectionName(collectionName)
-                .data(List.of(new FloatVec(vector)))
-                .annsField("vector")
-                .topK(topK)
-                .filter(filter)
-                .outputFields(OUTPUT_FIELDS)
-                .consistencyLevel(ConsistencyLevel.STRONG)
-                .build());
+        SearchResp resp = searchInternal(collectionName, new FloatVec(vector), "vector", topK, filter);
         List<SearchResp.SearchResult> results = resp.getSearchResults().isEmpty()
                 ? List.of() : resp.getSearchResults().getFirst();
         List<ScoredRow> hits = new ArrayList<>(results.size());
@@ -135,15 +128,8 @@ public class MilvusKnowledgeCollection implements KnowledgeCollectionPort {
     @Override
     public List<CollectionRow> searchFullText(String collectionName, String keyword, long limit, String filter) {
         String sanitized = sanitizeKeyword(keyword);
-        SearchResp resp = milvusClientV2.search(SearchReq.builder()
-                .collectionName(collectionName)
-                .data(List.of(new EmbeddedText(sanitized)))
-                .annsField("content_sparse")
-                .topK((int) limit)
-                .filter(filter)
-                .outputFields(OUTPUT_FIELDS)
-                .consistencyLevel(ConsistencyLevel.STRONG)
-                .build());
+        SearchResp resp = searchInternal(collectionName, new EmbeddedText(sanitized), "content_sparse",
+                (int) limit, filter);
         List<SearchResp.SearchResult> results = resp.getSearchResults().isEmpty()
                 ? List.of() : resp.getSearchResults().getFirst();
         List<CollectionRow> hits = new ArrayList<>(results.size());
@@ -151,6 +137,19 @@ public class MilvusKnowledgeCollection implements KnowledgeCollectionPort {
             hits.add(toRow(result.getEntity()));
         }
         return hits;
+    }
+
+    /** 检索请求公共组装：向量与全文检索共用字段，仅 data 与目标字段不同 */
+    private SearchResp searchInternal(String collectionName, BaseVector data, String annsField, int topK, String filter) {
+        return milvusClientV2.search(SearchReq.builder()
+                .collectionName(collectionName)
+                .data(List.of(data))
+                .annsField(annsField)
+                .topK(topK)
+                .filter(filter)
+                .outputFields(OUTPUT_FIELDS)
+                .consistencyLevel(ConsistencyLevel.STRONG)
+                .build());
     }
 
     @Override
