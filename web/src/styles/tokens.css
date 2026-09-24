@@ -1,0 +1,69 @@
+/* 设计变量：色板 / 圆角 / 字体统一入口，页面与组件引用变量而不写死颜色值 */
+:root {
+  --kb-bg-0: #070b14;
+  --kb-bg-1: #0a0e17;
+  --kb-bg-2: #0d1424;
+  --kb-text-1: #e6eaf2;
+  --kb-text-2: rgb(230 234 242 / 62%);
+  --kb-text-3: rgb(230 234 242 / 36%);
+  --kb-line: rgb(255 255 255 / 8%);
+  --kb-line-strong: rgb(255 255 255 / 16%);
+  --kb-surface: rgb(255 255 255 / 4%);
+  --kb-primary: #34d399;
+  --kb-primary-2: #2dd4bf;
+  --kb-glow: rgb(52 211 153 / 35%);
+  --kb-tint: rgb(52 211 153 / 10%);
+  --kb-aurora: rgb(52 211 153 / 14%);
+  --kb-ok: #a3e635;
+  --kb-warn: #fbbf24;
+  --kb-danger: #f87171;
+  --kb-btn-text: #041510;
+  --kb-radius: 14px;
+}
+
+/* 全局基底：暗色画布与文字体系 */
+.app-body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--kb-bg-0);
+  color: var(--kb-text-1);
+  font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 应用挂载根：占满视口高度 */
+.app-root {
+  min-height: 100vh;
+}
+
+/* Element Plus 暗色主题品牌化：主色切为翡翠系，容器与文字色对齐设计变量 */
+:root.dark {
+  --el-color-primary: #34d399;
+  --el-color-primary-light-3: #5fe0b0;
+  --el-color-primary-light-5: #86e8c6;
+  --el-color-primary-light-7: #aef0d9;
+  --el-color-primary-light-8: #c4f4e5;
+  --el-color-primary-light-9: #daf8ee;
+  --el-color-primary-dark-2: #2ab98a;
+  --el-bg-color: #0a0e17;
+  --el-bg-color-overlay: #0d1424;
+  --el-border-color: rgb(255 255 255 / 8%);
+  --el-border-color-light: rgb(255 255 255 / 8%);
+  --el-border-color-lighter: rgb(255 255 255 / 6%);
+  --el-text-color-primary: #e6eaf2;
+  --el-text-color-regular: rgb(230 234 242 / 75%);
+  --el-text-color-secondary: rgb(230 234 242 / 62%);
+  --el-text-color-placeholder: rgb(230 234 242 / 36%);
+  --el-fill-color-blank: rgb(255 255 255 / 4%);
+  --el-fill-color-light: rgb(255 255 255 / 6%);
+  --el-form-label-font-size: 13px;
+  --el-checkbox-text-color: rgb(230 234 242 / 62%);
+  --el-input-border-radius: 10px;
+  --el-input-bg-color: rgb(255 255 255 / 4%);
+  --el-input-border-color: rgb(255 255 255 / 8%);
+  --el-input-hover-border-color: rgb(255 255 255 / 8%);
+  --el-input-focus-border-color: #34d399;
+  --el-input-text-color: #e6eaf2;
+  --el-input-placeholder-color: rgb(230 234 242 / 36%);
+  --el-mask-color: rgb(7 11 20 / 70%);
+}

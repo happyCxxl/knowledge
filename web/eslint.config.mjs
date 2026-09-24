@@ -69,27 +69,43 @@ export default [
         'error',
         { html: { void: 'always', normal: 'never', component: 'always' } },
       ],
+      // 格式细节由 Prettier 统一负责，关闭与其冲突的两条布局规则
+      'vue/max-attributes-per-line': 'off',
+      'vue/singleline-html-element-content-newline': 'off',
       // §5.12：元素 attribute 顺序（【应该】级告警）
       'vue/attributes-order': 'warn',
+    },
+  },
+  {
+    files: ['src/**/*.{ts,vue}'],
+    languageOptions: {
+      parserOptions: {
+        project: './tsconfig.json',
+        extraFileExtensions: ['.vue'],
+      },
+    },
+    rules: {
+      // 类型感知规则：补齐 IDEA 数据流检查一类（恒真条件 / 冗余断言 / 可简化表达式）
+      '@typescript-eslint/no-unnecessary-condition': 'error',
+      '@typescript-eslint/no-unnecessary-type-assertion': 'error',
+      '@typescript-eslint/no-unnecessary-boolean-literal-compare': 'error',
+      '@typescript-eslint/no-unnecessary-template-expression': 'error',
+      '@typescript-eslint/prefer-optional-chain': 'error',
+      // §3：命名口径（变量/函数 camelCase、常量 UPPER_CASE、类型 PascalCase）与嵌套 ≤3 层
+      '@typescript-eslint/naming-convention': [
+        'error',
+        { selector: 'variable', format: ['camelCase', 'UPPER_CASE'] },
+        { selector: 'function', format: ['camelCase'] },
+        { selector: 'parameter', format: ['camelCase'] },
+        { selector: 'typeLike', format: ['PascalCase'] },
+      ],
+      'max-depth': ['error', 3],
     },
   },
   {
     files: ['src/api/**/*.{ts,vue}'],
     rules: {
       'no-restricted-imports': 'off',
-    },
-  },
-  {
-    files: ['scripts/**/*.mjs'],
-    languageOptions: {
-      globals: {
-        console: 'readonly',
-        process: 'readonly',
-      },
-    },
-    rules: {
-      // 校验/工具脚本通过控制台输出结果，不受"业务代码禁 console"约束
-      'no-console': 'off',
     },
   },
 ];

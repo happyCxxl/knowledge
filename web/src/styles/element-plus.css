@@ -1,0 +1,46 @@
+/* Element Plus 组件细节定制：内部类名仅供组件自身消费，IDEA 无法解析引用关系，
+   故逐条加 noinspection 豁免"未使用选择器"告警。 */
+
+/* noinspection CssUnusedSymbol */
+.login-item .el-form-item__label {
+  height: auto;
+  color: var(--kb-text-2);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+/* noinspection CssUnusedSymbol */
+.login-item .el-form-item__content {
+  margin-top: 8px;
+}
+
+/* noinspection CssUnusedSymbol */
+.login-input .el-input__wrapper {
+  border-radius: 10px;
+  background: var(--kb-surface);
+  box-shadow: 0 0 0 1px var(--kb-line) inset;
+  transition:
+    background 0.2s,
+    box-shadow 0.2s;
+}
+
+/* noinspection CssUnusedSymbol */
+.login-input .el-input__wrapper.is-focus {
+  background: rgb(255 255 255 / 6%);
+  box-shadow:
+    0 0 0 1px var(--kb-primary) inset,
+    0 0 0 3px rgb(52 211 153 / 12%),
+    0 0 18px rgb(52 211 153 / 12%);
+}
+
+/* noinspection CssUnusedSymbol */
+.login-input .el-input__inner {
+  color: var(--kb-text-1);
+}
+
+/* noinspection CssUnusedSymbol */
+.kb-pager .el-pager .is-active {
+  border-radius: 8px;
+  background: var(--kb-tint);
+  color: var(--kb-primary);
+}

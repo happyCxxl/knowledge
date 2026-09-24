@@ -1,8 +1,14 @@
 #!/bin/sh
 set -e
+# pre-commit gate: 秒级检查，内容检查只针对本次暂存文件。
+# 内容检查（prettier/eslint/stylelint）由 lint-staged 对暂存文件执行；
+# vue-tsc 为全项目类型检查（TS 类型图全局性所致，秒级）；
+# ls-lint / 命名词表 / 规范合规为全树文件级校验（毫秒级）。
 if git diff --cached --name-only | grep -q '^web/'; then
   cd "$(git rev-parse --show-toplevel)/web"
   pnpm exec lint-staged --concurrent false
+  pnpm exec vue-tsc --noEmit
   pnpm exec ls-lint
-  node scripts/check-naming.mjs
+  node ../tools/frontend/check-naming.mjs
+  node ../tools/frontend/check-spec.mjs
 fi

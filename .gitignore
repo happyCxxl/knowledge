@@ -21,6 +21,9 @@ docker/volumes/
 *.ipr
 *.iws
 
+# 设计插件工作草稿区（deepseek-idesign 在根目录生成，不入库；仅根目录）
+/design/
+
 # 操作系统
 .DS_Store
 Thumbs.db
