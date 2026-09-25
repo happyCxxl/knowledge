@@ -5,3 +5,4 @@ dist/
 Thumbs.db
 *.log
 hs_err*
+*.tsbuildinfo

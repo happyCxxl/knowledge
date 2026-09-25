@@ -11,12 +11,12 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "vue-tsc --noEmit && vite build",
+    "build": "vue-tsc -b && vite build",
     "preview": "vite preview",
     "lint": "pnpm lint:format && pnpm lint:js && pnpm lint:types && pnpm lint:css && pnpm lint:files && pnpm lint:names && pnpm lint:spec",
     "lint:format": "prettier --check .",
     "lint:js": "eslint .",
-    "lint:types": "vue-tsc --noEmit",
+    "lint:types": "vue-tsc -b",
     "lint:css": "stylelint \"**/*.{css,vue}\" --allow-empty-input",
     "lint:files": "ls-lint",
     "lint:names": "node ../tools/frontend/check-naming.mjs",
@@ -32,6 +32,7 @@
   "devDependencies": {
     "@eslint/js": "^9.39.5",
     "@ls-lint/ls-lint": "^2.3.1",
+    "@types/node": "^26.6.2",
     "@vitejs/plugin-vue": "^6.0.9",
     "eslint": "^9.39.5",
     "eslint-plugin-vue": "^10.11.0",
