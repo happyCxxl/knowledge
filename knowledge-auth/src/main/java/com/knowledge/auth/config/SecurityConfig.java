@@ -31,6 +31,8 @@ public class SecurityConfig {
 
     private final RestAccessDeniedHandler restAccessDeniedHandler;
 
+    private final RestAuthenticationEntryPoint restAuthenticationEntryPoint;
+
     /** 安全过滤链：登录/注册与接口文档放行；其余请求需登录，角色由方法注解判定 */
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -40,7 +42,10 @@ public class SecurityConfig {
                         .requestMatchers("/auth/login", "/auth/register").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .anyRequest().authenticated())
-                .exceptionHandling(handling -> handling.accessDeniedHandler(restAccessDeniedHandler))
+                .exceptionHandling(handling -> handling
+                        // 未认证 → 40101；已认证但无权限 → 40104；两者都归一成 R + HTTP 200
+                        .authenticationEntryPoint(restAuthenticationEntryPoint)
+                        .accessDeniedHandler(restAccessDeniedHandler))
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }

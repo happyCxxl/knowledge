@@ -224,6 +224,24 @@ import { useAuthStore } from '@/stores/auth';
 
 // 登录页：登录 / 注册各为一张独立卡片，互切时绕水平轴竖向翻转
 const router = useRouter();
+
+/** 登录后要跳回的路径的暂存键；与 api/http.ts 的 REDIRECT_KEY 保持一致 */
+const REDIRECT_KEY = 'knowledge-redirect';
+
+/**
+ * 取出被中断前的页面路径并清除暂存；无暂存或指向登录页时回落工作台。
+ *
+ * <p>接口层遇 40101/401/403 是硬跳转（window.location.href），会丢失当前 URL，
+ * 因此由它把来源写进 sessionStorage，登录成功后在这里读回。
+ */
+function takeRedirectTarget(): string {
+  const target = sessionStorage.getItem(REDIRECT_KEY);
+  sessionStorage.removeItem(REDIRECT_KEY);
+  if (!target || target === '/login' || target.startsWith('/login?')) {
+    return '/knowledge-base';
+  }
+  return target;
+}
 const authStore = useAuthStore();
 
 // 翻转时长（ms）
@@ -410,7 +428,7 @@ async function handleSubmit(): Promise<void> {
     const loginResult = await getToken({ username: form.account, password: form.password });
     authStore.setToken(loginResult.token, form.remember);
     ElMessage.success('登录成功');
-    await router.push('/knowledge-base');
+    await router.push(takeRedirectTarget());
   } catch {
     // 失败提示已由接口层统一拦截处理
   } finally {

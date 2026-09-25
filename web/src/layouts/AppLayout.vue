@@ -59,7 +59,6 @@
             <circle v-if="item.iconCircle" cx="8" cy="5.4" r="2.6" />
           </svg>
           {{ item.label }}
-          <span v-if="item.badge" class="layout-nav-badge">{{ item.badge }}</span>
         </router-link>
       </template>
       <div class="layout-side-foot">
@@ -136,7 +135,6 @@ interface NavItem {
   path: string;
   iconPaths: string[];
   iconCircle?: boolean;
-  badge?: string;
   /** 仅管理员可见的菜单 */
   adminOnly?: boolean;
 }
@@ -152,7 +150,6 @@ const navGroups: { title: string; items: NavItem[] }[] = [
           'M2.2 5.2 8 2l5.8 3.2v5.6L8 14 2.2 10.8V5.2Z',
           'M2.2 5.2 8 8.4l5.8-3.2M8 8.4V14',
         ],
-        badge: '12',
       },
     ],
   },
@@ -328,17 +325,6 @@ function handleLogout(): void {
 
 .layout-nav-item-active .layout-nav-icon {
   opacity: 1;
-}
-
-.layout-nav-badge {
-  margin-left: auto;
-  padding: 1px 7px;
-  border: 1px solid rgb(52 211 153 / 25%);
-  border-radius: 99px;
-  background: var(--kb-tint);
-  color: var(--kb-primary);
-  font-family: ui-monospace, 'JetBrains Mono', Consolas, monospace;
-  font-size: 11px;
 }
 
 .layout-side-foot {
