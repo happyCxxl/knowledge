@@ -15,12 +15,12 @@
         </svg>
       </span>
       <span class="kb-name">{{ kb.name }}</span>
+      <span v-if="kb.defaultFlag === 1" class="kb-default-tag">默认</span>
       <span
         class="kb-tag"
         :class="{
-          'kb-tag-ok': kb.status === 'running',
-          'kb-tag-warn': kb.status === 'building',
-          'kb-tag-mute': kb.status === 'stopped',
+          'kb-tag-ok': kb.status === KB_STATUS_ACTIVE,
+          'kb-tag-mute': kb.status === KB_STATUS_DISABLED,
         }"
       >
         <span class="kb-tag-dot"></span>
@@ -30,12 +30,18 @@
     <p class="kb-desc">{{ kb.description }}</p>
     <div class="kb-meta">
       <div class="kb-meta-item">
-        <span class="kb-meta-value">{{ kb.documentCount }}</span>
+        <span class="kb-meta-value">{{ kb.documentCount ?? 0 }}</span>
         <span class="kb-meta-label">文档</span>
       </div>
       <div class="kb-meta-item">
-        <span class="kb-meta-value">{{ kb.dimension }}</span>
-        <span class="kb-meta-label">维度</span>
+        <span class="kb-meta-value">{{ kb.embedStrategyVersion ?? '未绑定' }}</span>
+        <span class="kb-meta-label">向量策略</span>
+      </div>
+      <div class="kb-meta-item">
+        <span class="kb-meta-value" :class="{ 'kb-meta-mute': !kb.publishedIndexVersion }">
+          {{ kb.publishedIndexVersion ?? '未发布' }}
+        </span>
+        <span class="kb-meta-label">索引版本</span>
       </div>
       <div class="kb-meta-item">
         <span class="kb-meta-value">{{ timeText }}</span>
@@ -43,9 +49,17 @@
       </div>
     </div>
     <div class="kb-ops">
-      <button class="kb-op" type="button" @click="emit('update')">编辑</button>
+      <button class="kb-op" type="button" @click="emit('update', kb)">编辑</button>
       <button class="kb-op" type="button" @click="emit('evaluate')">评测</button>
-      <button class="kb-op kb-op-danger" type="button" @click="emit('delete')">删除</button>
+      <!-- 默认库不可删除：直接不渲染入口，避免点了才被后端拒绝 -->
+      <button
+        v-if="kb.defaultFlag !== 1"
+        class="kb-op kb-op-danger"
+        type="button"
+        @click="emit('delete', kb)"
+      >
+        删除
+      </button>
       <span class="kb-op-date">{{ dateText }}</span>
     </div>
   </article>
@@ -55,6 +69,7 @@
 import { computed } from 'vue';
 
 import type { KnowledgeBase } from '@/types/knowledge-base';
+import { KB_STATUS_ACTIVE, KB_STATUS_DISABLED } from '@/types/knowledge-base';
 import { formatDate, formatTime } from '@/utils/date';
 
 // 知识库卡片：名称、状态、关键指标与操作入口
@@ -64,20 +79,16 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  update: [];
+  /** 编辑：带出当前卡片数据供页面填表 */
+  update: [kb: KnowledgeBase];
   evaluate: [];
-  delete: [];
+  /** 删除：默认库不渲染该入口，因此不会触发 */
+  delete: [kb: KnowledgeBase];
 }>();
 
-const statusTextMap: Record<KnowledgeBase['status'], string> = {
-  running: '运行中',
-  building: '构建中',
-  stopped: '已停止',
-};
-
-const statusText = computed(() => statusTextMap[props.kb.status]);
-const timeText = computed(() => formatTime(props.kb.updatedAt));
-const dateText = computed(() => formatDate(props.kb.updatedAt));
+const statusText = computed(() => (props.kb.status === KB_STATUS_ACTIVE ? '已启用' : '已停用'));
+const timeText = computed(() => formatTime(props.kb.updateTime ?? ''));
+const dateText = computed(() => formatDate(props.kb.updateTime ?? ''));
 </script>
 
 <style scoped lang="css">
@@ -130,6 +141,18 @@ const dateText = computed(() => formatDate(props.kb.updatedAt));
   white-space: nowrap;
 }
 
+/* 默认库标记：该库恒排最前且不可停用/删除，需与普通库一眼区分 */
+.kb-default-tag {
+  flex: none;
+  padding: 2px 8px;
+  border: 1px solid rgb(52 211 153 / 35%);
+  border-radius: 999px;
+  background: var(--kb-tint);
+  color: var(--kb-primary);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
 .kb-tag {
   display: inline-flex;
   gap: 6px;
@@ -153,12 +176,6 @@ const dateText = computed(() => formatDate(props.kb.updatedAt));
   border-color: rgb(163 230 53 / 30%);
   background: rgb(163 230 53 / 7%);
   color: var(--kb-ok);
-}
-
-.kb-tag-warn {
-  border-color: rgb(251 191 36 / 30%);
-  background: rgb(251 191 36 / 7%);
-  color: var(--kb-warn);
 }
 
 .kb-tag-mute {
@@ -202,9 +219,18 @@ const dateText = computed(() => formatDate(props.kb.updatedAt));
 
 .kb-meta-value {
   display: block;
+  overflow: hidden;
   font-family: ui-monospace, 'JetBrains Mono', Consolas, monospace;
   font-size: 13px;
   font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 未发布索引：弱化显示，与真实版本号区分 */
+.kb-meta-mute {
+  color: var(--kb-text-3);
+  font-weight: 400;
 }
 
 .kb-meta-label {
