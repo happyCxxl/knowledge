@@ -15,6 +15,24 @@ export default [
       parserOptions: {
         parser: tseslint.parser,
       },
+      // .vue 的 script 块同样运行在浏览器：typescript-eslint 只对 .ts 关闭 no-undef，
+      // 这里显式声明全局，避免 window / requestAnimationFrame 一类被误报
+      globals: {
+        window: 'readonly',
+        document: 'readonly',
+        navigator: 'readonly',
+        performance: 'readonly',
+        localStorage: 'readonly',
+        sessionStorage: 'readonly',
+        setTimeout: 'readonly',
+        clearTimeout: 'readonly',
+        setInterval: 'readonly',
+        clearInterval: 'readonly',
+        requestAnimationFrame: 'readonly',
+        cancelAnimationFrame: 'readonly',
+        ResizeObserver: 'readonly',
+        matchMedia: 'readonly',
+      },
     },
   },
   {
@@ -96,7 +114,7 @@ export default [
         'error',
         { selector: 'variable', format: ['camelCase', 'UPPER_CASE'] },
         { selector: 'function', format: ['camelCase'] },
-        { selector: 'parameter', format: ['camelCase'] },
+        { selector: 'parameter', format: ['camelCase'], leadingUnderscore: 'allow' },
         { selector: 'typeLike', format: ['PascalCase'] },
       ],
       'max-depth': ['error', 3],

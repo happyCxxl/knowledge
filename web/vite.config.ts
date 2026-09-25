@@ -18,6 +18,8 @@ export default defineConfig({
       '/auth': 'http://localhost:4388',
       '/knowledge-base': 'http://localhost:4388',
       '/strategy-versions': 'http://localhost:4388',
+      // 用户接口：只代理 /user/ 下的子路径，避免把 SPA 路由 /user 本身也转发到后端
+      '^/user/': 'http://localhost:4388',
     },
   },
 });
