@@ -80,7 +80,7 @@ const timeText = computed(() => formatTime(props.kb.updatedAt));
 const dateText = computed(() => formatDate(props.kb.updatedAt));
 </script>
 
-<style scoped>
+<style scoped lang="css">
 .kb-card {
   display: flex;
   flex-direction: column;

@@ -168,7 +168,7 @@ function handlePending(): void {
 }
 </script>
 
-<style scoped>
+<style scoped lang="css">
 .kb-page {
   display: flex;
   flex-direction: column;

@@ -55,6 +55,49 @@ function collectTemplateClasses(template) {
   return classes;
 }
 
+// 取根 template 块的完整内容：块内可以再嵌 <template #slot>，
+// 用 indexOf('</template>') 会在第一个插槽模板处截断，导致后面的类名全被误判为未使用
+function extractRootTemplate(content) {
+  const start = content.indexOf('<template');
+  if (start === -1) {
+    return '';
+  }
+  const openEnd = content.indexOf('>', start);
+  if (openEnd === -1) {
+    return '';
+  }
+  let depth = 1;
+  let cursor = openEnd + 1;
+  while (cursor < content.length) {
+    const nextOpen = content.indexOf('<template', cursor);
+    const nextClose = content.indexOf('</template>', cursor);
+    if (nextClose === -1) {
+      break;
+    }
+    if (nextOpen !== -1 && nextOpen < nextClose) {
+      depth += 1;
+      cursor = nextOpen + '<template'.length;
+      continue;
+    }
+    depth -= 1;
+    if (depth === 0) {
+      return content.slice(openEnd + 1, nextClose);
+    }
+    cursor = nextClose + '</template>'.length;
+  }
+  return content.slice(openEnd + 1);
+}
+
+// 运行时类名：classList.add/remove/toggle('x') 与 setProperty('--x') 里的类名同样算「已使用」，
+// 否则纯靠 JS 切换状态的样式类会被误判为未使用
+function collectScriptClasses(script) {
+  const classes = new Set();
+  for (const match of script.matchAll(/classList\.(?:add|remove|toggle|contains)\(\s*'([^']+)'/g)) {
+    classes.add(match[1]);
+  }
+  return classes;
+}
+
 function checkSfc(rel, content) {
   const templateStart = content.indexOf('<template');
   const scriptStart = content.indexOf('<script');
@@ -161,9 +204,14 @@ for (const file of vueFiles) {
   const styleMatch = checkSfc(rel, content);
   if (styleMatch) {
     const css = extractStyleBody(content);
-    const templateStart = content.indexOf('<template');
-    const templateEnd = content.indexOf('</template>');
-    const templateClasses = collectTemplateClasses(content.slice(templateStart, templateEnd));
+    const templateClasses = collectTemplateClasses(extractRootTemplate(content));
+    const scriptStart = content.indexOf('<script');
+    const scriptEnd = content.indexOf('</script>');
+    if (scriptStart !== -1 && scriptEnd !== -1) {
+      for (const cls of collectScriptClasses(content.slice(scriptStart, scriptEnd))) {
+        templateClasses.add(cls);
+      }
+    }
     checkStyleRules(rel, css, templateClasses);
     checkFontFamily(rel, css);
   }
