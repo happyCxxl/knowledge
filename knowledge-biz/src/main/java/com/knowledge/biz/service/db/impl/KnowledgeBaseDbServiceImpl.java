@@ -8,6 +8,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.knowledge.biz.mapper.KnowledgeBaseMapper;
 import com.knowledge.biz.service.db.KnowledgeBaseDbService;
 import com.knowledge.common.domain.entity.KnowledgeBase;
+import com.knowledge.common.enums.knowledge.KnowledgeBaseSort;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.ThrowUtil;
 import com.knowledge.infra.persistence.InfraDbServiceImpl;
@@ -23,11 +24,28 @@ public class KnowledgeBaseDbServiceImpl extends InfraDbServiceImpl<KnowledgeBase
         implements KnowledgeBaseDbService {
 
     @Override
-    public IPage<KnowledgeBase> pageByName(long current, long size, String name) {
+    public IPage<KnowledgeBase> pageByCondition(long current, long size, String name, Integer status,
+                                                KnowledgeBaseSort sort) {
         LambdaQueryWrapper<KnowledgeBase> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.like(StrUtil.isNotBlank(name), KnowledgeBase::getName, name)
-                .orderByDesc(KnowledgeBase::getId);
+                .eq(status != null, KnowledgeBase::getStatus, status)
+                // 默认库（default_flag=1）在任何排序口径下都恒排最前
+                .orderByDesc(KnowledgeBase::getDefaultFlag);
+        switch (sort == null ? KnowledgeBaseSort.DEFAULT : sort) {
+            case UPDATED -> queryWrapper.orderByDesc(KnowledgeBase::getUpdateTime)
+                    .orderByDesc(KnowledgeBase::getId);
+            case NAME -> queryWrapper.orderByAsc(KnowledgeBase::getName)
+                    .orderByAsc(KnowledgeBase::getId);
+            default -> queryWrapper.orderByDesc(KnowledgeBase::getId);
+        }
         return page(new Page<>(current, size), queryWrapper);
+    }
+
+    @Override
+    public long countByStatus(Integer status) {
+        LambdaQueryWrapper<KnowledgeBase> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(status != null, KnowledgeBase::getStatus, status);
+        return count(queryWrapper);
     }
 
     /**

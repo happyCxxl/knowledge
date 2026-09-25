@@ -1,17 +1,27 @@
 package com.knowledge.biz.service.impl;
 
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import org.apache.ibatis.builder.MapperBuilderAssistant;
 import com.knowledge.biz.service.db.KbAuditLogDbService;
+import com.knowledge.biz.service.db.KbFileResultDbService;
+import com.knowledge.biz.service.db.KbIndexSetDbService;
+import com.knowledge.biz.service.db.KbIndexVersionDbService;
 import com.knowledge.biz.service.db.KbPipelineStrategyVersionDbService;
 import com.knowledge.biz.service.db.KbStrategyBindingDbService;
 import com.knowledge.biz.service.db.KnowledgeBaseDbService;
+import com.knowledge.common.domain.entity.KbIndexSet;
+import com.knowledge.common.domain.entity.KbIndexVersion;
 import com.knowledge.common.domain.entity.KbPipelineStrategyVersion;
 import com.knowledge.common.domain.entity.KbStrategyBinding;
 import com.knowledge.common.domain.entity.KnowledgeBase;
 import com.knowledge.common.dto.request.knowledge.KnowledgeBaseCreateDto;
 import com.knowledge.common.dto.request.knowledge.KnowledgeBaseUpdateDto;
 import com.knowledge.common.dto.request.knowledge.StrategyBindingUpdateDto;
+import com.knowledge.common.dto.response.knowledge.KnowledgeBaseStatsVO;
 import com.knowledge.common.dto.response.knowledge.KnowledgeBaseVO;
 import com.knowledge.common.dto.response.knowledge.StrategyBindingVO;
 import com.knowledge.common.enums.knowledge.AuditActionType;
@@ -23,6 +33,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -53,6 +64,12 @@ class KnowledgeBaseServiceImplTest {
 
     private KbPipelineStrategyVersionDbService strategyVersionDbService;
 
+    private KbFileResultDbService kbFileResultDbService;
+
+    private KbIndexSetDbService indexSetDbService;
+
+    private KbIndexVersionDbService indexVersionDbService;
+
     private KnowledgeBaseServiceImpl service;
 
     @BeforeEach
@@ -61,8 +78,12 @@ class KnowledgeBaseServiceImplTest {
         kbAuditLogDbService = mock(KbAuditLogDbService.class);
         strategyBindingDbService = mock(KbStrategyBindingDbService.class);
         strategyVersionDbService = mock(KbPipelineStrategyVersionDbService.class);
+        kbFileResultDbService = mock(KbFileResultDbService.class);
+        indexSetDbService = mock(KbIndexSetDbService.class);
+        indexVersionDbService = mock(KbIndexVersionDbService.class);
         service = new KnowledgeBaseServiceImpl(knowledgeBaseDbService, kbAuditLogDbService,
-                strategyBindingDbService, strategyVersionDbService);
+                strategyBindingDbService, strategyVersionDbService, kbFileResultDbService,
+                indexSetDbService, indexVersionDbService);
     }
 
     private KnowledgeBase kb(long id, int status) {
@@ -242,18 +263,116 @@ class KnowledgeBaseServiceImplTest {
     }
 
     @Test
-    void pageShouldReturnMappedRecords() {
+    void pageShouldOrderDefaultKbFirstThenNewestFirst() {
+        // 直接验证查询条件构造：Lambda 必须解析成正确的列名与排序方向。
+        // 若 lambda 引用写错（例如误用 name），解析出来会是别的列名而不报错，属于静默 bug。
+        // 注意：脱离 Spring 上下文时 MPJ 没有 TableInfo 缓存，需先初始化
+        TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), ""),
+                KnowledgeBase.class);
+        LambdaQueryWrapper<KnowledgeBase> wrapper = new LambdaQueryWrapper<>();
+        wrapper.like(false, KnowledgeBase::getName, null)
+                .eq(false, KnowledgeBase::getStatus, null)
+                .orderByDesc(KnowledgeBase::getDefaultFlag)
+                .orderByDesc(KnowledgeBase::getId);
+        String sql = wrapper.getSqlSegment();
+
+        assertTrue(sql.contains("default_flag DESC"), "默认库应排最前，实际: " + sql);
+        assertTrue(sql.contains("id DESC"), "其余应按 id 倒序，实际: " + sql);
+        assertTrue(sql.indexOf("default_flag DESC") < sql.indexOf("id DESC"),
+                "排序优先级应为 default_flag 先于 id，实际: " + sql);
+    }
+
+    @Test
+    void pageShouldFillPublishedIndexVersionWithBatchQueries() {
+        KnowledgeBase withIndex = kb(7L, 1);
+        withIndex.setPublishedIndexSetId(700L);
+        KnowledgeBase withoutIndex = kb(8L, 1);
+        Page<KnowledgeBase> page = new Page<>(1, 10);
+        page.setTotal(2);
+        page.setRecords(List.of(withIndex, withoutIndex));
+        when(knowledgeBaseDbService.pageByCondition(1L, 10L, null, null, null)).thenReturn(page);
+        when(strategyBindingDbService.listActiveByTypeAndKbIds(any(), any())).thenReturn(List.of());
+        when(kbFileResultDbService.countGroupByKb(any())).thenReturn(Map.of());
+
+        KbIndexSet set = new KbIndexSet();
+        set.setKnowledgeBaseId(7L);
+        set.setCurrentPublishedVersionId(900L);
+        when(indexSetDbService.listByKbIds(any())).thenReturn(Map.of(7L, set));
+        KbIndexVersion version = new KbIndexVersion();
+        version.setId(900L);
+        version.setVersionNo("v3");
+        when(indexVersionDbService.listByIds(any())).thenReturn(List.of(version));
+
+        IPage<KnowledgeBaseVO> result = service.page(1, 10, null, null, null);
+
+        assertEquals("v3", result.getRecords().get(0).getPublishedIndexVersion());
+        // 未发布索引的库为 null（前端据此显示「未发布」）
+        assertNull(result.getRecords().get(1).getPublishedIndexVersion());
+        // N+1 防护：整页只允许一次集合查询 + 一次版本查询
+        verify(indexSetDbService).listByKbIds(any());
+        verify(indexVersionDbService).listByIds(any());
+    }
+
+    @Test
+    void pageShouldSkipIndexLookupWhenNobodyPublished() {
         Page<KnowledgeBase> page = new Page<>(1, 10);
         page.setTotal(1);
         page.setRecords(List.of(kb(7L, 1)));
-        when(knowledgeBaseDbService.pageByName(1L, 10L, "库7")).thenReturn(page);
+        when(knowledgeBaseDbService.pageByCondition(1L, 10L, null, null, null)).thenReturn(page);
         when(strategyBindingDbService.listActiveByTypeAndKbIds(any(), any())).thenReturn(List.of());
+        when(kbFileResultDbService.countGroupByKb(any())).thenReturn(Map.of());
 
-        IPage<KnowledgeBaseVO> result = service.page(1, 10, "库7");
+        service.page(1, 10, null, null, null);
+
+        // 没有任何库发布过索引时不应产生多余的查询
+        verify(indexSetDbService, never()).listByKbIds(any());
+        verify(indexVersionDbService, never()).listByIds(any());
+    }
+
+    @Test
+    void pageShouldReturnMappedRecords() {
+
+        Page<KnowledgeBase> page = new Page<>(1, 10);
+        page.setTotal(1);
+        page.setRecords(List.of(kb(7L, 1)));
+        when(knowledgeBaseDbService.pageByCondition(1L, 10L, "库7", null, null)).thenReturn(page);
+        when(strategyBindingDbService.listActiveByTypeAndKbIds(any(), any())).thenReturn(List.of());
+        when(kbFileResultDbService.countGroupByKb(any())).thenReturn(Map.of(7L, 3L));
+
+        IPage<KnowledgeBaseVO> result = service.page(1, 10, "库7", null, null);
 
         assertEquals(1, result.getTotal());
         assertEquals(1, result.getRecords().size());
         assertEquals("库7", result.getRecords().getFirst().getName());
+        // 文档数按 kb_file_result 记录数回填；无记录的库补 0 而非 null
+        assertEquals(3L, result.getRecords().getFirst().getDocumentCount());
+    }
+
+    @Test
+    void pageShouldPassStatusFilterAndDefaultDocumentCountToZero() {
+        Page<KnowledgeBase> page = new Page<>(1, 10);
+        page.setTotal(1);
+        page.setRecords(List.of(kb(8L, 0)));
+        when(knowledgeBaseDbService.pageByCondition(1L, 10L, null, 0, null)).thenReturn(page);
+        when(strategyBindingDbService.listActiveByTypeAndKbIds(any(), any())).thenReturn(List.of());
+        when(kbFileResultDbService.countGroupByKb(any())).thenReturn(Map.of());
+
+        IPage<KnowledgeBaseVO> result = service.page(1, 10, null, 0, null);
+
+        assertEquals(0L, result.getRecords().getFirst().getDocumentCount());
+    }
+
+    @Test
+    void statsShouldAggregateCounts() {
+        when(knowledgeBaseDbService.countByStatus(null)).thenReturn(5L);
+        when(knowledgeBaseDbService.countByStatus(1)).thenReturn(3L);
+        when(kbFileResultDbService.countAll()).thenReturn(42L);
+
+        KnowledgeBaseStatsVO stats = service.stats();
+
+        assertEquals(5L, stats.getKnowledgeBaseCount());
+        assertEquals(3L, stats.getEnabledCount());
+        assertEquals(42L, stats.getDocumentCount());
     }
 
     // ---------------- 策略绑定 ----------------

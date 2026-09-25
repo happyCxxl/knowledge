@@ -1,14 +1,20 @@
 package com.knowledge.biz.service.impl;
 
+import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.knowledge.biz.service.KnowledgeBaseService;
 import com.knowledge.biz.service.StrategyVersionService;
 import com.knowledge.biz.service.db.KbAuditLogDbService;
+import com.knowledge.biz.service.db.KbFileResultDbService;
+import com.knowledge.biz.service.db.KbIndexSetDbService;
+import com.knowledge.biz.service.db.KbIndexVersionDbService;
 import com.knowledge.biz.service.db.KbPipelineStrategyVersionDbService;
 import com.knowledge.biz.service.db.KbStrategyBindingDbService;
 import com.knowledge.biz.service.db.KnowledgeBaseDbService;
+import com.knowledge.common.domain.entity.KbIndexSet;
+import com.knowledge.common.domain.entity.KbIndexVersion;
 import com.knowledge.common.domain.entity.KbPipelineStrategyVersion;
 import com.knowledge.common.domain.entity.KbStrategyBinding;
 import com.knowledge.common.domain.entity.KnowledgeBase;
@@ -17,9 +23,11 @@ import com.knowledge.common.dto.request.knowledge.KnowledgeBaseCreateDto;
 import com.knowledge.common.dto.request.knowledge.KnowledgeBaseUpdateDto;
 import com.knowledge.common.dto.request.knowledge.StrategyBindingUpdateDto;
 import com.knowledge.common.dto.request.knowledge.StrategyBindingsUpdateRequest;
+import com.knowledge.common.dto.response.knowledge.KnowledgeBaseStatsVO;
 import com.knowledge.common.dto.response.knowledge.KnowledgeBaseVO;
 import com.knowledge.common.dto.response.knowledge.StrategyBindingVO;
 import com.knowledge.common.enums.knowledge.AuditActionType;
+import com.knowledge.common.enums.knowledge.KnowledgeBaseSort;
 import com.knowledge.common.enums.knowledge.KnowledgeBaseStatus;
 import com.knowledge.common.enums.task.RowStatus;
 import com.knowledge.common.error.ErrorCode;
@@ -38,6 +46,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -62,6 +71,12 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     private final KbStrategyBindingDbService strategyBindingDbService;
 
     private final KbPipelineStrategyVersionDbService strategyVersionDbService;
+
+    private final KbFileResultDbService kbFileResultDbService;
+
+    private final KbIndexSetDbService indexSetDbService;
+
+    private final KbIndexVersionDbService indexVersionDbService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -98,19 +113,84 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     public KnowledgeBaseVO detail(Long id) {
         KnowledgeBaseVO vo = toVO(knowledgeBaseDbService.getActiveById(id));
         fillStrategyBindings(vo);
+        vo.setDocumentCount(kbFileResultDbService.countByKb(id));
         return vo;
     }
 
     @Override
-    public IPage<KnowledgeBaseVO> page(long current, long size, String name) {
-        IPage<KnowledgeBase> page = knowledgeBaseDbService.pageByName(current, size, name);
+    public IPage<KnowledgeBaseVO> page(long current, long size, String name, Integer status,
+                                       KnowledgeBaseSort sort) {
+        IPage<KnowledgeBase> page = knowledgeBaseDbService.pageByCondition(current, size, name, status, sort);
         Page<KnowledgeBaseVO> voPage = new Page<>(page.getCurrent(), page.getSize(), page.getTotal());
         List<KnowledgeBaseVO> records = page.getRecords().stream()
                 .map(this::toVO)
                 .collect(Collectors.toList());
         fillStrategyBindings(records);
+        fillDocumentCounts(records);
+        fillPublishedIndexVersions(records);
         voPage.setRecords(records);
         return voPage;
+    }
+
+    @Override
+    public KnowledgeBaseStatsVO stats() {
+        KnowledgeBaseStatsVO vo = new KnowledgeBaseStatsVO();
+        vo.setKnowledgeBaseCount(knowledgeBaseDbService.countByStatus(null));
+        vo.setEnabledCount(knowledgeBaseDbService.countByStatus(KnowledgeBaseStatus.ACTIVE.getCode()));
+        vo.setDocumentCount(kbFileResultDbService.countAll());
+        return vo;
+    }
+
+    /**
+     * 批量回填当页知识库的已发布索引版本号（两次查询覆盖整页，避免逐行查询）。
+     *
+     * <p>链路：kb_knowledge_base.published_index_set_id → kb_index_set.current_published_version_id
+     * → kb_index_version.version_no。
+     *
+     * @param records 当页 VO（原地回填 publishedIndexVersion）
+     */
+    private void fillPublishedIndexVersions(List<KnowledgeBaseVO> records) {
+        List<Long> kbIds = records.stream()
+                .filter(vo -> vo.getPublishedIndexSetId() != null)
+                .map(KnowledgeBaseVO::getId)
+                .collect(Collectors.toList());
+        if (CollUtil.isEmpty(kbIds)) {
+            return;
+        }
+        Map<Long, KbIndexSet> setByKb = indexSetDbService.listByKbIds(kbIds);
+        List<Long> versionIds = setByKb.values().stream()
+                .map(KbIndexSet::getCurrentPublishedVersionId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        if (CollUtil.isEmpty(versionIds)) {
+            return;
+        }
+        Map<Long, String> versionNoById = indexVersionDbService.listByIds(versionIds).stream()
+                .collect(Collectors.toMap(KbIndexVersion::getId, KbIndexVersion::getVersionNo, (a, b) -> a));
+        for (KnowledgeBaseVO vo : records) {
+            KbIndexSet set = setByKb.get(vo.getId());
+            if (set == null) {
+                continue;
+            }
+            vo.setPublishedIndexVersion(versionNoById.get(set.getCurrentPublishedVersionId()));
+        }
+    }
+
+    /**
+     * 批量回填当页知识库的文档数（一次分组查询，避免逐行查询）。
+     *
+     * @param records 当页 VO（原地回填 documentCount）
+     */
+    private void fillDocumentCounts(List<KnowledgeBaseVO> records) {
+        if (CollUtil.isEmpty(records)) {
+            return;
+        }
+        List<Long> ids = records.stream().map(KnowledgeBaseVO::getId).collect(Collectors.toList());
+        Map<Long, Long> counts = kbFileResultDbService.countGroupByKb(ids);
+        for (KnowledgeBaseVO vo : records) {
+            vo.setDocumentCount(counts.getOrDefault(vo.getId(), 0L));
+        }
     }
 
     @Override
@@ -341,6 +421,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         vo.setStatus(kb.getStatus());
         vo.setStrategyBindingEnabled(resolveBindingEnabled(kb.getStrategyBindingEnabled()));
         vo.setDefaultFlag(kb.getDefaultFlag());
+        vo.setPublishedIndexSetId(kb.getPublishedIndexSetId());
         vo.setUserId(kb.getUserId());
         vo.setCreateBy(kb.getCreateBy());
         vo.setCreateTime(kb.getCreateTime());

@@ -5,6 +5,7 @@ import com.knowledge.common.domain.entity.KbFileResult;
 import com.knowledge.infra.persistence.InfraDbService;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 文件结果数据访问服务（kb_file_result）。
@@ -25,4 +26,27 @@ public interface KbFileResultDbService extends InfraDbService<KbFileResult> {
      * @return 文件结果分页
      */
     IPage<KbFileResult> pageByKb(long current, long size, Long knowledgeBaseId);
+
+    /**
+     * 统计全库文档总数（一次提交 = 一个任务 = 一行；逻辑删除自动排除）。
+     *
+     * @return 文档总数
+     */
+    long countAll();
+
+    /**
+     * 统计单库文档数（一次提交 = 一个任务 = 一行；逻辑删除自动排除）。
+     *
+     * @param knowledgeBaseId 知识库 ID
+     * @return 文档数
+     */
+    long countByKb(Long knowledgeBaseId);
+
+    /**
+     * 批量统计多个知识库的文档数，供列表回填（避免逐行查询）。
+     *
+     * @param knowledgeBaseIds 知识库 ID 列表
+     * @return 知识库 ID → 文档数；无文档的知识库不出现在结果中
+     */
+    Map<Long, Long> countGroupByKb(List<Long> knowledgeBaseIds);
 }

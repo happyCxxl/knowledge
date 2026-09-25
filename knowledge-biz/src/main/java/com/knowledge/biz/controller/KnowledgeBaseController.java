@@ -7,8 +7,10 @@ import com.knowledge.common.dto.request.knowledge.KnowledgeBaseCreateDto;
 import com.knowledge.common.dto.request.knowledge.KnowledgeBaseUpdateDto;
 import com.knowledge.common.dto.request.knowledge.StrategyBindingUpdateDto;
 import com.knowledge.common.dto.request.knowledge.StrategyBindingsUpdateRequest;
+import com.knowledge.common.dto.response.knowledge.KnowledgeBaseStatsVO;
 import com.knowledge.common.dto.response.knowledge.KnowledgeBaseVO;
 import com.knowledge.common.dto.response.knowledge.StrategyBindingVO;
+import com.knowledge.common.enums.knowledge.KnowledgeBaseSort;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -64,12 +66,23 @@ public class KnowledgeBaseController {
     }
 
     @GetMapping("/page")
-    @Operation(summary = "分页查询知识库", description = "分页列表，支持名称模糊查询，不含已删除")
+    @Operation(summary = "分页查询知识库", description = "分页列表，支持名称模糊查询、状态过滤与排序，不含已删除；"
+            + "每条回填文档数（kb_file_result 记录数）与已发布索引版本号；默认库恒排最前")
     public R<IPage<KnowledgeBaseVO>> page(
             @Parameter(description = "当前页") @RequestParam(value = "current", defaultValue = "1") long current,
             @Parameter(description = "每页条数") @RequestParam(value = "size", defaultValue = "10") long size,
-            @Parameter(description = "名称（模糊查询）") @RequestParam(value = "name", required = false) String name) {
-        return R.ok(knowledgeBaseService.page(current, size, name));
+            @Parameter(description = "名称（模糊查询）") @RequestParam(value = "name", required = false) String name,
+            @Parameter(description = "状态：1 启用 / 0 停用；不传不过滤")
+            @RequestParam(value = "status", required = false) Integer status,
+            @Parameter(description = "排序口径：DEFAULT 默认 / UPDATED 最近更新 / NAME 名称；未知值按默认")
+            @RequestParam(value = "sort", required = false) String sort) {
+        return R.ok(knowledgeBaseService.page(current, size, name, status, KnowledgeBaseSort.of(sort)));
+    }
+
+    @GetMapping("/stats")
+    @Operation(summary = "知识库统计概览", description = "知识库总数、启用数、文档总数；仅统计未删除数据")
+    public R<KnowledgeBaseStatsVO> stats() {
+        return R.ok(knowledgeBaseService.stats());
     }
 
     @PostMapping("/{id}/disable")

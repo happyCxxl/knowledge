@@ -5,8 +5,10 @@ import com.knowledge.common.dto.request.knowledge.KnowledgeBaseCreateDto;
 import com.knowledge.common.dto.request.knowledge.KnowledgeBaseUpdateDto;
 import com.knowledge.common.dto.request.knowledge.StrategyBindingUpdateDto;
 import com.knowledge.common.dto.request.knowledge.StrategyBindingsUpdateRequest;
+import com.knowledge.common.dto.response.knowledge.KnowledgeBaseStatsVO;
 import com.knowledge.common.dto.response.knowledge.KnowledgeBaseVO;
 import com.knowledge.common.dto.response.knowledge.StrategyBindingVO;
+import com.knowledge.common.enums.knowledge.KnowledgeBaseSort;
 
 /**
  * 知识库管理应用服务（创建/更新/详情/分页/启停/逻辑删除 + 同事务审计）。
@@ -32,9 +34,22 @@ public interface KnowledgeBaseService {
     KnowledgeBaseVO detail(Long id);
 
     /**
-     * 分页列表（名称模糊，不含已删）。
+     * 分页列表（名称模糊，不含已删），并回填每库文档数与已发布索引版本。
+     *
+     * @param current 当前页，从 1 开始
+     * @param size    每页条数
+     * @param name    名称模糊关键字（可空）
+     * @param status  状态过滤：1 启用 / 0 停用；null 不过滤
+     * @param sort    排序口径：null 或未知值按默认口径（默认库恒最前）
+     * @return 知识库分页
      */
-    IPage<KnowledgeBaseVO> page(long current, long size, String name);
+    IPage<KnowledgeBaseVO> page(long current, long size, String name, Integer status,
+                                KnowledgeBaseSort sort);
+
+    /**
+     * 统计概览（仅未删除数据）：知识库总数、启用数、文档总数。
+     */
+    KnowledgeBaseStatsVO stats();
 
     /**
      * 停用（仅启用状态可停用）。

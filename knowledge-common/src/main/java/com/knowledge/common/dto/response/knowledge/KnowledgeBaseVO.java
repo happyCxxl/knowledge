@@ -57,6 +57,19 @@ public class KnowledgeBaseVO implements Serializable {
     /** 默认知识库标记：1=默认库（全库唯一，固定不可停用/删除）/ 0=普通库 */
     private Integer defaultFlag;
 
+    /**
+     * 文档总数：kb_file_result 记录数（一次提交 = 一个任务 = 一行）。
+     * 同一文件重复提交会各占一行，因此这是提交次数而非去重文件数。
+     */
+    private Long documentCount;
+
+    /** 当前发布索引集合行 ID（无发布为 null；列表回填版本号用） */
+    @JsonSerialize(using = ToStringSerializer.class)
+    private Long publishedIndexSetId;
+
+    /** 当前已发布索引版本号（如 v3；未发布为 null） */
+    private String publishedIndexVersion;
+
     /** 创建用户ID（无认证上下文为 null） */
     @JsonSerialize(using = ToStringSerializer.class)
     private Long userId;

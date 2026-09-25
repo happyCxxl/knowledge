@@ -1,5 +1,6 @@
 package com.knowledge.biz.service.db.impl;
 
+import cn.hutool.core.collection.CollUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -9,6 +10,11 @@ import com.knowledge.common.domain.entity.KbIndexSet;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
+
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * 索引集合数据访问服务实现（step-13 B08）。
@@ -26,6 +32,17 @@ public class KbIndexSetDbServiceImpl extends ServiceImpl<KbIndexSetMapper, KbInd
         queryWrapper.eq(KbIndexSet::getKnowledgeBaseId, knowledgeBaseId)
                 .last("LIMIT 1");
         return getOne(queryWrapper, false);
+    }
+
+    @Override
+    public Map<Long, KbIndexSet> listByKbIds(List<Long> knowledgeBaseIds) {
+        if (CollUtil.isEmpty(knowledgeBaseIds)) {
+            return Map.of();
+        }
+        LambdaQueryWrapper<KbIndexSet> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.in(KbIndexSet::getKnowledgeBaseId, knowledgeBaseIds);
+        return list(queryWrapper).stream()
+                .collect(Collectors.toMap(KbIndexSet::getKnowledgeBaseId, Function.identity(), (a, b) -> a));
     }
 
     @Override
