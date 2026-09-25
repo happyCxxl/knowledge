@@ -34,4 +34,10 @@ public class User extends BaseInfo {
 
     /** 状态：1 启用 / 0 停用 */
     private Integer status;
+
+    /** 角色码值：ADMIN 管理员 / USER 普通用户（见 UserRole） */
+    private String role;
+
+    /** 令牌版本：递增即让该账号已签发的令牌全部失效（改密码/改角色/停用/删除时 +1） */
+    private Integer tokenVersion;
 }

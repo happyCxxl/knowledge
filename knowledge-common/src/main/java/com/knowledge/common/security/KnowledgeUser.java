@@ -1,5 +1,6 @@
 package com.knowledge.common.security;
 
+import com.knowledge.common.enums.user.UserRole;
 import lombok.Data;
 
 import java.io.Serial;
@@ -21,4 +22,10 @@ public class KnowledgeUser implements Serializable {
 
     /** 登录用户名 */
     private String username;
+
+    /** 角色（令牌载荷携带；旧令牌无此字段时回落 USER） */
+    private UserRole role = UserRole.USER;
+
+    /** 令牌版本（令牌载荷携带；用于比对库值判断令牌是否已失效） */
+    private Integer tokenVersion;
 }

@@ -7,6 +7,7 @@ import com.knowledge.common.domain.entity.User;
 import com.knowledge.common.dto.request.auth.LoginRequest;
 import com.knowledge.common.dto.request.auth.RegisterRequest;
 import com.knowledge.common.dto.response.auth.LoginVO;
+import com.knowledge.common.enums.user.UserRole;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.ThrowUtil;
 import lombok.RequiredArgsConstructor;
@@ -34,7 +35,11 @@ public class AuthServiceImpl implements AuthService {
         ThrowUtil.throwIf(user == null || !passwordEncoder.matches(request.getPassword(), user.getPassword()),
                 ErrorCode.LOGIN_FAILED);
         LoginVO vo = new LoginVO();
-        vo.setToken(jwtUtil.sign(user.getId(), user.getUsername()));
+        // 角色与令牌版本随令牌下发：角色供菜单/鉴权，版本供失效校验
+        UserRole role = UserRole.of(user.getRole());
+        Integer tokenVersion = user.getTokenVersion() == null ? 0 : user.getTokenVersion();
+        vo.setToken(jwtUtil.sign(user.getId(), user.getUsername(), role, tokenVersion));
+        vo.setRole(role.getCode());
         return vo;
     }
 
@@ -46,6 +51,8 @@ public class AuthServiceImpl implements AuthService {
         user.setUsername(request.getUsername());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
         user.setStatus(1);
+        // 自助注册一律为普通用户，管理员由既有管理员在用户管理中调整
+        user.setRole(UserRole.USER.getCode());
         userDbService.save(user);
     }
 }

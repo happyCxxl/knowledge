@@ -1,6 +1,9 @@
 package com.knowledge.auth.db.impl;
 
+import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.knowledge.auth.db.UserDbService;
 import com.knowledge.common.domain.entity.User;
 import com.knowledge.auth.mapper.UserMapper;
@@ -21,5 +24,24 @@ public class UserDbServiceImpl extends InfraDbServiceImpl<UserMapper, User> impl
         queryWrapper.eq(User::getUsername, username)
                 .eq(User::getStatus, 1);
         return getOne(queryWrapper, false);
+    }
+
+    @Override
+    public IPage<User> pageByCondition(long current, long size, String username, String role, Integer status) {
+        LambdaQueryWrapper<User> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.like(StrUtil.isNotBlank(username), User::getUsername, username)
+                .eq(StrUtil.isNotBlank(role), User::getRole, role)
+                .eq(status != null, User::getStatus, status)
+                .orderByDesc(User::getId);
+        return page(new Page<>(current, size), queryWrapper);
+    }
+
+    @Override
+    public Integer findTokenVersion(Long id) {
+        LambdaQueryWrapper<User> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.select(User::getTokenVersion)
+                .eq(User::getId, id);
+        User user = getOne(queryWrapper, false);
+        return user == null ? null : user.getTokenVersion();
     }
 }

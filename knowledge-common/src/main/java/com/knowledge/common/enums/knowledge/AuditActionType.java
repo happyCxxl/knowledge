@@ -35,5 +35,20 @@ public enum AuditActionType {
     RECYCLE_INDEX,
 
     /** 检索规则选优发布（step-14 B09/B10） */
-    RETRIEVAL_RULE_PUBLISH
+    RETRIEVAL_RULE_PUBLISH,
+
+    /** 用户管理：新增账号 */
+    USER_CREATE,
+
+    /** 用户管理：更新账号（角色变更 / 状态变更 / 重置密码） */
+    USER_UPDATE,
+
+    /** 用户管理：停用账号 */
+    USER_DISABLE,
+
+    /** 用户管理：启用账号 */
+    USER_ENABLE,
+
+    /** 用户管理：删除账号（逻辑删除） */
+    USER_DELETE
 }
