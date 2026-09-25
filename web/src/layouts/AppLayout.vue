@@ -32,33 +32,51 @@
           <div class="layout-brand-sub">企业知识库平台</div>
         </div>
       </div>
-      <div class="layout-nav-group">资产</div>
-      <router-link
-        class="layout-nav-item"
-        :class="{ 'layout-nav-item-active': isActive }"
-        to="/knowledge-base"
-      >
-        <svg
-          class="layout-nav-icon"
-          width="16"
-          height="16"
-          viewBox="0 0 16 16"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.4"
+      <template v-for="group in visibleNavGroups" :key="group.title">
+        <div class="layout-nav-group">{{ group.title }}</div>
+        <router-link
+          v-for="item in group.items"
+          :key="item.path"
+          class="layout-nav-item"
+          :class="{ 'layout-nav-item-active': isNavActive(item.path) }"
+          :to="item.path"
         >
-          <path d="M2.2 5.2 8 2l5.8 3.2v5.6L8 14 2.2 10.8V5.2Z" stroke-linejoin="round" />
-          <path d="M2.2 5.2 8 8.4l5.8-3.2M8 8.4V14" />
-        </svg>
-        知识库
-        <span class="layout-nav-badge">12</span>
-      </router-link>
+          <svg
+            class="layout-nav-icon"
+            width="16"
+            height="16"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.4"
+          >
+            <path
+              v-for="(d, index) in item.iconPaths"
+              :key="index"
+              :d="d"
+              stroke-linejoin="round"
+            />
+            <circle v-if="item.iconCircle" cx="8" cy="5.4" r="2.6" />
+          </svg>
+          {{ item.label }}
+          <span v-if="item.badge" class="layout-nav-badge">{{ item.badge }}</span>
+        </router-link>
+      </template>
       <div class="layout-side-foot">
-        <div class="layout-avatar">管</div>
-        <div class="layout-user">
-          <div class="layout-user-name">管理员</div>
-          <div class="layout-user-role">knowledge 平台</div>
-        </div>
+        <el-dropdown class="layout-user-drop" trigger="click" placement="top-start">
+          <div class="layout-user-trigger">
+            <div class="layout-avatar">{{ avatarText }}</div>
+            <div class="layout-user">
+              <div class="layout-user-name">{{ username }}</div>
+              <div class="layout-user-role">{{ roleLabel }}</div>
+            </div>
+          </div>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item @click="handleLogout">退出登录</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
       </div>
     </aside>
     <div class="layout-main">
@@ -66,7 +84,7 @@
         <div class="layout-crumb">
           knowledge
           <span class="layout-crumb-sep">/</span>
-          <span class="layout-crumb-current">知识库</span>
+          <span class="layout-crumb-current">{{ currentTitle }}</span>
         </div>
         <div class="layout-top-right">
           <div class="layout-search">
@@ -84,7 +102,14 @@
             </svg>
             <input class="layout-search-input" placeholder="搜索知识库、文档、任务…" />
           </div>
-          <div class="layout-avatar">管</div>
+          <el-dropdown trigger="click" placement="bottom-end">
+            <div class="layout-avatar layout-avatar-clickable">{{ avatarText }}</div>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item @click="handleLogout">退出登录</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
         </div>
       </header>
       <div class="layout-content">
@@ -95,15 +120,97 @@
 </template>
 
 <script setup lang="ts">
+import { ElMessage } from 'element-plus';
 import { computed } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 
-// 侧边导航：当前激活项按路由路径判定
+import { useAuthStore } from '@/stores/auth';
+
+// 侧边导航：数据驱动，按角色的可见性在渲染前过滤
 const route = useRoute();
-const isActive = computed(() => route.path.startsWith('/knowledge-base'));
+const router = useRouter();
+const authStore = useAuthStore();
+
+interface NavItem {
+  label: string;
+  path: string;
+  iconPaths: string[];
+  iconCircle?: boolean;
+  badge?: string;
+  /** 仅管理员可见的菜单 */
+  adminOnly?: boolean;
+}
+
+const navGroups: { title: string; items: NavItem[] }[] = [
+  {
+    title: '资产',
+    items: [
+      {
+        label: '知识库',
+        path: '/knowledge-base',
+        iconPaths: [
+          'M2.2 5.2 8 2l5.8 3.2v5.6L8 14 2.2 10.8V5.2Z',
+          'M2.2 5.2 8 8.4l5.8-3.2M8 8.4V14',
+        ],
+        badge: '12',
+      },
+    ],
+  },
+  {
+    title: '系统',
+    items: [
+      {
+        label: '用户管理',
+        path: '/user',
+        iconPaths: ['M2.8 13.6c0-2.4 2.3-3.8 5.2-3.8s5.2 1.4 5.2 3.8'],
+        iconCircle: true,
+        adminOnly: true,
+      },
+    ],
+  },
+];
+
+// 按角色过滤菜单：管理员看全部，普通用户看不到管理类菜单
+const visibleNavGroups = computed(() =>
+  navGroups
+    .map((group) => ({
+      title: group.title,
+      items: group.items.filter((item) => !item.adminOnly || authStore.isAdmin),
+    }))
+    .filter((group) => group.items.length > 0),
+);
+
+function isNavActive(path: string): boolean {
+  return route.path.startsWith(path);
+}
+
+const routeTitles: Record<string, string> = {
+  '/knowledge-base': '知识库',
+  '/user': '用户管理',
+};
+
+const currentTitle = computed(() => routeTitles[route.path] ?? '知识库');
+
+// 登录用户名与角色：JWT 载荷在登录时下发，前端只做展示与菜单渲染
+const username = computed(() => authStore.username ?? '未登录');
+const avatarText = computed(() => username.value.slice(0, 1).toUpperCase());
+
+const roleLabels: Record<string, string> = {
+  ADMIN: '管理员',
+  USER: '普通用户',
+};
+
+const roleLabel = computed(() => roleLabels[authStore.role] ?? '普通用户');
+
+// 退出登录：项目口径为客户端丢弃令牌（无登出接口），随后回到登录页
+function handleLogout(): void {
+  authStore.clearToken();
+  ElMessage.success('已退出登录');
+  void router.push('/login');
+}
 </script>
 
-<style scoped>
+<style scoped lang="css">
 .layout {
   position: relative;
   display: grid;
@@ -243,6 +350,30 @@ const isActive = computed(() => route.path.startsWith('/knowledge-base'));
   border-top: 1px solid var(--kb-line);
 }
 
+/* 底部用户块整块可点：点开是退出登录菜单 */
+.layout-user-drop {
+  width: 100%;
+}
+
+.layout-user-trigger {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 4px 6px;
+  border-radius: 10px;
+  cursor: pointer;
+  outline: none;
+  transition: background 0.18s;
+}
+
+.layout-user-trigger:hover {
+  background: rgb(255 255 255 / 5%);
+}
+
+.layout-avatar-clickable {
+  cursor: pointer;
+}
+
 .layout-avatar {
   display: grid;
   flex: none;
@@ -341,9 +472,14 @@ const isActive = computed(() => route.path.startsWith('/knowledge-base'));
   color: var(--kb-text-3);
 }
 
+/* 内容区不自己滚动（overflow: hidden）：页面若要「固定高度 + 内部滚动」，
+   百分比/flex 高度链必须一路确定下来。为此子页面需自行管理超高内容的滚动。 */
 .layout-content {
+  display: flex;
   flex: 1;
-  overflow: auto;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
   padding: 26px 28px 40px;
 }
 </style>
