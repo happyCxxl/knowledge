@@ -151,6 +151,7 @@
 <script setup lang="ts">
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
 import { computed, onMounted, reactive, ref } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 
 import {
   addKnowledgeBase,
@@ -166,6 +167,9 @@ import type { KnowledgeBase, KnowledgeBaseSort } from '@/types/knowledge-base';
 
 // 知识库页：统计概览与知识库卡片列表
 type StatusFilter = number | 'all';
+
+const route = useRoute();
+const router = useRouter();
 
 const statusFilters: { value: StatusFilter; label: string }[] = [
   { value: 'all', label: '全部' },
@@ -376,7 +380,27 @@ function handlePending(): void {
 onMounted(() => {
   void loadList();
   void loadStats();
+  applyEntryAction();
 });
+
+/**
+ * 响应首页动作卡带来的入口参数（?action=create / ?action=import）。
+ *
+ * <p>首页的动作卡只是跳到这里，真正的操作在本页完成，避免首页重复实现一遍导入/新建。
+ * 处理完立刻把参数从地址栏抹掉，否则刷新会再次触发。
+ */
+function applyEntryAction(): void {
+  const action = route.query.action;
+  if (action !== 'create' && action !== 'import') {
+    return;
+  }
+  if (action === 'create') {
+    openCreate();
+  } else {
+    ElMessage.info('请选择要导入文档的知识库');
+  }
+  void router.replace({ path: '/knowledge-base' });
+}
 </script>
 
 <style scoped lang="css">

@@ -2,7 +2,8 @@
   <div class="layout">
     <div class="layout-glow"></div>
     <aside class="layout-side">
-      <div class="layout-brand">
+      <!-- 品牌名可点回首页 -->
+      <router-link class="layout-brand" to="/home">
         <div class="layout-logo">
           <svg
             class="layout-logo-mark"
@@ -31,7 +32,7 @@
           <div class="layout-brand-name">knowledge</div>
           <div class="layout-brand-sub">企业知识库平台</div>
         </div>
-      </div>
+      </router-link>
       <template v-for="group in visibleNavGroups" :key="group.title">
         <div class="layout-nav-group">{{ group.title }}</div>
         <router-link
@@ -80,10 +81,31 @@
     </aside>
     <div class="layout-main">
       <header class="layout-topbar">
-        <div class="layout-crumb">
-          knowledge
-          <span class="layout-crumb-sep">/</span>
-          <span class="layout-crumb-current">{{ currentTitle }}</span>
+        <!-- 左侧只有返回按钮：页面名称不再出现在顶栏。
+             首页是层级起点，整个左侧为空 -->
+        <div class="layout-topbar-left">
+          <button
+            v-if="backTarget"
+            class="layout-back"
+            type="button"
+            :title="`返回${backTarget.label}`"
+            @click="goBack"
+          >
+            <svg
+              class="layout-back-icon"
+              width="16"
+              height="16"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M10 3.2 5.2 8l4.8 4.8" />
+            </svg>
+          </button>
         </div>
         <div class="layout-top-right">
           <div class="layout-search">
@@ -141,6 +163,16 @@ interface NavItem {
 
 const navGroups: { title: string; items: NavItem[] }[] = [
   {
+    title: '概览',
+    items: [
+      {
+        label: '首页',
+        path: '/home',
+        iconPaths: ['M2.4 6.6 8 2.6l5.6 4v6.8H2.4z', 'M6.2 13.4V9.2h3.6v4.2'],
+      },
+    ],
+  },
+  {
     title: '资产',
     items: [
       {
@@ -178,15 +210,33 @@ const visibleNavGroups = computed(() =>
 );
 
 function isNavActive(path: string): boolean {
-  return route.path.startsWith(path);
+  // 精确匹配，否则 '/' 前缀的首页项会在所有页面都高亮
+  if (route.path === path) {
+    return true;
+  }
+  // 子页面归到所属菜单：/knowledge-base/xxx/stages 也要点亮「知识库」
+  return path !== '/home' && route.path.startsWith(`${path}/`);
 }
 
-const routeTitles: Record<string, string> = {
-  '/knowledge-base': '知识库',
-  '/user': '用户管理',
+/**
+ * 返回目标的集中定义：key 为当前路由名，value 为上一层。
+ *
+ * <p>层级：处理链页 → 知识库列表 → 首页；用户管理 → 首页；首页无上层。
+ * 用表而不是逐页写按钮，保证全局只有一处逻辑。
+ */
+const BACK_TARGETS: Record<string, { path: string; label: string }> = {
+  KnowledgeBase: { path: '/home', label: '首页' },
+  PipelineStage: { path: '/knowledge-base', label: '知识库' },
+  UserManagement: { path: '/home', label: '首页' },
 };
 
-const currentTitle = computed(() => routeTitles[route.path] ?? '知识库');
+const routeName = computed(() => String(route.name ?? ''));
+const backTarget = computed(() => BACK_TARGETS[routeName.value] ?? null);
+
+/** 返回上一层：按钮仅在 backTarget 非空时渲染，故此处无需再判空 */
+function goBack(): void {
+  void router.push(backTarget.value.path);
+}
 
 // 登录用户名与角色：JWT 载荷在登录时下发，前端只做展示与菜单渲染
 const username = computed(() => authStore.username ?? '未登录');
@@ -241,11 +291,14 @@ function handleLogout(): void {
   backdrop-filter: blur(20px);
 }
 
+/* 品牌名是回首页的链接，需清掉锚点默认样式 */
 .layout-brand {
   display: flex;
   gap: 11px;
   align-items: center;
   padding: 0 10px 24px;
+  color: inherit;
+  text-decoration: none;
 }
 
 .layout-logo {
@@ -403,19 +456,34 @@ function handleLogout(): void {
   backdrop-filter: blur(16px);
 }
 
-.layout-crumb {
-  color: var(--kb-text-3);
-  font-size: 13px;
-  letter-spacing: 0.04em;
+/* 顶栏左侧：只有返回按钮，首页不渲染（层级起点，整个左侧为空） */
+.layout-topbar-left {
+  display: flex;
+  align-items: center;
 }
 
-.layout-crumb-sep {
-  margin: 0 8px;
+/* 返回按钮：默认无边框，只有悬停才显出淡圆底。
+   顶栏左侧是次要区域，返回是低重要度动作，常驻描边会让它过于抢眼 */
+.layout-back {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  place-items: center;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: none;
   color: var(--kb-text-3);
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s;
 }
 
-.layout-crumb-current {
-  color: var(--kb-text-2);
+.layout-back:hover {
+  background: rgb(255 255 255 / 7%);
+  color: var(--kb-text-1);
 }
 
 .layout-top-right {

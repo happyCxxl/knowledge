@@ -17,12 +17,24 @@ const router = createRouter({
       path: '/',
       name: 'AppLayout',
       component: () => import('@/layouts/AppLayout.vue'),
-      redirect: '/knowledge-base',
+      redirect: '/home',
       children: [
+        {
+          // 系统首页：登录后的默认落地页，也是全局返回的终点
+          path: 'home',
+          name: 'Home',
+          component: () => import('@/views/home/HomeView.vue'),
+        },
         {
           path: 'knowledge-base',
           name: 'KnowledgeBase',
           component: () => import('@/views/knowledge-base/KnowledgeBaseView.vue'),
+        },
+        {
+          // 环节页：某个知识库的文件处理链（列表 + 执行链）
+          path: 'knowledge-base/:id/stages',
+          name: 'PipelineStage',
+          component: () => import('@/views/knowledge-base/PipelineStageView.vue'),
         },
         {
           path: 'user',
@@ -36,18 +48,20 @@ const router = createRouter({
   ],
 });
 
-// 登录态与角色守卫：无令牌回登录页并记住来源；已登录访问登录页回工作台；
-// 非管理员访问管理类页面回工作台
+// 登录态与角色守卫：无令牌回登录页并记住来源；已登录访问登录页回首页；
+// 非管理员访问管理类页面回首页
+const HOME_PATH = '/home';
+
 router.beforeEach((to) => {
   const authStore = useAuthStore();
   if (to.meta.public) {
-    return authStore.isLoggedIn ? { path: '/knowledge-base' } : true;
+    return authStore.isLoggedIn ? { path: HOME_PATH } : true;
   }
   if (!authStore.isLoggedIn) {
     return { path: '/login', query: { redirect: to.fullPath } };
   }
   if (to.meta.adminOnly && !authStore.isAdmin) {
-    return { path: '/knowledge-base' };
+    return { path: HOME_PATH };
   }
   return true;
 });
