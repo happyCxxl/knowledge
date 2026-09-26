@@ -1,5 +1,15 @@
 <template>
-  <article class="kb-card">
+  <!-- 用 div 而非 router-link：卡片内含操作按钮，把 button 嵌进 a 是无效 HTML，
+       浏览器会重排 DOM 导致事件行为不可预测。这里改为点击时编程式跳转 -->
+  <div
+    class="kb-card"
+    role="link"
+    tabindex="0"
+    :title="`查看「${kb.name}」的文件处理链`"
+    @click="openStages"
+    @keydown.enter.prevent="openStages"
+    @keydown.space.prevent="openStages"
+  >
     <div class="kb-top">
       <span class="kb-cube">
         <svg
@@ -49,24 +59,26 @@
       </div>
     </div>
     <div class="kb-ops">
-      <button class="kb-op" type="button" @click="emit('update', kb)">编辑</button>
-      <button class="kb-op" type="button" @click="emit('evaluate')">评测</button>
+      <!-- 操作按钮必须 .stop：卡片整体可点，不阻止冒泡会连带跳转到处理链页 -->
+      <button class="kb-op" type="button" @click.stop="emit('update', kb)">编辑</button>
+      <button class="kb-op" type="button" @click.stop="emit('evaluate')">评测</button>
       <!-- 默认库不可删除：直接不渲染入口，避免点了才被后端拒绝 -->
       <button
         v-if="kb.defaultFlag !== 1"
         class="kb-op kb-op-danger"
         type="button"
-        @click="emit('delete', kb)"
+        @click.stop="emit('delete', kb)"
       >
         删除
       </button>
       <span class="kb-op-date">{{ dateText }}</span>
     </div>
-  </article>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import { useRouter } from 'vue-router';
 
 import type { KnowledgeBase } from '@/types/knowledge-base';
 import { KB_STATUS_ACTIVE, KB_STATUS_DISABLED } from '@/types/knowledge-base';
@@ -86,12 +98,20 @@ const emit = defineEmits<{
   delete: [kb: KnowledgeBase];
 }>();
 
+const router = useRouter();
+
+/** 点卡片（或回车/空格）进入该库的文件处理链页 */
+function openStages(): void {
+  void router.push(`/knowledge-base/${props.kb.id}/stages`);
+}
+
 const statusText = computed(() => (props.kb.status === KB_STATUS_ACTIVE ? '已启用' : '已停用'));
 const timeText = computed(() => formatTime(props.kb.updateTime ?? ''));
 const dateText = computed(() => formatDate(props.kb.updateTime ?? ''));
 </script>
 
 <style scoped lang="css">
+/* 整张卡片是进入环节页的入口（点击即跳转），故有指针与键盘可达性 */
 .kb-card {
   display: flex;
   flex-direction: column;
@@ -100,6 +120,8 @@ const dateText = computed(() => formatDate(props.kb.updateTime ?? ''));
   border: 1px solid var(--kb-line);
   border-radius: var(--kb-radius);
   background: linear-gradient(180deg, rgb(255 255 255 / 3.5%), rgb(255 255 255 / 1.2%));
+  color: inherit;
+  text-decoration: none;
   cursor: pointer;
   transition:
     border-color 0.2s,
@@ -255,6 +277,7 @@ const dateText = computed(() => formatDate(props.kb.updateTime ?? ''));
   background: none;
   color: var(--kb-text-2);
   font-size: 13px;
+  text-decoration: none;
   cursor: pointer;
   transition: color 0.15s;
 }

@@ -87,9 +87,12 @@ export default [
         'error',
         { html: { void: 'always', normal: 'never', component: 'always' } },
       ],
-      // 格式细节由 Prettier 统一负责，关闭与其冲突的两条布局规则
+      // 格式细节由 Prettier 统一负责，关闭与其冲突的布局规则
+      // （Prettier 会把较长的开始标签的 `>` 折到下一行，这两条布局规则会与之互相打架）
       'vue/max-attributes-per-line': 'off',
       'vue/singleline-html-element-content-newline': 'off',
+      'vue/html-closing-bracket-newline': 'off',
+      'vue/html-indent': 'off',
       // §5.12：元素 attribute 顺序（【应该】级告警）
       'vue/attributes-order': 'warn',
     },
