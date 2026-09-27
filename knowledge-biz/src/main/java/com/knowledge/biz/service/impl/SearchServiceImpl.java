@@ -343,6 +343,9 @@ public class SearchServiceImpl implements SearchService {
                 hit.setChunkId(parent.getChunkId());
                 hit.setDocumentId(parent.getDocumentId());
                 hit.setParentChunkId(parent.getParentChunkId());
+                // 溯源取父片的「整段」：父片展开后返回的是整段全文，溯源也应指向整段；
+                // 子片溯源只是命中的那一小片，与返回的整段内容不匹配
+                hit.setSourceElementIds(parent.getSourceElementIds());
                 hit.setIsParent(true);
             }
             deduped.put(dedupeKey, hit);

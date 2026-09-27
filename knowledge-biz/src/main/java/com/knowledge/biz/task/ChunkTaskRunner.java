@@ -197,7 +197,9 @@ public class ChunkTaskRunner {
         row.setContent(chunk.getContent());
         row.setContentType(chunk.getContentType());
         row.setTitlePath(chunk.getTitlePath());
-        row.setSourceElementIds(JsonUtil.toJsonStr(chunk.getSourceElementIds()));
+        // 溯源不落 MySQL：父片溯源会随章节大小无界增长（实测单父片 3503 字符，
+        // 远超 kb_chunk.source_element_ids 的容量），且检索链路用的是 Milvus 里的那份，
+        // 该列曾是纯冗余副本。全量溯源只在产物与 Milvus 中保存。
         row.setPageRange(formatPageRange(chunk.getPageRange()));
         row.setTableRef(chunk.getTableRef());
         row.setOrderNo(chunk.getOrder());

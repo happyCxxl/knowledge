@@ -54,7 +54,6 @@ class ChunkVoAssemblerTest {
     void toChunkItemVOsShouldMapAllFields() {
         KbChunk chunk = chunk("chunk-0001", ChunkContentType.PARAGRAPH.name(), "chunk-0000", 42);
         chunk.setTitlePath("第一章 > 第一节");
-        chunk.setSourceElementIds("[\"n-1\"]");
         chunk.setPageRange("1-2");
         chunk.setOrderNo(1);
         chunk.setTokenCount(28);
@@ -64,6 +63,7 @@ class ChunkVoAssemblerTest {
         assertEquals(1, vos.size());
         assertEquals("chunk-0001", vos.getFirst().getChunkId());
         assertEquals("第一章 > 第一节", vos.getFirst().getTitlePath());
+        assertEquals("1-2", vos.getFirst().getPageRange());
         assertEquals(1, vos.getFirst().getOrderNo());
         assertEquals(28, vos.getFirst().getTokenCount());
     }

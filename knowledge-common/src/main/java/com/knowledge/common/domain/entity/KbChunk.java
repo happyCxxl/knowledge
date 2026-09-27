@@ -39,9 +39,6 @@ public class KbChunk {
     /** 标题路径（最多 3 级） */
     private String titlePath;
 
-    /** 来源元素 ID（JSON 数组字符串） */
-    private String sourceElementIds;
-
     /** 页码范围（如 1-3） */
     private String pageRange;
 

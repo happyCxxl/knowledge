@@ -64,6 +64,15 @@ public class MilvusKnowledgeCollection implements KnowledgeCollectionPort {
     /** content 字段最大长度 */
     public static final int CONTENT_MAX_LENGTH = 8192;
 
+    /**
+     * source_element_ids 最大长度。
+     *
+     * <p>父片溯源是该章节全部子片元素 ID 的并集，随章节大小无界增长。
+     * 实测一份 116 页招标文件（512 元素）的单父片溯源为 3503 字符，
+     * 因此原 2048 不够用，这里放到 16384（约 900 个元素 ID）留足余量。
+     */
+    public static final int SOURCE_ELEMENT_IDS_MAX_LENGTH = 16384;
+
     /** 返回字段（命中直取不回查库） */
     private static final List<String> OUTPUT_FIELDS = List.of("id", "document_id", "owner",
             "content_type", "parent_chunk_id", "content", "title_path", "source_element_ids");
@@ -225,7 +234,8 @@ public class MilvusKnowledgeCollection implements KnowledgeCollectionPort {
                     .fieldName(field + "_sparse").dataType(DataType.SparseFloatVector).build());
         }
         schema.addField(AddFieldReq.builder()
-                .fieldName("source_element_ids").dataType(DataType.VarChar).maxLength(2048).isNullable(true).build());
+                .fieldName("source_element_ids").dataType(DataType.VarChar)
+                .maxLength(SOURCE_ELEMENT_IDS_MAX_LENGTH).isNullable(true).build());
         schema.addField(AddFieldReq.builder()
                 .fieldName("vector").dataType(DataType.FloatVector).dimension(dimension).build());
         for (String field : ANALYZER_FIELDS) {

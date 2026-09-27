@@ -64,7 +64,8 @@ public class ChunkVoAssembler {
         vo.setContent(chunk.getContent());
         vo.setContentType(chunk.getContentType());
         vo.setTitlePath(chunk.getTitlePath());
-        vo.setSourceElementIds(chunk.getSourceElementIds());
+        // 溯源不回传：父片溯源是无界列表，且检索链路的溯源取自 Milvus。
+        // 详情页需要溯源时再按需从切片产物读取（与 IndexRowAssembler 同口径）。
         vo.setPageRange(chunk.getPageRange());
         vo.setTableRef(chunk.getTableRef());
         vo.setOrderNo(chunk.getOrderNo());

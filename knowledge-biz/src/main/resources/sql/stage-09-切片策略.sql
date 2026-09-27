@@ -30,7 +30,6 @@ CREATE TABLE kb_chunk
     content            MEDIUMTEXT   NOT NULL                COMMENT '切片内容（normalizedText 口径）',
     content_type       VARCHAR(32)  NOT NULL                COMMENT '内容类型：SECTION/PARAGRAPH/TABLE/IMAGE/FALLBACK',
     title_path         VARCHAR(512)          DEFAULT NULL   COMMENT '标题路径（最多 3 级）',
-    source_element_ids varchar(1024)                  DEFAULT NULL   COMMENT '来源元素 ID（溯源）',
     page_range         VARCHAR(1024)          DEFAULT NULL   COMMENT '页码范围（如 1-3；连续段压缩、多段逗号连接，无损不截断）',
     table_ref          VARCHAR(64)           DEFAULT NULL   COMMENT '表格引用（统一文档模型表元素 ID）',
     order_no           INT          NOT NULL DEFAULT 0      COMMENT '集合内顺序',
