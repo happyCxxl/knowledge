@@ -62,6 +62,7 @@
       <!-- 操作按钮必须 .stop：卡片整体可点，不阻止冒泡会连带跳转到处理链页 -->
       <button class="kb-op" type="button" @click.stop="emit('import', kb)">导入文档</button>
       <button class="kb-op" type="button" @click.stop="emit('update', kb)">编辑</button>
+      <button class="kb-op" type="button" @click.stop="openIndex">索引与发布</button>
       <button class="kb-op" type="button" @click.stop="emit('evaluate')">评测</button>
       <!-- 默认库不可删除：直接不渲染入口，避免点了才被后端拒绝 -->
       <button
@@ -106,6 +107,11 @@ const router = useRouter();
 /** 点卡片（或回车/空格）进入该库的文件处理链页 */
 function openStages(): void {
   void router.push(`/knowledge-base/${props.kb.id}/stages`);
+}
+
+/** 进入该库的索引与发布页（组合版本、发布与回退） */
+function openIndex(): void {
+  void router.push(`/knowledge-base/${props.kb.id}/index`);
 }
 
 const statusText = computed(() => (props.kb.status === KB_STATUS_ACTIVE ? '已启用' : '已停用'));

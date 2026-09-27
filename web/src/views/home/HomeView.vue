@@ -61,8 +61,14 @@
           <div class="home-recent-desc">{{ recentDesc(kb) }}</div>
         </div>
         <div class="home-recent-right">
-          <span>{{ kb.documentCount ?? 0 }} 篇</span>
-          <span>{{ formatDate(kb.updateTime ?? '') }}</span>
+          <div class="home-recent-meta">
+            <span>{{ kb.documentCount ?? 0 }} 篇</span>
+            <span>{{ formatDate(kb.updateTime ?? '') }}</span>
+          </div>
+          <!-- 索引与发布入口：卡片整体点击进处理链，所以这里要 .stop -->
+          <button class="home-recent-op" type="button" @click.stop="goIndex(kb.id)">
+            索引与发布
+          </button>
         </div>
       </div>
     </div>
@@ -132,6 +138,11 @@ function goCreate(): void {
 
 function goStages(id: string): void {
   void router.push(`/knowledge-base/${id}/stages`);
+}
+
+/** 进入该库的索引与发布页（组合版本、发布与回退） */
+function goIndex(id: string): void {
+  void router.push(`/knowledge-base/${id}/index`);
 }
 
 async function loadStats(): Promise<void> {
@@ -355,15 +366,39 @@ onMounted(() => {
   white-space: nowrap;
 }
 
+/* 右侧改为「元信息竖排 + 操作按钮」两列：按钮塞进原来的竖排会把行挤高 */
 .home-recent-right {
   display: flex;
   flex: none;
+  gap: 12px;
+  align-items: center;
+  margin-left: auto;
+}
+
+.home-recent-meta {
+  display: flex;
   flex-direction: column;
   gap: 3px;
-  margin-left: auto;
   color: var(--kb-text-3);
   font-family: ui-monospace, 'JetBrains Mono', Consolas, monospace;
   font-size: 11px;
   text-align: right;
+}
+
+.home-recent-op {
+  height: 24px;
+  padding: 0 10px;
+  border: 1px solid var(--kb-line-2);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--kb-text-3);
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.home-recent-op:hover {
+  border-color: rgb(52 211 153 / 45%);
+  color: var(--kb-primary);
 }
 </style>

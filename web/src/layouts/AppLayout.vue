@@ -236,6 +236,7 @@ function isNavActive(path: string): boolean {
 const BACK_TARGETS: Record<string, { path: string; label: string }> = {
   KnowledgeBase: { path: '/home', label: '首页' },
   PipelineStage: { path: '/knowledge-base', label: '知识库' },
+  IndexBuild: { path: '/knowledge-base', label: '知识库' },
   StrategyManagement: { path: '/home', label: '首页' },
   UserManagement: { path: '/home', label: '首页' },
 };
