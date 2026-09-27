@@ -183,6 +183,15 @@ const navGroups: { title: string; items: NavItem[] }[] = [
           'M2.2 5.2 8 8.4l5.8-3.2M8 8.4V14',
         ],
       },
+      {
+        // 策略管理：预处理/切片/向量化/检索四类策略的版本管理
+        label: '策略管理',
+        path: '/strategy',
+        iconPaths: [
+          'M2.6 4.4h10.8M2.6 8h10.8M2.6 11.6h10.8',
+          'M5.6 2.8v3.2M10.4 6.4v3.2M6.8 10v3.2',
+        ],
+      },
     ],
   },
   {
@@ -227,6 +236,7 @@ function isNavActive(path: string): boolean {
 const BACK_TARGETS: Record<string, { path: string; label: string }> = {
   KnowledgeBase: { path: '/home', label: '首页' },
   PipelineStage: { path: '/knowledge-base', label: '知识库' },
+  StrategyManagement: { path: '/home', label: '首页' },
   UserManagement: { path: '/home', label: '首页' },
 };
 

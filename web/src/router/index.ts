@@ -31,10 +31,15 @@ const router = createRouter({
           component: () => import('@/views/knowledge-base/KnowledgeBaseView.vue'),
         },
         {
-          // 环节页：某个知识库的文件处理链（列表 + 执行链）
           path: 'knowledge-base/:id/stages',
           name: 'PipelineStage',
           component: () => import('@/views/knowledge-base/PipelineStageView.vue'),
+        },
+        {
+          // 策略管理：四类策略（预处理/切片/向量化/检索）的版本管理
+          path: 'strategy',
+          name: 'StrategyManagement',
+          component: () => import('@/views/strategy/StrategyManagementView.vue'),
         },
         {
           path: 'user',
