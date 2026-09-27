@@ -6,7 +6,7 @@
         <p class="kb-page-desc">管理你的知识库与文档资产，查看构建与运行状态</p>
       </div>
       <div class="kb-actions">
-        <el-button class="kb-btn-ghost" plain @click="handlePending">导入文档</el-button>
+        <el-button class="kb-btn-ghost" plain @click="openImport()">导入文档</el-button>
         <el-button class="kb-btn-primary" @click="openCreate">新建知识库</el-button>
       </div>
     </div>
@@ -68,6 +68,7 @@
           :key="item.id"
           :kb="item"
           @update="openEdit"
+          @import="openImport(item.id)"
           @evaluate="handlePending"
           @delete="handleDelete"
         />
@@ -145,6 +146,13 @@
         </el-button>
       </template>
     </el-dialog>
+
+    <!-- 导入文档：从页头进入时不预选库，从卡片进入时预选该库 -->
+    <ImportDocumentDialog
+      v-model="importVisible"
+      :preset-kb-id="importKbId"
+      @finished="handleImported"
+    />
   </div>
 </template>
 
@@ -162,6 +170,7 @@ import {
   updateKnowledgeBase,
 } from '@/api/knowledge-base';
 import KnowledgeBaseCard from '@/components/knowledge-base/KnowledgeBaseCard.vue';
+import ImportDocumentDialog from '@/components/knowledge-base/ImportDocumentDialog.vue';
 import { KB_STATUS_ACTIVE, KB_STATUS_DISABLED } from '@/types/knowledge-base';
 import type { KnowledgeBase, KnowledgeBaseSort } from '@/types/knowledge-base';
 
@@ -170,6 +179,21 @@ type StatusFilter = number | 'all';
 
 const route = useRoute();
 const router = useRouter();
+
+/** 导入文档弹窗：importKbId 为空表示不预选知识库 */
+const importVisible = ref(false);
+const importKbId = ref<string>('');
+
+function openImport(kbId = ''): void {
+  importKbId.value = kbId;
+  importVisible.value = true;
+}
+
+/** 导入结束后刷新列表与统计：文档数变了 */
+function handleImported(): void {
+  void loadList();
+  void loadStats();
+}
 
 const statusFilters: { value: StatusFilter; label: string }[] = [
   { value: 'all', label: '全部' },
@@ -397,7 +421,7 @@ function applyEntryAction(): void {
   if (action === 'create') {
     openCreate();
   } else {
-    ElMessage.info('请选择要导入文档的知识库');
+    openImport();
   }
   void router.replace({ path: '/knowledge-base' });
 }

@@ -60,6 +60,7 @@
     </div>
     <div class="kb-ops">
       <!-- 操作按钮必须 .stop：卡片整体可点，不阻止冒泡会连带跳转到处理链页 -->
+      <button class="kb-op" type="button" @click.stop="emit('import', kb)">导入文档</button>
       <button class="kb-op" type="button" @click.stop="emit('update', kb)">编辑</button>
       <button class="kb-op" type="button" @click.stop="emit('evaluate')">评测</button>
       <!-- 默认库不可删除：直接不渲染入口，避免点了才被后端拒绝 -->
@@ -93,6 +94,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   /** 编辑：带出当前卡片数据供页面填表 */
   update: [kb: KnowledgeBase];
+  /** 导入文档：预选该知识库打开导入弹窗 */
+  import: [kb: KnowledgeBase];
   evaluate: [];
   /** 删除：默认库不渲染该入口，因此不会触发 */
   delete: [kb: KnowledgeBase];
