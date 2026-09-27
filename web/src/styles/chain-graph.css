@@ -1,0 +1,77 @@
+/* Vue Flow 主题覆盖：把默认浅色主题约束到项目暗色令牌。
+   放在全局样式而非组件 scoped 里，原因：
+   1) 规范禁止组件 scoped 样式使用 :deep；
+   2) Vue Flow 渲染的节点/边/控件是它自己生成的 DOM，本就不受组件的 scoped 属性约束。 */
+
+.chain-graph .vue-flow {
+  width: 100%;
+  height: 100%;
+  background: transparent;
+}
+
+.chain-graph .vue-flow__background {
+  background: transparent;
+}
+
+.chain-graph .vue-flow__node {
+  font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+}
+
+/* 选中态由节点组件自己表达，去掉 Vue Flow 默认的描边方框；
+   节点本身的选中样式见文件末尾的 .chain-node.is-selected */
+
+/* 控件：与项目里其它小按钮同款（细边框、圆角、悬停变主色） */
+.chain-graph .vue-flow__controls {
+  display: flex;
+  gap: 4px;
+  border: none;
+  box-shadow: none;
+}
+
+.chain-graph .vue-flow__controls-button {
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--kb-line);
+  border-radius: 8px;
+  background: rgb(255 255 255 / 3%);
+  color: var(--kb-text-2);
+}
+
+/* 控件图标跟随文字色：Vue Flow 的按钮内 SVG 没有显式 fill，
+   默认会渲染成黑色，在暗色底上几乎看不见 */
+.chain-graph .vue-flow__controls-button [viewBox] {
+  fill: currentcolor;
+}
+
+.chain-graph .vue-flow__controls-button:hover {
+  border-color: var(--kb-primary);
+  color: var(--kb-primary);
+}
+
+/* 连接桩：只做视觉锚点，用户不能拖拽连线（图组件已设 nodes-connectable=false） */
+.chain-graph .vue-flow__handle {
+  width: 5px;
+  height: 5px;
+  border: none;
+  background: var(--kb-line-strong);
+}
+
+/* 节点状态：这些类名由组件的计算属性动态给出，静态检查看不到，
+   因此统一定义在全局样式里，组件 scoped 样式不重复声明 */
+.chain-graph .chain-node.is-selected {
+  border-color: var(--kb-primary);
+  background: var(--kb-tint);
+}
+
+/* 路径末端：触发下游的起点，加一圈外发光 */
+.chain-graph .chain-node.is-end {
+  box-shadow: 0 0 0 2px var(--kb-tint);
+}
+
+.chain-graph .chain-node.is-fail {
+  border-left: 3px solid var(--kb-danger);
+}
+
+.chain-graph .chain-node.is-run {
+  border-left: 3px solid var(--kb-primary);
+}

@@ -13,6 +13,7 @@
             v-for="file in files"
             :key="file.id"
             class="stage-file"
+            :data-file-id="file.id"
             :class="{ 'stage-file-on': file.id === selectedFileId }"
             @click="selectFile(file)"
           >
@@ -49,107 +50,39 @@
         </div>
       </section>
 
-      <!-- 右：执行链（占满剩余宽度）
-           原先这里有一条面板头写「执行链 + 文件名」，与页头面包屑重复又占高度，
-           已去掉：文件名与运行次数并入面包屑，画布因此多出约 42px -->
+      <!-- 右：执行链（占满剩余宽度）。链图是一棵树：同一环节可以按不同策略反复分叉 -->
       <section class="stage-panel stage-chain-wrap">
         <div class="stage-canvas">
-          <div class="stage-canvas-tools">
-            <button class="stage-icon-btn" title="缩小" @click="zoomStep(-1)">−</button>
-            <button class="stage-icon-btn" title="适应窗口" @click="resetZoom">⤢</button>
-            <button class="stage-icon-btn" title="放大" @click="zoomStep(1)">+</button>
-          </div>
-
-          <div v-if="lineageLoading" class="stage-empty">加载中…</div>
+          <!-- 加载态只在「还没有任何图」时占位。
+               若已有图就保留它、就地替换数据，否则切文件时图会整个卸载重建，
+               表现为「闪一下 + 位置全变」（实测过） -->
+          <div v-if="lineageLoading && !hasNodes" class="stage-empty">加载中…</div>
           <div v-else-if="!selectedFileId" class="stage-empty">
             从左侧选择一个文件，查看它的处理链
           </div>
-          <div v-else-if="lineage && lineage.nodes.length === 0" class="stage-empty">
-            该文件还没有任何环节运行过
-          </div>
+          <ChainGraph
+            v-if="hasNodes"
+            :lineage="lineage"
+            :file-key="selectedFileId"
+            :position-store="nodePositions"
+            :bound-versions="boundVersions"
+            :class="{ 'is-refreshing': lineageLoading }"
+            @select="onPathSelect"
+          />
 
-          <div v-else-if="lineage" class="stage-chain" :style="{ zoom: zoomLevel }">
-            <template v-for="(col, index) in stageColumns" :key="col.stage">
-              <div
-                v-if="index > 0"
-                class="stage-arrow"
-                :class="{ 'stage-arrow-dim': !col.latest }"
-              ></div>
-              <div class="stage-col">
-                <div class="stage-col-label">
-                  {{ stageLabel(col.stage) }}
-                  <b class="stage-col-code">{{ STAGE_CODES[col.stage] }}</b>
-                </div>
-
-                <template v-if="col.latest">
-                  <!-- 主节点：该环节最近一次运行 -->
-                  <button
-                    class="stage-node"
-                    :class="{
-                      'stage-node-sel': selectedNode?.taskId === col.latest.taskId,
-                      'stage-node-fail': statusTone(col.latest.status) === 'fail',
-                      'stage-node-run': statusTone(col.latest.status) === 'run',
-                    }"
-                    type="button"
-                    @click="selectNode(col.latest)"
-                  >
-                    <span v-if="isStrategyHit(col.latest)" class="stage-node-hit">命中策略</span>
-                    <span class="stage-node-status">
-                      <i class="stage-nd" :class="`tone-${statusTone(col.latest.status)}`"></i>
-                      {{ taskStatusLabel(col.latest.status) }}
-                    </span>
-                    <span
-                      class="stage-node-strategy"
-                      :class="{ 'is-em': !col.latest.strategyVersion }"
-                    >
-                      {{ col.latest.strategyVersion ?? col.latest.capability ?? '—' }}
-                    </span>
-                    <span v-if="statEntries(col.latest).length" class="stage-node-stats">
-                      <span v-for="(text, i) in statEntries(col.latest)" :key="i">{{ text }}</span>
-                    </span>
-                    <span
-                      v-if="col.latest.errorMsg"
-                      class="stage-node-err"
-                      :title="col.latest.errorMsg"
-                    >
-                      {{ col.latest.errorMsg }}
-                    </span>
-                    <span class="stage-node-time">{{ formatTime(col.latest.startedAt) }}</span>
-                    <span v-if="col.older.length > 0" class="stage-node-more">
-                      另外跑过 {{ col.older.length }} 次
-                    </span>
-                  </button>
-
-                  <!-- 同环节的其他运行：堆叠展示 -->
-                  <div v-if="col.older.length > 0" class="stage-stacked">
-                    <button
-                      v-for="node in col.older"
-                      :key="node.taskId"
-                      class="stage-stacked-item"
-                      :class="{ 'stage-stacked-item-hit': isStrategyHit(node) }"
-                      type="button"
-                      @click="selectNode(node)"
-                    >
-                      <i class="stage-nd" :class="`tone-${statusTone(node.status)}`"></i>
-                      <span class="stage-stacked-text">
-                        {{ node.strategyVersion ?? node.capability ?? '—' }} ·
-                        {{ taskStatusLabel(node.status) }}
-                      </span>
-                      <span v-if="isStrategyHit(node)" class="stage-stacked-hit">命中</span>
-                    </button>
-                  </div>
-                </template>
-
-                <!-- 该环节还没跑过 -->
-                <div v-else class="stage-node stage-node-todo">
-                  <span class="stage-node-status">
-                    <i class="stage-nd tone-none"></i>
-                    未运行
-                  </span>
-                  <span class="stage-node-strategy is-em">{{ todoHint(col.stage) }}</span>
-                </div>
-              </div>
-            </template>
+          <!-- 还没有任何运行：解析是链路起点、无上游产物，不需要「先选节点」，
+               这里直接给入口，否则用户的整条链路第一步就卡住 -->
+          <div v-else-if="lineage && !lineageLoading" class="stage-start">
+            <span class="stage-start-title">该文件还没有任何环节运行过</span>
+            <span class="stage-start-hint">从解析开始——它不需要上游产物</span>
+            <el-button
+              class="stage-trigger-btn"
+              type="primary"
+              :loading="triggering"
+              @click="onTriggerParse"
+            >
+              触发解析
+            </el-button>
           </div>
         </div>
 
@@ -159,35 +92,64 @@
           <span class="stage-legend-item"><i class="stage-nd tone-wait"></i>排队 / 未开始</span>
           <span class="stage-legend-item"><i class="stage-nd tone-fail"></i>失败</span>
           <span class="stage-legend-hit"
-            ><i class="stage-nd tone-hit"></i>金色边框 = 命中知识库策略</span
+            ><i class="stage-nd tone-hit"></i>金色标记 = 命中知识库策略</span
           >
-          <span v-if="selectedNode" class="stage-legend-sel">
-            已选：{{ stageLabel(selectedNode.stage) }}
-          </span>
+          <div class="stage-legend-ops">
+            <span v-if="pathEndNode" class="stage-legend-sel">
+              已选末端：{{ stageLabel(pathEndNode.stage) }}
+            </span>
+            <el-button
+              class="stage-trigger-btn"
+              type="primary"
+              :disabled="!canTrigger"
+              @click="openTrigger"
+            >
+              {{ triggerLabel }}
+            </el-button>
+          </div>
         </div>
       </section>
     </div>
+
+    <TriggerStageDialog
+      v-model="triggerVisible"
+      :stage="nextStage"
+      :upstream="pathEndNode"
+      :submitting="triggering"
+      @confirm="onTriggerConfirm"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 
 import { getKnowledgeBaseDetail } from '@/api/knowledge-base';
-import { getFileResults, getLineage, getStrategyBinding } from '@/api/pipeline';
+import { getFileResults, getLineage, getStrategyBinding, addStageTrigger } from '@/api/pipeline';
+import ChainGraph from '@/components/pipeline/ChainGraph.vue';
+import TriggerStageDialog from '@/components/pipeline/TriggerStageDialog.vue';
+import { prunePositions, readPositions } from '@/utils/chain-layout-storage';
 import {
   PIPELINE_STAGES,
-  STAGE_CODES,
   STRATEGY_BINDING_TYPES,
+  isTaskPending,
   stageLabel,
+  stageStatusList,
   statusTone,
   taskStatusLabel,
 } from '@/types/pipeline';
-import type { FileResult, Lineage, LineageNode, PipelineStage } from '@/types/pipeline';
+import type {
+  FileResult,
+  Lineage,
+  LineageNode,
+  NodePosition,
+  NodePositionStore,
+  PipelineStage,
+} from '@/types/pipeline';
 
-// 环节页：左侧文件列表（含五环节进度）+ 右侧执行链
-// 节点详情本期留空——点节点只做选中；详情形态待后续单独讨论
+// 环节页：左侧文件列表（含五环节进度）+ 右侧执行链。
+// 链图是一棵树：同一环节可按不同策略反复分叉，分叉点由上游节点的 productId 指定
 const route = useRoute();
 const knowledgeBaseId = String(route.params.id);
 
@@ -198,14 +160,73 @@ const filesLoading = ref(false);
 const fileQuery = ref({ current: 1, size: 10 });
 
 const selectedFileId = ref<string>('');
-const selectedFileName = ref('');
 const lineage = ref<Lineage | null>(null);
 const lineageLoading = ref(false);
-const selectedNode = ref<LineageNode | null>(null);
-const zoomLevel = ref(1);
+
+/** 选中路径的末端节点：从这里触发下游，其 productId 即分叉点 */
+const pathEndNode = ref<LineageNode | null>(null);
+
+/**
+ * 各文件的节点坐标记忆：由页面持有，切文件再切回来能恢复用户摆好的布局。
+ *
+ * <p>放在页面而不是图组件里：切文件时 `selectedFileId` 立即变、`lineage` 要等接口返回，
+ * 这个窗口期里图组件无法判断手上的坐标属于哪个文件；按文件 ID 存放就没有归属歧义。
+ */
+const nodePositions: NodePositionStore = new Map();
+/** 执行树里是否已有运行节点：为空时要给「触发解析」入口 */
+const hasNodes = computed(() => (lineage.value?.nodes ?? []).length > 0);
+
+const triggerVisible = ref(false);
+const triggering = ref(false);
 
 /** 知识库当前绑定的策略版本（name-version 合成串集合），用于链图上的「命中策略」金标 */
 const boundVersions = ref<Set<string>>(new Set());
+
+/** 轮询句柄：触发后要等任务跑完，定时刷新执行树直到进入终态 */
+let pollTimer: number | null = null;
+
+/** 下一个待触发环节：选中路径末端之后的那个环节；已到末端则为 null */
+const nextStage = computed<PipelineStage | null>(() => {
+  const current = pathEndNode.value?.stage;
+  if (!current) {
+    return null;
+  }
+  const index = PIPELINE_STAGES.indexOf(current as PipelineStage);
+  if (index < 0 || index >= PIPELINE_STAGES.length - 1) {
+    return null;
+  }
+  return PIPELINE_STAGES[index + 1];
+});
+
+/**
+ * 能否从当前末端触发下游。
+ *
+ * <p>必须同时满足两点：
+ * 1. 还有下一个环节（切片之后没有向量化之外的环节，向量化是末端）；
+ * 2. 末端节点**产出了产物**——分叉点就是产物，失败的运行没有产物，
+ *    此时若仍允许触发，后端会退化成「按绑定的最新成功产物」解析，
+ *    用户以为自己指定了分叉点其实没有，属于静默走样，故直接禁用。
+ */
+const canTrigger = computed(
+  () => nextStage.value !== null && Boolean(pathEndNode.value?.productId),
+);
+
+/** 触发按钮文案：说清当前状态而不是只显示一个不能点的按钮 */
+const triggerLabel = computed(() => {
+  if (!hasNodes.value) {
+    return '尚未开始';
+  }
+  if (!pathEndNode.value) {
+    return '先在图上选择起点';
+  }
+  if (!nextStage.value) {
+    return '已是最后一个环节';
+  }
+  if (!pathEndNode.value.productId) {
+    return '该运行无产物，无法分叉';
+  }
+  return `触发${stageLabel(nextStage.value)}`;
+});
 
 async function loadStrategyBindings(): Promise<void> {
   const results = await Promise.all(
@@ -220,41 +241,6 @@ async function loadStrategyBindings(): Promise<void> {
     }
   }
   boundVersions.value = versions;
-}
-
-/** 链图渲染序列：按环节顺序展开，每个环节要么「有运行」（带主节点与更早运行），
- *  要么「未运行」（占位）。合成单一序列后模板只渲染一次，latest 保证非空 */
-type StageColumn =
-  | { stage: PipelineStage; latest: LineageNode; older: LineageNode[] }
-  | { stage: PipelineStage; latest: null };
-
-const stageColumns = computed<StageColumn[]>(() => {
-  const nodes = lineage.value?.nodes ?? [];
-  return PIPELINE_STAGES.map((stage) => {
-    // 按开始时间排序取最近一次：后端按任务 id 升序返回，那是插入顺序而非时间顺序，
-    // 重跑场景下两者会不一致（实测发现），因此这里显式按 startedAt 排
-    const stageNodes = nodes
-      .filter((node) => node.stage === stage)
-      .slice()
-      .sort((a, b) => toMillis(a.startedAt) - toMillis(b.startedAt));
-    if (stageNodes.length === 0) {
-      return { stage, latest: null };
-    }
-    return {
-      stage,
-      latest: stageNodes[stageNodes.length - 1],
-      older: stageNodes.slice(0, -1).reverse(),
-    };
-  });
-});
-
-/** 时间戳转毫秒；缺失或非法按 0 处理（无时间的视为更早） */
-function toMillis(value: string | null): number {
-  if (!value) {
-    return 0;
-  }
-  const time = new Date(value).getTime();
-  return Number.isNaN(time) ? 0 : time;
 }
 
 async function loadKnowledgeBase(): Promise<void> {
@@ -287,9 +273,9 @@ async function selectFile(file: FileResult): Promise<void> {
   if (selectedFileId.value === file.id) {
     return;
   }
+  stopPolling();
   selectedFileId.value = file.id;
-  selectedFileName.value = file.fileName;
-  selectedNode.value = null;
+  pathEndNode.value = null;
   await loadLineage();
 }
 
@@ -301,6 +287,7 @@ async function loadLineage(): Promise<void> {
   lineageLoading.value = true;
   try {
     lineage.value = await getLineage(selectedFileId.value);
+    syncPositionsWithLineage(selectedFileId.value, lineage.value);
   } catch {
     lineage.value = null;
     // 失败提示已由接口层统一拦截处理
@@ -309,38 +296,147 @@ async function loadLineage(): Promise<void> {
   }
 }
 
-function selectNode(node: LineageNode): void {
-  // 详情留空：只记录选中，供后续接入详情面板
-  selectedNode.value = selectedNode.value?.taskId === node.taskId ? null : node;
+/** 各文件上一次同步坐标时的节点集合签名：避免每次轮询都白扫一遍 localStorage */
+const syncedNodeSignatures = new Map<string, string>();
+
+/**
+ * 把本地记住的节点坐标与刚取到的血缘对齐。
+ *
+ * <p>两件事：
+ * <ol>
+ *   <li>**恢复**：把该文件上次存下的坐标装进内存表，供链图渲染时优先使用；</li>
+ *   <li>**清理**：任务 ID 是一次性的，重新触发会产生新 ID、旧记录永远匹配不上。
+ *       血缘里已不存在的任务 ID，其坐标记录直接删掉，避免死数据越积越多。</li>
+ * </ol>
+ *
+ * <p>只在节点集合真的变化时才做，避免每 2 秒的轮询反复扫 localStorage。
+ */
+function syncPositionsWithLineage(fileKey: string, data: Lineage | null): void {
+  if (!data) {
+    return;
+  }
+  const signature = data.nodes.map((node) => node.taskId).join(',');
+  if (syncedNodeSignatures.get(fileKey) === signature) {
+    return;
+  }
+  syncedNodeSignatures.set(fileKey, signature);
+
+  prunePositions(fileKey, new Set(data.nodes.map((node) => node.taskId)));
+
+  let map = nodePositions.get(fileKey);
+  if (!map) {
+    map = new Map<string, NodePosition>();
+    nodePositions.set(fileKey, map);
+  }
+  // 本地记录只用作「没算过的新节点的初始值」，已有的内存值优先（可能刚被拖动过）
+  for (const [taskId, pos] of readPositions(fileKey)) {
+    if (!map.has(taskId)) {
+      map.set(taskId, pos);
+    }
+  }
 }
 
-function zoomStep(delta: number): void {
-  const next = Number((zoomLevel.value + delta * 0.1).toFixed(2));
-  zoomLevel.value = Math.min(1.6, Math.max(0.6, next));
+/** 链图选中路径变化：末端节点决定「下一个可触发的环节」 */
+function onPathSelect(node: LineageNode | null): void {
+  pathEndNode.value = node;
 }
 
-function resetZoom(): void {
-  zoomLevel.value = 1;
+function openTrigger(): void {
+  if (nextStage.value) {
+    triggerVisible.value = true;
+  }
 }
 
-/** 是否命中知识库当前绑定的策略：节点上的 strategyVersion 是 name-version 合成串，
- *  而绑定返回的 name 与 version 是两个字段，拼起来比对
- *  （后端按零冗余设计不返回该标记，要求前端自行比对） */
-function isStrategyHit(node: LineageNode): boolean {
-  return node.strategyVersion !== null && boundVersions.value.has(node.strategyVersion);
+/**
+ * 触发解析：链路的第一个环节。
+ *
+ * <p>解析没有上游产物，所以不需要「先选路径末端」——直接调接口即可。
+ * 这是全新文件唯一的入口，缺了它整条链路无法从零启动。
+ */
+async function onTriggerParse(): Promise<void> {
+  if (!selectedFileId.value) {
+    return;
+  }
+  triggering.value = true;
+  try {
+    await addStageTrigger(selectedFileId.value, 'PARSE', {});
+    startPolling();
+  } catch {
+    // 失败提示已由接口层统一拦截处理
+  } finally {
+    triggering.value = false;
+  }
 }
 
-/** 统计摘要（键名 + 值）：只显示值会读成「4031」这种无法理解的数字串，
- *  所以带上键名。最多 2 项，避免节点被撑宽 */
-function statEntries(node: LineageNode): string[] {
-  return Object.entries(node.stats ?? {})
-    .slice(0, 2)
-    .map(([key, value]) => `${key} ${value}`);
+/**
+ * 确认触发：以选中末端的产物为分叉点，调用该环节的触发接口。
+ *
+ * <p>接口是异步的（只返回任务 ID），所以触发后开始轮询执行树，直到新任务进入终态。
+ * 上游产物 ID 缺失时不传该参数，退回后端默认解析（知识库绑定策略 + 同策略最新成功运行）。
+ */
+async function onTriggerConfirm(strategyVersionId: string | null): Promise<void> {
+  const stage = nextStage.value;
+  const upstream = pathEndNode.value;
+  if (!stage || !upstream) {
+    return;
+  }
+  triggering.value = true;
+  try {
+    await addStageTrigger(selectedFileId.value, stage, {
+      strategyVersionId,
+      upstreamProductId: upstream.productId,
+    });
+    triggerVisible.value = false;
+    startPolling();
+  } catch {
+    // 失败提示已由接口层统一拦截处理
+  } finally {
+    triggering.value = false;
+  }
+}
+
+/**
+ * 轮询执行树：任务在跑时节点状态会变，跑完自动停。
+ *
+ * <p>停止条件用「是否还有未进入终态的任务」（类型层的 isTaskPending）：
+ * 任务可能长期处于 QUEUED，也可能直接进入 PARTIAL_SUCCESS / FAILED，
+ * 只盯 RUNNING 会漏判——实测踩过：PARTIAL_SUCCESS 被漏判，轮询永不停止。
+ *
+ * <p>未知状态按未完成处理，最多轮询 MAX_TICKS 次后放弃，避免无限打接口。
+ */
+function startPolling(): void {
+  stopPolling();
+  let ticks = 0;
+  const MAX_TICKS = 150;
+  pollTimer = window.setInterval(() => {
+    ticks += 1;
+    if (ticks > MAX_TICKS) {
+      stopPolling();
+      return;
+    }
+    void loadLineage().then(() => {
+      if (!hasPendingTask()) {
+        stopPolling();
+      }
+    });
+  }, 2000);
+}
+
+/** 是否还有未进入终态的环节任务 */
+function hasPendingTask(): boolean {
+  return (lineage.value?.nodes ?? []).some((node) => isTaskPending(node.status));
+}
+
+function stopPolling(): void {
+  if (pollTimer !== null) {
+    window.clearInterval(pollTimer);
+    pollTimer = null;
+  }
 }
 
 /** 文件在某个环节的状态色调 */
 function stageTone(file: FileResult, stage: PipelineStage): string {
-  const status = file.stageStatuses.find((item) => item.stage === stage);
+  const status = stageStatusList(file).find((item) => item.stage === stage);
   if (!status) {
     return 'none';
   }
@@ -348,7 +444,7 @@ function stageTone(file: FileResult, stage: PipelineStage): string {
 }
 
 function stageStatusText(file: FileResult, stage: PipelineStage): string {
-  const status = file.stageStatuses.find((item) => item.stage === stage);
+  const status = stageStatusList(file).find((item) => item.stage === stage);
   if (!status) {
     return '未运行';
   }
@@ -356,35 +452,26 @@ function stageStatusText(file: FileResult, stage: PipelineStage): string {
 }
 
 function hasFailure(file: FileResult): boolean {
-  return file.stageStatuses.some((item) => statusTone(item.status) === 'fail');
+  return stageStatusList(file).some((item) => statusTone(item.status) === 'fail');
 }
 
 /** 文件一句话摘要：优先展示失败原因，其次展示进行中的环节，最后展示完成度 */
 function fileSummary(file: FileResult): string {
-  const failed = file.stageStatuses.find((item) => statusTone(item.status) === 'fail');
+  const statuses = stageStatusList(file);
+  const failed = statuses.find((item) => statusTone(item.status) === 'fail');
   if (failed) {
     const label = stageLabel(failed.stage);
     return failed.errorMsg ? `${label}失败 · ${failed.errorMsg}` : `${label}失败`;
   }
-  const running = file.stageStatuses.find((item) => statusTone(item.status) === 'run');
+  const running = statuses.find((item) => statusTone(item.status) === 'run');
   if (running) {
     return `${stageLabel(running.stage)}运行中`;
   }
-  const done = file.stageStatuses.filter((item) => statusTone(item.status) === 'ok').length;
+  const done = statuses.filter((item) => statusTone(item.status) === 'ok').length;
   if (done === 0) {
     return '尚未运行';
   }
   return `${done}/${PIPELINE_STAGES.length} 环节完成`;
-}
-
-/** 该环节未运行时给一句上下文提示 */
-function todoHint(stage: PipelineStage): string {
-  const index = PIPELINE_STAGES.indexOf(stage);
-  if (index === 0) {
-    return '尚未开始';
-  }
-  const prev = PIPELINE_STAGES[index - 1];
-  return `等待上游「${stageLabel(prev)}」产物`;
 }
 
 function formatSize(bytes: number | null): string {
@@ -400,17 +487,15 @@ function formatSize(bytes: number | null): string {
   return `${(bytes / 1024 / 1024).toFixed(1)}M`;
 }
 
-function formatTime(value: string | null): string {
-  if (!value) {
-    return '';
-  }
-  return value.replace('T', ' ').slice(5, 16);
-}
-
 onMounted(() => {
   void loadKnowledgeBase();
   void loadStrategyBindings();
   void loadFiles();
+});
+
+// 离开页面要停掉轮询，否则定时器会继续打接口
+onUnmounted(() => {
+  stopPolling();
 });
 </script>
 
@@ -554,177 +639,22 @@ onMounted(() => {
 
 .stage-canvas {
   position: relative;
+  display: flex;
   flex: 1;
   min-height: 0;
-  overflow: auto;
-
-  /* 顶部留白避开右上角工具按钮 */
-  padding: 52px 14px 26px;
-}
-
-.stage-canvas-tools {
-  position: absolute;
-  top: 14px;
-  right: 16px;
-  z-index: 3;
-  display: flex;
-  gap: 6px;
-}
-
-.stage-icon-btn {
-  display: grid;
-  width: 26px;
-  height: 26px;
-  place-items: center;
-  border: 1px solid var(--kb-line);
-  border-radius: 8px;
-  background: rgb(255 255 255 / 3%);
-  color: var(--kb-text-2);
-  font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.stage-icon-btn:hover {
-  border-color: var(--kb-primary);
-  color: var(--kb-primary);
-}
-
-.stage-chain {
-  display: flex;
-  align-items: flex-start;
-  min-width: 0;
-}
-
-/* 列宽用弹性分配而非固定像素：容器实际宽度受侧边栏/内边距影响，
-  固定宽度在窄窗口下会累计超出（实测差 19px），flex 让浏览器自己算 */
-.stage-col {
-  display: flex;
-  flex: 1 1 0;
   flex-direction: column;
-  align-items: center;
-  min-width: 0;
-  padding: 0 4px;
+
+  /* 画布自身不再滚动/留白：平移缩放交给 Vue Flow，工具按钮也在它内部右上角 */
+  padding: 0 0 8px;
 }
 
-.stage-col-label {
-  margin-bottom: 10px;
-  color: var(--kb-text-3);
-  font-size: 11px;
-  line-height: 1.5;
-  text-align: center;
+/* 刷新中：轻微降透明度而不是卸载重建，切文件时不会"闪一下" */
+.stage-canvas > .is-refreshing {
+  opacity: 0.55;
+  transition: opacity 0.15s;
 }
 
-.stage-col-code {
-  display: block;
-  margin-top: 2px;
-  color: var(--kb-line-strong);
-  font-size: 10px;
-  font-weight: 400;
-}
-
-.stage-arrow {
-  position: relative;
-  flex: none;
-  width: 20px;
-  height: 24px;
-  padding-top: 44px;
-}
-
-.stage-arrow::before {
-  position: absolute;
-  top: 50%;
-  right: 9px;
-  left: 0;
-  height: 1px;
-  background: var(--kb-line-strong);
-  content: '';
-}
-
-.stage-arrow::after {
-  position: absolute;
-  top: calc(50% - 4px);
-  right: 5px;
-  border-top: 4px solid transparent;
-  border-bottom: 4px solid transparent;
-  border-left: 6px solid var(--kb-line-strong);
-  content: '';
-}
-
-.stage-arrow-dim {
-  opacity: 0.35;
-}
-
-.stage-node {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  min-width: 0;
-  padding: 10px 11px;
-  border: 1px solid var(--kb-line-strong);
-  border-radius: 11px;
-  background: var(--kb-bg-2);
-  font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
-  text-align: left;
-  cursor: pointer;
-}
-
-.stage-node:hover {
-  border-color: rgb(52 211 153 / 45%);
-}
-
-.stage-node-sel {
-  border-color: var(--kb-primary);
-  background: var(--kb-tint);
-  box-shadow: 0 0 0 2px var(--kb-tint);
-}
-
-.stage-node-sel::before {
-  position: absolute;
-  top: -1px;
-  bottom: -1px;
-  left: -1px;
-  width: 3px;
-  border-radius: 3px 0 0 3px;
-  background: var(--kb-primary);
-  content: '';
-}
-
-.stage-node-fail {
-  border-left: 3px solid var(--kb-danger);
-}
-
-.stage-node-run {
-  border-left: 3px solid var(--kb-primary);
-}
-
-.stage-node-todo {
-  border-style: dashed;
-  opacity: 0.6;
-  cursor: default;
-}
-
-.stage-node-hit {
-  position: absolute;
-  top: -9px;
-  right: 8px;
-  padding: 1px 7px;
-  border: 1px solid rgb(251 191 36 / 35%);
-  border-radius: 99px;
-  background: rgb(251 191 36 / 16%);
-  color: var(--kb-warn);
-  font-size: 10px;
-}
-
-.stage-node-status {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  color: var(--kb-text-2);
-  font-size: 12px;
-}
-
+/* 状态色点：图例仍在使用（节点的状态色在 ChainNode 组件内） */
 .stage-nd {
   width: 6px;
   height: 6px;
@@ -732,108 +662,6 @@ onMounted(() => {
   border-radius: 50%;
 }
 
-.stage-node-strategy {
-  margin-top: 7px;
-  overflow: hidden;
-  color: var(--kb-text-2);
-  font-family: ui-monospace, 'JetBrains Mono', Consolas, monospace;
-  font-size: 11px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.stage-node-strategy.is-em {
-  color: var(--kb-text-3);
-  font-style: italic;
-}
-
-.stage-node-stats {
-  display: flex;
-  gap: 10px;
-  margin-top: 7px;
-  color: var(--kb-text-3);
-  font-family: ui-monospace, 'JetBrains Mono', Consolas, monospace;
-  font-size: 11px;
-}
-
-.stage-node-err {
-  margin-top: 6px;
-  overflow: hidden;
-  color: var(--kb-danger);
-  font-size: 10px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.stage-node-time {
-  margin-top: 6px;
-  color: var(--kb-text-3);
-  font-size: 10px;
-}
-
-.stage-node-more {
-  margin-top: 7px;
-  padding-top: 7px;
-  border-top: 1px dashed var(--kb-line);
-  color: var(--kb-text-3);
-  font-size: 10px;
-}
-
-.stage-stacked {
-  width: 100%;
-  min-width: 0;
-  margin-top: 6px;
-  padding: 7px 9px;
-  border: 1px dashed var(--kb-line-strong);
-  border-radius: 9px;
-  background: rgb(0 0 0 / 18%);
-}
-
-.stage-stacked-item {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  width: 100%;
-  border: none;
-  background: none;
-  color: var(--kb-text-2);
-  font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
-  font-size: 10px;
-  text-align: left;
-  cursor: pointer;
-}
-
-.stage-stacked-item + .stage-stacked-item {
-  margin-top: 5px;
-}
-
-.stage-stacked-text {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* 折叠起来的运行若命中知识库策略，同样要能看出来 */
-.stage-stacked-item-hit .stage-stacked-text {
-  color: var(--kb-warn);
-}
-
-.stage-stacked-item:hover .stage-stacked-text {
-  color: var(--kb-primary);
-}
-
-.stage-stacked-hit {
-  flex: none;
-  margin-left: auto;
-  padding: 0 5px;
-  border: 1px solid rgb(251 191 36 / 35%);
-  border-radius: 99px;
-  background: rgb(251 191 36 / 16%);
-  color: var(--kb-warn);
-  font-size: 9px;
-}
-
-/* 状态色调 */
 .tone-ok {
   background: var(--kb-ok);
 }
@@ -848,14 +676,6 @@ onMounted(() => {
 
 .tone-fail {
   background: var(--kb-danger);
-}
-
-.tone-none {
-  background: rgb(255 255 255 / 22%);
-}
-
-.tone-hit {
-  background: var(--kb-warn);
 }
 
 .stage-legend {
@@ -880,9 +700,46 @@ onMounted(() => {
   color: var(--kb-warn);
 }
 
-.stage-legend-sel {
+/* 图例右侧：当前选中末端的提示 + 触发下一环节的按钮。
+   图例是 flex-wrap，用 margin-left: auto 直接把这一组推到行尾 */
+.stage-legend-ops {
+  display: flex;
+  gap: 12px;
+  align-items: center;
   margin-left: auto;
+}
+
+.stage-legend-sel {
   color: var(--kb-primary);
+}
+
+.stage-trigger-btn {
+  border: none;
+  background: linear-gradient(135deg, var(--kb-primary), var(--kb-primary-2));
+  color: var(--kb-btn-text);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+/* 全新文件：链图为空，居中给出「触发解析」入口（解析无上游，是全链路唯一不需要选路径的环节） */
+.stage-start {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+}
+
+.stage-start-title {
+  color: var(--kb-text-2);
+  font-size: 13px;
+}
+
+.stage-start-hint {
+  margin-bottom: 10px;
+  color: var(--kb-text-3);
+  font-size: 12px;
 }
 
 .stage-empty {

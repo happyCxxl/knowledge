@@ -37,6 +37,10 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/auth': { target: BACKEND, bypass: bypassNavigation },
+      // 文件上传与下载（POST /files 返回 fileId，导入建档时用）
+      '/files': { target: BACKEND, bypass: bypassNavigation },
+      // 执行链与各环节详情：/file-results/{id}/lineage、{stage}、{stage}-detail、stage-content
+      '/file-results': { target: BACKEND, bypass: bypassNavigation },
       // /knowledge-base 与 SPA 路由同名，必须靠 bypass 区分导航与接口
       '/knowledge-base': { target: BACKEND, bypass: bypassNavigation },
       // /strategy-versions 目前仅接口使用，加 bypass 是为了口径统一、防未来重名
