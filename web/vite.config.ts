@@ -35,6 +35,19 @@ export default defineConfig({
   server: {
     host: '127.0.0.1',
     port: 5173,
+    watch: {
+      /**
+       * 忽略「原子替换式保存」留下的临时文件。
+       *
+       * <p>不少编辑器/工具保存文件时不是原地写，而是先写一个临时文件再改名替换
+       * （形如 `.Foo.vue.12345.<uuid>.tmpdir/Foo.vue.tmp`）。chokidar 会把这些临时路径
+       * 也加进监听，而它们往往在注册监听前就被删掉，于是抛
+       * `EBUSY: resource busy or locked, watch ...tmpdir/...tmp` 把整个 dev server 打挂。
+       *
+       * <p>匹配用「点号开头的路径段」，正常源码不会以点开头，所以不会误伤业务文件。
+       */
+      ignored: ['**/.*.tmpdir/**', '**/.*.tmp'],
+    },
     proxy: {
       '/auth': { target: BACKEND, bypass: bypassNavigation },
       // 文件上传与下载（POST /files 返回 fileId，导入建档时用）
