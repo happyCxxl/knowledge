@@ -1,67 +1,76 @@
 <template>
-  <div class="layout">
+  <div class="layout" :class="{ 'layout-side-collapsed': sideCollapsed }">
     <div class="layout-glow"></div>
     <aside class="layout-side">
-      <!-- 品牌名可点回首页 -->
-      <router-link class="layout-brand" to="/home">
-        <div class="layout-logo">
-          <svg
-            class="layout-logo-mark"
-            width="21"
-            height="21"
-            viewBox="0 0 26 26"
-            fill="none"
-            aria-hidden="true"
-          >
-            <path
-              d="M13 2.5 22 7.5v11L13 23.5 4 18.5v-11L13 2.5Z"
-              stroke="#041510"
-              stroke-width="1.8"
-              stroke-linejoin="round"
-            />
-            <path
-              d="M9.2 14.6v-3.2l3.8-6.2 3.8 6.2v3.2l-3.8 5.8-3.8-5.8Z"
-              stroke="#041510"
-              stroke-width="1.6"
-              stroke-linejoin="round"
-              opacity="0.85"
-            />
-          </svg>
-        </div>
-        <div class="layout-brand-text">
-          <div class="layout-brand-name">knowledge</div>
-          <div class="layout-brand-sub">企业知识库平台</div>
-        </div>
-      </router-link>
-      <template v-for="group in visibleNavGroups" :key="group.title">
-        <div class="layout-nav-group">{{ group.title }}</div>
-        <router-link
-          v-for="item in group.items"
-          :key="item.path"
-          class="layout-nav-item"
-          :class="{ 'layout-nav-item-active': isNavActive(item.path) }"
-          :to="item.path"
-        >
-          <svg
-            class="layout-nav-icon"
-            width="16"
-            height="16"
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.4"
-          >
-            <path
-              v-for="(d, index) in item.iconPaths"
-              :key="index"
-              :d="d"
-              stroke-linejoin="round"
-            />
-            <circle v-if="item.iconCircle" cx="8" cy="5.4" r="2.6" />
-          </svg>
-          {{ item.label }}
+      <!-- 品牌行：logo + 项目名 -->
+      <div class="layout-brand-row">
+        <!-- 品牌名可点回首页；收起时只剩图标 -->
+        <router-link class="layout-brand" to="/home">
+          <div class="layout-logo">
+            <svg
+              class="layout-logo-mark"
+              width="21"
+              height="21"
+              viewBox="0 0 26 26"
+              fill="none"
+              aria-hidden="true"
+            >
+              <path
+                d="M13 2.5 22 7.5v11L13 23.5 4 18.5v-11L13 2.5Z"
+                stroke="#041510"
+                stroke-width="1.8"
+                stroke-linejoin="round"
+              />
+              <path
+                d="M9.2 14.6v-3.2l3.8-6.2 3.8 6.2v3.2l-3.8 5.8-3.8-5.8Z"
+                stroke="#041510"
+                stroke-width="1.6"
+                stroke-linejoin="round"
+                opacity="0.85"
+              />
+            </svg>
+          </div>
+          <div class="layout-brand-text">
+            <div class="layout-brand-name">knowledge</div>
+            <div class="layout-brand-sub">企业知识库平台</div>
+          </div>
         </router-link>
-      </template>
+      </div>
+
+      <!--
+        折叠开关：骑在菜单栏右边界垂直中点上，做成一道发光的"激光缝"。
+        两种状态**同色系（青蓝）**，只靠三角方向区分：展开朝左、收起朝右。
+      -->
+      <button
+        class="layout-side-toggle"
+        :class="{ 'is-collapsed': sideCollapsed }"
+        type="button"
+        :title="sideCollapsed ? '展开菜单' : '收起菜单'"
+        aria-label="展开或收起侧边菜单"
+        @click="toggleSide"
+      ></button>
+      <router-link
+        v-for="item in visibleNavItems"
+        :key="item.path"
+        class="layout-nav-item"
+        :class="{ 'layout-nav-item-active': isNavActive(item.path) }"
+        :to="item.path"
+        :title="sideCollapsed ? item.label : undefined"
+      >
+        <svg
+          class="layout-nav-icon"
+          width="16"
+          height="16"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.4"
+        >
+          <path v-for="(d, index) in item.iconPaths" :key="index" :d="d" stroke-linejoin="round" />
+          <circle v-if="item.iconCircle" cx="8" cy="5.4" r="2.6" />
+        </svg>
+        <span class="layout-nav-label">{{ item.label }}</span>
+      </router-link>
       <div class="layout-side-foot">
         <el-dropdown class="layout-user-drop" trigger="click" placement="top-start">
           <div class="layout-user-trigger">
@@ -108,21 +117,22 @@
           </button>
         </div>
         <div class="layout-top-right">
-          <div class="layout-search">
+          <!-- 搜索：与返回按钮同一款图标按钮（无边框、悬停显淡圆底）。
+               此前是个 230px 宽的假输入框 —— 没有绑定也没有回车处理，占位大且抢眼 -->
+          <button class="layout-icon-btn" type="button" title="搜索">
             <svg
-              class="layout-search-icon"
-              width="14"
-              height="14"
+              width="16"
+              height="16"
               viewBox="0 0 16 16"
               fill="none"
               stroke="currentColor"
               stroke-width="1.5"
+              stroke-linecap="round"
             >
               <circle cx="7" cy="7" r="4.4" />
               <path d="m10.4 10.4 3.4 3.4" />
             </svg>
-            <input class="layout-search-input" placeholder="搜索知识库、文档、任务…" />
-          </div>
+          </button>
           <el-dropdown trigger="click" placement="bottom-end">
             <div class="layout-avatar layout-avatar-clickable">{{ avatarText }}</div>
             <template #dropdown>
@@ -142,15 +152,24 @@
 
 <script setup lang="ts">
 import { ElMessage } from 'element-plus';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 import { useAuthStore } from '@/stores/auth';
+import { readCollapsed, writeCollapsed } from '@/utils/ui-state-storage';
 
 // 侧边导航：数据驱动，按角色的可见性在渲染前过滤
 const route = useRoute();
 const router = useRouter();
 const authStore = useAuthStore();
+
+/** 侧边栏折叠状态：收起后只留图标，宽度让给内容区。偏好持久化，刷新后保持 */
+const sideCollapsed = ref(readCollapsed('layout-side'));
+
+function toggleSide(): void {
+  sideCollapsed.value = !sideCollapsed.value;
+  writeCollapsed('layout-side', sideCollapsed.value);
+}
 
 interface NavItem {
   label: string;
@@ -161,61 +180,42 @@ interface NavItem {
   adminOnly?: boolean;
 }
 
-const navGroups: { title: string; items: NavItem[] }[] = [
+/**
+ * 侧边导航项（扁平结构）。
+ *
+ * <p>此前按「概览 / 资产 / 系统」分组并渲染分组小字。**分组已去掉**：
+ * 它只是视觉分隔，却让折叠时图标位置与展开时对不上（小字一隐藏，下面整列就往上跳）。
+ * 菜单项本来就不多，扁平列出反而更直接。
+ */
+const navItems: NavItem[] = [
   {
-    title: '概览',
-    items: [
-      {
-        label: '首页',
-        path: '/home',
-        iconPaths: ['M2.4 6.6 8 2.6l5.6 4v6.8H2.4z', 'M6.2 13.4V9.2h3.6v4.2'],
-      },
-    ],
+    label: '首页',
+    path: '/home',
+    iconPaths: ['M2.4 6.6 8 2.6l5.6 4v6.8H2.4z', 'M6.2 13.4V9.2h3.6v4.2'],
   },
   {
-    title: '资产',
-    items: [
-      {
-        label: '知识库',
-        path: '/knowledge-base',
-        iconPaths: [
-          'M2.2 5.2 8 2l5.8 3.2v5.6L8 14 2.2 10.8V5.2Z',
-          'M2.2 5.2 8 8.4l5.8-3.2M8 8.4V14',
-        ],
-      },
-      {
-        // 策略管理：预处理/切片/向量化/检索四类策略的版本管理
-        label: '策略管理',
-        path: '/strategy',
-        iconPaths: [
-          'M2.6 4.4h10.8M2.6 8h10.8M2.6 11.6h10.8',
-          'M5.6 2.8v3.2M10.4 6.4v3.2M6.8 10v3.2',
-        ],
-      },
-    ],
+    label: '知识库',
+    path: '/knowledge-base',
+    iconPaths: ['M2.2 5.2 8 2l5.8 3.2v5.6L8 14 2.2 10.8V5.2Z', 'M2.2 5.2 8 8.4l5.8-3.2M8 8.4V14'],
   },
   {
-    title: '系统',
-    items: [
-      {
-        label: '用户管理',
-        path: '/user',
-        iconPaths: ['M2.8 13.6c0-2.4 2.3-3.8 5.2-3.8s5.2 1.4 5.2 3.8'],
-        iconCircle: true,
-        adminOnly: true,
-      },
-    ],
+    // 策略管理：预处理/切片/向量化/检索四类策略的版本管理
+    label: '策略管理',
+    path: '/strategy',
+    iconPaths: ['M2.6 4.4h10.8M2.6 8h10.8M2.6 11.6h10.8', 'M5.6 2.8v3.2M10.4 6.4v3.2M6.8 10v3.2'],
+  },
+  {
+    label: '用户管理',
+    path: '/user',
+    iconPaths: ['M2.8 13.6c0-2.4 2.3-3.8 5.2-3.8s5.2 1.4 5.2 3.8'],
+    iconCircle: true,
+    adminOnly: true,
   },
 ];
 
-// 按角色过滤菜单：管理员看全部，普通用户看不到管理类菜单
-const visibleNavGroups = computed(() =>
-  navGroups
-    .map((group) => ({
-      title: group.title,
-      items: group.items.filter((item) => !item.adminOnly || authStore.isAdmin),
-    }))
-    .filter((group) => group.items.length > 0),
+/** 按角色过滤菜单：管理员看全部，普通用户看不到管理类菜单 */
+const visibleNavItems = computed(() =>
+  navItems.filter((item) => !item.adminOnly || authStore.isAdmin),
 );
 
 function isNavActive(path: string): boolean {
@@ -276,6 +276,7 @@ function handleLogout(): void {
   height: 100vh;
   overflow: hidden;
   background: var(--kb-bg-0);
+  transition: grid-template-columns 0.22s ease;
 }
 
 .layout-glow {
@@ -303,11 +304,33 @@ function handleLogout(): void {
 }
 
 /* 品牌名是回首页的链接，需清掉锚点默认样式 */
+
+/*
+ * 品牌行：logo + 项目名（折叠开关已移到右边界，不在这行）
+ *
+ * <p>**左内边距在展开/收起两态必须完全相同**。此前收起态把它覆盖成 0，
+ * 于是折叠时左内边距从 10px 动画到 0 —— logo 肉眼可见地横向平移 10px。
+ * 现在两态都不设左内边距，logo 位置只由这一处决定。
+ */
+.layout-brand-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 0 6px 24px;
+}
+
+/*
+ * 品牌链接：`flex: none` 让它**不被压缩**。
+ *
+ * <p>原来只写了 `min-width: 0`，收起时它会被 flex 压到 19px（小于 logo 的 38px），
+ * logo 直接溢出行外，于是 logo 中心比菜单图标中心偏了 9px。
+ * 现在改由内部文字块承担收窄（它自己有定宽 + `overflow: hidden`）。
+ */
 .layout-brand {
   display: flex;
   gap: 11px;
+  flex: none;
   align-items: center;
-  padding: 0 10px 24px;
   color: inherit;
   text-decoration: none;
 }
@@ -335,18 +358,13 @@ function handleLogout(): void {
   letter-spacing: 0.12em;
 }
 
-.layout-nav-group {
-  margin: 14px 12px 8px;
-  color: var(--kb-text-3);
-  font-size: 11px;
-  letter-spacing: 0.16em;
-}
-
 .layout-nav-item {
   position: relative;
   display: flex;
   gap: 11px;
   align-items: center;
+
+  /* 固定左内边距：图标 x 坐标在折叠前后都算得出来，不会因 justify-content 变化而"跳" */
   margin: 2px 0;
   padding: 10px 12px;
   border-radius: 10px;
@@ -504,37 +522,30 @@ function handleLogout(): void {
   margin-left: auto;
 }
 
-.layout-search {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  width: 230px;
-  padding: 8px 12px;
-  border: 1px solid var(--kb-line);
-  border-radius: 10px;
-  background: rgb(255 255 255 / 3%);
-  color: var(--kb-text-3);
-  transition:
-    border-color 0.2s,
-    box-shadow 0.2s;
-}
-
-.layout-search:focus-within {
-  border-color: var(--kb-primary);
-  box-shadow: 0 0 0 3px rgb(52 211 153 / 12%);
-}
-
-.layout-search-input {
-  width: 100%;
+/*
+ * 顶栏图标按钮（搜索）：与返回按钮同一款 —— 无边框、悬停才显淡圆底。
+ * 顶栏是次要区域，常驻描边会让这些低重要度动作过于抢眼。
+ */
+.layout-icon-btn {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  place-items: center;
+  padding: 0;
   border: none;
-  outline: none;
+  border-radius: 8px;
   background: none;
-  color: var(--kb-text-1);
-  font-size: 13px;
+  color: var(--kb-text-3);
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s;
 }
 
-.layout-search-input::placeholder {
-  color: var(--kb-text-3);
+.layout-icon-btn:hover {
+  background: rgb(255 255 255 / 6%);
+  color: var(--kb-text-1);
 }
 
 /* 内容区不自己滚动（overflow: hidden）：页面若要「固定高度 + 内部滚动」，
@@ -546,5 +557,158 @@ function handleLogout(): void {
   flex-direction: column;
   overflow: hidden;
   padding: 26px 28px 40px;
+}
+
+/* ==================== 侧边栏折叠（放最后：覆盖上面的基础样式）==================== */
+
+/*
+ * 会被折叠挤掉的文字块：基础态显式给宽度 + transition。
+ *
+ * <p>**为什么基础态也要写 width**：不写的话宽度是"自动"，折叠时从 auto 到 0
+ * 无法过渡（auto 不可动画），表现为文字瞬间消失；显式给个上限宽度后，
+ * 收起 0 / 展开回该宽度，两个方向都平滑。
+ *
+ * <p>**宽度刻意取"大于容器可用宽"**：展开时侧栏内容区只有 210px。文字块若设成
+ * 刚好放得下（如 148px），它会和 logo 一起参与 flex 分配——侧栏一收窄就先换行、
+ * 再被压缩，中间过程交给引擎重新排版，看着就是"展开时像重新渲染"。设成 260px 后
+ * 它**始终超出容器**，只会被侧栏边界匀速裁掉，全程不再重排。
+ *
+ * <p>**必须配 `white-space: nowrap`**：宽度收到 0 时，不禁换行的文字会被逼成
+ * 一行一个字竖着堆起来（实测品牌文字块高度从 39px 涨到 129px）。禁换行后
+ * 它只是被裁掉，高度不变。
+ */
+.layout-brand-text {
+  width: 260px;
+  min-height: 39px;
+  overflow: hidden;
+  white-space: nowrap;
+  transition:
+    width 0.22s ease,
+    opacity 0.22s ease;
+}
+
+.layout-nav-label {
+  width: 200px;
+  overflow: hidden;
+  white-space: nowrap;
+  transition:
+    width 0.22s ease,
+    opacity 0.22s ease;
+}
+
+.layout-user {
+  width: 200px;
+  overflow: hidden;
+  white-space: nowrap;
+  transition:
+    width 0.22s ease,
+    opacity 0.22s ease;
+}
+
+/*
+ * 收起 = 图标模式：栅格首列由 238px 转到 64px，菜单只留图标。
+ *
+ * <p>**为了"丝滑"刻意不做的事**：不给 `.layout-nav-item` 换 `justify-content`
+ * （图标会从"左内边距处"瞬移到"居中处"，看着像重新排版），
+ * 也不改它的 padding（那会带动整列高度跳变）。内边距自始至终不变，
+ * 变的只有侧栏宽度与文字的宽度/透明度，所以图标是"随栏一起平移"而不是"跳过去"。
+ */
+.layout-side-collapsed {
+  grid-template-columns: 64px 1fr;
+}
+
+.layout-side-collapsed .layout-brand-text,
+.layout-side-collapsed .layout-nav-label,
+.layout-side-collapsed .layout-user {
+  width: 0;
+  opacity: 0;
+}
+
+/*
+ * 折叠开关：骑在菜单栏右边界垂直中点上，做成一道发光的"激光缝"（6×40）。
+ *
+ * <p>**定位**：`right: -3px` = 自身宽度的一半，所以这条缝正好压在那条边界线上，
+ * 左右各露一半；`top: 50%` + `translateY(-50%)` 落在垂直中点。
+ * 只依赖栏的右边界，与栏内内容无关。
+ *
+ * <p>**两种状态同色系（青蓝）**，只靠三角方向区分：
+ * 展开 = 三角朝左（提示可以往左收起）；收起 = 三角朝右（提示可以往右展开）。
+ * 曾经用"青→琥珀"双色区分，但那套暖色与整体设计语言冲突，已改回单色系。
+ *
+ * <p>主体是一道 6px 宽的渐变光缝，靠 `box-shadow` 外溢出发光。
+ * 所以外面**不能有 `overflow: hidden`**（那会把光晕切掉）。
+ */
+.layout-side-toggle {
+  position: absolute;
+  top: 50%;
+  right: -3px;
+  z-index: 3;
+  width: 6px;
+  height: 40px;
+  padding: 0;
+  border: none;
+  border-radius: 3px;
+  background: linear-gradient(
+    180deg,
+    rgb(52 211 153 / 0%),
+    rgb(52 211 153 / 30%),
+    rgb(45 212 191 / 85%),
+    rgb(52 211 153 / 30%),
+    rgb(52 211 153 / 0%)
+  );
+  box-shadow: 0 0 10px rgb(52 211 153 / 50%);
+  cursor: pointer;
+  transform: translateY(-50%);
+  transition:
+    height 0.24s ease,
+    background 0.24s ease,
+    box-shadow 0.24s ease;
+}
+
+/*
+ * 缝里的三角：告诉用户"点它可以朝这个方向收/展"。
+ * 用实心三角形（border 技巧）而不是图标，因为它只有 6px 宽，描边箭头会糊。
+ * 颜色取面板底色 `--kb-bg-1`，视觉上像把光缝"切开"一道口子。
+ */
+.layout-side-toggle::after {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-top: 3px solid transparent;
+  border-right: 4px solid var(--kb-bg-1);
+  border-bottom: 3px solid transparent;
+  content: '';
+  transform: translate(-38%, -50%);
+  transition:
+    border 0.24s ease,
+    transform 0.24s ease;
+}
+
+/* 悬停：光缝拉长加亮，给一点"通电"的反馈 */
+.layout-side-toggle:hover {
+  height: 52px;
+  box-shadow: 0 0 20px rgb(52 211 153 / 85%);
+}
+
+/* ==================== 收起态：同色系，只翻三角 ==================== */
+
+/*
+ * 收起态**不换色**（曾经用琥珀色区分状态，但和整套青蓝设计语言冲突）。
+ * 状态差异靠三角方向 + 光晕强弱表达，颜色始终是青蓝。
+ */
+.layout-side-toggle.is-collapsed {
+  box-shadow: 0 0 14px rgb(52 211 153 / 65%);
+}
+
+.layout-side-toggle.is-collapsed::after {
+  border-right: none;
+  border-left: 4px solid var(--kb-bg-1);
+  transform: translate(-62%, -50%);
+}
+
+.layout-side-toggle.is-collapsed:hover {
+  box-shadow: 0 0 20px rgb(52 211 153 / 85%);
 }
 </style>

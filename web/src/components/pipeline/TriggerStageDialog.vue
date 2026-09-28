@@ -72,7 +72,7 @@
 import { computed, ref, watch } from 'vue';
 
 import { getStrategyVersions } from '@/api/strategy';
-import { stageLabel, statusTone, taskStatusLabel } from '@/types/pipeline';
+import { capabilityText, stageLabel, statusTone, taskStatusLabel } from '@/types/pipeline';
 import type { LineageNode, PipelineStage } from '@/types/pipeline';
 import { strategyDisplayName } from '@/types/strategy';
 import type { StrategyVersion } from '@/types/strategy';
@@ -109,7 +109,8 @@ const upstreamText = computed(() => {
   if (!node) {
     return '';
   }
-  const name = node.strategyVersion ?? node.capability ?? '—';
+  // 能力快照现在是对象，用 capabilityText 拼成可读文案（与卡片上的口径一致）
+  const name = node.strategyVersion ?? capabilityText(node.capability) ?? '—';
   return `${stageLabel(node.stage)} · ${name}`;
 });
 

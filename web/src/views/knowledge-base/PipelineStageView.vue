@@ -2,43 +2,70 @@
   <div class="stage-page">
     <!-- 无自带页头：内容直接占满 -->
     <div class="stage-body">
-      <!-- 左：文件列表 -->
-      <section class="stage-panel stage-files">
+      <!-- 左：文件列表。可折叠 —— 收起后把宽度全让给右侧链图 -->
+      <section class="stage-panel stage-files" :class="{ 'stage-files-collapsed': filesCollapsed }">
+        <!--
+          折叠开关：与左侧菜单栏同一款"激光缝"，同样骑在**右边界垂直中点**上。
+          两处交互一致，不用为同一个动作学两种控件。
+        -->
+        <button
+          class="stage-collapse"
+          :class="{ 'is-collapsed': filesCollapsed }"
+          type="button"
+          :title="filesCollapsed ? '展开文件栏' : '收起文件栏'"
+          aria-label="展开或收起文件栏"
+          @click="toggleFilesCollapsed"
+        ></button>
+
         <div class="stage-panel-head">
           <span class="stage-panel-title">文件</span>
           <span class="stage-panel-count">{{ total }}</span>
         </div>
-        <div v-if="files.length > 0" class="stage-file-list">
+
+        <!--
+          文件列表：**两种状态共用同一套 DOM**（收起时只把文字隐掉，不换结构）。
+
+          <p>此前收起态渲染的是另一套元素（`.stage-file-minis`），靠 `v-if` 整体销毁重建 ——
+          那是**结构性不连续**：Vue 会卸载旧节点、挂载新节点，CSS 过渡根本接不上，
+          位置再算得准也盖不住这一下"跳"。现在徽标元素全程存在，只有它的兄弟文字
+          块收窄，所以过渡是连续的。
+        -->
+        <div
+          v-if="files.length > 0"
+          class="stage-file-list"
+          :class="{ 'stage-file-list-icons': filesCollapsed }"
+        >
+          <!--
+            文件栏是**纯文件信息展示**：不反映处理进度与成败，那些在右侧链图看。
+            所以这里只帮用户"认出是哪个文件"：格式徽标 + 文件名 + 大小/提交时间。
+            时间不可省 —— 同一文件重复导入时文件名与大小都一样，只有时间能区分。
+          -->
           <div
             v-for="file in files"
             :key="file.id"
             class="stage-file"
             :data-file-id="file.id"
             :class="{ 'stage-file-on': file.id === selectedFileId }"
+            :title="filesCollapsed ? file.fileName : undefined"
             @click="selectFile(file)"
           >
-            <div class="stage-file-top">
-              <span class="stage-file-name" :title="file.fileName">{{ file.fileName }}</span>
-              <span class="stage-file-size">{{ formatSize(file.fileSize) }}</span>
-            </div>
-            <!-- 五环节进度条：未跑过的环节为灰色空槽 -->
-            <div class="stage-file-dots">
-              <span
-                v-for="stage in PIPELINE_STAGES"
-                :key="stage"
-                class="stage-file-dot"
-                :class="`tone-${stageTone(file, stage)}`"
-                :title="`${stageLabel(stage)}：${stageStatusText(file, stage)}`"
-              ></span>
-            </div>
-            <div class="stage-file-meta" :class="{ 'stage-file-meta-err': hasFailure(file) }">
-              {{ fileSummary(file) }}
+            <FileExtBadge
+              class="stage-file-badge"
+              :ext="fileExt(file.fileName)"
+              :selected="file.id === selectedFileId"
+            />
+            <div class="stage-file-main">
+              <span class="stage-file-name">{{ file.fileName }}</span>
+              <span class="stage-file-meta-text">
+                {{ formatSize(file.fileSize) }}
+                <template v-if="file.createTime"> · {{ formatTime(file.createTime) }}</template>
+              </span>
             </div>
           </div>
         </div>
         <div v-else-if="filesLoading" class="stage-empty">加载中…</div>
         <div v-else class="stage-empty">该知识库还没有文件</div>
-        <div class="stage-pager">
+        <div v-show="!filesCollapsed" class="stage-pager">
           <el-pagination
             v-model:current-page="fileQuery.current"
             layout="prev, pager, next"
@@ -66,8 +93,10 @@
             :file-key="selectedFileId"
             :position-store="nodePositions"
             :bound-versions="boundVersions"
+            :can-trigger="canTrigger"
             :class="{ 'is-refreshing': lineageLoading }"
             @select="onPathSelect"
+            @trigger="openTrigger"
           />
 
           <!-- 还没有任何运行：解析是链路起点、无上游产物，不需要「先选节点」，
@@ -89,24 +118,10 @@
         <div class="stage-legend">
           <span class="stage-legend-item"><i class="stage-nd tone-ok"></i>成功</span>
           <span class="stage-legend-item"><i class="stage-nd tone-run"></i>运行中</span>
-          <span class="stage-legend-item"><i class="stage-nd tone-wait"></i>排队 / 未开始</span>
           <span class="stage-legend-item"><i class="stage-nd tone-fail"></i>失败</span>
           <span class="stage-legend-hit"
             ><i class="stage-nd tone-hit"></i>金色标记 = 命中知识库策略</span
           >
-          <div class="stage-legend-ops">
-            <span v-if="pathEndNode" class="stage-legend-sel">
-              已选末端：{{ stageLabel(pathEndNode.stage) }}
-            </span>
-            <el-button
-              class="stage-trigger-btn"
-              type="primary"
-              :disabled="!canTrigger"
-              @click="openTrigger"
-            >
-              {{ triggerLabel }}
-            </el-button>
-          </div>
         </div>
       </section>
     </div>
@@ -129,16 +144,10 @@ import { getKnowledgeBaseDetail } from '@/api/knowledge-base';
 import { getFileResults, getLineage, getStrategyBinding, addStageTrigger } from '@/api/pipeline';
 import ChainGraph from '@/components/pipeline/ChainGraph.vue';
 import TriggerStageDialog from '@/components/pipeline/TriggerStageDialog.vue';
+import FileExtBadge from '@/components/knowledge-base/FileExtBadge.vue';
 import { prunePositions, readPositions } from '@/utils/chain-layout-storage';
-import {
-  PIPELINE_STAGES,
-  STRATEGY_BINDING_TYPES,
-  isTaskPending,
-  stageLabel,
-  stageStatusList,
-  statusTone,
-  taskStatusLabel,
-} from '@/types/pipeline';
+import { readCollapsed, writeCollapsed } from '@/utils/ui-state-storage';
+import { PIPELINE_STAGES, STRATEGY_BINDING_TYPES, isTaskPending } from '@/types/pipeline';
 import type {
   FileResult,
   Lineage,
@@ -148,7 +157,7 @@ import type {
   PipelineStage,
 } from '@/types/pipeline';
 
-// 环节页：左侧文件列表（含五环节进度）+ 右侧执行链。
+// 环节页：左侧文件列表（纯文件信息，不反映处理进度）+ 右侧执行链。
 // 链图是一棵树：同一环节可按不同策略反复分叉，分叉点由上游节点的 productId 指定
 const route = useRoute();
 const knowledgeBaseId = String(route.params.id);
@@ -158,6 +167,14 @@ const files = ref<FileResult[]>([]);
 const total = ref(0);
 const filesLoading = ref(false);
 const fileQuery = ref({ current: 1, size: 10 });
+
+/** 文件栏折叠状态：收起后宽度全给右侧链图。偏好持久化，刷新后保持 */
+const filesCollapsed = ref(readCollapsed('stage-files'));
+
+function toggleFilesCollapsed(): void {
+  filesCollapsed.value = !filesCollapsed.value;
+  writeCollapsed('stage-files', filesCollapsed.value);
+}
 
 const selectedFileId = ref<string>('');
 const lineage = ref<Lineage | null>(null);
@@ -210,23 +227,6 @@ const nextStage = computed<PipelineStage | null>(() => {
 const canTrigger = computed(
   () => nextStage.value !== null && Boolean(pathEndNode.value?.productId),
 );
-
-/** 触发按钮文案：说清当前状态而不是只显示一个不能点的按钮 */
-const triggerLabel = computed(() => {
-  if (!hasNodes.value) {
-    return '尚未开始';
-  }
-  if (!pathEndNode.value) {
-    return '先在图上选择起点';
-  }
-  if (!nextStage.value) {
-    return '已是最后一个环节';
-  }
-  if (!pathEndNode.value.productId) {
-    return '该运行无产物，无法分叉';
-  }
-  return `触发${stageLabel(nextStage.value)}`;
-});
 
 async function loadStrategyBindings(): Promise<void> {
   const results = await Promise.all(
@@ -341,8 +341,29 @@ function onPathSelect(node: LineageNode | null): void {
   pathEndNode.value = node;
 }
 
-function openTrigger(): void {
-  if (nextStage.value) {
+/**
+ * 打开「触发下一环节」确认弹窗。
+ *
+ * @param source 卡片上点按钮的那个节点（来自图组件的 trigger 事件）。
+ *   **可选**：画布右下角的按钮不带节点参数，沿用当前选中的路径末端。
+ *
+ * <p>**带节点时直接以它为准**，不拿 `pathEndNode` 做对象比对：卡片能画出「触发下一环节」
+ * 按钮，就说明 `ChainGraph` 侧的 `pathEndNode` 认它是末端（那个按钮的 `v-if="data.pathEnd"`
+ * 同源）；而页面这份要经 `emit('select', …)` 转手，实测点击瞬间可能还没值，
+ * 用它做守卫会把真实点击**误挡**（这条路径我就是这么踩出来的）。
+ *
+ * <p>不带节点（右下角按钮）时仍走 {@link canTrigger} —— 与那个按钮的禁用条件一致。
+ */
+function openTrigger(source?: LineageNode): void {
+  if (source) {
+    if (!source.stage || !source.productId) {
+      return;
+    }
+    pathEndNode.value = source;
+    triggerVisible.value = true;
+    return;
+  }
+  if (canTrigger.value) {
     triggerVisible.value = true;
   }
 }
@@ -434,44 +455,13 @@ function stopPolling(): void {
   }
 }
 
-/** 文件在某个环节的状态色调 */
-function stageTone(file: FileResult, stage: PipelineStage): string {
-  const status = stageStatusList(file).find((item) => item.stage === stage);
-  if (!status) {
-    return 'none';
+/** 文件扩展名（大写，去点）；取不到时回落成 FILE 而不是空徽标 */
+function fileExt(fileName: string): string {
+  const dot = fileName.lastIndexOf('.');
+  if (dot < 0 || dot === fileName.length - 1) {
+    return 'FILE';
   }
-  return statusTone(status.status);
-}
-
-function stageStatusText(file: FileResult, stage: PipelineStage): string {
-  const status = stageStatusList(file).find((item) => item.stage === stage);
-  if (!status) {
-    return '未运行';
-  }
-  return taskStatusLabel(status.status ?? '');
-}
-
-function hasFailure(file: FileResult): boolean {
-  return stageStatusList(file).some((item) => statusTone(item.status) === 'fail');
-}
-
-/** 文件一句话摘要：优先展示失败原因，其次展示进行中的环节，最后展示完成度 */
-function fileSummary(file: FileResult): string {
-  const statuses = stageStatusList(file);
-  const failed = statuses.find((item) => statusTone(item.status) === 'fail');
-  if (failed) {
-    const label = stageLabel(failed.stage);
-    return failed.errorMsg ? `${label}失败 · ${failed.errorMsg}` : `${label}失败`;
-  }
-  const running = statuses.find((item) => statusTone(item.status) === 'run');
-  if (running) {
-    return `${stageLabel(running.stage)}运行中`;
-  }
-  const done = statuses.filter((item) => statusTone(item.status) === 'ok').length;
-  if (done === 0) {
-    return '尚未运行';
-  }
-  return `${done}/${PIPELINE_STAGES.length} 环节完成`;
+  return fileName.slice(dot + 1).toUpperCase();
 }
 
 function formatSize(bytes: number | null): string {
@@ -485,6 +475,12 @@ function formatSize(bytes: number | null): string {
     return `${(bytes / 1024).toFixed(0)}K`;
   }
   return `${(bytes / 1024 / 1024).toFixed(1)}M`;
+}
+
+/** 提交时间：只到分钟，与链图节点的时间格式统一（MM-DD HH:mm） */
+function formatTime(value: string): string {
+  const normalized = value.replace('T', ' ');
+  return normalized.length >= 16 ? normalized.slice(5, 16) : normalized;
 }
 
 onMounted(() => {
@@ -531,36 +527,145 @@ onUnmounted(() => {
   flex: none;
   gap: 9px;
   align-items: center;
+
+  /* 定高：标题行高度不随内容（标题 + 计数）浮动 */
+  min-height: 49px;
   padding: 12px 15px;
+
+  /* 自己裁剪 + 禁止换行："文件"在栏收窄时被切掉，而不是被挤成竖排两行 */
+  overflow: hidden;
+  white-space: nowrap;
   border-bottom: 1px solid var(--kb-line);
 }
 
 .stage-panel-title {
+  /* 不参与收缩：不然窄栏下文字会被压着一字一行 */
+  flex: none;
   font-size: 13px;
   font-weight: 600;
 }
 
 .stage-panel-count {
+  /* 不参与收缩：不然窄栏下计数会被压扁 */
+  flex: none;
   margin-left: auto;
   color: var(--kb-text-3);
   font-size: 12px;
 }
 
 /* 左：文件列表 */
+
+/* 文件栏：不裁剪自身 —— 折叠开关骑在右边界上，光晕要能溢出到栏外 */
 .stage-files {
+  position: relative;
   width: 262px;
   flex: none;
+  overflow: visible;
+  transition: width 0.22s ease;
+}
+
+/*
+ * 收起：宽度要放得下"列表左偏移 + 徽标 + 右侧留白"。
+ * 徽标 42px + 列表 padding-left 12px + 行 padding-left 11px = 65px，加右侧留白与边框 ≈ 78px。
+ */
+.stage-files-collapsed {
+  width: 78px;
+}
+
+/*
+ * 折叠开关：与左侧菜单栏同一款"激光缝"，骑在文件栏右边界垂直中点上。
+ *
+ * <p>**定位**：`right: -3px`（= 宽度 6px 的一半）压在那条边界线上，
+ * `top: 50%` + `translateY(-50%)` 落在垂直中点。只依赖栏的右边界。
+ *
+ * <p>两种状态**同色系（青蓝）**，只靠三角方向区分：展开朝左、收起朝右。
+ *
+ * <p>发光靠 `box-shadow` 外溢，所以外层**不能有 `overflow: hidden`**
+ * —— `.stage-files` 是 `.stage-panel`（有 overflow: hidden）的自身，
+ * 按钮定位在它内部、只探出 3px，不会被裁。
+ */
+.stage-collapse {
+  position: absolute;
+  top: 50%;
+  right: -3px;
+  z-index: 3;
+  width: 6px;
+  height: 40px;
+  padding: 0;
+  border: none;
+  border-radius: 3px;
+  background: linear-gradient(
+    180deg,
+    rgb(52 211 153 / 0%),
+    rgb(52 211 153 / 30%),
+    rgb(45 212 191 / 85%),
+    rgb(52 211 153 / 30%),
+    rgb(52 211 153 / 0%)
+  );
+  box-shadow: 0 0 10px rgb(52 211 153 / 50%);
+  cursor: pointer;
+  transform: translateY(-50%);
+  transition:
+    height 0.24s ease,
+    box-shadow 0.24s ease;
+}
+
+/* 缝里的三角：提示"点它可以朝这个方向收/展"。实心三角在 6px 宽里比描边箭头清晰 */
+.stage-collapse::after {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-top: 3px solid transparent;
+  border-right: 4px solid var(--kb-bg-1);
+  border-bottom: 3px solid transparent;
+  content: '';
+  transform: translate(-38%, -50%);
+  transition:
+    border 0.24s ease,
+    transform 0.24s ease;
+}
+
+/* 悬停：光缝拉长加亮 */
+.stage-collapse:hover {
+  height: 52px;
+  box-shadow: 0 0 20px rgb(52 211 153 / 85%);
+}
+
+/* 收起态：不换色，只翻三角 + 光晕略强 */
+.stage-collapse.is-collapsed {
+  box-shadow: 0 0 14px rgb(52 211 153 / 65%);
+}
+
+.stage-collapse.is-collapsed::after {
+  border-right: none;
+  border-left: 4px solid var(--kb-bg-1);
+  transform: translate(-62%, -50%);
+}
+
+.stage-collapse.is-collapsed:hover {
+  box-shadow: 0 0 20px rgb(52 211 153 / 85%);
 }
 
 .stage-file-list {
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
+
+  /*
+   * 两个方向都显式控制：只写 `overflow-y: auto` 时，`overflow-x` 会按计算值变成
+   * `auto`（规范里 visible + 非 visible 的组合规则），于是收起态一旦内容比栏宽，
+   * 就会冒出横向滚动条。这里明确 x 方向裁掉、只留纵向滚动。
+   */
+  overflow: hidden auto;
   padding: 6px;
 }
 
 .stage-file {
-  padding: 10px 11px;
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  padding: 9px 11px;
   border: 1px solid transparent;
   border-radius: 10px;
   cursor: pointer;
@@ -575,52 +680,60 @@ onUnmounted(() => {
   background: var(--kb-tint);
 }
 
-.stage-file-top {
+/* 格式徽标见 FileExtBadge 组件（按格式家族配色） */
+
+/*
+ * 行悬停时让徽标弹一下。徽标是独立 scoped 组件、内部类名选不中，所以父组件在模板里
+ * 给它挂一个自己的类（stage-file-badge，落在子组件根元素上），选它即可；
+ * 只置一个可继承的自定义属性，动画细节仍由徽标组件自己定义。
+ * 好处是鼠标停在整行任意处都有反馈，不必精确停在 40px 的徽标上。
+ */
+.stage-file:hover .stage-file-badge {
+  --ext-lift: 1;
+}
+
+/* 主内容两行：文件名在上、大小与时间在下 */
+
+/*
+ * 主内容两行：文件名在上、大小与时间在下。
+ *
+ * <p>**宽度全程恒定 210px、不参与折叠动画** —— 这是唯一能让行高稳定的做法。
+ *
+ * <p>试过两种更"自然"的方案，都不行：
+ * ① 把宽度过渡到 0：中间任意一帧只要允许换行，文件名就折成多行把行高顶起来
+ *    （实测 470px，是正常 72px 的 6.5 倍），整列像被重排；
+ * ② 收起侧加 `white-space: nowrap`：只修好"收起"一个方向 —— 展开时 nowrap 在
+ *    动画一开始就被移除，中间帧照样换行（实测 470 → 415 → 189 → 122 → 72）。
+ *
+ * <p>所以改成：宽度钉死 210px、只淡出，超出部分由 `.stage-file-list` 的
+ * `overflow-x: hidden` 裁掉。视觉上就是"文字随栏变窄被裁掉"，行高从头到尾不变。
+ *
+ * <p>不能加 `white-space: nowrap`：文件名要能折行才显示得完整（那是明确需求）。
+ */
+.stage-file-main {
   display: flex;
-  gap: 8px;
-  align-items: center;
+  width: 210px;
+  flex: none;
+  flex-direction: column;
+  gap: 3px;
+  overflow: hidden;
+  opacity: 1;
+  transition: opacity 0.22s ease;
 }
 
 .stage-file-name {
-  overflow: hidden;
+  /* 完整显示文件名：允许折行，长串（无空格）也能断，不再截断省略号。
+     代价是行高随内容增长，但"看得全"比"每行等高"重要 */
+  overflow-wrap: anywhere;
   font-size: 13px;
   font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.4;
 }
 
-.stage-file-size {
-  flex: none;
-  margin-left: auto;
+.stage-file-meta-text {
   color: var(--kb-text-3);
   font-family: ui-monospace, 'JetBrains Mono', Consolas, monospace;
   font-size: 11px;
-}
-
-.stage-file-dots {
-  display: flex;
-  gap: 4px;
-  margin-top: 8px;
-}
-
-.stage-file-dot {
-  width: 100%;
-  height: 3px;
-  border-radius: 2px;
-  background: rgb(255 255 255 / 8%);
-}
-
-.stage-file-meta {
-  margin-top: 7px;
-  overflow: hidden;
-  color: var(--kb-text-3);
-  font-size: 11px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.stage-file-meta-err {
-  color: var(--kb-danger);
 }
 
 .stage-pager {
@@ -670,10 +783,6 @@ onUnmounted(() => {
   background: var(--kb-primary);
 }
 
-.tone-wait {
-  background: var(--kb-warn);
-}
-
 .tone-fail {
   background: var(--kb-danger);
 }
@@ -698,19 +807,6 @@ onUnmounted(() => {
 
 .stage-legend-hit {
   color: var(--kb-warn);
-}
-
-/* 图例右侧：当前选中末端的提示 + 触发下一环节的按钮。
-   图例是 flex-wrap，用 margin-left: auto 直接把这一组推到行尾 */
-.stage-legend-ops {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  margin-left: auto;
-}
-
-.stage-legend-sel {
-  color: var(--kb-primary);
 }
 
 .stage-trigger-btn {
@@ -748,5 +844,45 @@ onUnmounted(() => {
   color: var(--kb-text-3);
   font-size: 13px;
   text-align: center;
+}
+
+/* ==================== 收起态（放最后：特异性高于上面的基础样式）==================== */
+
+/* ==================== 收起态：同一套 DOM，只把文字收掉 ==================== */
+
+/*
+ * 收起态**不换 DOM**，只做两件事：
+ * ① 行内的文字块收成 0 宽并淡出
+ * ② 行的悬停底色与选中描边隐去（那里已经没有内容承载它们）
+ *
+ * <p>**列表的内边距全程不变**（展开态与收起态都是 6px）：徽标是行的第一个 flex 子项，
+ * 行的 `padding-left` 也固定 11px，所以徽标左缘只由"面板左缘 + 面板边框 + 列表内边距
+ * + 行内边距"决定 —— 四项在两态都相同，徽标就钉死在同一处，不再随栏宽左右挪。
+ */
+.stage-file-list-icons {
+  padding-left: 6px;
+}
+
+/* 收起时行不再需要悬停底色与选中描边：那里已经没有内容承载它们 */
+.stage-file-list-icons .stage-file {
+  background: none;
+  border-color: transparent;
+}
+
+/* 选中态改用徽标自身的外圈描边表达（原来靠行的边框，收起后行边框已隐去） */
+.stage-file-list-icons .stage-file-on .stage-file-badge {
+  box-shadow:
+    0 0 0 2px rgb(52 211 153 / 55%),
+    0 3px 12px rgb(0 0 0 / 32%);
+}
+
+/*
+ * 收起时的文字块：**只淡出，宽度不变**。
+ *
+ * <p>宽度若在这里改成 0，就回到了"中间帧疯狂换行"的老问题（见 `.stage-file-main` 的注释）。
+ * 保持 210px 后，文字是被列表的 `overflow-x: hidden` 裁掉的 —— 行高全程恒定。
+ */
+.stage-file-list-icons .stage-file-main {
+  opacity: 0;
 }
 </style>

@@ -125,6 +125,31 @@ export function stageStatusList(file: FileResult): StageStatus[] {
   return file.stageStatuses ?? [];
 }
 
+/**
+ * 能力快照（后端 LineageCapabilityVO）。
+ *
+ * <p>**是对象而不是 JSON 串**：后端已把 product.capabilitySnapshot 的 JSON 文本解析开，
+ * 前端不需要（也不应该）自己解析。
+ */
+export interface LineageCapability {
+  /** 原生解析器名称（如 pdfbox） */
+  parserName: string | null;
+  /** 原生解析器版本（如 3.0.4） */
+  parserVersion: string | null;
+  /** OCR 能力（一期预留，未接入时为 null） */
+  ocr: CapabilityRef | null;
+  /** 版面分析能力（一期预留） */
+  layout: CapabilityRef | null;
+  /** 表格识别能力（一期预留） */
+  table: CapabilityRef | null;
+}
+
+/** 能力引用（模型名 + 版本） */
+export interface CapabilityRef {
+  model: string | null;
+  version: string | null;
+}
+
 /** 执行链节点（后端 LineageNodeVO）：一个环节的一次任务运行 */
 export interface LineageNode {
   taskId: string;
@@ -136,7 +161,7 @@ export interface LineageNode {
   /** 策略版本（PREPROCESS/CHUNK/EMBED 有；PARSE/STRUCTURE 为空） */
   strategyVersion: string | null;
   /** 能力快照（PARSE/STRUCTURE 有；有策略的环节为空） */
-  capability: string | null;
+  capability: LineageCapability | null;
   /** 该次运行产出的产物 ID（成功有产物时非空） */
   productId: string | null;
   artifactId: string | null;
@@ -145,6 +170,49 @@ export interface LineageNode {
   stats: Record<string, string> | null;
   startedAt: string | null;
   finishedAt: string | null;
+}
+
+/**
+ * 统计键名 → 中文标签。
+ *
+ * <p>键名由后端各环节自定义（不可控），映射放前端：后端保持"机器可读的键"，
+ * 展示文案归前端，这样加环节时前端明确知道自己有没有漏配。
+ * 未在表里的键回落显示原键名（不会空白）。
+ */
+const STAT_LABELS: Record<string, string> = {
+  chunkCount: '切片数',
+  recordCount: '向量数',
+  cachedCount: '命中缓存',
+  matched: '匹配',
+  changed: '改动',
+};
+
+/** 统计项：中文标签 + 值。键名未映射时标签回落原键名 */
+export function statEntry(key: string, value: string): { label: string; value: string } {
+  return { label: STAT_LABELS[key] ?? key, value };
+}
+
+/**
+ * 能力快照 → 一行可读文案（如 `pdfbox 3.0.4`）。
+ *
+ * <p>接入 ocr/layout/table 后追加它们的名称，一期三者均为 null 所以不出现。
+ * 全空时返回 null，让调用方决定显示什么兜底。
+ */
+export function capabilityText(capability: LineageCapability | null): string | null {
+  if (!capability) {
+    return null;
+  }
+  const parts: string[] = [];
+  const parser = [capability.parserName, capability.parserVersion].filter(Boolean).join(' ');
+  if (parser) {
+    parts.push(parser);
+  }
+  for (const ref of [capability.ocr, capability.layout, capability.table]) {
+    if (ref?.model) {
+      parts.push([ref.model, ref.version].filter(Boolean).join(' '));
+    }
+  }
+  return parts.length > 0 ? parts.join(' · ') : null;
 }
 
 /** 执行链血缘边（后端 LineageEdgeVO） */
@@ -188,6 +256,15 @@ export interface ChainNodeData {
   hit: boolean;
   /** 出度（下游运行数）：决定节点右侧铺几个源连接桩，避免多次触发的边起点重叠 */
   outCount: number;
+  /**
+   * 点击卡片上「触发下一环节」时的回调。
+   *
+   * <p>**为什么用回调而不是 emits**：Vue Flow 的自定义节点是它内部渲染的，
+   * `emit` 到不了页面组件，得先经 `ChainGraph` 再转发一层；而回调由 `ChainGraph`
+   * 在组装 `data` 时注入，是它自己的方法（不需要 `getCurrentInstance`），
+   * 链路更短也更好追。
+   */
+  onTrigger?: () => void;
 }
 
 /** 节点在图上的坐标 */

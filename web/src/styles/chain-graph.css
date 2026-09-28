@@ -20,12 +20,27 @@
 /* 选中态由节点组件自己表达，去掉 Vue Flow 默认的描边方框；
    节点本身的选中样式见文件末尾的 .chain-node.is-selected */
 
-/* 控件：与项目里其它小按钮同款（细边框、圆角、悬停变主色） */
+/*
+ * 缩放控件（放大/缩小/全屏）。
+ *
+ * 位置固定在画布右上角 —— 树形图从左上展开，右上是最不容易被节点长期占住的角落。
+ * **但它一定会被节点路过**：节点是可拖拽的图坐标元素，拖到右上就压在控件下方。
+ *
+ * 层级上控件本来就在节点之上（Vue Flow 的 viewport z-index 4、控件 5，实测控件中心点
+ * 的 `elementFromPoint` 命中的就是控件自己，点击不受影响）。但按钮原先是 3% 白底 +
+ * 半透明，节点从下面拖过时底纹透出来，看着像"被盖住了"。
+ *
+ * 所以这里给**控件容器**铺一层不透明底板 + 模糊：节点透不过来，控件始终清晰可点。
+ * 用容器而不是逐个按钮，是因为按钮之间有 4px 间隙，逐个加底会露出画布网格。
+ */
 .chain-graph .vue-flow__controls {
   display: flex;
   gap: 4px;
-  border: none;
-  box-shadow: none;
+  padding: 4px;
+  border: 1px solid var(--kb-line);
+  border-radius: 12px;
+  background: var(--kb-bg-1);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 45%);
 }
 
 .chain-graph .vue-flow__controls-button {
@@ -68,10 +83,43 @@
   box-shadow: 0 0 0 2px var(--kb-tint);
 }
 
+/* 失败：整卡左侧红条 —— 卡片不再显示错误原因，失败与否只靠颜色表达 */
 .chain-graph .chain-node.is-fail {
   border-left: 3px solid var(--kb-danger);
 }
 
 .chain-graph .chain-node.is-run {
   border-left: 3px solid var(--kb-primary);
+}
+
+/* 副行是"能力快照缺失"的兜底 `—` 时弱化，不让它冒充真实值。
+   只保留两级祖先限定（0,3,0）—— `.is-fallback` 本身就只挂在执行链卡片上 */
+.chain-graph .is-fallback .chain-node-detail {
+  color: var(--kb-text-3);
+}
+
+/* 状态点：类名同理由 toneClass 动态给出，与 .is-* 一起放全局。
+   `.chain-dot` 只出现在执行链卡片里，所以不再叠一层 `.chain-node`
+   （叠上去特异性到 0,4,0，超过 stylelint 的上限 3） */
+.chain-graph .chain-dot {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+}
+
+.chain-graph .chain-dot.tone-ok {
+  background: var(--kb-ok);
+}
+
+.chain-graph .chain-dot.tone-run {
+  background: var(--kb-primary);
+}
+
+.chain-graph .chain-dot.tone-wait {
+  background: var(--kb-warn);
+}
+
+.chain-graph .chain-dot.tone-fail {
+  background: var(--kb-danger);
 }

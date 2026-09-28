@@ -17,8 +17,8 @@
       @init="onInit"
     >
       <Background :gap="18" :size="1" pattern-color="rgb(255 255 255 / 7%)" />
-      <!-- 不放画布级「环节标尺」：标尺是屏幕坐标、节点是图坐标，
-           一旦平移缩放或拖动节点就对不上。环节名改为画在节点上，永远一致 -->
+      <!-- 控件固定在右上角；底板样式（不透明 + 模糊）见 styles/chain-graph.css：
+           节点从下面拖过时不会把它压花 -->
       <Controls position="top-right" :show-interactive="false" />
     </VueFlow>
 
@@ -30,7 +30,7 @@
 import { computed, nextTick, ref, watch } from 'vue';
 import { Background } from '@vue-flow/background';
 import { Controls } from '@vue-flow/controls';
-import { VueFlow, useVueFlow } from '@vue-flow/core';
+import { VueFlow, getRectOfNodes, useVueFlow } from '@vue-flow/core';
 import type { GraphNode } from '@vue-flow/core';
 
 import ChainNode from '@/components/pipeline/ChainNode.vue';
@@ -51,12 +51,16 @@ import '@/styles/chain-graph.css';
  * 屏幕像素，必须除以 viewport 缩放才是图坐标。之前按屏幕像素量成「宽 142」是错的。
  *
  * <ul>
- *   <li>{@code width: 120} 对应 ChainNode 的 `width`（content-box，屏显含内边距更宽）</li>
- *   <li>列距 40 → 相邻列间距 160，够放下卡片与连接桩</li>
- *   <li>{@code NODE_ROW_HEIGHT: 150} 对应节点的图坐标高度（min-height 132 + 内边距）</li>
+ *   <li>{@code width: 168} 对应 ChainNode 的 `width`（content-box，屏显含内边距更宽）</li>
+ *   <li>列距 40 → 相邻列间距 208，够放下卡片与连接桩</li>
+ *   <li>{@code NODE_ROW_HEIGHT: 162} 对应节点的图坐标高度（min-height 150 + 上下内边距）</li>
  * </ul>
+ *
+ * <p>**卡片尺寸为什么是 168×150**：实测旧卡片（120×132）里内容最多的环节子块合计
+ * 162px，超过盒子高度；宽度也放不下 `chunk-window-v1` 这类标签。新尺寸按
+ * "最长内容 + 余量"定，改这两个常量时必须同步改 ChainNode.vue 的 CSS。
  */
-const NODE_WIDTH = 120;
+const NODE_WIDTH = 168;
 const COLUMN_GAP = 40;
 const ROW_GAP = 24;
 const FIRST_COLUMN_X = 20;
@@ -64,7 +68,7 @@ const FIRST_ROW_Y = 20;
 /** 行距用的固定节点高度，与 ChainNode 的实测高度一致。
  *  用运行时内容估高的话，节点从「运行中」变成「成功」时长出统计行，
  *  同列后续节点会整体跳位——实测的「位置老是重置」根因 */
-const NODE_ROW_HEIGHT = 150;
+const NODE_ROW_HEIGHT = 162;
 /** 一个行槽的步长 */
 const SLOT = NODE_ROW_HEIGHT + ROW_GAP;
 
@@ -76,26 +80,49 @@ const props = defineProps<{
   positionStore: NodePositionStore;
   /** 命中知识库绑定策略的版本串集合（name-version） */
   boundVersions: Set<string>;
+  /**
+   * 当前选中路径末端**是否还能触发下一环节**（页面判定：有下一环节 + 有产物 ID）。
+   *
+   * <p>图不知道自己处在流水线第几环 —— 环节顺序是页面的知识（`PIPELINE_STAGES`）。
+   * 所以「卡片上要不要画触发按钮」这个判断必须由页面给，图只负责画。
+   */
+  canTrigger: boolean;
 }>();
 
 const emit = defineEmits<{
   /** 用户选中某个节点：路径变化，末端节点用于触发下游 */
   select: [node: LineageNode | null];
+  /** 用户点了卡片上的「触发下一环节」：页面据此打开触发确认弹窗 */
+  trigger: [node: LineageNode];
 }>();
 
 /** 节点类型注册表：普通常量，不要用 reactive（Vue Flow 会警告并反复重建） */
 const nodeTypes = { chain: ChainNode };
 
-const { fitView, onNodeDragStop, updateNodeInternals } = useVueFlow();
+const { getNodes, dimensions, setViewport, onNodeDragStop, updateNodeInternals } = useVueFlow();
 
-/** 是否已自动适配过视口：只在首次建图时 fitView，之后不再抢占用户的视角 */
+/** 是否已自动适配过视口：只在首次建图时适配，之后不再抢占用户的视角 */
 const didFitView = ref(false);
 
 /**
- * 图初始化完成后自适应视口。
+ * 自适应视口的缩放下限。
  *
- * <p>不用 `fit-view-on-init` 属性：它按默认参数缩放，会把小图**放大**导致节点出画布。
- * 这里显式限制 `maxZoom: 1`，只缩小不放大。
+ * <p>**为什么是"按宽度适配"而不是把整图塞进画布**：执行链是"深而窄"的树
+ * （实测一个 11 节点的图：横跨 3 列 640px，纵向却铺了 1131px）。若按高度约束，
+ * 缩放会被压到 0.4 上下，卡片从 168px 缩成 68px、13px 正文变成 5px —— 完全读不了。
+ * 按宽度适配时缩放只由"最宽一列是否放得下"决定（该图约 1.0），纵向超出就交给
+ * 用户平移 —— 这是树形图查看器的常规做法：**可读优先，一屏看不完就滚**。
+ */
+const MIN_READABLE_ZOOM = 0.5;
+
+/** 视口四周留白（像素），避免节点贴边 */
+const FIT_PADDING = 24;
+
+/**
+ * 图初始化完成后按宽度适配视口。
+ *
+ * <p>不用 `fit-view-on-init` 属性：它按默认参数把整图（含高度）塞进画布，
+ * 正是上面说的"卡片被缩到读不了"的原因。
  */
 function onInit(): void {
   fitViewOnce();
@@ -112,13 +139,43 @@ function requestFitView(): void {
   void Promise.resolve().then(() => fitViewOnce());
 }
 
-/** 首次建图时适配一次；之后加入新节点不重置视角（否则用户正在看的位置会被抢走） */
+/**
+ * 按宽度适配一次；之后加入新节点不重置视角（否则用户正在看的位置会被抢走）。
+ *
+ * <p>**缩放自己算，不用 `getTransformForBounds`**：那个函数按 width/height 双约束取较小值，
+ * 传什么高度都绕不开"高度也是一等约束"这件事 —— 试过把高度传成"按该缩放算出的图高"，
+ * 实测算出来的缩放仍比手算小一截（被下限截到 0.5）。按宽度适配的公式只有一行，
+ * 自己算既准确又能把"为什么是这个数"写清楚。
+ *
+ * <p>不放大（上限 1）：小图保持原尺寸，不会被撑开导致节点出画布。
+ */
 function fitViewOnce(): void {
   if (didFitView.value) {
     return;
   }
   didFitView.value = true;
-  void fitView({ maxZoom: 1, padding: 0.12 });
+
+  const nodes = getNodes.value;
+  const { width, height } = dimensions.value;
+  if (nodes.length === 0 || width === 0 || height === 0) {
+    return;
+  }
+
+  const bounds = getRectOfNodes(nodes);
+  const available = Math.max(width - FIT_PADDING * 2, 1);
+  const zoom = Math.min(1, Math.max(MIN_READABLE_ZOOM, available / bounds.width));
+
+  /*
+   * 纵向定位：图比视口**高**时贴顶（否则"从中间开始看"，顶部的解析环节跑到视口外）；
+   * 放得下时垂直居中。
+   */
+  const scaledHeight = bounds.height * zoom;
+  const y =
+    scaledHeight > height
+      ? FIT_PADDING - bounds.y * zoom
+      : (height - scaledHeight) / 2 - bounds.y * zoom;
+
+  void setViewport({ x: FIT_PADDING - bounds.x * zoom, y, zoom });
 }
 
 const selectedTaskId = ref<string>('');
@@ -427,9 +484,24 @@ const graphNodes = computed(() => {
     data: {
       node,
       onPath: pathTaskIds.value.has(node.taskId),
-      pathEnd: pathEndNode.value?.taskId === node.taskId,
+      /*
+       * 卡片上是否画「触发下一环节」按钮。
+       *
+       * <p>**不能只看"是不是路径末端"**：向量化是链路最后一环时它同样是末端，
+       * 但已经没有下一环节可触发 —— 画出按钮点了没反应就是误导。
+       *
+       * <p>**也不能用"出度为 0"来判断**：出度为 0 正是"叶子"的定义，而叶子就是路径末端，
+       * 两者等价 —— 实测这么改会让**所有**叶子的按钮都消失（11 个节点只剩 1 个有按钮）。
+       *
+       * <p>所以判据得是**业务语义**（这个末端还有没有下一环节），而那要问页面：
+       * 环节顺序只有页面知道，图不该猜。用 canTrigger 属性传进来。
+       */
+      pathEnd: pathEndNode.value?.taskId === node.taskId && props.canTrigger,
       hit: isHit(node),
       outCount: (childrenMap.value.get(node.taskId) ?? []).length,
+      // 卡片上「触发下一环节」的回调：由本组件注入并转成 trigger 事件上抛。
+      // 这样自定义节点不必自己想办法 emit（Vue Flow 的节点是它内部渲染的）
+      onTrigger: () => emit('trigger', node),
     },
   }));
 });
