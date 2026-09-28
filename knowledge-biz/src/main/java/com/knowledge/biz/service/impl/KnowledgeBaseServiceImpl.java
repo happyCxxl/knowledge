@@ -46,6 +46,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -267,6 +268,46 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             }
         }
         return vo;
+    }
+
+    @Override
+    public List<StrategyBindingVO> strategyBindings(String strategyType) {
+        ThrowUtil.throwIf(StrUtil.isBlank(strategyType)
+                        || !StrategyVersionService.BINDABLE_TYPES.contains(strategyType),
+                ErrorCode.PARAM_INVALID, "未知策略类型: " + strategyType);
+
+        // knowledgeBaseIds 传 null = 不限库，直接用一条 SQL 取回该类型下全部绑定行
+        // （无需先查知识库列表，少一次查询）
+        List<KbStrategyBinding> bindings = strategyBindingDbService.listActiveByTypeAndKbIds(strategyType, null);
+        if (bindings.isEmpty()) {
+            return List.of();
+        }
+
+        // 一次批量取版本，避免逐行查（N+1）
+        List<Long> versionIds = bindings.stream()
+                .map(KbStrategyBinding::getStrategyVersionId)
+                .distinct()
+                .toList();
+        Map<Long, KbPipelineStrategyVersion> versionById = strategyVersionDbService.listByIds(versionIds).stream()
+                .collect(Collectors.toMap(KbPipelineStrategyVersion::getId, Function.identity(), (a, b) -> a));
+
+        List<StrategyBindingVO> result = new ArrayList<>(bindings.size());
+        for (KbStrategyBinding binding : bindings) {
+            // 版本被删或已停用时跳过：与单体查询 strategyBinding 的口径一致
+            // （它查不到版本时也只返回 strategyType，不返回半截数据）
+            KbPipelineStrategyVersion version = versionById.get(binding.getStrategyVersionId());
+            if (version == null) {
+                continue;
+            }
+            StrategyBindingVO vo = new StrategyBindingVO();
+            vo.setKnowledgeBaseId(binding.getKnowledgeBaseId());
+            vo.setStrategyType(strategyType);
+            vo.setStrategyVersionId(version.getId());
+            vo.setStrategyName(version.getName());
+            vo.setStrategyVersion(version.getVersion());
+            result.add(vo);
+        }
+        return result;
     }
 
     @Override

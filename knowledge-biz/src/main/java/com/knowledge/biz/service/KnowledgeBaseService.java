@@ -10,6 +10,8 @@ import com.knowledge.common.dto.response.knowledge.KnowledgeBaseVO;
 import com.knowledge.common.dto.response.knowledge.StrategyBindingVO;
 import com.knowledge.common.enums.knowledge.KnowledgeBaseSort;
 
+import java.util.List;
+
 /**
  * 知识库管理应用服务（创建/更新/详情/分页/启停/逻辑删除 + 同事务审计）。
  *
@@ -73,6 +75,21 @@ public interface KnowledgeBaseService {
      * 查知识库某类型的策略绑定（未绑定返回仅含 strategyType 的空 VO）。
      */
     StrategyBindingVO strategyBinding(Long id, String strategyType);
+
+    /**
+     * 批量查某策略类型下**所有已绑定的知识库**（一次查询替代按库逐个查）。
+     *
+     * <p>为什么需要它：绑定按知识库维度存储，而"这个策略版本被哪些库绑了"是反方向的
+     * 问题 —— 只提供按库查的接口时，前端只能对每个库发一次请求（知识库越多请求越多，
+     * 实测 3 个库切一次策略 tab 就是 3 次）。这里用一条 SQL 取回该类型下的全部绑定行。
+     *
+     * <p>只返回**确实绑定了启用中版本**的行：版本被删或已停用时跳过（与单体查询
+     * {@link #strategyBinding} 的口径一致 —— 它查不到版本时也只返回 strategyType）。
+     *
+     * @param strategyType 策略类型，须在可绑定白名单内，否则 40001
+     * @return 每条含 knowledgeBaseId / strategyVersionId / 策略名与版本号；无绑定时空列表
+     */
+    List<StrategyBindingVO> strategyBindings(String strategyType);
 
     /**
      * 绑定/解绑知识库某类型策略：strategyVersionId 为 null 解绑（逻辑删除，重绑复用原行）；

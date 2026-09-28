@@ -183,7 +183,7 @@ public class SeedService {
         info.setSourceFileType(sourceFile.getMimeType());
         info.setSchemaVersion(UnifiedDocument.SCHEMA_VERSION);
         document.setDocumentInfo(info);
-        document.setElements(new ArrayList<>(chunks.stream().map(c -> toUnifiedElement(c, documentId)).toList()));
+        document.setElements(new ArrayList<>(chunks.stream().map(c -> toUnifiedElement(c)).toList()));
         KbPipelineProduct structure = productPersistence.persist(
                 newTask(fileResult, PipelineStage.STRUCTURE, parse.getId(), null),
                 PipelineStage.STRUCTURE, parse.getId(), "{\"schemaVersion\":\"1.0.0\"}", document);
@@ -197,7 +197,7 @@ public class SeedService {
         view.setUpstreamProductRef(structure.getId());
         view.setStrategyVersion(PREPROCESS_VERSION);
         view.setOptions(Map.of());
-        view.setElements(new ArrayList<>(chunks.stream().map(c -> toViewElement(c, documentId)).toList()));
+        view.setElements(new ArrayList<>(chunks.stream().map(c -> toViewElement(c)).toList()));
         KbPipelineProduct preprocess = productPersistence.persist(
                 newTask(fileResult, PipelineStage.PREPROCESS, structure.getId(), preprocessSnapshot()),
                 PipelineStage.PREPROCESS, structure.getId(), preprocessSnapshot(), view);
@@ -366,7 +366,7 @@ public class SeedService {
         return element;
     }
 
-    private static UnifiedElement toUnifiedElement(KbChunk chunk, String documentId) {
+    private static UnifiedElement toUnifiedElement(KbChunk chunk) {
         UnifiedElement element = new UnifiedElement();
         // 元素 ID 与切片来源保持一致，切片溯源链（sourceElementIds）才有意义
         element.setId(chunk.getChunkId());
@@ -376,7 +376,7 @@ public class SeedService {
         return element;
     }
 
-    private static ViewElement toViewElement(KbChunk chunk, String documentId) {
+    private static ViewElement toViewElement(KbChunk chunk) {
         ViewElement element = new ViewElement();
         element.setElementId(chunk.getChunkId());
         element.setType("PARAGRAPH");
@@ -411,8 +411,9 @@ public class SeedService {
             return 1;
         }
         // 存的是 JSON 数组文本（如 "[1,2,3]"）或 "1-3"；只取首个数字，取不到就回落 1
+        // 用 parseInt 而非 valueOf：后者先装箱成 Integer 再拆箱（SpotBugs DM_BOXED_PRIMITIVE_FOR_PARSING）
         java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("\\d+").matcher(range);
-        return matcher.find() ? Integer.valueOf(matcher.group()) : 1;
+        return matcher.find() ? Integer.parseInt(matcher.group()) : 1;
     }
 
     // ---------------- 策略/能力快照 ----------------
@@ -447,13 +448,6 @@ public class SeedService {
                 .reduce((first, second) -> second)
                 .orElseThrow(() -> new IllegalStateException("找不到来源切片集: fileResultId="
                         + SOURCE_FILE_RESULT_ID + ", strategy=" + SOURCE_CHUNK_STRATEGY));
-    }
-
-    private KbSourceFile newSourceFile(KbSourceFile source) {
-        // kb_source_file.file_id 是唯一键：同一份磁盘对象只能有一行档案。
-        // 种子复用的是同一个 fileId（同一份真实文件），所以直接沿用已有档案行，
-        // 不新建 —— 新建会撞 uk_file_id。
-        return source;
     }
 
     private KbFileResult newFileResult(Long knowledgeBaseId, KbSourceFile source, KbFileResult origin) {

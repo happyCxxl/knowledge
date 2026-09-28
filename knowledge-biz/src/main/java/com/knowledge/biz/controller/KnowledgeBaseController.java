@@ -27,6 +27,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 /**
  * 知识库管理接口。
  *
@@ -41,11 +43,23 @@ public class KnowledgeBaseController {
 
     private final KnowledgeBaseService knowledgeBaseService;
 
+    /**
+     * 创建知识库。
+     *
+     * <p>**返回 String 而不是 Long**：雪花 ID 有 19 位，超过 JS 的
+     * `Number.MAX_SAFE_INTEGER`（2^53-1 ≈ 9.0e15），而 Jackson 对裸 Long 会序列化成
+     * **不带引号的数字**，前端 `JSON.parse` 按 Number 读会丢精度 —— 实测
+     * `2104612193694224386` 被读成 `2104612193694220000`（末 4 位归零）。
+     *
+     * <p>这个坑的实际后果：前端拿到失真 ID 后用去调绑定接口，后端查不到该库而报
+     * 「知识库不存在」—— 表现为"新建时勾选绑定策略就失败"。改为 String 后前端拿到的是
+     * 精确的 19 位串。项目里其它雪花 ID 字段（如 StrategyBindingVO）也是这么处理的。
+     */
     @PostMapping
-    @Operation(summary = "创建知识库", description = "创建一个新的知识库，默认启用状态")
-    public R<Long> create(@Valid @RequestBody KnowledgeBaseCreateDto dto) {
+    @Operation(summary = "创建知识库", description = "创建一个新的知识库，默认启用状态；返回新库 ID（字符串）")
+    public R<String> create(@Valid @RequestBody KnowledgeBaseCreateDto dto) {
         log.info("===> KnowledgeBaseController create 创建知识库, name={}", dto.getName());
-        return R.ok(knowledgeBaseService.create(dto), "创建成功");
+        return R.ok(String.valueOf(knowledgeBaseService.create(dto)), "创建成功");
     }
 
     @PutMapping("/{id}")
@@ -115,6 +129,15 @@ public class KnowledgeBaseController {
             @Parameter(description = "知识库ID", required = true) @PathVariable("id") Long id,
             @Parameter(description = "策略类型（CHUNK）", required = true) @RequestParam("strategyType") String strategyType) {
         return R.ok(knowledgeBaseService.strategyBinding(id, strategyType));
+    }
+
+    @GetMapping("/strategy-bindings")
+    @Operation(summary = "批量查询策略绑定",
+            description = "按策略类型查所有已绑定的知识库（一次查询，每条含 knowledgeBaseId）。"
+                    + "供「某策略版本被哪些库绑了」这类反向问题使用，避免按库逐个请求")
+    public R<List<StrategyBindingVO>> strategyBindings(
+            @Parameter(description = "策略类型（CHUNK）", required = true) @RequestParam("strategyType") String strategyType) {
+        return R.ok(knowledgeBaseService.strategyBindings(strategyType));
     }
 
     @PutMapping("/{id}/strategy-binding")
