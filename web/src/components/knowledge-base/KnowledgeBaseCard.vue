@@ -44,10 +44,6 @@
         <span class="kb-meta-label">文档</span>
       </div>
       <div class="kb-meta-item">
-        <span class="kb-meta-value">{{ kb.embedStrategyVersion ?? '未绑定' }}</span>
-        <span class="kb-meta-label">向量策略</span>
-      </div>
-      <div class="kb-meta-item">
         <span class="kb-meta-value" :class="{ 'kb-meta-mute': !kb.publishedIndexVersion }">
           {{ kb.publishedIndexVersion ?? '未发布' }}
         </span>
@@ -56,6 +52,23 @@
       <div class="kb-meta-item">
         <span class="kb-meta-value">{{ timeText }}</span>
         <span class="kb-meta-label">更新</span>
+      </div>
+    </div>
+
+    <!--
+      策略逐条列举（预处理 → 切片 → 向量化，即实际处理顺序）。
+      **不放进上面的数值格**：那是「三个等宽短值」的布局、每格约 74px，
+      而策略串是标识符（实测 13~30 字符，最长 hybrid-rrf-k60-top10-parent-v1
+      在等宽 11px 下约 181px），塞进去必然截断 —— 截断后就认不出是哪个策略，
+      这正是原来「向量策略」显示不全的原因。
+      每条独占一行、标签左值右，一行放得下 30 字符。
+    -->
+    <div class="kb-strategies">
+      <div v-for="s in strategies" :key="s.type" class="kb-strategy">
+        <span class="kb-strategy-k">{{ s.label }}</span>
+        <span class="kb-strategy-v" :class="{ 'kb-strategy-mute': !s.text }">
+          {{ s.text || fallbackStrategyText }}
+        </span>
       </div>
     </div>
     <div class="kb-ops">
@@ -84,6 +97,7 @@ import { useRouter } from 'vue-router';
 
 import type { KnowledgeBase } from '@/types/knowledge-base';
 import { KB_STATUS_ACTIVE, KB_STATUS_DISABLED } from '@/types/knowledge-base';
+import { STRATEGY_TYPE_LABELS, STRATEGY_TYPES } from '@/types/strategy';
 import { formatDate, formatTime } from '@/utils/date';
 
 // 知识库卡片：名称、状态、关键指标与操作入口
@@ -117,6 +131,34 @@ function openIndex(): void {
 const statusText = computed(() => (props.kb.status === KB_STATUS_ACTIVE ? '已启用' : '已停用'));
 const timeText = computed(() => formatTime(props.kb.updateTime ?? ''));
 const dateText = computed(() => formatDate(props.kb.updateTime ?? ''));
+
+/**
+ * 三条绑定策略（按实际处理顺序：预处理 → 切片 → 向量化）。
+ *
+ * <p>顺序用 {@link STRATEGY_TYPES} 的声明顺序，而不是手写三个字面量 ——
+ * 那个常量与后端 StrategyType 对齐，加类型时这里自动跟上。
+ */
+const strategies = computed(() =>
+  STRATEGY_TYPES.map((type) => ({
+    type,
+    label: STRATEGY_TYPE_LABELS[type] ?? type,
+    text:
+      type === 'PREPROCESS'
+        ? props.kb.preprocessStrategyVersion
+        : type === 'CHUNK'
+          ? props.kb.chunkStrategyVersion
+          : props.kb.embedStrategyVersion,
+  })),
+);
+
+/**
+ * 策略缺失时的占位文案，要区分两种情况：
+ * 绑定开关关着（测评模式，本来就不会绑）说"开关已关闭"，否则才是"未绑定"。
+ * 混成一句会让用户以为该去绑策略，实际是开关的问题。
+ */
+const fallbackStrategyText = computed(() =>
+  props.kb.strategyBindingEnabled === 1 ? '未绑定' : '开关已关闭',
+);
 </script>
 
 <style scoped lang="css">
@@ -271,12 +313,70 @@ const dateText = computed(() => formatDate(props.kb.updateTime ?? ''));
   font-size: 11px;
 }
 
+/*
+ * 策略逐条列举：标签左（定宽）、策略串右（占满剩余）。
+ *
+ * <p>用与 .kb-meta 同一套"描边容器"语言，但**不做等分栅格** —— 策略串长度差异大
+ * （13~30 字符），等分必然截断最长的那个。左标签定宽 52px（最长「向量化」三个字），
+ * 其余全给策略串：380px 卡片下约 236px 可用，够放 30 字符的 hybrid-rrf-k60-top10-parent-v1。
+ */
+.kb-strategies {
+  margin-top: 8px;
+  padding: 8px 11px;
+  border: 1px solid var(--kb-line);
+  border-radius: 10px;
+  background: rgb(0 0 0 / 18%);
+}
+
+.kb-strategy {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.kb-strategy + .kb-strategy {
+  margin-top: 6px;
+}
+
+.kb-strategy-k {
+  flex: none;
+  width: 52px;
+  color: var(--kb-text-3);
+  font-size: 11px;
+}
+
+.kb-strategy-v {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--kb-primary-2);
+  font-family: ui-monospace, 'JetBrains Mono', Consolas, monospace;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 未绑定 / 开关已关闭：弱化成普通文字，不用主色（否则会像"已配置"） */
+.kb-strategy-mute {
+  color: var(--kb-text-3);
+  font-weight: 400;
+}
+
 .kb-ops {
   display: flex;
   gap: 4px;
   align-items: center;
   padding-top: 10px;
   border-top: 1px solid var(--kb-line);
+
+  /*
+   * 不换行：五个操作按钮在 320px 卡片里会被折成两行（实测），
+   * 那种"挤成两行"比字小一点更难看。窄窗口下宁可让按钮挨得近一点。
+   */
+  flex-wrap: nowrap;
+  white-space: nowrap;
 }
 
 .kb-op {
@@ -289,6 +389,9 @@ const dateText = computed(() => formatDate(props.kb.updateTime ?? ''));
   text-decoration: none;
   cursor: pointer;
   transition: color 0.15s;
+
+  /* 允许收缩：极端窄窗口下先缩按钮间距，而不是立刻折行 */
+  flex: none;
 }
 
 .kb-op:hover {

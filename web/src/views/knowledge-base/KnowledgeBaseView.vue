@@ -778,7 +778,13 @@ function applyEntryAction(): void {
   }
 }
 
-/* 卡片滚动区：flex:1 + min-height:0 拿到确定高度，卡片多时在面板内部滚动 */
+/*
+ * 卡片滚动区：flex:1 + min-height:0 拿到确定高度，卡片多时在面板内部滚动。
+ *
+ * 列宽下限 380px（原 320px）：320 时卡片的操作行放不下五个按钮，被折成两行；
+ * 而策略串是标识符（最长 30 字符），也需要更宽才不截断。
+ * 上界仍是 1fr —— 窗口宽时卡片跟着变宽，不会留出无用的空白列。
+ */
 .kb-grid {
   display: grid;
   flex: 1;
@@ -786,7 +792,7 @@ function applyEntryAction(): void {
   align-content: start;
   min-height: 0;
   overflow-y: auto;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
   padding: 18px;
 }
 

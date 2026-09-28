@@ -17,7 +17,14 @@ export interface KnowledgeBase {
    * 一次提交 = 一个任务 = 一行，同一文件重复提交会各占一行，故为提交次数而非去重文件数。
    */
   documentCount: number | null;
-  /** 绑定的向量化策略版本摘要（如 embed-default-v1；无绑定为 null） */
+  /**
+   * 三件套绑定的策略版本摘要（`name-version` 合成串，如 embed-nocache-v1；无绑定为 null）。
+   *
+   * <p>这三条后端列表接口**本来就下发**（见 KnowledgeBaseVO），此前前端只定义了 embed
+   * 那条 —— 于是卡片只能显示一个「向量策略」，用户看不出这个库还绑了什么。
+   */
+  preprocessStrategyVersion?: string | null;
+  chunkStrategyVersion?: string | null;
   embedStrategyVersion: string | null;
   /**
    * 三件套绑定的版本 ID（无绑定为 null）。
