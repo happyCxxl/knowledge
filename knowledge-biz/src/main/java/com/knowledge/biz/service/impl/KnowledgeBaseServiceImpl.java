@@ -27,14 +27,17 @@ import com.knowledge.common.dto.response.knowledge.KnowledgeBaseStatsVO;
 import com.knowledge.common.dto.response.knowledge.KnowledgeBaseVO;
 import com.knowledge.common.dto.response.knowledge.StrategyBindingVO;
 import com.knowledge.common.enums.knowledge.AuditActionType;
+import com.knowledge.common.enums.knowledge.AuditObjectType;
 import com.knowledge.common.enums.knowledge.KnowledgeBaseSort;
 import com.knowledge.common.enums.knowledge.KnowledgeBaseStatus;
+import com.knowledge.common.enums.knowledge.StrategyBindingSwitch;
 import com.knowledge.common.enums.task.RowStatus;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.ThrowUtil;
 import com.knowledge.common.security.KnowledgeUser;
 import com.knowledge.common.security.SecurityUtils;
 import com.knowledge.common.utils.JsonUtil;
+
 import com.knowledge.worker.chunking.strategy.ChunkStrategy;
 import com.knowledge.worker.embedding.strategy.EmbedStrategy;
 import com.knowledge.worker.preprocessing.strategy.PreprocessStrategy;
@@ -62,7 +65,18 @@ import java.util.stream.Collectors;
 public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
 
     /** 审计对象类型 */
-    private static final String AUDIT_OBJECT_TYPE = "KNOWLEDGE_BASE";
+    private static final String AUDIT_OBJECT_TYPE = AuditObjectType.KNOWLEDGE_BASE.key();
+
+    /**
+     * 逻辑删除标记（kb_strategy_binding.del_flag）。
+     *
+     * <p>该列与 {@code RowStatus} 不是一回事：RowStatus 是产品/策略版本的
+     * ACTIVE/INACTIVE，这一列是通用的 "0 正常 / 1 已删"。
+     */
+    private static final String DEL_FLAG_DELETED = "1";
+
+    /** 逻辑删除标记：正常 */
+    private static final String DEL_FLAG_NORMAL = "0";
 
     private final KnowledgeBaseDbService knowledgeBaseDbService;
 
@@ -90,7 +104,8 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         kb.setDefaultFlag(0);
         kb.setUserId(currentUserId());
         knowledgeBaseDbService.save(kb);
-        kbAuditLogDbService.saveAudit(AuditActionType.CREATE, AUDIT_OBJECT_TYPE, kb.getId(), null, JsonUtil.toJsonStr(kb));
+        kbAuditLogDbService.saveAudit(AuditActionType.CREATE, AUDIT_OBJECT_TYPE, kb.getId(), null,
+                JsonUtil.toJsonStr(kb));
         log.info("===> KnowledgeBaseServiceImpl create 创建知识库, id={}, name={}", kb.getId(), kb.getName());
         return kb.getId();
     }
@@ -104,7 +119,8 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         kb.setDescription(dto.getDescription());
         kb.setStrategyBindingEnabled(resolveBindingEnabled(dto.getStrategyBindingEnabled()));
         knowledgeBaseDbService.updateById(kb);
-        kbAuditLogDbService.saveAudit(AuditActionType.UPDATE, AUDIT_OBJECT_TYPE, kb.getId(), beforeJson, JsonUtil.toJsonStr(kb));
+        kbAuditLogDbService.saveAudit(AuditActionType.UPDATE, AUDIT_OBJECT_TYPE, kb.getId(),
+                beforeJson, JsonUtil.toJsonStr(kb));
         log.info("===> KnowledgeBaseServiceImpl update 更新知识库, id={}, name={}", kb.getId(), kb.getName());
         return true;
     }
@@ -202,7 +218,8 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         String beforeJson = JsonUtil.toJsonStr(kb);
         kb.setStatus(KnowledgeBaseStatus.DISABLED.getCode());
         knowledgeBaseDbService.updateById(kb);
-        kbAuditLogDbService.saveAudit(AuditActionType.DISABLE, AUDIT_OBJECT_TYPE, id, beforeJson, JsonUtil.toJsonStr(kb));
+        kbAuditLogDbService.saveAudit(AuditActionType.DISABLE, AUDIT_OBJECT_TYPE, id,
+                beforeJson, JsonUtil.toJsonStr(kb));
         log.info("===> KnowledgeBaseServiceImpl disable 停用知识库, id={}", id);
         return true;
     }
@@ -215,7 +232,8 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         String beforeJson = JsonUtil.toJsonStr(kb);
         kb.setStatus(KnowledgeBaseStatus.ACTIVE.getCode());
         knowledgeBaseDbService.updateById(kb);
-        kbAuditLogDbService.saveAudit(AuditActionType.ENABLE, AUDIT_OBJECT_TYPE, id, beforeJson, JsonUtil.toJsonStr(kb));
+        kbAuditLogDbService.saveAudit(AuditActionType.ENABLE, AUDIT_OBJECT_TYPE, id,
+                beforeJson, JsonUtil.toJsonStr(kb));
         log.info("===> KnowledgeBaseServiceImpl enable 启用知识库, id={}", id);
         return true;
     }
@@ -266,10 +284,11 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             KbStrategyBinding existing = strategyBindingDbService.getByKbAndType(id, type);
             String before = bindingSummary(existing);
             if (existing != null) {
-                existing.setDelFlag("1");
+                existing.setDelFlag(DEL_FLAG_DELETED);
                 strategyBindingDbService.updateById(existing);
             }
-            kbAuditLogDbService.saveAudit(AuditActionType.BIND, AUDIT_OBJECT_TYPE, id, type + "=" + before, null);
+            kbAuditLogDbService.saveAudit(AuditActionType.BIND, AUDIT_OBJECT_TYPE, id,
+                    type + "=" + before, null);
             log.info("===> KnowledgeBaseServiceImpl bindStrategy 解绑知识库策略, id={}, type={}", id, type);
             return true;
         }
@@ -290,12 +309,13 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             binding.setStrategyVersionId(dto.getStrategyVersionId());
             strategyBindingDbService.save(binding);
         } else {
-            existing.setDelFlag("0");
+            existing.setDelFlag(DEL_FLAG_NORMAL);
             existing.setStrategyVersionId(dto.getStrategyVersionId());
             strategyBindingDbService.updateById(existing);
         }
         String after = version.getName() + "-" + version.getVersion();
-        kbAuditLogDbService.saveAudit(AuditActionType.BIND, AUDIT_OBJECT_TYPE, id, type + "=" + before, type + "=" + after);
+        kbAuditLogDbService.saveAudit(AuditActionType.BIND, AUDIT_OBJECT_TYPE, id,
+                type + "=" + before, type + "=" + after);
         log.info("===> KnowledgeBaseServiceImpl bindStrategy 绑定知识库策略, id={}, type={}, versionId={}",
                 id, type, dto.getStrategyVersionId());
         return true;
@@ -332,7 +352,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
 
     /** 绑定摘要（审计用；null/已删 → 无） */
     private String bindingSummary(KbStrategyBinding binding) {
-        if (binding == null || "1".equals(binding.getDelFlag())) {
+        if (binding == null || DEL_FLAG_DELETED.equals(binding.getDelFlag())) {
             return "无";
         }
         KbPipelineStrategyVersion version = strategyVersionDbService.getById(binding.getStrategyVersionId());
@@ -410,7 +430,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
 
     /** 绑定开关是否关闭（null 视为开启，兼容存量数据） */
     private boolean isBindingDisabled(KnowledgeBase kb) {
-        return kb != null && Integer.valueOf(0).equals(kb.getStrategyBindingEnabled());
+        return kb != null && StrategyBindingSwitch.isOff(kb.getStrategyBindingEnabled());
     }
 
     private KnowledgeBaseVO toVO(KnowledgeBase kb) {
@@ -432,7 +452,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
 
     /** 开关归一化：null/非 0 一律视为开启（1） */
     private Integer resolveBindingEnabled(Integer value) {
-        return Integer.valueOf(0).equals(value) ? 0 : 1;
+        return StrategyBindingSwitch.isOn(value) ? StrategyBindingSwitch.ON.getCode() : StrategyBindingSwitch.OFF.getCode();
     }
 
     /** 当前登录用户 ID（无认证上下文为 null） */

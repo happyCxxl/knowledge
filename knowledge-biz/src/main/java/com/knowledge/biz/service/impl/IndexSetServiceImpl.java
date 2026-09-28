@@ -37,6 +37,8 @@ import com.knowledge.common.dto.response.index.IndexVersionVO;
 import com.knowledge.common.enums.index.IndexBuildTrigger;
 import com.knowledge.common.enums.index.IndexVersionStatus;
 import com.knowledge.common.enums.knowledge.AuditActionType;
+import com.knowledge.common.enums.knowledge.AuditObjectType;
+import com.knowledge.common.enums.knowledge.StrategyBindingSwitch;
 import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.enums.task.PipelineTaskStatus;
 import com.knowledge.common.error.ErrorCode;
@@ -80,7 +82,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class IndexSetServiceImpl implements IndexSetService {
 
-    private static final String AUDIT_OBJECT_TYPE = "INDEX_VERSION";
+    private static final String AUDIT_OBJECT_TYPE = AuditObjectType.INDEX_VERSION.key();
 
     private final KnowledgeBaseDbService knowledgeBaseDbService;
     private final KbIndexSetDbService indexSetDbService;
@@ -727,7 +729,7 @@ public class IndexSetServiceImpl implements IndexSetService {
     /** 知识库策略绑定开关：关闭（0）→ true；开启/null 视为开启 → false */
     private boolean bindingDisabled(Long kbId) {
         KnowledgeBase kb = knowledgeBaseDbService.getById(kbId);
-        return ObjectUtil.isNotNull(kb) && Integer.valueOf(0).equals(kb.getStrategyBindingEnabled());
+        return ObjectUtil.isNotNull(kb) && StrategyBindingSwitch.isOff(kb.getStrategyBindingEnabled());
     }
 
     /** 版本行失败回写（buildError 截断 1024） */

@@ -14,6 +14,7 @@ import com.knowledge.common.dto.request.retrieval.RetrievalRulePublishDto;
 import com.knowledge.common.dto.response.retrieval.RetrievalRulePublishVO;
 import com.knowledge.common.dto.response.strategy.StrategyVersionVO;
 import com.knowledge.common.enums.knowledge.AuditActionType;
+import com.knowledge.common.enums.knowledge.AuditObjectType;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.ThrowUtil;
 import lombok.RequiredArgsConstructor;
@@ -35,7 +36,7 @@ import java.util.Objects;
 @RequiredArgsConstructor
 public class RetrievalRuleServiceImpl implements RetrievalRuleService {
 
-    private static final String AUDIT_OBJECT_TYPE = "INDEX_VERSION";
+    private static final String AUDIT_OBJECT_TYPE = AuditObjectType.INDEX_VERSION.key();
 
     private final StrategyVersionService strategyVersionService;
 

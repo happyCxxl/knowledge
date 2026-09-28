@@ -1,5 +1,6 @@
 package com.knowledge.biz.task;
 
+import com.knowledge.common.enums.knowledge.StrategyBindingSwitch;
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.knowledge.biz.service.IndexSetService;
@@ -210,7 +211,7 @@ public class IndexBuildTaskRunner {
         }
         if (IndexBuildTrigger.INCREMENT.name().equals(trigger)) {
             KnowledgeBase kb = knowledgeBaseDbService.getById(kbId);
-            return ObjectUtil.isNull(kb) || !Integer.valueOf(0).equals(kb.getStrategyBindingEnabled());
+            return ObjectUtil.isNull(kb) || StrategyBindingSwitch.isOn(kb.getStrategyBindingEnabled());
         }
         return false;
     }

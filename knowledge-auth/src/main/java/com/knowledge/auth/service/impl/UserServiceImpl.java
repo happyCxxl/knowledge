@@ -12,6 +12,7 @@ import com.knowledge.common.dto.request.user.UserCreateRequest;
 import com.knowledge.common.dto.request.user.UserUpdateRequest;
 import com.knowledge.common.dto.response.user.UserVO;
 import com.knowledge.common.enums.knowledge.AuditActionType;
+import com.knowledge.common.enums.knowledge.AuditObjectType;
 import com.knowledge.common.enums.user.UserRole;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.ThrowUtil;
@@ -45,7 +46,7 @@ public class UserServiceImpl implements UserService {
     private static final int STATUS_DISABLED = 0;
 
     /** 审计对象类型：用户账号 */
-    private static final String AUDIT_OBJECT_TYPE = "KB_USER";
+    private static final String AUDIT_OBJECT_TYPE = AuditObjectType.KB_USER.key();
 
     private final UserDbService userDbService;
 

@@ -1,5 +1,6 @@
 package com.knowledge.biz.service.impl;
 
+import com.knowledge.common.enums.knowledge.StrategyBindingSwitch;
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.knowledge.biz.service.IndexComboService;
@@ -111,7 +112,7 @@ public class IndexComboServiceImpl implements IndexComboService {
      */
     public List<ComboSnapshot> combosFor(Long knowledgeBaseId) {
         KnowledgeBase kb = knowledgeBaseDbService.getById(knowledgeBaseId);
-        boolean bindingEnabled = kb == null || !Integer.valueOf(0).equals(kb.getStrategyBindingEnabled());
+        boolean bindingEnabled = kb == null || StrategyBindingSwitch.isOn(kb.getStrategyBindingEnabled());
         if (bindingEnabled) {
             ComboSnapshot bound = resolveBoundCombo(knowledgeBaseId);
             return bound == null ? List.of() : List.of(bound);

@@ -3,6 +3,7 @@ package com.knowledge.biz.service;
 import com.knowledge.common.dto.request.strategy.StrategyVersionCreateDto;
 import com.knowledge.common.dto.request.strategy.StrategyVersionUpdateDto;
 import com.knowledge.common.dto.response.strategy.StrategyVersionVO;
+import com.knowledge.common.enums.strategy.StrategyType;
 
 import java.util.List;
 import java.util.Set;
@@ -15,11 +16,11 @@ import java.util.Set;
  */
 public interface StrategyVersionService {
 
-    /** 已支持管理/列表/注册的策略类型（其余类型随环节实现加入） */
-    Set<String> SUPPORTED_TYPES = Set.of("PREPROCESS", "CHUNK", "EMBED", "RETRIEVAL");
+    /** 已支持管理/列表/注册的策略类型（其余类型随环节实现加入）；码值口径见 {@link StrategyType} */
+    Set<String> SUPPORTED_TYPES = StrategyType.keys();
 
     /** KB 三件套可绑定类型（检索规则不绑 KB——走索引版本行 default_rule_id） */
-    Set<String> BINDABLE_TYPES = Set.of("PREPROCESS", "CHUNK", "EMBED");
+    Set<String> BINDABLE_TYPES = StrategyType.bindableKeys();
 
     /**
      * 列表：includeInactive=false 只启用中（触发前下拉用），true 全部（管理用）；空/非法类型 40001。
