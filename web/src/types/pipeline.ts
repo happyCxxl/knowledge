@@ -214,5 +214,15 @@ export interface StrategyBinding {
   strategyVersion: string | null;
 }
 
+/**
+ * 批量设置绑定的一项（后端 `StrategyBindingsUpdateRequest.StrategyBindItem`）。
+ *
+ * <p>批量接口要求给全 {@link STRATEGY_BINDING_TYPES} 且每项 `strategyVersionId` 都非空。
+ */
+export interface StrategyBindItem {
+  strategyType: string;
+  strategyVersionId: string;
+}
+
 /** 有策略的环节及其绑定类型（解析/组装无策略，不参与绑定比对） */
 export const STRATEGY_BINDING_TYPES = ['PREPROCESS', 'CHUNK', 'EMBED'] as const;

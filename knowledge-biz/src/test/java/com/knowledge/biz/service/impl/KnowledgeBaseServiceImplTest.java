@@ -21,6 +21,7 @@ import com.knowledge.common.domain.entity.KnowledgeBase;
 import com.knowledge.common.dto.request.knowledge.KnowledgeBaseCreateDto;
 import com.knowledge.common.dto.request.knowledge.KnowledgeBaseUpdateDto;
 import com.knowledge.common.dto.request.knowledge.StrategyBindingUpdateDto;
+import com.knowledge.common.dto.request.knowledge.StrategyBindingsUpdateRequest;
 import com.knowledge.common.dto.response.knowledge.KnowledgeBaseStatsVO;
 import com.knowledge.common.dto.response.knowledge.KnowledgeBaseVO;
 import com.knowledge.common.dto.response.knowledge.StrategyBindingVO;
@@ -46,6 +47,7 @@ import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -450,6 +452,112 @@ class KnowledgeBaseServiceImplTest {
         dto.setStrategyVersionId(66L);
 
         KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.bindStrategy(2L, dto));
+        assertEquals(ErrorCode.PARAM_INVALID, e.getErrorCode());
+        verify(strategyBindingDbService, never()).save(any());
+    }
+
+    // ---------------- 批量设置绑定（bindStrategies）----------------
+    //
+    // 本接口的语义是"确定了一套策略组合"，所以要求一次给全三件套且每项都有版本；
+    // 逐类型增量改走 bindStrategy。"开关开着但还没绑"由不调用本接口表达。
+
+    /** 批量绑定请求项 */
+    private StrategyBindingsUpdateRequest.StrategyBindItem bindItem(String type, Long versionId) {
+        StrategyBindingsUpdateRequest.StrategyBindItem item =
+                new StrategyBindingsUpdateRequest.StrategyBindItem();
+        item.setStrategyType(type);
+        item.setStrategyVersionId(versionId);
+        return item;
+    }
+
+    /** 批量绑定请求（可变参数，便于构造缺项场景） */
+    private StrategyBindingsUpdateRequest bindRequest(
+            StrategyBindingsUpdateRequest.StrategyBindItem... items) {
+        StrategyBindingsUpdateRequest request = new StrategyBindingsUpdateRequest();
+        request.setBindings(List.of(items));
+        return request;
+    }
+
+    /** 让三件套的版本查询都返回启用中的行（类型与入参一致） */
+    private void stubActiveVersions(String type, Long versionId) {
+        KbPipelineStrategyVersion row = new KbPipelineStrategyVersion();
+        row.setId(versionId);
+        row.setType(type);
+        row.setName(type.toLowerCase() + "-x");
+        row.setVersion("v1");
+        row.setStatus("ACTIVE");
+        when(strategyVersionDbService.getById(versionId)).thenReturn(row);
+    }
+
+    @Test
+    void bindStrategiesShouldAcceptFullTriple() {
+        when(knowledgeBaseDbService.getActiveById(2L)).thenReturn(kb(2L, 1));
+        stubActiveVersions("PREPROCESS", 11L);
+        stubActiveVersions("CHUNK", 22L);
+        stubActiveVersions("EMBED", 33L);
+        when(strategyBindingDbService.getAnyByKbAndType(eq(2L), anyString())).thenReturn(null);
+
+        StrategyBindingsUpdateRequest request = bindRequest(
+                bindItem("PREPROCESS", 11L), bindItem("CHUNK", 22L), bindItem("EMBED", 33L));
+
+        assertTrue(service.bindStrategies(2L, request));
+
+        verify(strategyBindingDbService, times(3)).save(any(KbStrategyBinding.class));
+    }
+
+    @Test
+    void bindStrategiesWithPartialTripleShouldReject() {
+        when(knowledgeBaseDbService.getActiveById(2L)).thenReturn(kb(2L, 1));
+
+        // 只给预处理与切片的组合，缺向量化
+        StrategyBindingsUpdateRequest request = bindRequest(
+                bindItem("PREPROCESS", 11L), bindItem("CHUNK", 22L));
+
+        KnowledgeException e =
+                assertThrows(KnowledgeException.class, () -> service.bindStrategies(2L, request));
+        assertEquals(ErrorCode.PARAM_INVALID, e.getErrorCode());
+        verify(strategyBindingDbService, never()).save(any());
+    }
+
+    @Test
+    void bindStrategiesWithNullVersionShouldReject() {
+        when(knowledgeBaseDbService.getActiveById(2L)).thenReturn(kb(2L, 1));
+
+        // 三件套类型齐全，但向量化没给版本 —— 会造成"部分走绑定、部分走最新启用"的隐性不一致
+        StrategyBindingsUpdateRequest request = bindRequest(
+                bindItem("PREPROCESS", 11L), bindItem("CHUNK", 22L), bindItem("EMBED", null));
+
+        KnowledgeException e =
+                assertThrows(KnowledgeException.class, () -> service.bindStrategies(2L, request));
+        assertEquals(ErrorCode.PARAM_INVALID, e.getErrorCode());
+        verify(strategyBindingDbService, never()).save(any());
+    }
+
+    @Test
+    void bindStrategiesWhenBindingDisabledShouldReject() {
+        KnowledgeBase disabled = kb(2L, 1);
+        disabled.setStrategyBindingEnabled(0);
+        when(knowledgeBaseDbService.getActiveById(2L)).thenReturn(disabled);
+
+        StrategyBindingsUpdateRequest request = bindRequest(
+                bindItem("PREPROCESS", 11L), bindItem("CHUNK", 22L), bindItem("EMBED", 33L));
+
+        KnowledgeException e =
+                assertThrows(KnowledgeException.class, () -> service.bindStrategies(2L, request));
+        assertEquals(ErrorCode.PARAM_INVALID, e.getErrorCode());
+        verify(strategyBindingDbService, never()).save(any());
+    }
+
+    @Test
+    void bindStrategiesWithUnknownTypeShouldReject() {
+        when(knowledgeBaseDbService.getActiveById(2L)).thenReturn(kb(2L, 1));
+
+        // 检索类策略不绑知识库（走索引版本的默认检索规则）
+        StrategyBindingsUpdateRequest request = bindRequest(
+                bindItem("PREPROCESS", 11L), bindItem("CHUNK", 22L), bindItem("RETRIEVAL", 44L));
+
+        KnowledgeException e =
+                assertThrows(KnowledgeException.class, () -> service.bindStrategies(2L, request));
         assertEquals(ErrorCode.PARAM_INVALID, e.getErrorCode());
         verify(strategyBindingDbService, never()).save(any());
     }

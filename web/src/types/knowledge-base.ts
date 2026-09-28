@@ -19,6 +19,15 @@ export interface KnowledgeBase {
   documentCount: number | null;
   /** 绑定的向量化策略版本摘要（如 embed-default-v1；无绑定为 null） */
   embedStrategyVersion: string | null;
+  /**
+   * 三件套绑定的版本 ID（无绑定为 null）。
+   *
+   * <p>详情接口（GET /knowledge-base/{id}）才带这三个，列表接口只有上面的摘要字段。
+   * 编辑对话框要用 ID 回填选择器 —— 摘要带不出 ID。
+   */
+  preprocessStrategyVersionId?: string | null;
+  chunkStrategyVersionId?: string | null;
+  embedStrategyVersionId?: string | null;
   /** 策略绑定开关：1 开启（触发走本库绑定策略）/ 0 关闭（测评模式，触发须显式选策略） */
   strategyBindingEnabled: number | null;
   /** 默认知识库标记：1=默认库（恒排最前、不可停用/删除）/ 0=普通库 */

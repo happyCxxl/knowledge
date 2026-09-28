@@ -1,5 +1,5 @@
 import { http } from './http';
-import type { StrategyBinding } from '@/types/pipeline';
+import type { StrategyBinding, StrategyBindItem } from '@/types/pipeline';
 import type { StrategyVersion } from '@/types/strategy';
 
 /**
@@ -112,6 +112,25 @@ export async function updateStrategyBinding(
   const response = await http.put<boolean>(`/knowledge-base/${knowledgeBaseId}/strategy-binding`, {
     strategyType,
     strategyVersionId,
+  });
+  return response.data;
+}
+
+/**
+ * 一次设置知识库的整套策略绑定（对应后端「发布 = 知识库策略集合」口径）。
+ *
+ * <p>**必须给全可绑定类型且每项都有版本** —— 后端会校验，少一项直接 40001。
+ * 这是刻意的：本接口表达"确定了一套策略组合"，不是"逐类型增量改"；
+ * 增量改走 {@link updateStrategyBinding}。
+ *
+ * @param bindings 三件套（预处理 / 切片 / 向量化）的类型与版本
+ */
+export async function updateStrategyBindings(
+  knowledgeBaseId: string,
+  bindings: StrategyBindItem[],
+): Promise<boolean> {
+  const response = await http.put<boolean>(`/knowledge-base/${knowledgeBaseId}/strategy-bindings`, {
+    bindings,
   });
   return response.data;
 }

@@ -338,6 +338,15 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                     ErrorCode.PARAM_INVALID, "未知策略类型: " + type);
             ThrowUtil.throwIf(!seen.add(type), ErrorCode.PARAM_INVALID, "策略类型重复: " + type);
         }
+        // 本接口是「设置整套绑定」：必须一次给全三件套，且每项都要有版本
+        // （允许"开关开着但还没绑"的中间态由不调用本接口来表达；一旦调用就必须给全，
+        //   否则会出现"部分环节走绑定、部分走最新启用"的隐性不一致）
+        ThrowUtil.throwIf(!seen.containsAll(StrategyVersionService.BINDABLE_TYPES),
+                ErrorCode.PARAM_INVALID, "需一次设置全部可绑定策略（预处理 / 切片 / 向量化）");
+        for (StrategyBindingsUpdateRequest.StrategyBindItem item : bindings) {
+            ThrowUtil.throwIf(item.getStrategyVersionId() == null,
+                    ErrorCode.PARAM_INVALID, "策略版本不能为空: " + item.getStrategyType());
+        }
         // 局部更新：逐类型复用单类型绑定逻辑（校验/upsert/审计）；外层事务覆盖，任一项失败整体回滚
         for (StrategyBindingsUpdateRequest.StrategyBindItem item : bindings) {
             StrategyBindingUpdateDto dto = new StrategyBindingUpdateDto();

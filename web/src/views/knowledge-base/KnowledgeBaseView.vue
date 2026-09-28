@@ -7,7 +7,6 @@
       </div>
       <div class="kb-actions">
         <el-button class="kb-btn-ghost" plain @click="openImport()">导入文档</el-button>
-        <el-button class="kb-btn-primary" @click="openCreate">新建知识库</el-button>
       </div>
     </div>
     <div class="kb-stats">
@@ -62,7 +61,12 @@
         </button>
         <span class="kb-filter-count">共 {{ total }} 个</span>
       </div>
-      <div v-if="kbList.length > 0" class="kb-grid">
+      <!--
+        新建入口只保留这里的虚线卡（头部那个已去掉，避免同一页两个「新建知识库」）。
+        网格用 v-if="!loading" 而非 v-if="kbList.length > 0"：虚线卡必须在列表为空时也在，
+        否则空库时整页没有新建入口。空态提示另起一段，与虚线卡并存。
+      -->
+      <div v-if="!loading" class="kb-grid">
         <KnowledgeBaseCard
           v-for="item in kbList"
           :key="item.id"
@@ -77,14 +81,16 @@
           新建知识库
         </button>
       </div>
-      <div v-else-if="loading" class="kb-empty">加载中…</div>
-      <div v-else-if="hasFilter" class="kb-empty">
-        <p class="kb-empty-text">没有符合当前筛选条件的知识库</p>
-        <el-button class="kb-btn-ghost" @click="handleClearFilter">清除筛选</el-button>
-      </div>
-      <div v-else class="kb-empty">
-        <p class="kb-empty-text">还没有知识库，先创建一个吧</p>
-        <el-button class="kb-btn-primary" @click="openCreate">新建知识库</el-button>
+      <div v-else class="kb-empty">加载中…</div>
+      <div v-if="!loading && kbList.length === 0" class="kb-empty">
+        <p v-if="hasFilter" class="kb-empty-text">没有符合当前筛选条件的知识库</p>
+        <template v-else>
+          <p class="kb-empty-text">还没有知识库，先创建一个吧</p>
+          <p class="kb-empty-hint">也可以点上方虚线卡新建</p>
+        </template>
+        <el-button v-if="hasFilter" class="kb-btn-ghost" @click="handleClearFilter">
+          清除筛选
+        </el-button>
       </div>
       <div class="kb-panel-foot">
         <span>共 {{ total }} 个知识库</span>
@@ -134,9 +140,41 @@
         </el-form-item>
         <el-form-item prop="strategyBindingEnabled" label="策略绑定" class="kb-dialog-item">
           <el-radio-group v-model="dialogForm.strategyBindingEnabled">
-            <el-radio :value="1">开启（触发走本库绑定策略）</el-radio>
-            <el-radio :value="0">关闭（测评模式，触发须显式选策略）</el-radio>
+            <el-radio :value="1">绑定（触发走本库绑定策略）</el-radio>
+            <el-radio :value="0">不绑定（测评模式，触发须显式选策略）</el-radio>
           </el-radio-group>
+        </el-form-item>
+
+        <!--
+          三件套绑定：**始终渲染、仅按开关禁用**，不用 v-if 显隐 ——
+          那样切换开关时弹窗高度会跳动。禁用态保持可见，用户能看到有哪些项要选。
+          「开关开着但还没绑」是允许的中间态：建库时先决定要不要绑定，
+          具体绑哪个版本要等评测出结果，所以只在保存时校验完整性。
+        -->
+        <el-form-item
+          v-for="type in BINDABLE_STRATEGY_TYPES"
+          :key="type"
+          :label="strategyTypeLabel(type)"
+          class="kb-dialog-item"
+        >
+          <el-select
+            v-model="dialogForm.strategyVersions[type]"
+            class="kb-binding-select"
+            placeholder="选择要绑定的版本"
+            :loading="strategyLoading"
+            :disabled="!bindingEnabled"
+            clearable
+          >
+            <el-option
+              v-for="version in strategyOptions(type)"
+              :key="version.id"
+              :label="strategyOptionLabel(version)"
+              :value="version.id"
+            />
+          </el-select>
+          <span v-if="bindingEnabled && !strategyOptions(type).length" class="kb-binding-empty">
+            该类型暂无启用中的版本，请先到策略管理启用
+          </span>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -169,13 +207,20 @@ import {
   getKnowledgeBaseStats,
   updateKnowledgeBase,
 } from '@/api/knowledge-base';
+import { getStrategyVersions, updateStrategyBindings } from '@/api/strategy';
 import KnowledgeBaseCard from '@/components/knowledge-base/KnowledgeBaseCard.vue';
 import ImportDocumentDialog from '@/components/knowledge-base/ImportDocumentDialog.vue';
 import { KB_STATUS_ACTIVE, KB_STATUS_DISABLED } from '@/types/knowledge-base';
 import type { KnowledgeBase, KnowledgeBaseSort } from '@/types/knowledge-base';
+import { STRATEGY_BINDING_TYPES } from '@/types/pipeline';
+import { strategyTypeLabel } from '@/types/strategy-config';
+import type { StrategyVersion } from '@/types/strategy';
 
 // 知识库页：统计概览与知识库卡片列表
 type StatusFilter = number | 'all';
+
+/** 可绑定到知识库的策略类型（三件套；检索不绑 KB，走索引版本的默认检索规则） */
+const BINDABLE_STRATEGY_TYPES = STRATEGY_BINDING_TYPES;
 
 const route = useRoute();
 const router = useRouter();
@@ -289,13 +334,37 @@ const submitting = ref(false);
 const editingId = ref<string | null>(null);
 const dialogFormRef = ref<FormInstance>();
 
+/**
+ * 对话框表单。
+ *
+ * <p>`strategyVersions` 按策略类型存所选版本 ID（三件套）。
+ * 「开关开着但还没绑」是允许的中间态：建库时先决定要不要绑定，
+ * 具体绑哪个版本要等评测出结果，所以这里初值可空，只在保存时校验完整性。
+ */
 const dialogForm = reactive({
   name: '',
   description: '',
   strategyBindingEnabled: 1,
+  strategyVersions: {
+    PREPROCESS: '',
+    CHUNK: '',
+    EMBED: '',
+  },
 });
 
+/** 启用中的策略版本，按类型分组（下拉选项用） */
+const strategyVersions = ref<StrategyVersion[]>([]);
+const strategyLoading = ref(false);
+
 const isEdit = computed(() => editingId.value !== null);
+
+/**
+ * 是否已选择「绑定」。
+ *
+ * <p>驱动三件套选择器的禁用态与保存校验。模板与提交都要用，所以提成计算属性，
+ * 不在两处各写一遍 `=== 1`。
+ */
+const bindingEnabled = computed(() => dialogForm.strategyBindingEnabled === 1);
 
 const dialogRules: FormRules = {
   name: [
@@ -305,9 +374,49 @@ const dialogRules: FormRules = {
   description: [{ max: 512, message: '业务场景说明最长 512 字符', trigger: 'blur' }],
 };
 
+/** 某类型下可选的启用中版本 */
+function strategyOptions(type: string): StrategyVersion[] {
+  return strategyVersions.value.filter((item) => item.type === type);
+}
+
+/** 下拉选项文案：名称 + 版本号（同名多版本时靠版本号区分） */
+function strategyOptionLabel(version: StrategyVersion): string {
+  return `${version.name}-${version.version}`;
+}
+
+/**
+ * 拉取启用中的策略版本（三件套）。
+ *
+ * <p>列表接口按单个 `type` 查询，所以按类型并发三次。只取启用中的：
+ * 后端绑定接口会拒绝已停用版本，列出来也选不了。
+ * 已加载过就跳过，避免每次开弹窗都请求。
+ */
+async function loadStrategyVersions(): Promise<void> {
+  if (strategyVersions.value.length > 0 || strategyLoading.value) {
+    return;
+  }
+  strategyLoading.value = true;
+  try {
+    const groups = await Promise.all(
+      BINDABLE_STRATEGY_TYPES.map((type) => getStrategyVersions(type, false)),
+    );
+    strategyVersions.value = groups.flat();
+  } catch {
+    strategyVersions.value = [];
+  } finally {
+    strategyLoading.value = false;
+  }
+}
+
 function openCreate(): void {
   editingId.value = null;
-  Object.assign(dialogForm, { name: '', description: '', strategyBindingEnabled: 1 });
+  Object.assign(dialogForm, {
+    name: '',
+    description: '',
+    strategyBindingEnabled: 1,
+    strategyVersions: { PREPROCESS: '', CHUNK: '', EMBED: '' },
+  });
+  void loadStrategyVersions();
   dialogVisible.value = true;
 }
 
@@ -318,7 +427,9 @@ async function openEdit(kb: KnowledgeBase): Promise<void> {
     description: kb.description ?? '',
     // 列表已带该字段，先用快照填表避免弹窗空一下
     strategyBindingEnabled: kb.strategyBindingEnabled ?? 1,
+    strategyVersions: { PREPROCESS: '', CHUNK: '', EMBED: '' },
   });
+  void loadStrategyVersions();
   dialogVisible.value = true;
   try {
     // 再取一次详情：列表快照可能已被他人改动，避免用陈旧值覆盖
@@ -327,15 +438,44 @@ async function openEdit(kb: KnowledgeBase): Promise<void> {
       name: detail.name,
       description: detail.description ?? '',
       strategyBindingEnabled: detail.strategyBindingEnabled ?? 1,
+      // 详情已带三件套的绑定（含 ID 与显示名），直接回填
+      strategyVersions: {
+        PREPROCESS: detail.preprocessStrategyVersionId ?? '',
+        CHUNK: detail.chunkStrategyVersionId ?? '',
+        EMBED: detail.embedStrategyVersionId ?? '',
+      },
     });
   } catch {
     // 详情取失败时保留列表快照；失败提示已由接口层统一处理
   }
 }
 
+/**
+ * 保存：基础字段（含策略绑定开关）与三件套绑定分两步提交。
+ *
+ * <p>为什么是两步：**开关与绑定是两个决定**。建库时先决定"这库要不要走绑定策略"，
+ * 具体绑哪个版本要等评测出策略组合的结果，所以 `update` 只改开关；
+ * 三件套在开关开启时随本次保存一起提交（用户既然填了，就一次落库）。
+ *
+ * <p>开关开启时必须三件套齐全 —— 这是本表单的完整性要求，不是禁止"开了开关还没绑"：
+ * 没想好就先关开关，或先开着开关但不打开这个对话框保存。
+ */
 async function handleSubmit(): Promise<void> {
   const valid = await dialogFormRef.value?.validate().catch(() => false);
   if (!valid) {
+    return;
+  }
+  // 选「绑定」时要求三件套都有值：未填全就拦下，不给后端制造半套绑定
+  const bindItems = BINDABLE_STRATEGY_TYPES.map((type) => ({
+    strategyType: type,
+    strategyVersionId: dialogForm.strategyVersions[type],
+  }));
+  if (bindingEnabled.value && bindItems.some((item) => !item.strategyVersionId)) {
+    const missing = bindItems
+      .filter((item) => !item.strategyVersionId)
+      .map((item) => strategyTypeLabel(item.strategyType))
+      .join(' / ');
+    ElMessage.warning(`已选择绑定策略，请为「${missing}」选择版本`);
     return;
   }
   submitting.value = true;
@@ -345,14 +485,18 @@ async function handleSubmit(): Promise<void> {
       description: dialogForm.description.trim() || undefined,
       strategyBindingEnabled: dialogForm.strategyBindingEnabled,
     };
+    let kbId = editingId.value ?? '';
     if (isEdit.value) {
-      const id = editingId.value ?? '';
-      await updateKnowledgeBase(id, { ...payload, id });
-      ElMessage.success('保存成功');
+      await updateKnowledgeBase(kbId, { ...payload, id: kbId });
     } else {
-      await addKnowledgeBase(payload);
-      ElMessage.success('创建成功');
+      // 创建接口直接返回新库 ID（字符串）
+      kbId = await addKnowledgeBase(payload);
     }
+    // 选「绑定」时提交整套绑定（后端要求给全三件套，少一项会 40001）
+    if (bindingEnabled.value && kbId) {
+      await updateStrategyBindings(kbId, bindItems);
+    }
+    ElMessage.success(isEdit.value ? '保存成功' : '创建成功');
     dialogVisible.value = false;
     // 新建后回到第一页：列表按 id 倒序，新库在第一页
     if (!isEdit.value) {
@@ -698,6 +842,13 @@ function applyEntryAction(): void {
   margin: 0;
 }
 
+/* 空态里指向虚线卡的提示：比正文弱一档，不抢主文案 */
+.kb-empty-hint {
+  margin: -6px 0 0;
+  color: var(--kb-text-4);
+  font-size: 12px;
+}
+
 .kb-panel-foot {
   display: flex;
   flex: none;
@@ -713,5 +864,24 @@ function applyEntryAction(): void {
   display: flex;
   gap: 12px;
   align-items: center;
+}
+
+/* ==================== 对话框：策略绑定三件套 ==================== */
+
+/*
+ * 「不绑定」时三件套选择器保持可见但禁用它 —— 用户能看到有哪些项要选，
+ * 弹窗高度也不随开关切换而跳动（这正是不用 v-if 显隐的原因）。
+ * 禁用态的视觉（灰底、not-allowed、不可聚焦）由 Element Plus 自带样式负责，
+ * 这里只需撑满宽度。
+ */
+.kb-binding-select {
+  width: 100%;
+}
+
+/* 该类型没有启用中的版本：给出可操作的下一步，而不是让用户对着空下拉发呆 */
+.kb-binding-empty {
+  color: var(--kb-warn);
+  font-size: 11px;
+  line-height: 1.5;
 }
 </style>
