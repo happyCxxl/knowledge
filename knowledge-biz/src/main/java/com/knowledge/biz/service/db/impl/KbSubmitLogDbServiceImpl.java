@@ -35,4 +35,12 @@ public class KbSubmitLogDbServiceImpl extends InfraDbServiceImpl<KbSubmitLogMapp
                 .orderByDesc(KbSubmitLog::getId);
         return page(new Page<>(current, size), queryWrapper);
     }
+
+    @Override
+    public IPage<KbSubmitLog> pageRecent(long current, long size) {
+        LambdaQueryWrapper<KbSubmitLog> queryWrapper = new LambdaQueryWrapper<>();
+        // 跨库：不加 knowledge_base_id 条件（传 null 会变成 = NULL 恒不成立）
+        queryWrapper.orderByDesc(KbSubmitLog::getId);
+        return page(new Page<>(current, size), queryWrapper);
+    }
 }

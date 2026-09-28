@@ -30,4 +30,16 @@ public interface KbSubmitLogDbService extends InfraDbService<KbSubmitLog> {
      * @return 提交日志分页
      */
     IPage<KbSubmitLog> pageByKb(long current, long size, Long knowledgeBaseId, String status, String fileName);
+
+    /**
+     * 全库最近提交（id 倒序，新→旧）—— 首页「最近提交」用。
+     *
+     * <p>不复用 {@link #pageByKb}：那条按 `knowledge_base_id = ?` 精确匹配，
+     * 传 null 会生成 `= NULL` 恒不成立（不是"不过滤"），拿不到跨库结果。
+     *
+     * @param current 当前页，从 1 开始
+     * @param size    每页条数
+     * @return 提交日志分页
+     */
+    IPage<KbSubmitLog> pageRecent(long current, long size);
 }
