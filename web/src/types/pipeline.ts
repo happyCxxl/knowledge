@@ -284,6 +284,14 @@ export type NodePositionStore = Map<string, Map<string, NodePosition>>;
 
 /** 知识库-策略绑定（后端 StrategyBindingVO；未绑定时只有 strategyType） */
 export interface StrategyBinding {
+  /**
+   * 知识库 ID。
+   *
+   * <p>**单体查询**（`GET /knowledge-base/{id}/strategy-binding`）时为 null ——
+   * 库 ID 由请求路径给出，返回里不重复；**批量查询**
+   * （`GET /knowledge-base/strategy-bindings`）时必有值，是区分各行的标识。
+   */
+  knowledgeBaseId: string | null;
   strategyType: string;
   strategyVersionId: string | null;
   strategyName: string | null;

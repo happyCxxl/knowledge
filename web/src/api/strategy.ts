@@ -85,8 +85,8 @@ export async function deleteStrategyVersion(id: string): Promise<boolean> {
 /**
  * 查询某知识库在某类型的策略绑定；未绑定时只有 strategyType、其余字段为 null。
  *
- * <p>用 GET 而不是列表接口：策略管理页要展示的是「这个版本被谁绑了」，
- * 而绑定是知识库维度的，只能按知识库逐个查。
+ * <p>**只在"确实只关心一个库"时用它。** 若要回答「这个版本被哪些库绑了」，
+ * 用 {@link getStrategyBindings}（批量）—— 否则要对每个库发一次请求（N+1）。
  */
 export async function getStrategyBinding(
   knowledgeBaseId: string,
@@ -96,6 +96,22 @@ export async function getStrategyBinding(
     `/knowledge-base/${knowledgeBaseId}/strategy-binding`,
     { params: { strategyType } },
   );
+  return response.data;
+}
+
+/**
+ * 批量查询某策略类型下**所有已绑定的知识库**（一次请求）。
+ *
+ * <p>解决的问题：绑定按知识库维度存储，而"某策略版本被哪些库绑了"是反方向的问题 ——
+ * 只提供按库查的接口时，前端只能对每个库发一次请求（实测 3 个库切一次策略 tab 就是 3 次，
+ * 且随知识库数量线性增长）。后端用一条 SQL 取回该类型下的全部绑定行。
+ *
+ * <p>返回的每一项都带 `knowledgeBaseId`，可直接与策略版本 ID 比对得出"哪些库绑了它"。
+ */
+export async function getStrategyBindings(strategyType: string): Promise<StrategyBinding[]> {
+  const response = await http.get<StrategyBinding[]>('/knowledge-base/strategy-bindings', {
+    params: { strategyType },
+  });
   return response.data;
 }
 

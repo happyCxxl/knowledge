@@ -235,7 +235,7 @@ import { useRoute, useRouter } from 'vue-router';
 import {
   addStrategyVersion,
   deleteStrategyVersion,
-  getStrategyBinding,
+  getStrategyBindings,
   getStrategyVersions,
   updateStrategyBinding,
   updateStrategyVersion,
@@ -690,7 +690,18 @@ async function removeVersion(): Promise<void> {
 // 知识库绑定
 // ============================================================
 
-/** 绑定是知识库维度的：要判断"这个版本被谁绑了"，得逐个知识库查 */
+/**
+ * 加载知识库绑定：**一次请求**取回该策略类型下所有已绑定的库。
+ *
+ * <p>此前是 N+1：绑定按知识库维度存储，而这里要回答的是反方向的问题
+ * （"这个策略版本被哪些库绑了"），于是对每个知识库各发一次
+ * `GET /knowledge-base/{id}/strategy-binding` —— 实测 3 个库切一次 tab 就是 3 次请求，
+ * 且随知识库数量线性增长。改用批量接口 `GET /knowledge-base/strategy-bindings?strategyType=`，
+ * 后端一条 SQL 返回全部绑定行（每行带 knowledgeBaseId）。
+ *
+ * <p>`knowledgeBases` 仍要拉一次：右栏的绑定列表需要**所有**库（包括未绑定的，
+ * 它们要显示「绑定此策略」按钮），而批量接口只返回已绑定的。
+ */
 async function loadBinding(): Promise<void> {
   if (!bindingSupported.value || !selected.value) {
     boundKbIds.value = new Set();
@@ -698,22 +709,27 @@ async function loadBinding(): Promise<void> {
   }
   bindingLoading.value = true;
   try {
-    if (knowledgeBases.value.length === 0) {
-      const page = await getKnowledgeBasePage({ current: 1, size: LIST_SIZE });
-      knowledgeBases.value = page.records.map((item) => ({ id: item.id, name: item.name }));
+    const kbPromise =
+      knowledgeBases.value.length === 0
+        ? getKnowledgeBasePage({ current: 1, size: LIST_SIZE }).then((page) =>
+            page.records.map((item) => ({ id: item.id, name: item.name })),
+          )
+        : Promise.resolve(null);
+    // 两个请求互不依赖，并发发出
+    const [kbList, bindings] = await Promise.all([
+      kbPromise,
+      getStrategyBindings(activeType.value),
+    ]);
+    if (kbList) {
+      knowledgeBases.value = kbList;
     }
     const target = selected.value.id;
-    const pairs = await Promise.all(
-      knowledgeBases.value.map(async (kb) => {
-        try {
-          const binding = await getStrategyBinding(kb.id, activeType.value);
-          return binding.strategyVersionId === target ? kb.id : null;
-        } catch {
-          return null; // 单个知识库查询失败不影响其余
-        }
-      }),
+    boundKbIds.value = new Set(
+      bindings
+        .filter((item) => item.strategyVersionId === target)
+        .map((item) => item.knowledgeBaseId)
+        .filter((id): id is string => Boolean(id)),
     );
-    boundKbIds.value = new Set(pairs.filter((id): id is string => id !== null));
   } catch {
     boundKbIds.value = new Set();
   } finally {

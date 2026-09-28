@@ -223,3 +223,57 @@
   color: var(--kb-text-3);
   font-size: 11px;
 }
+
+/*
+ * ============================ 滚动条 ============================
+ *
+ * 全站此前**没有任何滚动条定制**，一律用浏览器默认 —— 在暗色界面（--kb-bg-0 #070b14）
+ * 上是一条系统浅灰宽条，是本项目里最突兀的一处"非设计产物"（用户提出）。
+ *
+ * 方案（用户选定 E · 青绿细条 + 常驻淡轨）：
+ * - 轨道：4% 白**常驻**，给"这里可以滚"的边界感 —— 完全透明的轨道看不出可滚范围；
+ * - 滑块：品牌青绿压到 40%（不刺眼），悬停升到 75%（拖动时反馈明确）；
+ * - 宽度 8px：实测默认滚动条占 17px，收细后内容区多出约 5px。
+ *
+ * <p>**两套语法都要写**，各浏览器各取所需：
+ * <ul>
+ *   <li>`scrollbar-width` / `scrollbar-color` 是标准属性（Firefox 认）；</li>
+ *   <li>`::-webkit-scrollbar` 系列只对 Chromium / Safari 生效。</li>
+ * </ul>
+ * 在 Chromium 里一旦设置了 `::-webkit-scrollbar`，`scrollbar-width` 会被忽略 ——
+ * 所以两者取值保持一致，不必纠结谁赢。
+ *
+ * <p>用 `*` 通配而不是逐容器写：全站可滚容器已有 6 处且会继续增加，
+ * 逐个加样式必然会漏（本项目已有过"删样式没查引用"的教训）。
+ *
+ * <p>**副作用（已知并接受）**：设置 `::-webkit-scrollbar` 会让滚动条**常驻占位**
+ * （不再像原生覆盖式那样自动隐藏），在 `overflow: auto` 的容器里会一直占 8px。
+ * 这是"细轨常驻"方案的固有代价，换来的是"可滚范围始终可见"。
+ */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(52 211 153 / 40%) rgb(255 255 255 / 4%);
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: rgb(255 255 255 / 4%);
+}
+
+*::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgb(52 211 153 / 40%);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: rgb(52 211 153 / 75%);
+}
+
+/* 滚动条交汇处的小方块：不写会露出系统色，与整体不搭 */
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
