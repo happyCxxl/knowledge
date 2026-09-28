@@ -1,16 +1,16 @@
 <template>
-  <div class="user-page">
-    <div class="user-page-head">
+  <div class="page">
+    <div class="page-head">
       <div class="user-page-title-wrap">
-        <h1 class="user-page-title">用户管理</h1>
-        <p class="user-page-desc">维护平台账号与角色，支持按用户名、角色、状态筛选</p>
+        <h1 class="page-title">用户管理</h1>
+        <p class="page-desc">维护平台账号与角色，支持按用户名、角色、状态筛选</p>
       </div>
-      <div class="user-actions">
+      <div class="page-actions">
         <el-button class="user-btn-primary" @click="openCreate">新增用户</el-button>
       </div>
     </div>
 
-    <div class="user-panel">
+    <div class="page-panel">
       <!-- 筛选栏：搜索与筛选集中一处，与表体、分页同属一个面板 -->
       <div class="user-filter-bar">
         <el-input
@@ -113,7 +113,7 @@
         </el-table>
       </div>
 
-      <div class="user-panel-foot">
+      <div class="page-panel-foot">
         <span>每页 {{ query.size }} 条</span>
         <el-pagination
           class="user-pager"
@@ -406,39 +406,11 @@ onMounted(() => {
 </script>
 
 <style scoped lang="css">
-.user-page {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-
-  /* 固定高度：等于「视口 - 顶栏(62px) - 内容区上下内边距(26+40)」，不随记录数变化 */
-  height: calc(100vh - 128px);
-  min-height: 420px;
-}
-
-.user-page-head {
-  display: flex;
-  flex: none;
-  align-items: flex-end;
-  justify-content: space-between;
-}
-
-.user-page-title {
-  margin: 0;
-  font-size: 22px;
-  font-weight: 650;
-}
-
-.user-page-desc {
-  margin: 6px 0 0;
-  color: var(--kb-text-3);
-  font-size: 13px;
-}
-
-.user-actions {
-  display: flex;
-  gap: 10px;
-}
+/*
+ * 页面骨架全部来自全局 styles/page-shell.css（根元素直接用 .page，含 gap/高度约束，
+ * 不在这里重写 —— 重写会出现"外层高度不定 + 内层面板要 flex:1"的矛盾）。
+ * 本页只保留业务样式。
+ */
 
 /* 筛选栏：搜索 + 角色 + 状态 + 查询/重置 + 刷新 + 计数，同属面板顶部一行 */
 .user-filter-bar {
@@ -485,19 +457,6 @@ onMounted(() => {
   filter: brightness(1.08);
 }
 
-.user-panel {
-  display: flex;
-
-  /* 占满剩余高度；min-height:0 让内部滚动区能正确收缩而不撑破容器 */
-  flex: 1;
-  flex-direction: column;
-  min-height: 0;
-  overflow: hidden;
-  border: 1px solid var(--kb-line);
-  border-radius: var(--kb-radius);
-  background: linear-gradient(180deg, rgb(255 255 255 / 3%), rgb(255 255 255 / 1.2%));
-}
-
 .user-refresh {
   display: grid;
   width: 30px;
@@ -542,17 +501,6 @@ onMounted(() => {
 
 .user-empty {
   padding: 44px 0;
-  color: var(--kb-text-3);
-  font-size: 13px;
-}
-
-.user-panel-foot {
-  display: flex;
-  flex: none;
-  align-items: center;
-  justify-content: space-between;
-  padding: 13px 18px;
-  border-top: 1px solid var(--kb-line);
   color: var(--kb-text-3);
   font-size: 13px;
 }

@@ -1,27 +1,32 @@
 <template>
-  <div class="home">
-    <!-- 欢迎 + 轻量入口：三个入口不再占大块版面 -->
-    <div class="home-hd">
-      <h1 class="home-hi">你好，{{ username }}</h1>
-      <span class="home-spacer"></span>
+  <div class="page home">
+    <div class="page-head">
+      <div>
+        <h1 class="page-title">你好，{{ username }}</h1>
+        <p class="page-desc">平台资产概览，以及最近的文件提交与管理操作</p>
+      </div>
     </div>
 
-    <!-- 资产：放最上面，一行带；细分区给"现在能用什么"，而不是库存总数 -->
-    <div class="home-strip">
-      <div class="home-cell">
-        <span class="home-cell-k">知识库</span>
-        <span class="home-cell-v">{{ summaryText.knowledgeBaseCount }}</span>
-        <span class="home-cell-sub">启用 {{ summaryText.enabledKnowledgeBaseCount }}</span>
+    <!--
+      资产带：用共用的 .page-assets（竖排 标签/数值/副文案），而不是 .page-stats ——
+      这里除了数值还有"细分说明"（可用策略要拆成预处理/切片/向量化/检索），
+      与列表页顶部那种"就是一个数"的横排指标不是同一层级。
+    -->
+    <div class="page-assets">
+      <div class="page-asset">
+        <span class="page-asset-k">知识库</span>
+        <span class="page-asset-v">{{ summaryText.knowledgeBaseCount }}</span>
+        <span class="page-asset-sub">启用 {{ summaryText.enabledKnowledgeBaseCount }}</span>
       </div>
-      <div class="home-cell">
-        <span class="home-cell-k">文档</span>
-        <span class="home-cell-v">{{ summaryText.documentCount }}</span>
-        <span class="home-cell-sub">提交总数</span>
+      <div class="page-asset">
+        <span class="page-asset-k">文档</span>
+        <span class="page-asset-v">{{ summaryText.documentCount }}</span>
+        <span class="page-asset-sub">提交总数</span>
       </div>
-      <div class="home-cell">
-        <span class="home-cell-k">可用策略</span>
-        <span class="home-cell-v">{{ summaryText.strategyVersionCount }}</span>
-        <span class="home-cell-sub">
+      <div class="page-asset">
+        <span class="page-asset-k">可用策略</span>
+        <span class="page-asset-v">{{ summaryText.strategyVersionCount }}</span>
+        <span class="page-asset-sub">
           预处理 {{ summaryText.preprocessVersionCount }} · 切片
           {{ summaryText.chunkVersionCount }} · 向量化 {{ summaryText.embedVersionCount }} · 检索
           {{ summaryText.retrievalVersionCount }}
@@ -32,7 +37,7 @@
     <!-- 最近提交：文件提交（日常操作），与下面的管理动作互补 -->
     <div class="home-sec">
       <span class="home-sec-title">最近提交</span>
-      <span class="home-spacer"></span>
+      <span class="page-spacer"></span>
       <el-pagination
         v-model:current-page="submitQuery.current"
         class="home-pager"
@@ -103,7 +108,7 @@
     <!-- 行为记录：管理员动作（kb_audit_log），不含文件提交 -->
     <div class="home-sec home-sec-gap">
       <span class="home-sec-title">行为记录</span>
-      <span class="home-spacer"></span>
+      <span class="page-spacer"></span>
       <el-pagination
         v-model:current-page="activityQuery.current"
         class="home-pager"
@@ -225,7 +230,7 @@ const TABLE_ROW_HEIGHT = 42;
 const TABLE_PAGE_SIZE = 5;
 
 /**
- * 两张列表的固定高度（px）= 表头 40 + 5 行 × 42 = 250。
+ * 两张列表的固定高度（px）= 表头 40 + 页长 × 42。
  *
  * <p>由 {@link TABLE_PAGE_SIZE} 与行高算出，**三者必须一起改**：
  * 高度小于「表头 + 页长 × 行高」会切出内部滚动条，大于则会多出一条空行。
@@ -376,70 +381,37 @@ onMounted(() => {
 </script>
 
 <style scoped lang="css">
+/*
+ * 页面骨架来自全局 styles/page-shell.css：
+ *   .page-head / .page-title / .page-desc  头部
+ *   .page-assets / .page-asset*            资产带（竖排 标签/数值/副文案）
+ * 本页只保留业务样式。原先各写一套的 .home-hd / .home-hi / .home-strip / .home-cell*
+ * 已删除 —— 那是"头部 19px + 自造资产带"，与列表页的 22px 头部不一致（实测过）。
+ *
+ * <p>**首页不套用 `.page` 的固定高度**（列表页才需要"一屏装下、内部滚动"）：
+ * 它纵向内容天然比一屏长 —— 两张表各 5 行共 500px，加头部/资产带/间距合计约 795px，
+ * 而桌面可用只有 777px。硬套固定高度会把两个 .home-table-body 用 flex 压缩
+ * （250px → 212px），内部 el-table 装不下就冒出滚动条 —— 实测正是这么出现的。
+ *
+ * <p>改为自然高度后，**整页由 `.layout-content` 的 `overflow: hidden` 裁切** ——
+ * 用户明确要求「整页不允许滚动」，所以只能把内容压进一屏：
+ * 本页 gap 压到 10px（共用层 18px 对首页偏大）、资产带内边距压到 10px、
+ * 区块标题与表格的间距压到 6px、块间额外间距压到 2px。
+ * **这几项加起来是挤出约 30px 换回"每表 5 行"**，改动这里要重新核对一屏能否装下。
+ */
 .home {
-  display: flex;
-  flex-direction: column;
+  flex: none;
+  height: auto;
+  gap: 10px;
+  min-height: 0;
 }
 
-.home-spacer {
-  flex: 1;
-}
-
-/* ==================== 头部 ==================== */
-.home-hd {
-  display: flex;
-  gap: 7px;
-  align-items: center;
-  margin-bottom: 20px;
-}
-
-.home-hi {
-  margin: 0;
-  font-size: 19px;
-  font-weight: 650;
-  letter-spacing: -0.01em;
-}
-
-/* ==================== 资产带 ==================== */
-.home-strip {
-  display: grid;
-  gap: 0;
-  margin-bottom: 26px;
-  border: 1px solid var(--kb-line);
-  border-radius: 11px;
-  background: linear-gradient(180deg, rgb(255 255 255 / 3.5%), rgb(255 255 255 / 1%));
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.home-cell {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  padding: 13px 16px;
-  border-right: 1px solid var(--kb-line);
-}
-
-.home-cell:last-child {
-  border-right: none;
-}
-
-.home-cell-k {
-  color: var(--kb-text-3);
-  font-size: 11px;
-}
-
-.home-cell-v {
-  font-family: ui-monospace, 'JetBrains Mono', Consolas, monospace;
-  font-size: 21px;
-  font-weight: 700;
-  line-height: 1;
-  letter-spacing: -0.02em;
-}
-
-.home-cell-sub {
-  color: var(--kb-text-4);
-  font-size: 11px;
-  line-height: 1.5;
+/*
+ * 资产带内边距收紧（14px → 10px）：首页纵向最紧，而它是纯展示块，
+ * 收内边距不影响识别。只在本页覆盖，不动共用层的默认值。
+ */
+.home .page-asset {
+  padding: 10px 18px;
 }
 
 /* ==================== 区块标题 ==================== */
@@ -447,12 +419,23 @@ onMounted(() => {
   display: flex;
   gap: 9px;
   align-items: center;
-  margin-bottom: 11px;
+
+  /*
+   * 标题与它下面那张表的距离，就是这里的 margin-bottom（用户要求"减少标题与表格的距离"）。
+   * 从 11px 收到 6px：标题本身已经与表头有视觉区分（字号/颜色都不同），不需要那么多留白。
+   */
+  margin-bottom: 6px;
 }
 
-/* 第二块与第一块列表拉开距离 */
+/*
+ * 第二块（行为记录）与第一块表格之间的距离。
+ *
+ * <p>用户要求"减少最近提交与下方表格的距离" —— 原先是 26px 的额外 margin，
+ * 叠在 .home 的 gap(12px) 之上共 38px，对两块并列内容过重。
+ * 收到 2px（合计 14px）：块与块仍有区分，但不至于断开。
+ */
 .home-sec-gap {
-  margin-top: 26px;
+  margin-top: 2px;
 }
 
 .home-sec-title {
@@ -505,6 +488,12 @@ onMounted(() => {
 
 /* 固定高度的外层：el-table 用 height="100%" 撑满，翻页时表格不重建、高度也不变 */
 .home-table-body {
+  /*
+   * flex: none 不能省：高度由模板内联给出（TABLE_HEIGHT = 表头 + 页长 × 行高），
+   * 但 flex 项默认 flex-shrink:1 —— 父容器变矮时**内联 height 会被压缩**，
+   * 而内部的 el-table 装不下就冒出滚动条（实测被压到 212px 时正是这个现象）。
+   */
+  flex: none;
   overflow: hidden;
   border-radius: 11px;
 }

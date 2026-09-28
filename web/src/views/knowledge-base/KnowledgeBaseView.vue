@@ -1,21 +1,21 @@
 <template>
-  <div class="kb-page">
-    <div class="kb-page-head">
+  <div class="page">
+    <div class="page-head">
       <div class="kb-page-title-wrap">
-        <h1 class="kb-page-title">知识库</h1>
-        <p class="kb-page-desc">管理你的知识库与文档资产，查看构建与运行状态</p>
+        <h1 class="page-title">知识库</h1>
+        <p class="page-desc">管理你的知识库与文档资产，查看构建与运行状态</p>
       </div>
-      <div class="kb-actions">
+      <div class="page-actions">
         <el-button class="kb-btn-ghost" plain @click="openImport()">导入文档</el-button>
       </div>
     </div>
-    <div class="kb-stats">
-      <div v-for="item in statItems" :key="item.label" class="kb-stat">
-        <span class="kb-stat-num">{{ item.value }}</span>
-        <span class="kb-stat-label">{{ item.label }}</span>
+    <div class="page-stats">
+      <div v-for="item in statItems" :key="item.label" class="page-stat">
+        <span class="page-stat-num">{{ item.value }}</span>
+        <span class="page-stat-label">{{ item.label }}</span>
       </div>
     </div>
-    <div class="kb-panel">
+    <div class="page-panel">
       <div class="kb-filter-bar">
         <el-input
           v-model="keyword"
@@ -92,7 +92,7 @@
           清除筛选
         </el-button>
       </div>
-      <div class="kb-panel-foot">
+      <div class="page-panel-foot">
         <span>共 {{ total }} 个知识库</span>
         <div class="kb-panel-foot-right">
           <el-select v-model="query.size" class="kb-size-select" @change="handleSizeChange">
@@ -572,40 +572,11 @@ function applyEntryAction(): void {
 </script>
 
 <style scoped lang="css">
-.kb-page {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-
-  /* 固定高度：等于「视口 - 顶栏(62px) - 内容区上下内边距(26+40)」，不随卡片数量变化 */
-  height: calc(100vh - 128px);
-  min-height: 420px;
-}
-
-.kb-page-head {
-  display: flex;
-  flex: none;
-  align-items: flex-end;
-  justify-content: space-between;
-}
-
-.kb-page-title {
-  margin: 0;
-  font-size: 22px;
-  font-weight: 650;
-}
-
-.kb-page-desc {
-  margin: 6px 0 0;
-  color: var(--kb-text-3);
-  font-size: 13px;
-}
-
-.kb-actions {
-  display: flex;
-  gap: 10px;
-}
-
+/*
+ * 页面骨架全部来自全局 styles/page-shell.css（根元素直接用 .page，含 gap/高度约束，
+ * 不在这里重写 —— 重写会出现"外层高度不定 + 内层面板要 flex:1"的矛盾，
+ * 面板内部的滚动区就拿不到确定高度）。本页只保留业务样式。
+ */
 .kb-btn-ghost {
   border-color: var(--kb-line-strong);
   background: rgb(255 255 255 / 4%);
@@ -625,52 +596,6 @@ function applyEntryAction(): void {
   box-shadow: 0 8px 28px var(--kb-glow);
   color: var(--kb-btn-text);
   filter: brightness(1.08);
-}
-
-.kb-stats {
-  display: flex;
-  flex: none;
-  align-items: baseline;
-  padding: 6px 2px;
-}
-
-.kb-stat {
-  display: flex;
-  gap: 10px;
-  align-items: baseline;
-  padding: 0 30px;
-}
-
-.kb-stat:first-child {
-  padding-left: 0;
-}
-
-.kb-stat + .kb-stat {
-  border-left: 1px solid var(--kb-line);
-}
-
-.kb-stat-num {
-  font-family: ui-monospace, 'JetBrains Mono', Consolas, monospace;
-  font-size: 24px;
-  font-weight: 650;
-}
-
-.kb-stat-label {
-  color: var(--kb-text-3);
-  font-size: 13px;
-}
-
-.kb-panel {
-  display: flex;
-
-  /* 占满剩余高度；min-height:0 让内部滚动区能正确收缩而不撑破容器 */
-  flex: 1;
-  flex-direction: column;
-  min-height: 0;
-  overflow: hidden;
-  border: 1px solid var(--kb-line);
-  border-radius: var(--kb-radius);
-  background: linear-gradient(180deg, rgb(255 255 255 / 3%), rgb(255 255 255 / 1.2%));
 }
 
 /* 筛选栏：搜索 + 状态芯片 + 排序 + 查询/清除 + 刷新 + 计数，同属面板顶部一行 */
@@ -853,17 +778,6 @@ function applyEntryAction(): void {
   margin: -6px 0 0;
   color: var(--kb-text-4);
   font-size: 12px;
-}
-
-.kb-panel-foot {
-  display: flex;
-  flex: none;
-  align-items: center;
-  justify-content: space-between;
-  padding: 13px 18px;
-  border-top: 1px solid var(--kb-line);
-  color: var(--kb-text-3);
-  font-size: 13px;
 }
 
 .kb-panel-foot-right {

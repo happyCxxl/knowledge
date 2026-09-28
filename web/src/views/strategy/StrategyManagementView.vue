@@ -1,200 +1,214 @@
 <template>
-  <div class="stg-page">
-    <div class="stg-topbar">
-      <span class="stg-topbar-title">策略管理</span>
-      <span class="stg-topbar-sub">{{ topbarSummary }}</span>
-      <span class="stg-spacer"></span>
-      <el-button size="small" @click="toggleShowInactive">
-        {{ showInactive ? '隐藏已停用' : '显示已停用' }}
-      </el-button>
-      <el-button size="small" type="primary" @click="openCreate">+ 新建策略</el-button>
+  <div class="page">
+    <div class="page-head">
+      <div>
+        <h1 class="page-title">策略管理</h1>
+        <p class="page-desc">管理预处理 / 切片 / 向量化 / 检索策略的版本与知识库绑定</p>
+      </div>
+      <div class="page-actions">
+        <el-button size="small" @click="toggleShowInactive">
+          {{ showInactive ? '隐藏已停用' : '显示已停用' }}
+        </el-button>
+        <el-button size="small" type="primary" @click="openCreate">+ 新建策略</el-button>
+      </div>
     </div>
 
-    <div class="stg-body">
-      <!-- ==================== 左：类型 + 策略族 + 版本 ==================== -->
-      <aside class="stg-rail">
-        <div class="stg-rail-types">
-          <button
-            v-for="type in STRATEGY_TYPES"
-            :key="type"
-            class="stg-type-btn"
-            :class="{ 'is-on': type === activeType }"
-            @click="switchType(type)"
-          >
-            {{ STRATEGY_TYPE_SHORT_LABELS[type] }}
-          </button>
-        </div>
-
-        <div class="stg-rail-body">
-          <div v-if="loading" class="stg-rail-empty">加载中…</div>
-          <div v-else-if="families.length === 0" class="stg-rail-empty">
-            该类型还没有策略{{ showInactive ? '' : '（可能有已停用的，试试「显示已停用」）' }}
+    <!--
+      两栏工作台装进 .page-panel：与知识库的卡片区、用户管理的表格区是同一层容器，
+      不再是"全宽平铺 + 自造顶栏"（那种写法会让内容左缘比其它页多出 22px）。
+    -->
+    <div class="page-panel">
+      <div class="stg-body">
+        <!-- ==================== 左：类型 + 策略族 + 版本 ==================== -->
+        <aside class="stg-rail">
+          <div class="stg-rail-types">
+            <button
+              v-for="type in STRATEGY_TYPES"
+              :key="type"
+              class="stg-type-btn"
+              :class="{ 'is-on': type === activeType }"
+              @click="switchType(type)"
+            >
+              {{ STRATEGY_TYPE_SHORT_LABELS[type] }}
+            </button>
           </div>
 
-          <div v-for="family in families" v-else :key="family.name" class="stg-family">
-            <button class="stg-family-head" @click="toggleFamily(family.name)">
-              <span class="stg-caret" :class="{ 'is-open': isFamilyOpen(family.name) }"></span>
-              <span class="stg-family-name">{{ family.name }}</span>
-              <span class="stg-family-dots">
-                <i
-                  v-for="item in family.versions"
-                  :key="item.id"
-                  class="stg-dot"
-                  :class="{ 'is-live': isStrategyActive(item) }"
-                ></i>
-              </span>
-            </button>
+          <div class="stg-rail-body">
+            <div v-if="loading" class="stg-rail-empty">加载中…</div>
+            <div v-else-if="families.length === 0" class="stg-rail-empty">
+              该类型还没有策略{{ showInactive ? '' : '（可能有已停用的，试试「显示已停用」）' }}
+            </div>
 
-            <div v-if="isFamilyOpen(family.name)" class="stg-family-vers">
-              <button
-                v-for="item in family.versions"
-                :key="item.id"
-                class="stg-ver"
-                :class="{ 'is-on': item.id === selectedId, 'is-off': !isStrategyActive(item) }"
-                @click="select(item)"
-              >
-                <span class="stg-ver-v">{{ item.version }}</span>
-                <span class="stg-ver-s">
-                  {{ isStrategyActive(item) ? '启用中' : '已停用' }}
-                  <template v-if="boundKbIds.has(item.id)"> · 已绑定</template>
+            <div v-for="family in families" v-else :key="family.name" class="stg-family">
+              <button class="stg-family-head" @click="toggleFamily(family.name)">
+                <span class="stg-caret" :class="{ 'is-open': isFamilyOpen(family.name) }"></span>
+                <span class="stg-family-name">{{ family.name }}</span>
+                <span class="stg-family-dots">
+                  <i
+                    v-for="item in family.versions"
+                    :key="item.id"
+                    class="stg-dot"
+                    :class="{ 'is-live': isStrategyActive(item) }"
+                  ></i>
                 </span>
               </button>
-            </div>
-          </div>
-        </div>
-      </aside>
 
-      <!-- ==================== 右：详情 / 编辑 ==================== -->
-      <section class="stg-pane">
-        <div v-if="!selected" class="stg-pane-empty">
-          <span>从左侧选择一个策略版本查看配置</span>
-          <span class="stg-pane-empty-hint">或点右上角「+ 新建策略」</span>
-        </div>
-
-        <template v-else>
-          <div class="stg-pane-top">
-            <div class="stg-pane-title">
-              <span class="stg-pane-name">
-                {{ selected.name }}
-                <span class="stg-pane-ver">{{ selected.version }}</span>
-              </span>
-              <span class="stg-tag" :class="isStrategyActive(selected) ? 'is-on' : 'is-off'">
-                <i class="stg-tag-dot"></i>{{ isStrategyActive(selected) ? '启用中' : '已停用' }}
-              </span>
-              <span class="stg-spacer"></span>
-
-              <div class="stg-pane-ops">
-                <template v-if="!editing">
-                  <el-button size="small" @click="startCopy">复制为新版本</el-button>
-                  <el-button size="small" @click="toggleActive">
-                    {{ isStrategyActive(selected) ? '停用' : '启用' }}
-                  </el-button>
-                  <el-button size="small" @click="removeVersion">删除</el-button>
-                </template>
-                <template v-else>
-                  <el-button size="small" @click="cancelEdit">取消</el-button>
-                  <el-button size="small" type="primary" :loading="saving" @click="saveVersion">
-                    保存为新版本
-                  </el-button>
-                </template>
-              </div>
-            </div>
-
-            <div class="stg-pane-meta">
-              <span class="stg-blood">
-                <span class="stg-blood-label">版本血缘</span>
-                <span v-for="(node, index) in lineageNodes" :key="node.key">
-                  <span v-if="index > 0" class="stg-blood-arrow">→</span>
-                  <span
-                    class="stg-blood-node"
-                    :class="{ 'is-on': node.current, 'is-next': node.next }"
-                  >
-                    {{ node.text }}
+              <div v-if="isFamilyOpen(family.name)" class="stg-family-vers">
+                <button
+                  v-for="item in family.versions"
+                  :key="item.id"
+                  class="stg-ver"
+                  :class="{ 'is-on': item.id === selectedId, 'is-off': !isStrategyActive(item) }"
+                  @click="select(item)"
+                >
+                  <span class="stg-ver-v">{{ item.version }}</span>
+                  <span class="stg-ver-s">
+                    {{ isStrategyActive(item) ? '启用中' : '已停用' }}
+                    <template v-if="boundKbIds.has(item.id)"> · 已绑定</template>
                   </span>
-                </span>
-              </span>
-              <span class="stg-meta-sep">|</span>
-              <span>{{ strategyTypeLabel(selected.type) }}</span>
-              <span class="stg-meta-sep">·</span>
-              <span>{{ formatTime(selected.createTime) }}</span>
-              <span class="stg-meta-sep">·</span>
-              <span class="stg-mono">id {{ selected.id }}</span>
+                </button>
+              </div>
             </div>
           </div>
+        </aside>
 
-          <div class="stg-pane-scroll">
-            <div class="stg-sec">
-              <span class="stg-sec-name">{{ editing ? '新版本配置' : '配置' }}</span>
-              <i class="stg-help" :title="STRATEGY_TYPE_DESCRIPTIONS[activeType]">?</i>
-            </div>
+        <!-- ==================== 右：详情 / 编辑 ==================== -->
+        <section class="stg-pane">
+          <div v-if="!selected" class="stg-pane-empty">
+            <span>从左侧选择一个策略版本查看配置</span>
+            <span class="stg-pane-empty-hint">或点右上角「+ 新建策略」</span>
+          </div>
 
-            <!-- 编辑态先给名称与版本号 -->
-            <div v-if="editing" class="stg-name-row">
-              <label class="stg-field">
-                <span class="stg-field-label">策略名</span>
-                <el-input v-model="draft.name" size="small" class="stg-mono-input" />
-              </label>
-              <label class="stg-field">
-                <span class="stg-field-label">版本号</span>
-                <el-input v-model="draft.version" size="small" class="stg-mono-input" />
-              </label>
-              <label class="stg-field">
-                <span class="stg-field-label">类型</span>
-                <el-input :model-value="strategyTypeLabel(activeType)" size="small" disabled />
-              </label>
-            </div>
+          <template v-else>
+            <div class="stg-pane-top">
+              <div class="stg-pane-title">
+                <span class="stg-pane-name">
+                  {{ selected.name }}
+                  <span class="stg-pane-ver">{{ selected.version }}</span>
+                </span>
+                <span class="stg-tag" :class="isStrategyActive(selected) ? 'is-on' : 'is-off'">
+                  <i class="stg-tag-dot"></i>{{ isStrategyActive(selected) ? '启用中' : '已停用' }}
+                </span>
+                <span class="page-spacer"></span>
 
-            <div v-if="configBroken" class="stg-warn">
-              该版本的配置无法解析为 JSON，可能是脏数据。保存会以空配置覆盖，请谨慎操作。
-            </div>
-
-            <PreprocessForm
-              v-if="activeType === 'PREPROCESS'"
-              v-model:config="preprocessConfig"
-              :readonly="!editing"
-            />
-            <ChunkForm
-              v-else-if="activeType === 'CHUNK'"
-              v-model:config="chunkConfig"
-              :readonly="!editing"
-            />
-            <EmbedForm
-              v-else-if="activeType === 'EMBED'"
-              v-model:config="embedConfig"
-              :readonly="!editing"
-            />
-            <RetrievalForm
-              v-else-if="activeType === 'RETRIEVAL'"
-              v-model:config="retrievalConfig"
-              :readonly="!editing"
-            />
-            <div v-else class="stg-warn">未知策略类型「{{ activeType }}」，无法编辑配置。</div>
-
-            <!-- 知识库绑定：检索类策略不参与绑定（后端口径） -->
-            <template v-if="bindingSupported">
-              <div class="stg-sec">
-                <span class="stg-sec-name">知识库绑定</span>
-                <i class="stg-help" :title="BINDING_HINT">?</i>
-                <span class="stg-spacer"></span>
-              </div>
-              <div v-if="bindingLoading" class="stg-bind-empty">加载中…</div>
-              <div v-else class="stg-binds">
-                <div v-for="kb in knowledgeBases" :key="kb.id" class="stg-bind">
-                  <i class="stg-bind-dot" :class="{ 'is-on': boundKbIds.has(kb.id) }"></i>
-                  <span class="stg-bind-name">{{ kb.name }}</span>
-                  <span class="stg-bind-state">{{
-                    boundKbIds.has(kb.id) ? '已绑定' : '未绑定'
-                  }}</span>
-                  <el-button v-if="boundKbIds.has(kb.id)" size="small" text @click="unbind(kb.id)">
-                    解绑
-                  </el-button>
-                  <el-button v-else size="small" text @click="bind(kb.id)">绑定此策略</el-button>
+                <div class="stg-pane-ops">
+                  <template v-if="!editing">
+                    <el-button size="small" @click="startCopy">复制为新版本</el-button>
+                    <el-button size="small" @click="toggleActive">
+                      {{ isStrategyActive(selected) ? '停用' : '启用' }}
+                    </el-button>
+                    <el-button size="small" @click="removeVersion">删除</el-button>
+                  </template>
+                  <template v-else>
+                    <el-button size="small" @click="cancelEdit">取消</el-button>
+                    <el-button size="small" type="primary" :loading="saving" @click="saveVersion">
+                      保存为新版本
+                    </el-button>
+                  </template>
                 </div>
               </div>
-            </template>
-          </div>
-        </template>
-      </section>
+
+              <div class="stg-pane-meta">
+                <span class="stg-blood">
+                  <span class="stg-blood-label">版本血缘</span>
+                  <span v-for="(node, index) in lineageNodes" :key="node.key">
+                    <span v-if="index > 0" class="stg-blood-arrow">→</span>
+                    <span
+                      class="stg-blood-node"
+                      :class="{ 'is-on': node.current, 'is-next': node.next }"
+                    >
+                      {{ node.text }}
+                    </span>
+                  </span>
+                </span>
+                <span class="stg-meta-sep">|</span>
+                <span>{{ strategyTypeLabel(selected.type) }}</span>
+                <span class="stg-meta-sep">·</span>
+                <span>{{ formatTime(selected.createTime) }}</span>
+                <span class="stg-meta-sep">·</span>
+                <span class="stg-mono">id {{ selected.id }}</span>
+              </div>
+            </div>
+
+            <div class="stg-pane-scroll">
+              <div class="stg-sec">
+                <span class="stg-sec-name">{{ editing ? '新版本配置' : '配置' }}</span>
+                <i class="stg-help" :title="STRATEGY_TYPE_DESCRIPTIONS[activeType]">?</i>
+              </div>
+
+              <!-- 编辑态先给名称与版本号 -->
+              <div v-if="editing" class="stg-name-row">
+                <label class="stg-field">
+                  <span class="stg-field-label">策略名</span>
+                  <el-input v-model="draft.name" size="small" class="stg-mono-input" />
+                </label>
+                <label class="stg-field">
+                  <span class="stg-field-label">版本号</span>
+                  <el-input v-model="draft.version" size="small" class="stg-mono-input" />
+                </label>
+                <label class="stg-field">
+                  <span class="stg-field-label">类型</span>
+                  <el-input :model-value="strategyTypeLabel(activeType)" size="small" disabled />
+                </label>
+              </div>
+
+              <div v-if="configBroken" class="stg-warn">
+                该版本的配置无法解析为 JSON，可能是脏数据。保存会以空配置覆盖，请谨慎操作。
+              </div>
+
+              <PreprocessForm
+                v-if="activeType === 'PREPROCESS'"
+                v-model:config="preprocessConfig"
+                :readonly="!editing"
+              />
+              <ChunkForm
+                v-else-if="activeType === 'CHUNK'"
+                v-model:config="chunkConfig"
+                :readonly="!editing"
+              />
+              <EmbedForm
+                v-else-if="activeType === 'EMBED'"
+                v-model:config="embedConfig"
+                :readonly="!editing"
+              />
+              <RetrievalForm
+                v-else-if="activeType === 'RETRIEVAL'"
+                v-model:config="retrievalConfig"
+                :readonly="!editing"
+              />
+              <div v-else class="stg-warn">未知策略类型「{{ activeType }}」，无法编辑配置。</div>
+
+              <!-- 知识库绑定：检索类策略不参与绑定（后端口径） -->
+              <template v-if="bindingSupported">
+                <div class="stg-sec">
+                  <span class="stg-sec-name">知识库绑定</span>
+                  <i class="stg-help" :title="BINDING_HINT">?</i>
+                  <span class="page-spacer"></span>
+                </div>
+                <div v-if="bindingLoading" class="stg-bind-empty">加载中…</div>
+                <div v-else class="stg-binds">
+                  <div v-for="kb in knowledgeBases" :key="kb.id" class="stg-bind">
+                    <i class="stg-bind-dot" :class="{ 'is-on': boundKbIds.has(kb.id) }"></i>
+                    <span class="stg-bind-name">{{ kb.name }}</span>
+                    <span class="stg-bind-state">{{
+                      boundKbIds.has(kb.id) ? '已绑定' : '未绑定'
+                    }}</span>
+                    <el-button
+                      v-if="boundKbIds.has(kb.id)"
+                      size="small"
+                      text
+                      @click="unbind(kb.id)"
+                    >
+                      解绑
+                    </el-button>
+                    <el-button v-else size="small" text @click="bind(kb.id)">绑定此策略</el-button>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </template>
+        </section>
+      </div>
     </div>
   </div>
 </template>
@@ -320,13 +334,6 @@ const families = computed<StrategyFamily[]>(() => {
 
 const selected = computed(
   () => versions.value.find((item) => item.id === selectedId.value) ?? null,
-);
-
-const activeCount = computed(() => versions.value.filter(isStrategyActive).length);
-
-const topbarSummary = computed(
-  () =>
-    `${strategyTypeLabel(activeType.value)} · ${versions.value.length} 个版本（启用 ${activeCount.value}）`,
 );
 
 /** 检索类策略不参与知识库绑定：后端绑定接口只支持 PREPROCESS/CHUNK/EMBED */
@@ -746,36 +753,16 @@ onMounted(async () => {
 </script>
 
 <style scoped lang="css">
-.stg-page {
-  display: flex;
-  height: 100%;
-  min-height: 0;
-  flex-direction: column;
-}
+/*
+ * 页面骨架（.page / .page-head / .page-title / .page-desc / .page-actions / .page-panel）
+ * 来自全局 styles/page-shell.css。
+ *
+ * 原先本页自造了一套顶栏（.stg-topbar，14px 标题 + 自己再加 22px 内边距），
+ * 导致内容左缘比其它页多出 51px（外层 28 + 顶栏 22），标题也比列表页小 8px；
+ * 现在撤掉顶栏、改用 .page-head，两栏工作台装进 .page-panel。
+ */
 
-.stg-topbar {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  height: 54px;
-  padding: 0 22px;
-  border-bottom: 1px solid var(--kb-line);
-}
-
-.stg-topbar-title {
-  font-size: 14px;
-  font-weight: 650;
-}
-
-.stg-topbar-sub {
-  color: var(--kb-text-3);
-  font-size: 12px;
-}
-
-.stg-spacer {
-  flex: 1;
-}
-
+/* 两栏：左栏定宽、右栏吃剩余；不再是"页面根直接两栏"，而是面板内部的两栏 */
 .stg-body {
   display: grid;
   flex: 1;
@@ -787,6 +774,17 @@ onMounted(async () => {
 .stg-rail {
   display: flex;
   min-height: 0;
+
+  /*
+   * overflow: hidden 不能省 —— 它是**网格项自动最小尺寸**的开关。
+   *
+   * 网格项的 min-height 默认是 auto，含义是"不小于内容高度"，于是内部的
+   * .stg-rail-body 会把它撑到内容那么高（实测 776px），超出面板（705px）被
+   * overflow:hidden 裁掉 —— 内部滚动条因此不可达，且切 tab 时高度会被重算纠正，
+   * 表现为"页面跳一下"。overflow 非 visible 会把自动最小尺寸重置为 0，网格项
+   * 才真正遵守轨道高度。
+   */
+  overflow: hidden;
   flex-direction: column;
   border-right: 1px solid var(--kb-line);
   background: var(--kb-bg-1);
@@ -956,6 +954,9 @@ onMounted(async () => {
 .stg-pane {
   display: flex;
   min-width: 0;
+
+  /* 同 .stg-rail：网格项的自动最小尺寸会被内容撑开，overflow 非 visible 才能重置为 0 */
+  overflow: hidden;
   flex-direction: column;
 }
 
