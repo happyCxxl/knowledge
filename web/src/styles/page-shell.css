@@ -1,0 +1,225 @@
+/*
+ * ============================ 页面骨架 ============================
+ *
+ * 列表/工作台类页面的统一结构。四个页面（知识库、用户管理、策略管理、首页）此前
+ * **各写了一套同样的头部 / 统计条 / 面板样式**（`.kb-*` / `.user-*` / `.stg-*` / `.home-*`），
+ * 于是风格会各自漂移 —— 实测策略页的标题最终是 14px 且内容左缘比其它页多出 51px
+ * （它自造了一层顶栏并再套 22px 内边距），首页标题是 19px 而列表页是 22px。
+ *
+ * 提炼到这里之后，改一次四页同步，不会再各自跑偏。各页只保留自己的业务样式。
+ *
+ * 结构约定（页面自己按需取用，不必全用）：
+ *
+ *   .page
+ *     .page-head          → .page-title / .page-desc + .page-actions
+ *     .page-stats         → .page-stat ×N（数字 + 标签）
+ *     .page-panel
+ *       .page-toolbar     （原各页的 filter-bar，等价物）
+ *       内容区            （.page-body 或页面自有滚动区）
+ *       .page-panel-foot  （分页/计数行）
+ *
+ * **不要在页面里重复实现这几段**：它们的外观（字号、间距、圆角、描边）是统一的基线，
+ * 各页差异应通过业务类覆盖，而不是重写一套。
+ */
+
+/* noinspection CssUnusedSymbol */
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+
+  /*
+   * 固定高度 = 视口 − 顶栏(62px) − 内容区上下内边距(26+40)。
+   * 不随内容多少变化，否则翻页/筛选时整页会跳。
+   */
+  height: calc(100vh - 128px);
+  min-height: 420px;
+}
+
+/* noinspection CssUnusedSymbol */
+.page-head {
+  display: flex;
+  flex: none;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+/* noinspection CssUnusedSymbol */
+.page-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 650;
+}
+
+/* noinspection CssUnusedSymbol */
+.page-desc {
+  margin: 6px 0 0;
+  color: var(--kb-text-3);
+  font-size: 13px;
+}
+
+/* noinspection CssUnusedSymbol */
+.page-actions {
+  display: flex;
+  gap: 10px;
+}
+
+/* noinspection CssUnusedSymbol */
+.page-stats {
+  display: flex;
+  flex: none;
+  align-items: baseline;
+  padding: 6px 2px;
+}
+
+/* noinspection CssUnusedSymbol */
+.page-stat {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  padding: 0 30px;
+}
+
+/* 首项不留左内边距：让统计条与标题的左缘对齐（否则整条会右移 30px） */
+
+/* noinspection CssUnusedSymbol */
+.page-stat:first-child {
+  padding-left: 0;
+}
+
+/*
+ * 多项之间加分隔竖线：统计条是"一组并列指标"，没有分隔时数字与标签会连成一片，
+ * 分不清哪个标签属于哪个数字。
+ */
+
+/* noinspection CssUnusedSymbol */
+.page-stat + .page-stat {
+  border-left: 1px solid var(--kb-line);
+}
+
+/*
+ * 数字用等宽字体：数值会随数据变化（2 → 12 → 128），等宽下位数变化不会让整条左右抖动。
+ */
+
+/* noinspection CssUnusedSymbol */
+.page-stat-num {
+  font-family: ui-monospace, 'JetBrains Mono', Consolas, monospace;
+  font-size: 26px;
+  font-weight: 650;
+}
+
+/* noinspection CssUnusedSymbol */
+.page-stat-label {
+  color: var(--kb-text-3);
+  font-size: 12px;
+}
+
+/*
+ * 面板：页面里的主内容都装进它，而不是全宽平铺。
+ *
+ * `min-height: 0` + `overflow: hidden` 是关键：内部滚动区要靠它们才能正确收缩，
+ * 少了会让长列表把容器撑破。
+ */
+
+/* noinspection CssUnusedSymbol */
+.page-panel {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--kb-line);
+  border-radius: var(--kb-radius);
+  background: linear-gradient(180deg, rgb(255 255 255 / 3%), rgb(255 255 255 / 1.2%));
+}
+
+/* noinspection CssUnusedSymbol */
+.page-toolbar {
+  display: flex;
+  flex: none;
+  gap: 10px;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--kb-line);
+}
+
+/* noinspection CssUnusedSymbol */
+.page-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 16px;
+}
+
+/* noinspection CssUnusedSymbol */
+.page-panel-foot {
+  display: flex;
+  flex: none;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-top: 1px solid var(--kb-line);
+  color: var(--kb-text-3);
+  font-size: 12px;
+}
+
+/* noinspection CssUnusedSymbol */
+.page-spacer {
+  flex: 1;
+}
+
+/*
+ * 资产带：**每个指标竖向堆叠三行**（标签 / 大数值 / 副文案），与 .page-stats 的
+ * "横排 数字+标签"是两种信息层级，不能互相套用：
+ * - .page-stats  适合"就是一个数"的并列指标（列表页顶部）；
+ * - .page-assets 适合"数值 + 细分说明"的概览（首页要显示「可用策略 17」，
+ *   再拆成 预处理 6 · 切片 5 · 向量化 2 · 检索 4）。
+ *
+ * 视觉语言与 .page-panel 一致（1px 描边 + 同一档圆角 + 极淡渐变），
+ * 这样它读作"页面骨架的一块"，而不是孤立的另一套东西。
+ */
+
+/* noinspection CssUnusedSymbol */
+.page-assets {
+  display: grid;
+  flex: none;
+  border: 1px solid var(--kb-line);
+  border-radius: var(--kb-radius);
+  background: linear-gradient(180deg, rgb(255 255 255 / 3.5%), rgb(255 255 255 / 1%));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+/* noinspection CssUnusedSymbol */
+.page-asset {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 20px;
+}
+
+/* 首个之外加左侧分隔线：三项并列时没有分隔会连成一片 */
+
+/* noinspection CssUnusedSymbol */
+.page-asset + .page-asset {
+  border-left: 1px solid var(--kb-line);
+}
+
+/* noinspection CssUnusedSymbol */
+.page-asset-k {
+  color: var(--kb-text-3);
+  font-size: 12px;
+}
+
+/* noinspection CssUnusedSymbol */
+.page-asset-v {
+  font-family: ui-monospace, 'JetBrains Mono', Consolas, monospace;
+  font-size: 24px;
+  font-weight: 650;
+}
+
+/* noinspection CssUnusedSymbol */
+.page-asset-sub {
+  color: var(--kb-text-3);
+  font-size: 11px;
+}
