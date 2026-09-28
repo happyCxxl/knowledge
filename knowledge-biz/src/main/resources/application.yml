@@ -49,8 +49,12 @@ knowledge:
     low-freq-sweep-interval: 10m
     sweep-lock-ttl: 30s
 
-# 文件服务：MinIO 连接与桶
+# 文件服务：存储后端（minio / local）与对象存储连接、桶名
+# 切到 local 时 minio 段可留可删（MinioStorageProvider 不再装配）；
+# 注意：两种后端的对象不互通，切换后旧对象需手工复制过去才能读到
 file-center:
+  storage-type: local
+  local-root: ./data/file-center
   endpoint: http://localhost:9000
   access-key: minioadmin
   secret-key: minioadmin
