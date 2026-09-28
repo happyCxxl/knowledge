@@ -225,10 +225,14 @@ public class MilvusKnowledgeCollection implements KnowledgeCollectionPort {
         schema.addField(AddFieldReq.builder()
                 .fieldName("parent_chunk_id").dataType(DataType.VarChar).maxLength(128).isNullable(true).build());
         for (String field : ANALYZER_FIELDS) {
+            // **不可为空**：这两个字段是下方 BM25 函数的输入字段，Milvus 明确要求函数输入
+            // 字段 non-nullable —— 声明成 nullable 会让 createCollection 直接失败
+            // （实测：function input field cannot be nullable: function content_bm25_emb, field content）。
+            // 与写入侧口径一致：toJson() 本就把 null 归一成空串，所以业务上无需可空。
             schema.addField(AddFieldReq.builder()
                     .fieldName(field).dataType(DataType.VarChar)
                     .maxLength("content".equals(field) ? CONTENT_MAX_LENGTH : 1024)
-                    .isNullable(true).enableAnalyzer(true).enableMatch(true)
+                    .enableAnalyzer(true).enableMatch(true)
                     .analyzerParams(Map.of("type", "chinese")).build());
             schema.addField(AddFieldReq.builder()
                     .fieldName(field + "_sparse").dataType(DataType.SparseFloatVector).build());
