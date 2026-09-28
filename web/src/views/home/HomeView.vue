@@ -36,7 +36,7 @@
       <el-pagination
         v-model:current-page="submitQuery.current"
         class="home-pager"
-        layout="prev, pager, next"
+        layout="total, prev, next"
         :total="submitTotal"
         :page-size="submitQuery.size"
         :disabled="submitLoading"
@@ -57,33 +57,33 @@
         :border="false"
         height="100%"
       >
-        <el-table-column header-align="center" label="时间" :width="COL.time">
+        <el-table-column label="时间" :width="COL.time">
           <template #default="{ row }">
             <span class="home-mono home-dim">{{ formatActivityTime(row.createTime) }}</span>
           </template>
         </el-table-column>
-        <el-table-column header-align="center" label="文件名" :min-width="COL.fileName">
+        <el-table-column label="文件名" :min-width="COL.fileName">
           <template #default="{ row }">
             <span class="home-file home-ellipsis" :title="row.fileName">{{
               row.fileName || '（文件名不可得）'
             }}</span>
           </template>
         </el-table-column>
-        <el-table-column header-align="center" label="知识库" :min-width="COL.kbName">
+        <el-table-column label="知识库" :min-width="COL.kbName">
           <template #default="{ row }">
             <span class="home-dim home-ellipsis" :title="row.knowledgeBaseName">{{
               row.knowledgeBaseName
             }}</span>
           </template>
         </el-table-column>
-        <el-table-column header-align="center" label="提交人" :min-width="COL.operator">
+        <el-table-column label="提交人" :min-width="COL.operator">
           <template #default="{ row }">
             <span class="home-dim home-ellipsis" :title="row.operator">{{
               row.operator ?? '—'
             }}</span>
           </template>
         </el-table-column>
-        <el-table-column header-align="center" label="结果" :min-width="COL.result">
+        <el-table-column label="结果" :min-width="COL.result">
           <template #default="{ row }">
             <span
               class="home-act"
@@ -107,7 +107,7 @@
       <el-pagination
         v-model:current-page="activityQuery.current"
         class="home-pager"
-        layout="prev, pager, next"
+        layout="total, prev, next"
         :total="activityTotal"
         :page-size="activityQuery.size"
         :disabled="activityLoading"
@@ -130,19 +130,19 @@
         height="100%"
       >
         <!-- 时间列放得下 11 个等宽字符 + 单元格内边距；列宽见 script 的 COL 常量 -->
-        <el-table-column header-align="center" label="时间" :width="COL.time">
+        <el-table-column label="时间" :width="COL.time">
           <template #default="{ row }">
             <span class="home-mono home-dim">{{ formatActivityTime(row.createTime) }}</span>
           </template>
         </el-table-column>
-        <el-table-column header-align="center" label="操作人" :min-width="COL.operator">
+        <el-table-column label="操作人" :min-width="COL.operator">
           <template #default="{ row }">
             <span class="home-dim home-ellipsis" :title="row.operator">{{
               row.operator ?? '—'
             }}</span>
           </template>
         </el-table-column>
-        <el-table-column header-align="center" label="动作" :min-width="COL.action">
+        <el-table-column label="动作" :min-width="COL.action">
           <template #default="{ row }">
             <span
               class="home-act"
@@ -155,7 +155,7 @@
             </span>
           </template>
         </el-table-column>
-        <el-table-column header-align="center" label="对象" :min-width="COL.object">
+        <el-table-column label="对象" :min-width="COL.object">
           <template #default="{ row }">
             <!-- 名称 + 类型徽标紧贴排列（.home-obj 用 0 1 auto，不能用 1，否则徽标被推到列右缘）；全文放 title -->
             <span class="home-obj-line">
@@ -166,7 +166,7 @@
             </span>
           </template>
         </el-table-column>
-        <el-table-column header-align="center" label="变更" :min-width="COL.delta">
+        <el-table-column label="变更" :min-width="COL.delta">
           <template #default="{ row }">
             <!-- 历史数据里变更列存过整段 JSON，必须单行截断（全文放 title），否则行高被撑破容器 -->
             <span class="home-mono home-dim home-ellipsis" :title="deltaText(row)">{{
@@ -241,27 +241,49 @@ const TABLE_HEIGHT = TABLE_HEAD_HEIGHT + TABLE_PAGE_SIZE * TABLE_ROW_HEIGHT;
  * <p>两张表都用 `min-width` 为主：el-table 会把富余宽度**按 min-width 比例**分给各列，
  * 所以这些值同时决定「谁更宽」，不要给某列单独设很大的值（那会让它吃掉全部富余宽度）。
  *
- * <p>分配依据是各列内容长度：时间固定 11 个等宽字符；
- * 提交人是用户名、知识库名、动作是短标签；文件名 / 对象名 / 变更长度不可控，给更大权重。
- * 只有 `time` 用固定 `width`（内容长度恒定，不希望它随窗口变宽）。
+ * <p>**权重按「内容的取值范围」定，不是按某一次采样量出来的宽度** —— 后者等于拿碰巧
+ * 出现的那几行当设计依据，数据一变就又歪了。所以先查了各列的取值范围（SQL 的
+ * MIN/MAX(CHAR_LENGTH)），再据此分配：
+ *
+ * <ul>
+ *   <li>**短且稳定 → 收紧**：知识库名 5~11 字、动作 4~13 字、提交人 4~16 字。
+ *       这些列给到「刚好放得下」即可；给大了会白拿富余宽度，表现为列与列之间莫名多出空隙
+ *       （实测「动作」列内容只 71px 却被撑到 170px）；</li>
+ *   <li>**长且不可控 → 吃剩余空间 + 省略号**：文件名 15~21 字但可能来长名、
+ *       变更 2~301 字。它们天然该占剩下来的宽度，截断交给 `.home-ellipsis`。</li>
+ * </ul>
+ *
+ * <p>只有 `time` 用固定 `width`：内容是 yyyy-MM-dd HH:mm 的定长格式，
+ * 不希望它随窗口变宽（变宽只会让这一列的留白变多）。
+ *
+ * <p>**表头对齐方式跟随单元格，不要单独设 `header-align`**：单元格内容一律左对齐
+ * （时间/文件名等文本天然左对齐），而表头原先写的是 `header-align="center"` ——
+ * 于是列头文字浮在内容上方的中间位置，与内容不在同一条竖直线上，看起来"歪"。
+ * Element Plus 的 `header-align` 不传时继承 `align`（默认 left），正是我们要的。
  */
 const COL = {
-  /** 时间：yyyy-MM-dd HH:mm 的短格式，固定宽 */
+  /** 时间：`MM-DD HH:mm` 定长，固定宽（实测最长 68px + 内边距 = 92） */
   time: 112,
-  /** 提交人 / 操作人：用户名，放得下 zz-import-verify */
-  operator: 160,
-  /** 动作：四字标签 + 徽标内边距 */
-  action: 150,
-  /** 文件名：长度不可控，给大权重 */
-  fileName: 320,
-  /** 知识库名 */
-  kbName: 200,
-  /** 结果：通过 / 未通过 徽标 + 失败原因 */
-  result: 220,
-  /** 对象名：可能拼成「库名 版本号」 */
-  object: 280,
-  /** 变更：字段清单可能很长，给最大权重 */
-  delta: 360,
+  /** 提交人 / 操作人：用户名（实测最长 97px + 内边距 = 121） */
+  operator: 125,
+  /** 动作：四字标签徽标（实测最长 65px + 内边距 = 89） */
+  action: 95,
+  /** 文件名：不可控（实测最长 211px + 内边距 = 235），允许截断 */
+  fileName: 240,
+  /** 知识库名：短且稳定（实测最长 65px + 内边距 = 89） */
+  kbName: 95,
+  /** 结果：通过/未通过 徽标 + 失败原因（实测最长 147px + 内边距 = 171） */
+  result: 175,
+  /** 对象名：库名 + 版本号 + 类型徽标（实测最长 218px + 内边距 = 242） */
+  object: 245,
+  /**
+   * 变更：**唯一需要吃富余的列**（实测最长内容 909px，表格总共才 1190px，必然截断）。
+   *
+   * <p>给它最大的权重是刻意的：其余列的最小值都按「刚好放得下」设（89~245px），
+   * 富余宽度按比例分配时，权重越集中在变更列，其余列越不会被撑出大片空白 ——
+   * 而空白正是「列间距看起来不均匀」的来源。
+   */
+  delta: 300,
 } as const;
 
 const username = computed(() => authStore.username ?? '');
@@ -438,6 +460,21 @@ onMounted(() => {
   font-weight: 650;
 }
 
+/*
+ * 分页：**只用「总数 + 上一页/下一页」，不放页码按钮**。
+ *
+ * <p>原先两处都是 `layout="prev, pager, next"`。El-Pagination 的 `pager-count` 默认 7 ——
+ * 页数不超过 7 就**全部列出**、不做省略，于是两张表并排时长这样：
+ *
+ * <pre>
+ *   最近提交  [1][2][3]                       宽 160px（12 行 / 页长 5 = 3 页）
+ *   行为记录  [1][2][3][4][5][6][7]           宽 288px（33 行 / 页长 5 = 7 页）
+ * </pre>
+ *
+ * <p>两处配置其实完全一致，宽度却差 128px，看起来像配置不一致；而且行为记录只增不减，
+ * 页数一涨宽度还会继续跳。首页是**只看不改的概览区**，精确跳页的价值很低，
+ * 宽度稳定更重要 —— 所以换成固定宽度的「总数 + 翻页」。
+ */
 .home-pager {
   --el-pagination-bg-color: transparent;
   --el-pagination-button-bg-color: transparent;
