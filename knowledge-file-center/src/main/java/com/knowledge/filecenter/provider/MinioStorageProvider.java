@@ -4,6 +4,7 @@ import io.minio.GetObjectArgs;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import io.minio.StatObjectArgs;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 import java.io.InputStream;
@@ -11,9 +12,14 @@ import java.io.InputStream;
 /**
  * MinIO 存储提供者：对象写入、读取与存在性。
  *
+ * <p>装配开关见 {@code file-center.storage-type}：为 {@code local} 时本实现让位给
+ * {@link LocalStorageProvider}。{@code matchIfMissing = true} 保证不配该键时仍走 MinIO
+ * —— 与改造前行为一致，存量部署升级后无需改配置。
+ *
  * @author cxxl
  */
 @Service
+@ConditionalOnProperty(name = "file-center.storage-type", havingValue = "minio", matchIfMissing = true)
 public class MinioStorageProvider implements StorageProvider {
 
     private final MinioClient minioClient;
