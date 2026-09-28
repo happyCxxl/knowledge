@@ -33,8 +33,16 @@ public class LineageNodeVO {
     /** 策略版本（PREPROCESS/CHUNK/EMBED 有，name-version 串；PARSE/STRUCTURE 为空） */
     private String strategyVersion;
 
-    /** 能力快照（无策略环节展示用：PARSE/STRUCTURE 取 product.capabilitySnapshot 原文，前端截断+悬停全文；有策略环节为空） */
-    private String capability;
+    /**
+     * 能力快照（无策略环节展示用：PARSE/STRUCTURE 有，其余环节为空）。
+     *
+     * <p>**已解析成对象**：此前这里直接透传 product.capabilitySnapshot 的 JSON 原文，
+     * 前端拿到的是 {@code {"parserName":"pdfbox","parserVersion":"3.0.4"}} 这样的字符串，
+     * 只能"截断显示"或自己解析 JSON —— 那是接口设计错误。现在由服务层解析后返回
+     * {@link LineageCapabilityVO}。JSON 无法解析时本字段为 null（不回落原文，
+     * 避免把脏数据继续往上层传）。
+     */
+    private LineageCapabilityVO capability;
 
     /** 产物 ID（成功任务对应产物；无产物为空）。前端「以此产物触发下游」传此值（非任务 ID） */
     @JsonSerialize(using = ToStringSerializer.class)

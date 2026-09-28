@@ -27,8 +27,8 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
 /**
@@ -101,8 +101,10 @@ class LineageQueryServiceImplTest {
                 task(81L, PipelineStage.EMBED.name(), 40L, 50L,
                         "{\"name\":\"embed-default\",\"version\":\"v1\"}")));
         when(pipelineProductDbService.listByFileResultId(10L)).thenReturn(List.of(
-                product(10L, PipelineStage.PARSE.name(), "art-p", "{\"pdfbox\":\"3.0.4\"}"),
-                product(20L, PipelineStage.STRUCTURE.name(), "art-s", "{\"rules\":\"v1\"}"),
+                product(10L, PipelineStage.PARSE.name(), "art-p",
+                        "{\"parserName\":\"pdfbox\",\"parserVersion\":\"3.0.4\"}"),
+                product(20L, PipelineStage.STRUCTURE.name(), "art-s",
+                        "{\"parserName\":\"rules\",\"parserVersion\":\"v1\"}"),
                 product(30L, PipelineStage.PREPROCESS.name(), "art-p1", null),
                 product(60L, PipelineStage.PREPROCESS.name(), "art-p2", null),
                 product(40L, PipelineStage.CHUNK.name(), "art-c1", null),
@@ -147,8 +149,13 @@ class LineageQueryServiceImplTest {
         assertEquals(40L, vo.getNodes().get(4).getProductId());
         assertEquals(70L, vo.getNodes().get(5).getProductId());
         assertEquals(50L, vo.getNodes().get(6).getProductId());
-        // 能力快照（无策略环节）
-        assertTrue(vo.getNodes().get(1).getCapability().contains("rules"));
+        // 能力快照（无策略环节）：JSON 文本被解析成对象，而不是透传原文
+        assertEquals("pdfbox", vo.getNodes().get(0).getCapability().getParserName());
+        assertEquals("3.0.4", vo.getNodes().get(0).getCapability().getParserVersion());
+        assertEquals("rules", vo.getNodes().get(1).getCapability().getParserName());
+        assertEquals("v1", vo.getNodes().get(1).getCapability().getParserVersion());
+        // 有策略环节不填能力快照
+        assertNull(vo.getNodes().get(2).getCapability());
         // 统计摘要
         assertEquals("156", vo.getNodes().get(4).getStats().get("chunkCount"));
         assertEquals("782", vo.getNodes().get(6).getStats().get("recordCount"));
