@@ -17,7 +17,6 @@ ignore:
   - .git
   - .idea
   - .vscode
-  - .husky
   - '**/*.config.*'
   - .prettierrc.json
   - .ls-lint.yml
