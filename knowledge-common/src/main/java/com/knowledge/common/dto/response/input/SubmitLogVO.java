@@ -1,14 +1,12 @@
 package com.knowledge.common.dto.response.input;
 
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import lombok.Data;
 
 import java.time.LocalDateTime;
 
 /**
  * 提交日志 VO：kb_submit_log 的对外视图（提交记录列表/提交响应用）。
- * 仅映射展示所需字段；id 类字段经 ToStringSerializer 转字符串，防前端 JS 精度丢失。
+ * 仅映射展示所需字段；id 类字段由全局 Long 序列化口径转字符串（见 LongIdJsonConfig），防前端 JS 精度丢失。
  *
  * @author cxxl
  */
@@ -16,11 +14,9 @@ import java.time.LocalDateTime;
 public class SubmitLogVO {
 
     /** 主键 */
-    @JsonSerialize(using = ToStringSerializer.class)
     private Long id;
 
     /** 目标知识库 */
-    @JsonSerialize(using = ToStringSerializer.class)
     private Long knowledgeBaseId;
 
     /** 幂等键（回显，前端凭此识别同一请求） */
@@ -36,7 +32,6 @@ public class SubmitLogVO {
     private String fileName;
 
     /** 文件结果 ID（失败时为空） */
-    @JsonSerialize(using = ToStringSerializer.class)
     private Long fileResultId;
 
     /** 提交结果：PASS / FAIL */

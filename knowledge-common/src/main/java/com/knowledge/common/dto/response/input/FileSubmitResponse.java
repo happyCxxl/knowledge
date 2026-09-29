@@ -1,7 +1,5 @@
 package com.knowledge.common.dto.response.input;
 
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -24,6 +22,5 @@ public class FileSubmitResponse {
     private SubmitLogVO submitLog;
 
     /** 处理链任务 ID（实际为 PARSE 环节任务 kb_pipeline_task.id；首次提交/校验失败/无任务时为空） */
-    @JsonSerialize(using = ToStringSerializer.class)
     private Long pipelineTaskId;
 }

@@ -1,7 +1,5 @@
 package com.knowledge.common.dto.response.knowledge;
 
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import lombok.Data;
 
 import java.io.Serial;
@@ -29,14 +27,12 @@ public class StrategyBindingVO implements Serializable {
      * <p>单体查询（按库查）时该字段为 null —— 库 ID 由请求路径给出，返回里无需重复；
      * 批量查询时**必有值**，是区分各行的唯一标识。
      */
-    @JsonSerialize(using = ToStringSerializer.class)
     private Long knowledgeBaseId;
 
     /** 策略类型：PREPROCESS / CHUNK */
     private String strategyType;
 
     /** 绑定的策略版本行 ID（雪花 ID） */
-    @JsonSerialize(using = ToStringSerializer.class)
     private Long strategyVersionId;
 
     /** 绑定策略名 */

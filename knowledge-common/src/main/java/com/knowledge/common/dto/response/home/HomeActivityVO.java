@@ -1,7 +1,5 @@
 package com.knowledge.common.dto.response.home;
 
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import lombok.Data;
 
 import java.io.Serial;
@@ -30,7 +28,6 @@ public class HomeActivityVO implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /** 审计记录 ID */
-    @JsonSerialize(using = ToStringSerializer.class)
     private Long id;
 
     /** 动作枚举名（如 PUBLISH_INDEX；供前端按类型着色） */

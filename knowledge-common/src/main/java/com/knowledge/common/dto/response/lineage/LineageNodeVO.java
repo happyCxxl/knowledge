@@ -1,7 +1,5 @@
 package com.knowledge.common.dto.response.lineage;
 
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -16,7 +14,6 @@ import java.util.Map;
 public class LineageNodeVO {
 
     /** 任务 ID（雪花转字符串） */
-    @JsonSerialize(using = ToStringSerializer.class)
     private Long taskId;
 
     /** 环节（PipelineStage 枚举名） */
@@ -45,7 +42,6 @@ public class LineageNodeVO {
     private LineageCapabilityVO capability;
 
     /** 产物 ID（成功任务对应产物；无产物为空）。前端「以此产物触发下游」传此值（非任务 ID） */
-    @JsonSerialize(using = ToStringSerializer.class)
     private Long productId;
 
     /** 产物引用（成功有产物时非空） */

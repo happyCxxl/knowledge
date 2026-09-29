@@ -1,7 +1,5 @@
 package com.knowledge.common.dto.response.knowledge;
 
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import lombok.Data;
 
 import java.io.Serial;
@@ -20,7 +18,6 @@ public class KnowledgeBaseVO implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /** 主键（雪花 ID，前端按字符串处理防精度丢失） */
-    @JsonSerialize(using = ToStringSerializer.class)
     private Long id;
 
     private String name;
@@ -34,21 +31,18 @@ public class KnowledgeBaseVO implements Serializable {
     private Integer strategyBindingEnabled;
 
     /** 绑定的切片策略版本行 ID（无绑定为 null） */
-    @JsonSerialize(using = ToStringSerializer.class)
     private Long chunkStrategyVersionId;
 
     /** 绑定的切片策略版本串（如 chunk-hybrid-v1，无绑定为 null） */
     private String chunkStrategyVersion;
 
     /** 绑定的预处理策略版本行 ID（无绑定为 null） */
-    @JsonSerialize(using = ToStringSerializer.class)
     private Long preprocessStrategyVersionId;
 
     /** 绑定的预处理策略版本串（如 preproc-default-v1，无绑定为 null） */
     private String preprocessStrategyVersion;
 
     /** 绑定的向量化策略版本行 ID（无绑定为 null） */
-    @JsonSerialize(using = ToStringSerializer.class)
     private Long embedStrategyVersionId;
 
     /** 绑定的向量化策略版本串（如 embed-default-v1，无绑定为 null） */
@@ -64,14 +58,12 @@ public class KnowledgeBaseVO implements Serializable {
     private Long documentCount;
 
     /** 当前发布索引集合行 ID（无发布为 null；列表回填版本号用） */
-    @JsonSerialize(using = ToStringSerializer.class)
     private Long publishedIndexSetId;
 
     /** 当前已发布索引版本号（如 v3；未发布为 null） */
     private String publishedIndexVersion;
 
     /** 创建用户ID（无认证上下文为 null） */
-    @JsonSerialize(using = ToStringSerializer.class)
     private Long userId;
 
     private String createBy;

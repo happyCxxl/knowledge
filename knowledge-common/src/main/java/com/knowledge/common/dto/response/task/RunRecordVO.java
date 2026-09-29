@@ -1,7 +1,5 @@
 package com.knowledge.common.dto.response.task;
 
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -15,7 +13,6 @@ import java.time.LocalDateTime;
 public class RunRecordVO {
 
     /** 任务 ID */
-    @JsonSerialize(using = ToStringSerializer.class)
     private Long taskId;
 
     /** 环节（PipelineStage 枚举名） */
@@ -34,7 +31,6 @@ public class RunRecordVO {
     private String strategyVersion;
 
     /** 该次运行产出的产物 ID（kb_pipeline_product.id；历史任务为空，前端"以此产物触发下游"数据源） */
-    @JsonSerialize(using = ToStringSerializer.class)
     private Long productId;
 
     /** 开始时间 */

@@ -257,7 +257,8 @@ const query = ref({ current: 1, size: 12 });
 const hasFilter = computed(() => keyword.value.trim() !== '' || selectedStatus.value !== 'all');
 
 // 统计条：知识库总数与文档总数（文档数按 kb_file_result 记录数，即提交任务数）
-const stats = ref({ knowledgeBaseCount: '0', documentCount: '0' });
+// 计数是 number：后端全局口径只把「超过 JS 安全整数的雪花 ID」转字符串，计数保持数字
+const stats = ref({ knowledgeBaseCount: 0, documentCount: 0 });
 const statItems = computed(() => [
   { value: stats.value.knowledgeBaseCount, label: '知识库' },
   { value: stats.value.documentCount, label: '文档数' },

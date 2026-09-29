@@ -1,7 +1,5 @@
 package com.knowledge.common.dto.response.index;
 
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import com.knowledge.common.enums.index.IndexShape;
 import lombok.Data;
 
@@ -20,7 +18,6 @@ import java.util.Map;
 public class IndexVersionVO {
 
     /** 版本行 ID（kb_index_version.id） */
-    @JsonSerialize(using = ToStringSerializer.class)
     private Long id;
 
     /** 版本号（v1、v2…；组合注册序号，集合名 kb_{kbId}_{versionNo} 组成部分） */
@@ -30,7 +27,6 @@ public class IndexVersionVO {
     private String fileScopeMode;
 
     /** LIST 模式下的文件结果 ID 列表 */
-    @JsonSerialize(contentUsing = ToStringSerializer.class)
     private List<Long> fileResultIds;
 
     /** 切片策略 name-version（如 chunk-hybrid-v1） */
@@ -58,7 +54,6 @@ public class IndexVersionVO {
     private String buildError;
 
     /** 构建任务 ID（kb_pipeline_task，stage=BUILD_INDEX） */
-    @JsonSerialize(using = ToStringSerializer.class)
     private Long taskId;
 
     /** 验证通过时间 */

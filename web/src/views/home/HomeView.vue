@@ -308,7 +308,7 @@ const activityQuery = reactive<HomeActivityQuery>({ current: 1, size: TABLE_PAGE
 
 /** 数字按千分位展示；未加载完显示占位符，避免闪 0 */
 const summaryText = computed(() => {
-  const pick = (value: string | undefined): string => formatCount(value);
+  const pick = (value: string | number | undefined): string => formatCount(value);
   return {
     knowledgeBaseCount: pick(summary.value?.knowledgeBaseCount),
     enabledKnowledgeBaseCount: pick(summary.value?.enabledKnowledgeBaseCount),
@@ -323,10 +323,12 @@ const summaryText = computed(() => {
   };
 });
 
-function formatCount(value: string | undefined): string {
+function formatCount(value: string | number | undefined): string {
   if (value === undefined || value === '') {
     return '—';
   }
+  // 计数在小数值区间（后端全局口径：只有超过 JS 安全整数的雪花 ID 才下发字符串），
+  // 所以这里拿到的是 number；但保留对字符串的兼容（旧数据/未来口径变化都不至于显示成 —）
   const num = Number(value);
   return Number.isNaN(num) ? '—' : num.toLocaleString('en-US');
 }

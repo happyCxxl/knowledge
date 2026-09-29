@@ -1,7 +1,5 @@
 package com.knowledge.common.dto.response.home;
 
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import lombok.Data;
 
 import java.io.Serial;
@@ -25,14 +23,12 @@ public class HomeRecentSubmitVO implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /** 提交日志 ID */
-    @JsonSerialize(using = ToStringSerializer.class)
     private Long id;
 
     /** 文件名（文件不存在等场景可能为空串） */
     private String fileName;
 
     /** 所属知识库 ID（字符串下发） */
-    @JsonSerialize(using = ToStringSerializer.class)
     private Long knowledgeBaseId;
 
     /** 所属知识库名（按 ID 反查；已删库回落成「知识库 {ID}」） */

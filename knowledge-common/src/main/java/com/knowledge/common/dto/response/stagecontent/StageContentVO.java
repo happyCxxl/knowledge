@@ -1,7 +1,5 @@
 package com.knowledge.common.dto.response.stagecontent;
 
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import lombok.Data;
 
 import java.util.List;
@@ -16,14 +14,12 @@ import java.util.List;
 public class StageContentVO {
 
     /** 文件结果 ID */
-    @JsonSerialize(using = ToStringSerializer.class)
     private Long fileResultId;
 
     /** 环节（白名单 PARSE/STRUCTURE/PREPROCESS/CHUNK/EMBED） */
     private String stage;
 
     /** 任务 ID（无任务时为空） */
-    @JsonSerialize(using = ToStringSerializer.class)
     private Long taskId;
 
     /** 该次运行产物是否可用（false = 无任务/无产物/无 artifactId，items 为空） */

@@ -1,7 +1,5 @@
 package com.knowledge.common.dto.response.strategy;
 
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -15,7 +13,6 @@ import java.time.LocalDateTime;
 public class StrategyVersionVO {
 
     /** 策略版本行 ID */
-    @JsonSerialize(using = ToStringSerializer.class)
     private Long id;
 
     /** 策略类型（PREPROCESS/CHUNK/EMBED） */

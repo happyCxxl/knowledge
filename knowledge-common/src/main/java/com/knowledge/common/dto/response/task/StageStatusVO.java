@@ -1,7 +1,5 @@
 package com.knowledge.common.dto.response.task;
 
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -19,7 +17,6 @@ public class StageStatusVO implements TaskStatusView {
     private String stage;
 
     /** 该环节最新任务 ID */
-    @JsonSerialize(using = ToStringSerializer.class)
     private Long taskId;
 
     /** 任务状态（PipelineTaskStatus 枚举名） */

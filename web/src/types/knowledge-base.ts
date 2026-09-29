@@ -48,11 +48,11 @@ export interface KnowledgeBase {
 /** 知识库统计概览（仅统计未删除数据） */
 export interface KnowledgeBaseStats {
   /** 知识库总数 */
-  knowledgeBaseCount: string;
+  knowledgeBaseCount: number;
   /** 启用中的知识库数 */
-  enabledCount: string;
+  enabledCount: number;
   /** 文档总数（提交任务数） */
-  documentCount: string;
+  documentCount: number;
 }
 
 /** 列表排序口径（与后端 KnowledgeBaseSort 对齐；默认库在任何口径下都恒排最前） */

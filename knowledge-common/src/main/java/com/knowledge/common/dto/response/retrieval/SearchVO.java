@@ -1,7 +1,5 @@
 package com.knowledge.common.dto.response.retrieval;
 
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import lombok.Data;
 
 import java.util.ArrayList;
@@ -34,7 +32,6 @@ public class SearchVO {
      * 作为裸数字下发会被前端 JSON.parse 抹掉末几位 —— 而前端要拿它去调对比接口，
      * 失真后会报"运行记录不存在"。项目里其它雪花 ID 字段同样处理。
      */
-    @JsonSerialize(using = ToStringSerializer.class)
     private Long runId;
 
     /** 命中列表 */

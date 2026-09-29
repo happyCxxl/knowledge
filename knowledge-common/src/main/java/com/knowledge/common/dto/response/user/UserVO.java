@@ -1,7 +1,5 @@
 package com.knowledge.common.dto.response.user;
 
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import lombok.Data;
 
 import java.io.Serial;
@@ -20,7 +18,6 @@ public class UserVO implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /** 主键（雪花 ID，前端按字符串处理防精度丢失） */
-    @JsonSerialize(using = ToStringSerializer.class)
     private Long id;
 
     /** 登录用户名 */

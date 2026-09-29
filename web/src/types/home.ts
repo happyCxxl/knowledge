@@ -13,19 +13,19 @@
 
 /** 资产速览（后端 `HomeSummaryVO`）：每类都给细分，避免为看细分再点进对应页 */
 export interface HomeSummary {
-  knowledgeBaseCount: string;
-  enabledKnowledgeBaseCount: string;
+  knowledgeBaseCount: number;
+  enabledKnowledgeBaseCount: number;
   /** 策略版本总数（四类合计，含已停用） */
-  strategyVersionCount: string;
-  preprocessVersionCount: string;
-  chunkVersionCount: string;
-  embedVersionCount: string;
-  retrievalVersionCount: string;
-  indexVersionCount: string;
+  strategyVersionCount: number;
+  preprocessVersionCount: number;
+  chunkVersionCount: number;
+  embedVersionCount: number;
+  retrievalVersionCount: number;
+  indexVersionCount: number;
   /** 在线索引版本数（按发布指针命中，正常为 0 或 1） */
-  onlineIndexVersionCount: string;
+  onlineIndexVersionCount: number;
   /** 文档提交总数（一次提交 = 一个任务 = 一行） */
-  documentCount: string;
+  documentCount: number;
 }
 
 /** 最近提交一行（后端 `HomeRecentSubmitVO`） */

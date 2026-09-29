@@ -1,7 +1,5 @@
 package com.knowledge.common.dto.response.lineage;
 
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import lombok.Data;
 
 import java.util.List;
@@ -16,7 +14,6 @@ import java.util.List;
 public class LineageVO {
 
     /** 文件结果 ID */
-    @JsonSerialize(using = ToStringSerializer.class)
     private Long fileResultId;
 
     /** 运行节点（环节顺序 PARSE→STRUCTURE→PREPROCESS→CHUNK→EMBED，同环节按任务升序） */

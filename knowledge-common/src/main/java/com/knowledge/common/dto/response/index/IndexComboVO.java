@@ -1,7 +1,5 @@
 package com.knowledge.common.dto.response.index;
 
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import com.knowledge.common.enums.index.IndexShape;
 import lombok.Data;
 
@@ -24,7 +22,6 @@ public class IndexComboVO {
     private String fileScopeMode;
 
     /** 该组合血统匹配的成员文件 ID 列表（范围收窄时仅计范围内文件；雪花字符串序列化） */
-    @JsonSerialize(contentUsing = ToStringSerializer.class)
     private List<Long> fileResultIds;
     /** 切片策略 name-version */
     private String chunkStrategy;

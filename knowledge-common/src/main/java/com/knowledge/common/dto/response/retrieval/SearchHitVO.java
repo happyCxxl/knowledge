@@ -1,7 +1,5 @@
 package com.knowledge.common.dto.response.retrieval;
 
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import lombok.Data;
 
 /**
@@ -26,7 +24,6 @@ public class SearchHitVO {
     private String sourceElementIds;
 
     /** 文件结果 ID（雪花 ID，须字符串化以免前端丢精度） */
-    @JsonSerialize(using = ToStringSerializer.class)
     private Long documentId;
 
     /** 片类型 */

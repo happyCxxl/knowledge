@@ -1,7 +1,5 @@
 package com.knowledge.common.dto.response.embed;
 
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import com.knowledge.common.dto.response.task.StepLogVO;
 import lombok.Data;
 
@@ -18,11 +16,9 @@ import java.util.List;
 public class EmbedDetailVO {
 
     /** 文件结果 ID */
-    @JsonSerialize(using = ToStringSerializer.class)
     private Long fileResultId;
 
     /** 任务 ID（无任务时为空） */
-    @JsonSerialize(using = ToStringSerializer.class)
     private Long taskId;
 
     /** 环节（EMBED） */

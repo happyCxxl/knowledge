@@ -1,7 +1,5 @@
 package com.knowledge.common.dto.response.lineage;
 
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import lombok.Data;
 
 /**
@@ -14,10 +12,8 @@ import lombok.Data;
 public class LineageEdgeVO {
 
     /** 上游任务 ID（雪花转字符串） */
-    @JsonSerialize(using = ToStringSerializer.class)
     private Long fromTaskId;
 
     /** 下游任务 ID（雪花转字符串） */
-    @JsonSerialize(using = ToStringSerializer.class)
     private Long toTaskId;
 }

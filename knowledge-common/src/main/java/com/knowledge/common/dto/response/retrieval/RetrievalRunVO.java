@@ -1,7 +1,5 @@
 package com.knowledge.common.dto.response.retrieval;
 
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -18,18 +16,15 @@ import java.time.LocalDateTime;
 public class RetrievalRunVO {
 
     /** 运行记录 ID（雪花 ID，须字符串化） */
-    @JsonSerialize(using = ToStringSerializer.class)
     private Long id;
 
     /** 索引版本行 ID（雪花 ID，须字符串化） */
-    @JsonSerialize(using = ToStringSerializer.class)
     private Long versionId;
 
     /** 版本号 */
     private String versionNo;
 
     /** 规则行 ID（雪花 ID，须字符串化） */
-    @JsonSerialize(using = ToStringSerializer.class)
     private Long ruleId;
 
     /** 规则 name-version */
