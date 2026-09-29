@@ -44,3 +44,4 @@
 - [ ] 布尔方法命名与调用方向一致（无"恒取反"调用；IDEA 该建议无 Maven 等价规则）
 - [ ] 新增子步骤/组装逻辑先查公共助手（StepLogHelper 等）再自行构造，避免低 token 重复片段
 - [ ] 注释只写"做什么"（职责与行为）
+- [ ] 改了被依赖的模块（`knowledge-common` / `knowledge-infra` 等）后，跑 `mvn -o -q -pl <模块> install -DskipTests` 回写本地仓库——钩子里的范围检查用 `compile`，只写 `target/` 不写 `.m2`；否则后续按 `-pl` 检查会读到旧 jar（症状：`cannot find symbol`，但代码本身没错）
