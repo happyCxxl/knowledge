@@ -2,6 +2,13 @@
 set -e
 # pre-commit gate：按暂存路径分组，只跑受影响的那一组。
 #
+# 文档组（暂存含任意位置的 .md）：
+#   Markdown 表格对齐由 tools/format-md.ps1 完成（复刻 IDEA 的 Reformat Table，
+#   CJK 与 emoji 按 2 宽度计）。它是就地改写型的：这里改完再 git add 回写，
+#   与 lint-staged 对暂存文件的处理一致——即「自动修复」，不是只报告。
+#   用 powershell 而非 pwsh：本机只装了 Windows PowerShell 5.1，没有 PowerShell 7。
+#   格式器自身被暂存时先跑一次 -SelfTest（见下），改坏它会在自检处被明确拦下。
+#
 # 前端组（暂存含 web/ 或 tools/frontend/）：
 #   内容检查由 lint-staged 对暂存文件执行（prettier/eslint/stylelint，fix 结果自动回写索引）；
 #   vue-tsc -b 用构建模式，会一并构建 tsconfig.node.json 引用，故覆盖 vite.config.ts
@@ -12,7 +19,27 @@ set -e
 #   Checkstyle + PMD + CPD 为源码级分析，全 8 模块一次约 16 秒，无需 compile；
 #   SpotBugs 为字节码级、必须 compile：用 -pl <改动模块> -amd 让 Maven 按真实 pom
 #   展开「改动模块 + 依赖它的模块」，改到 common/infra 时闭包自然扩为全量。
-staged=$(git diff --cached --name-only)
+#
+# 路径一律取 core.quotePath=false：git 默认把非 ASCII 路径转义成 "\345\256\236..."
+# 并加引号，那样中文名文件的后缀匹配（\.md$ / \.java$）会全部失效——静默漏检。
+staged=$(git -c core.quotePath=false diff --cached --name-only)
+
+# 格式器自检：暂存了格式器本身时先验证它仍然健康。改坏它会在这里被明确拦下，
+# 而不是等下次提交文档时丢一堆 PowerShell 的 parse 错误。
+if echo "$staged" | grep -qE '^tools/format-md\.ps1$'; then
+  powershell -NoProfile -ExecutionPolicy Bypass -File tools/format-md.ps1 -SelfTest
+fi
+
+if echo "$staged" | grep -q '\.md$'; then
+  # 排除已删除：文件不存在会让 PowerShell 的 Resolve-Path 报错，配合 set -e 会中断提交。
+  # 末尾 || true：本次只删除了 .md 时 grep 无匹配返回 1，否则 set -e 会中断提交。
+  md=$(git -c core.quotePath=false diff --cached --name-only --diff-filter=ACMR | grep '\.md$' || true)
+  if [ -n "$md" ]; then
+    paths=$(echo "$md" | sed "s/^/'/;s/\$/'/" | tr '\n' ',' | sed 's/,$//')
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "& ./tools/format-md.ps1 -Paths $paths"
+    echo "$md" | while read -r f; do git add -- "$f"; done
+  fi
+fi
 
 if echo "$staged" | grep -qE '^(web|tools/frontend)/'; then
   (

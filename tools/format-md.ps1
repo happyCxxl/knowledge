@@ -1,35 +1,51 @@
-﻿<#
+<#
 .SYNOPSIS
-  规范 Markdown 表格样式：复刻 IntelliJ IDEA 的 Reformat Table 行为（纯脚本，无需 IDEA）。
+  Normalize Markdown table alignment, replicating IntelliJ IDEA's "Reformat Table"
+  (pure script, IDEA not required).
 
 .DESCRIPTION
-  对齐规则与 IDEA 一致（已用 IDEA 实际输出做字节级校验）：
-    - 列宽 = 该列最大显示宽度（中文/全角与 emoji 按 2 个宽度计，ASCII 按 1，变体选择符按 0）；
-    - 内容行 | 内容 |：单元格补空格到列宽，两侧各一个空格；
-    - 分隔行 |----|：无空格，短横线数 = 列宽 + 2（最少 3 个），对齐冒号（:---:）保留。
-  表格中出现 emoji 时按 2 宽对齐并给出建议移除的提示。
-  缺省格式化仓库 docs 目录下全部 .md；可用 -Paths 指定文件或目录。
-  代码块（``` 围栏）内的内容不动。
+  Alignment rules match IDEA (byte-level verified against real IDEA output):
+    - column width = max display width in that column (CJK/fullwidth and emoji count as 2,
+      ASCII as 1, variation selectors as 0);
+    - content rows | cell |: each cell padded with spaces to the column width, one space per side;
+    - separator rows |----|: no spaces, dashes = column width + 2 (minimum 3),
+      alignment colons (:---:) are preserved.
+  Tables containing emoji are aligned at width 2 and reported with a suggestion to drop them.
+  By default formats every .md under docs/; use -Paths to target files or directories.
+  Fenced code blocks (```) are left untouched.
+
+  This file is deliberately pure ASCII and carries no BOM. Windows PowerShell 5.1 falls back to
+  the ANSI code page for BOM-less scripts, so a single non-ASCII byte here would make the script
+  parse differently depending on encoding. Keep it ASCII-only.
 
 .EXAMPLE
-  pwsh tools/format-md.ps1
-  pwsh tools/format-md.ps1 -Paths docs/实施手册.md
-  pwsh tools/format-md.ps1 -Paths docs,README.md
+  powershell tools/format-md.ps1
+  powershell tools/format-md.ps1 -Paths docs
+  powershell tools/format-md.ps1 -Paths README.md,tools/backend/README.md
+
+.EXAMPLE
+  powershell tools/format-md.ps1 -SelfTest
+  Verify the formatter against a fixed fixture; exits non-zero on mismatch.
 #>
 param(
     [Parameter(Position = 0)]
-    [string[]]$Paths = @('docs')
+    [string[]]$Paths = @('docs'),
+
+    [switch]$SelfTest
 )
 
 $ErrorActionPreference = 'Stop'
-# 路径相对当前目录解析：请在仓库根目录执行本脚本，或用 -Paths 传绝对路径
+# Paths resolve against the current directory: run from the repo root, or pass absolute -Paths.
 
-# 与 IDEA 对齐的宽度口径：东亚全角区段与 emoji 按 2 个宽度计，其余按 1；变体选择符/零宽连接符按 0
+# IDEA display-width rule: East Asian fullwidth ranges and emoji count as 2, everything else 1;
+# variation selectors and zero-width joiners count as 0.
 function Get-DisplayWidth([string]$s) {
     $w = 0
     foreach ($ch in $s.ToCharArray()) {
         $c = [int]$ch
         if ($c -eq 0xFE0F -or $c -eq 0x200D) { continue }
+        # Non-BMP emoji arrive as two UTF-16 surrogates (0xD800-0xDFFF); no range below matches
+        # them, so each counts 1 and an emoji totals 2 - which is the intended width.
         $full = ($c -ge 0x1100 -and $c -le 0x115F) -or
                 ($c -ge 0x2E80 -and $c -le 0xA4CF) -or
                 ($c -ge 0xAC00 -and $c -le 0xD7A3) -or
@@ -45,7 +61,8 @@ function Get-DisplayWidth([string]$s) {
     return $w
 }
 
-# emoji 出现在表格里时按 2 宽计算（与 IDEA 显示宽度一致），但给出建议移除的提示
+# Emoji inside a table are aligned at width 2 (matching IDEA) but reported, since plain text
+# keeps the width contract unambiguous.
 function Test-HasEmoji([string]$s) {
     foreach ($ch in $s.ToCharArray()) {
         $c = [int]$ch
@@ -76,13 +93,13 @@ function Format-MdTables([string]$path) {
             continue
         }
         if (-not $inFence -and $line -match '^\s*\|.*\|\s*$') {
-            # 收集连续表格行
+            # Collect the run of consecutive table rows.
             $block = New-Object System.Collections.Generic.List[string]
             while ($i -lt $lines.Count -and $lines[$i] -match '^\s*\|.*\|\s*$') {
                 $block.Add($lines[$i])
                 $i++
             }
-            # 解析单元格
+            # Split cells on unescaped pipes.
             $rows = New-Object System.Collections.Generic.List[object]
             foreach ($b in $block) {
                 $t = $b.Trim()
@@ -91,17 +108,17 @@ function Format-MdTables([string]$path) {
                 $rows.Add([pscustomobject]@{ Cells = $cells; Separator = @($cells | Where-Object { -not (Test-SeparatorCell $_) }).Count -eq 0 })
             }
             $cols = ($rows | ForEach-Object { $_.Cells.Count } | Measure-Object -Maximum).Maximum
-            # 表格含 emoji 时给出提示：宽度按 2 计已与 IDEA 对齐，但建议改纯文字避免口径歧义
+            # Report emoji: width 2 already matches IDEA, but plain text is preferred.
             foreach ($r in $rows) {
                 if ($r.Separator) { continue }
                 foreach ($cell in $r.Cells) {
                     if (Test-HasEmoji $cell) {
-                        Write-Host "WARN: $path 表格含 emoji 字符（已按宽度 2 对齐 IDEA），建议改用纯文字"
+                        Write-Host "WARN: $path table contains emoji (aligned at width 2 like IDEA); plain text preferred"
                         break
                     }
                 }
             }
-            # 列宽 = 最大显示宽度；分隔线短横线数 = 列宽 + 2（最少 3）；内容补空格到列宽
+            # Column width = max display width; separator dashes = width + 2 (minimum 3).
             $widths = @()
             for ($c = 0; $c -lt $cols; $c++) {
                 $max = 0
@@ -113,10 +130,10 @@ function Format-MdTables([string]$path) {
                 }
                 $widths += $max
             }
-            # 渲染
+            # Render.
             foreach ($r in $rows) {
                 if ($r.Separator) {
-                    # 分隔行：|----|----|（无空格；短横线数 = 列宽 + 2，最少 3；对齐冒号保留）
+                    # Separator row: |----|----| (no spaces; dashes = width + 2, min 3; colons kept).
                     $cells = New-Object System.Collections.Generic.List[string]
                     for ($c = 0; $c -lt $cols; $c++) {
                         $cell = if ($c -lt $r.Cells.Count) { $r.Cells[$c] } else { '' }
@@ -130,7 +147,7 @@ function Format-MdTables([string]$path) {
                     }
                     $out.Add('|' + ($cells -join '|') + '|')
                 } else {
-                    # 内容行：| 内容 |（单元格补空格到列宽，两侧各一个空格）
+                    # Content row: | padded cell | (one space per side).
                     $cells = New-Object System.Collections.Generic.List[string]
                     for ($c = 0; $c -lt $cols; $c++) {
                         $cell = if ($c -lt $r.Cells.Count) { $r.Cells[$c] } else { '' }
@@ -146,6 +163,30 @@ function Format-MdTables([string]$path) {
     }
     $content = ($out -join "`n") + "`n"
     [System.IO.File]::WriteAllText($path, $content, (New-Object System.Text.UTF8Encoding($false)))
+}
+
+# Self-check used by the pre-commit hook: format a fixed fixture and compare with the expected
+# canonical form. The fixture is built from code points so this file stays pure ASCII.
+if ($SelfTest) {
+    $cjk = ([string][char]0x4E2D) + ([string][char]0x6587)   # 2 CJK chars, display width 4
+    $nl = "`n"
+    $fixture = '# t' + $nl + $nl + '| a | b |' + $nl + '|---|---|' + $nl + '| ' + $cjk + ' | c |' + $nl
+    $expect = '# t' + $nl + $nl + '| a    | b |' + $nl + '|------|---|' + $nl + '| ' + $cjk + ' | c |' + $nl
+    $tmp = [System.IO.Path]::GetTempFileName()
+    [System.IO.File]::WriteAllText($tmp, $fixture, (New-Object System.Text.UTF8Encoding($false)))
+    Format-MdTables $tmp
+    $got = [System.IO.File]::ReadAllText($tmp)
+    Remove-Item $tmp -Force
+    if ($got -ne $expect) {
+        Write-Host 'SELFTEST FAILED: formatter output does not match the expected canonical form.'
+        Write-Host '--- expected ---'
+        Write-Host $expect
+        Write-Host '--- got ---'
+        Write-Host $got
+        exit 1
+    }
+    Write-Host 'SELFTEST OK: formatter is healthy.'
+    exit 0
 }
 
 $targets = @()
