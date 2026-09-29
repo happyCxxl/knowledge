@@ -17,15 +17,6 @@ export const STAGE_LABELS: Record<string, string> = {
   EMBED: '向量化',
 };
 
-/** 环节编号（与后端阶段号一致，展示用） */
-export const STAGE_CODES: Record<string, string> = {
-  PARSE: 'B02',
-  STRUCTURE: 'B03',
-  PREPROCESS: 'B04',
-  CHUNK: 'B05',
-  EMBED: 'B07',
-};
-
 /** 取环节展示名；未知环节回落原值，避免渲染出 undefined */
 export function stageLabel(stage: string): string {
   return STAGE_LABELS[stage] ?? stage;

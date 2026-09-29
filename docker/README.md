@@ -15,7 +15,7 @@ docker compose up -d
 ```
 
 首次启动会自动拉取镜像并按文件名序执行 `knowledge-biz/src/main/resources/sql/` 目录下的全部迁移脚本
-（`step-00-建库.sql` ~ `step-14-检索与评测.sql`，每个脚本对应一个实施环节，各自自包含 `USE knowledge`），
+（`stage-00-建库.sql` ~ `stage-20-切片溯源去冗余.sql`，共 14 个，每个脚本对应一个实施环节，各自自包含 `USE knowledge`），
 只会在**数据卷为空**时执行一次；改了脚本想重来需 `docker compose down -v` 后再 `up -d`。
 
 ## 组件与端口
@@ -30,7 +30,7 @@ docker compose up -d
 
 - `spring.datasource.*` → mysql 容器
 - `spring.data.redis.*` → redis 容器
-- `knowledge.milvus.uri` → milvus 容器（http://localhost:19530）
+- `knowledge.vector.milvus.host` / `port` → milvus 容器（默认 localhost:19530，未在 yml 中显式配置）
 
 ## 常用命令
 

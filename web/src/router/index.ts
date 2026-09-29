@@ -42,7 +42,7 @@ const router = createRouter({
           component: () => import('@/views/knowledge-base/IndexBuildView.vue'),
         },
         {
-          // 检索评测：测试台检索 + 运行记录并排对比 + 规则选优发布（B09/B10）
+          // 检索评测：测试台检索 + 运行记录并排对比 + 规则选优发布
           path: 'knowledge-base/:id/retrieval',
           name: 'RetrievalEval',
           component: () => import('@/views/knowledge-base/RetrievalEvalView.vue'),

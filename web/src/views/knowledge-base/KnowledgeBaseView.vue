@@ -540,9 +540,6 @@ function handleDialogClosed(): void {
   editingId.value = null;
 }
 
-// （原 handlePending「该功能待接入后端接口」占位已移除：卡片上的「评测」改为跳转
-//   /knowledge-base/:id/retrieval，后端阶段 17 的 5 个接口早已就绪）
-
 onMounted(() => {
   void loadList();
   void loadStats();

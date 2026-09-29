@@ -5,7 +5,7 @@ USE knowledge;
 
 -- ----------------------------------------------------------------------------
 -- 阶段 16：索引构建与发布两表 —— 执行一次
--- 口径（2026-09 策略集合模型定稿）：一个组合 = 一个 Milvus 集合 kb_{kbId}_{versionNo}
+-- 口径（策略集合模型）：一个组合 = 一个 Milvus 集合 kb_{kbId}_{versionNo}
 -- （集合即边界，行内无 version/kb_id 字段）；发布两级指针 = kb_index_set.current_published_version_id
 -- （二级）+ kb_knowledge_base.published_index_set_id（一级）；机器表 append-only、雪花主键。
 -- ----------------------------------------------------------------------------

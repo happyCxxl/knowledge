@@ -129,9 +129,6 @@ function openIndex(): void {
 
 /**
  * 进入该库的检索评测页（测试台检索 + 运行记录并排对比 + 规则选优发布）。
- *
- * <p>此前这里是 `emit('evaluate')`，页面侧只弹「该功能待接入后端接口」——
- * 后端其实早就就绪（阶段 17 的 5 个接口），现在改成真跳转。
  */
 function openRetrieval(): void {
   void router.push(`/knowledge-base/${props.kb.id}/retrieval`);
