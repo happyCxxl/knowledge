@@ -42,6 +42,12 @@ const router = createRouter({
           component: () => import('@/views/knowledge-base/IndexBuildView.vue'),
         },
         {
+          // 检索评测：测试台检索 + 运行记录并排对比 + 规则选优发布（B09/B10）
+          path: 'knowledge-base/:id/retrieval',
+          name: 'RetrievalEval',
+          component: () => import('@/views/knowledge-base/RetrievalEvalView.vue'),
+        },
+        {
           // 策略管理：四类策略（预处理/切片/向量化/检索）的版本管理
           path: 'strategy',
           name: 'StrategyManagement',

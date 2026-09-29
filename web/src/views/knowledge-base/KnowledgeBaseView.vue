@@ -73,7 +73,6 @@
           :kb="item"
           @update="openEdit"
           @import="openImport(item.id)"
-          @evaluate="handlePending"
           @delete="handleDelete"
         />
         <button class="kb-new" type="button" @click="openCreate">
@@ -540,10 +539,8 @@ function handleDialogClosed(): void {
   editingId.value = null;
 }
 
-// 待接入后端接口的功能统一提示入口
-function handlePending(): void {
-  ElMessage.info('该功能待接入后端接口');
-}
+// （原 handlePending「该功能待接入后端接口」占位已移除：卡片上的「评测」改为跳转
+//   /knowledge-base/:id/retrieval，后端阶段 17 的 5 个接口早已就绪）
 
 onMounted(() => {
   void loadList();

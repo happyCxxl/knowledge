@@ -76,7 +76,7 @@
       <button class="kb-op" type="button" @click.stop="emit('import', kb)">导入文档</button>
       <button class="kb-op" type="button" @click.stop="emit('update', kb)">编辑</button>
       <button class="kb-op" type="button" @click.stop="openIndex">索引与发布</button>
-      <button class="kb-op" type="button" @click.stop="emit('evaluate')">评测</button>
+      <button class="kb-op" type="button" @click.stop="openRetrieval">评测</button>
       <!-- 默认库不可删除：直接不渲染入口，避免点了才被后端拒绝 -->
       <button
         v-if="kb.defaultFlag !== 1"
@@ -111,7 +111,6 @@ const emit = defineEmits<{
   update: [kb: KnowledgeBase];
   /** 导入文档：预选该知识库打开导入弹窗 */
   import: [kb: KnowledgeBase];
-  evaluate: [];
   /** 删除：默认库不渲染该入口，因此不会触发 */
   delete: [kb: KnowledgeBase];
 }>();
@@ -126,6 +125,16 @@ function openStages(): void {
 /** 进入该库的索引与发布页（组合版本、发布与回退） */
 function openIndex(): void {
   void router.push(`/knowledge-base/${props.kb.id}/index`);
+}
+
+/**
+ * 进入该库的检索评测页（测试台检索 + 运行记录并排对比 + 规则选优发布）。
+ *
+ * <p>此前这里是 `emit('evaluate')`，页面侧只弹「该功能待接入后端接口」——
+ * 后端其实早就就绪（阶段 17 的 5 个接口），现在改成真跳转。
+ */
+function openRetrieval(): void {
+  void router.push(`/knowledge-base/${props.kb.id}/retrieval`);
 }
 
 const statusText = computed(() => (props.kb.status === KB_STATUS_ACTIVE ? '已启用' : '已停用'));
