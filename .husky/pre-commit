@@ -1,0 +1,36 @@
+#!/bin/sh
+set -e
+# pre-commit gate：按暂存路径分组，只跑受影响的那一组。
+#
+# 前端组（暂存含 web/ 或 tools/frontend/）：
+#   内容检查由 lint-staged 对暂存文件执行（prettier/eslint/stylelint，fix 结果自动回写索引）；
+#   vue-tsc -b 用构建模式，会一并构建 tsconfig.node.json 引用，故覆盖 vite.config.ts
+#   （--noEmit 不遍历 references，查不到它）；
+#   ls-lint / 命名词表 / 规范合规为全树文件级校验。
+#
+# 后端组（暂存含 Java / pom.xml / tools/backend/）：
+#   Checkstyle + PMD + CPD 为源码级分析，全 8 模块一次约 16 秒，无需 compile；
+#   SpotBugs 为字节码级、必须 compile：用 -pl <改动模块> -amd 让 Maven 按真实 pom
+#   展开「改动模块 + 依赖它的模块」，改到 common/infra 时闭包自然扩为全量。
+staged=$(git diff --cached --name-only)
+
+if echo "$staged" | grep -qE '^(web|tools/frontend)/'; then
+  (
+    cd "$(git rev-parse --show-toplevel)/web"
+    pnpm exec lint-staged --concurrent false
+    pnpm exec vue-tsc -b
+    pnpm exec ls-lint
+    node ../tools/frontend/check-naming.mjs
+    node ../tools/frontend/check-spec.mjs
+  )
+fi
+
+if echo "$staged" | grep -qE '(\.java$|pom\.xml$|^tools/backend/)'; then
+  mvn -o checkstyle:check pmd:check pmd:cpd-check
+  scoped=$(echo "$staged" | grep -oE '^knowledge-[a-z-]+' | sort -u | tr '\n' ',' | sed 's/,$//')
+  if [ -z "$scoped" ] || echo "$staged" | grep -qE '^(pom\.xml$|tools/backend/)'; then
+    mvn -o compile spotbugs:check
+  else
+    mvn -o -pl "$scoped" -amd compile spotbugs:check
+  fi
+fi
