@@ -28,3 +28,4 @@ docker/volumes/
 .DS_Store
 Thumbs.db
 /knowledge-biz/data/
+/.archify/

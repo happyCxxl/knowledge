@@ -56,5 +56,6 @@
 | 文档                             | 内容                           |
 |----------------------------------|--------------------------------|
 | `tools/backend/README.md`        | 后端静态检查口径与交付自查清单 |
+| `tools/frontend/README.md`       | 前端检查的组成与分工           |
 | `web/docs/前端开发规范.md`       | 前端实现规范                   |
 | `web/docs/delivery-checklist.md` | 前端交付自查清单               |
