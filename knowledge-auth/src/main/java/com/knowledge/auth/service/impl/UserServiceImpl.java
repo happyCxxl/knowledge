@@ -71,7 +71,7 @@ public class UserServiceImpl implements UserService {
         user.setUsername(request.getUsername());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
         user.setRole(parseRole(request.getRole()).getCode());
-        user.setStatus(request.getStatus() == null ? STATUS_ENABLED : parseStatus(request.getStatus()));
+        user.setStatus(request.getStatus() == null ? Integer.valueOf(STATUS_ENABLED) : parseStatus(request.getStatus()));
         userDbService.save(user);
         auditEventPublisher.publish(AuditActionType.USER_CREATE, AUDIT_OBJECT_TYPE, user.getId(),
                 null, auditSummary(user));

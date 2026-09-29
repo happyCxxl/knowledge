@@ -18,6 +18,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * JWT 认证过滤器：解析请求令牌并写入安全上下文。
@@ -82,6 +83,6 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             return false;
         }
         Integer tokenVersion = user.getTokenVersion();
-        return currentVersion.equals(tokenVersion == null ? 0 : tokenVersion);
+        return currentVersion.equals(Objects.requireNonNullElse(tokenVersion, 0));
     }
 }

@@ -14,6 +14,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.util.Objects;
+
 /**
  * 认证服务实现。
  *
@@ -37,7 +39,7 @@ public class AuthServiceImpl implements AuthService {
         LoginVO vo = new LoginVO();
         // 角色与令牌版本随令牌下发：角色供菜单/鉴权，版本供失效校验
         UserRole role = UserRole.of(user.getRole());
-        Integer tokenVersion = user.getTokenVersion() == null ? 0 : user.getTokenVersion();
+        Integer tokenVersion = Objects.requireNonNullElse(user.getTokenVersion(), 0);
         vo.setToken(jwtUtil.sign(user.getId(), user.getUsername(), role, tokenVersion));
         vo.setRole(role.getCode());
         return vo;

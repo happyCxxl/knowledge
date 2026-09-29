@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
+import java.util.Objects;
 
 /**
  * JWT 令牌工具：签发与解析。
@@ -54,7 +55,7 @@ public class JwtUtil {
                 .setSubject(String.valueOf(userId))
                 .setPayload(CLAIM_USERNAME, username)
                 .setPayload(CLAIM_ROLE, role.getCode())
-                .setPayload(CLAIM_TOKEN_VERSION, tokenVersion == null ? 0 : tokenVersion)
+                .setPayload(CLAIM_TOKEN_VERSION, Objects.requireNonNullElse(tokenVersion, 0))
                 .setExpiresAt(new Date(System.currentTimeMillis() + ttlMillis))
                 .setKey(secret)
                 .sign();
