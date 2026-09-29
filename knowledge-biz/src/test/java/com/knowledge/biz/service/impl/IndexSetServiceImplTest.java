@@ -76,7 +76,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 索引构建与发布控制面单测（step-13 B4/B5；B8.1 增评测冻结集口径）：
+ * 索引构建与发布控制面单测（评测冻结集口径）：
  * 产物就绪回调（绑定开 INCREMENT / 绑定关 NEW 候选）/ 显式构建 40444、40443 /
  * 发布三级指针 + 旧版退役 + 审计 / 回退指针切回 + 补齐（无差异 COMPENSATE / 有差异 CHUNK 投递）/
  * currentPublished / 回收（在线禁删、正常回收）/
@@ -988,7 +988,7 @@ class IndexSetServiceImplTest {
 
     @Test
     void onFileProductsReadyShouldAppendToMatchingFrozenScopesOnly() {
-        // B8.1：评测模式（绑定关）不自动注册 ALL 组合；范围内三元组匹配的 LIST 版本照常追加
+        // 评测模式（绑定关）不自动注册 ALL 组合；范围内三元组匹配的 LIST 版本照常追加
         //（范围外/三元组不同不进）
         KbFileResult file = file(10L);
         when(fileResultDbService.getById(10L)).thenReturn(file);
@@ -1096,7 +1096,7 @@ class IndexSetServiceImplTest {
 
     @Test
     void buildCandidateShouldNormalizeAllScopeRange() {
-        // B8.1：ALL 范围归一化——残留 fileResultIds 置空，落库快照干净
+        // ALL 范围归一化——残留 fileResultIds 置空，落库快照干净
         when(knowledgeBaseDbService.getById(1L)).thenReturn(new KnowledgeBase());
         when(indexSetDbService.getOrCreateByKb(1L)).thenReturn(indexSet());
         when(indexVersionDbService.listByIndexSetId(5L)).thenReturn(List.of());

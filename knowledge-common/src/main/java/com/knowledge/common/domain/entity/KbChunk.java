@@ -8,7 +8,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * 切片：检索命中的最小单元，content = B04 normalizedText 口径。
+ * 切片：检索命中的最小单元，content = 预处理 normalizedText 口径。
  * 机器表：后台线程写入、append-only、不逻辑删——不挂平台五件套（仅 create_time）。
  *
  * @author cxxl
@@ -42,7 +42,7 @@ public class KbChunk {
     /** 页码范围（如 1-3） */
     private String pageRange;
 
-    /** 表格引用（B03 表元素 ID） */
+    /** 表格引用（表元素 ID） */
     private String tableRef;
 
     /** 集合内顺序 */

@@ -9,7 +9,7 @@ import com.knowledge.worker.indexing.BuildOrder;
 import java.util.List;
 
 /**
- * 索引构建与发布控制面（step-13 B08，2026-09 定稿：策略集合模型）：
+ * 索引构建与发布控制面（策略集合模型）：
  * 一个组合 = 一个 Milvus 集合（kb_{kbId}_{versionNo}），集合只增不改；
  * 发布/回退 = MySQL 指针切换；回收 = drop 集合即时释放。
  * 行写入由文件产物就绪回调按组合追加（文件即版本），构建任务承担"注册组合 + 全量对账 + 发布判定"。

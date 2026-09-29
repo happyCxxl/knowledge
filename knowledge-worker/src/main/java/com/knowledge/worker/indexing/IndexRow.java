@@ -7,7 +7,7 @@ import java.io.Serializable;
 import java.util.List;
 
 /**
- * 索引写入行（step-13 B3）：一条可检索向量记录（B07 记录的可检索子集，SUCCESS/CACHED）。
+ * 索引写入行：一条可检索向量记录（向量化记录的可检索子集，SUCCESS/CACHED）。
  *
  * @author cxxl
  */

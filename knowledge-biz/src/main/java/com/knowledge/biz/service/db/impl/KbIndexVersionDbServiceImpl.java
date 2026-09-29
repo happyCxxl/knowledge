@@ -12,7 +12,7 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 
 /**
- * 索引版本数据访问服务实现（step-13 B08）。
+ * 索引版本数据访问服务实现。
  *
  * @author cxxl
  */

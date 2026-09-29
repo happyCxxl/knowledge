@@ -26,7 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 /**
- * 检索与评测 Controller（step-14 B5/B6，B09/B10，接口契约见实现文档 §6）：
+ * 检索与评测 Controller：
  * 生产检索（回退链）/ 测试台检索（显式版本+规则，落运行记录）/ 勾选对比回放 / 规则选优发布。
  *
  * @author cxxl
@@ -35,7 +35,7 @@ import java.util.List;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/knowledge-base")
-@Tag(name = "检索与评测", description = "B09 检索 / B10 测试台对比与选优发布")
+@Tag(name = "检索与评测", description = "检索 / 测试台对比与选优发布")
 public class RetrievalController {
 
     private final SearchService searchService;

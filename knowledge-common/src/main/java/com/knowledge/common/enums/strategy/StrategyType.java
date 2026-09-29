@@ -15,7 +15,7 @@ import java.util.stream.Collectors;
  * PARSE / STRUCTURE（不挂策略）与 BUILD_INDEX（索引构建），所以不能直接用环节枚举当策略类型。
  *
  * <p>**绑定可分性**（{@link #bindable()}）：只有三件套能绑到知识库；检索规则不绑 KB ——
- * 它走索引版本行的 `default_rule_id`，见 step-14 口径。
+ * 它走索引版本行的 `default_rule_id`。
  *
  * @author cxxl
  */

@@ -5,7 +5,7 @@ import com.knowledge.common.domain.entity.KbIndexVersion;
 import org.apache.ibatis.annotations.Mapper;
 
 /**
- * 索引版本 Mapper（step-13 B08）。
+ * 索引版本 Mapper。
  *
  * @author cxxl
  */

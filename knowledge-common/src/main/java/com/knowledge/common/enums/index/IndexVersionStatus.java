@@ -1,7 +1,7 @@
 package com.knowledge.common.enums.index;
 
 /**
- * 索引版本状态机（step-13 B08，2026-09 定稿：策略集合模型）：
+ * 索引版本状态机（策略集合模型）：
  * CREATED → BUILDING → READY →（发布）ONLINE；ONLINE →（新组合上线/回退切走）RETIRED；
  * RETIRED →（回退复活）ONLINE；任意非终态可 FAILED；回收 = 物理删除 + drop 集合（无状态）。
  *

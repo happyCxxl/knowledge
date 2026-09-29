@@ -25,7 +25,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 索引组合口径服务实现（step-13 B2，2026-09 定稿：组合 = 预处理×切片×向量化 环节策略映射）。
+ * 索引组合口径服务实现（组合 = 预处理×切片×向量化 环节策略映射）。
  * 血缘与枚举取数走 IndexComboReconciler（预处理策略沿切片产物的上游链读取，capabilitySnapshot 为载体，不新增列）。
  *
  * @author cxxl
@@ -79,7 +79,7 @@ public class IndexComboServiceImpl implements IndexComboService {
     }
 
     /**
-     * 绑定关闭场景（B8.1 评测冻结集）：枚举范围收窄到指定文件——
+     * 绑定关闭场景（评测冻结集）：枚举范围收窄到指定文件——
      * 只返回「范围内每个文件都完整」的三元组（fileResultIds 空 → 空列表）。
      */
     public List<ComboSnapshot> enumerateCombos(List<Long> fileResultIds) {

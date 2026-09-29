@@ -34,7 +34,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 向量化管线单测（step-11 T3）：前置校验 / 父片跳过 / 复用回溯命中 / 隔轮回溯 / OFF 强制重算 /
+ * 向量化管线单测：前置校验 / 父片跳过 / 复用回溯命中 / 隔轮回溯 / OFF 强制重算 /
  * 四关拦截 / 批次重试 / 失败批次隔离 / 全失败 / 空切片集。
  *
  * @author cxxl

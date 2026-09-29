@@ -3,7 +3,7 @@ package com.knowledge.common.dto.response.retrieval;
 import lombok.Data;
 
 /**
- * 检索规则选优发布响应（step-14 B2）。
+ * 检索规则选优发布响应。
  *
  * @author cxxl
  */

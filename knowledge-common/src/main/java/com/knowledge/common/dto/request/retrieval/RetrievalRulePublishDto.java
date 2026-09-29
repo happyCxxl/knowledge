@@ -4,7 +4,7 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 /**
- * 检索规则选优发布请求（step-14 B2）：把规则行设为指定索引版本行的默认规则。
+ * 检索规则选优发布请求：把规则行设为指定索引版本行的默认规则。
  *
  * @author cxxl
  */

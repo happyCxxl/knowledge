@@ -8,7 +8,7 @@ import java.util.List;
 
 /**
  * 文件校验配置（knowledge.file 前缀）。
- * Nacos 同名键可覆盖；默认值为一期定稿值。
+ * Nacos 同名键可覆盖；未配置时取内置默认值。
  *
  * @author cxxl
  */

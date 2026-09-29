@@ -5,8 +5,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * 字体事实：B03 标题层级三级级联的字体信号。
- * DOCX 有样式（Heading1/2）时由样式直接给层级；无样式时也输出本结构，层级由 B03 推定。
+ * 字体事实：标题层级三级级联的字体信号。
+ * DOCX 有样式（Heading1/2）时由样式直接给层级；无样式时也输出本结构，层级由标题规则推定。
  *
  * @author cxxl
  */

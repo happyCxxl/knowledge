@@ -11,7 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 /**
- * 索引血缘解析（step-13 B1，2026-09 定稿）：
+ * 索引血缘解析：
  * 文件产物的"预处理策略"沿 upstream 链读取——切片产物行的上游预处理产物 capabilitySnapshot
  * 存有完整 PreprocessStrategy JSON（PreprocessTaskRunner 落库口径），解析出 name-version。
  * 组合映射按环节可扩展：新增环节策略时，按同模式从对应产物的 capabilitySnapshot 读取，

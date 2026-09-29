@@ -23,7 +23,7 @@ public enum ChunkAlgorithm {
     BODY_SENTENCE_AGGREGATE(ChunkRoute.BODY, "sentence-aggregate", true, true),
     /** 固定长度+重叠：缓冲到边界后按窗口长度切，相邻窗口带重叠；不标兜底降级 */
     BODY_FIXED_WINDOW(ChunkRoute.BODY, "fixed-window", true, true),
-    /** 语义切片（预留）：按语义相似度断点切片，依赖 B07 embedding 能力，暂未上线 */
+    /** 语义切片（预留）：按语义相似度断点切片，依赖 embedding 能力，暂未上线 */
     BODY_SEMANTIC(ChunkRoute.BODY, "semantic", false, false),
 
     // ---------------- 表格路 ----------------
@@ -56,7 +56,7 @@ public enum ChunkAlgorithm {
     FALLBACK_RECURSIVE(ChunkRoute.FALLBACK, "recursive-length", true, false),
     /** 固定长度+重叠：纯窗口硬切（不看句边界），相邻片带重叠 */
     FALLBACK_FIXED_WINDOW(ChunkRoute.FALLBACK, "fixed-window", true, false),
-    /** 语义断点降级（预留）：按语义断点切分超长文本，依赖 B07 embedding 能力，暂未上线 */
+    /** 语义断点降级（预留）：按语义断点切分超长文本，依赖 embedding 能力，暂未上线 */
     FALLBACK_SEMANTIC(ChunkRoute.FALLBACK, "semantic-boundary", false, false),
     /** 不兜底：超长文本原样单片段输出（便于评测识别超长片） */
     FALLBACK_NONE(ChunkRoute.FALLBACK, "none", true, false);

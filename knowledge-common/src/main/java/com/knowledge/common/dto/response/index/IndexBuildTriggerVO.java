@@ -5,7 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * 触发索引构建响应（step-13 B08）：版本行 + 构建任务 ID（页面据此轮询构建状态）。
+ * 触发索引构建响应：版本行 + 构建任务 ID（页面据此轮询构建状态）。
  *
  * @author cxxl
  */

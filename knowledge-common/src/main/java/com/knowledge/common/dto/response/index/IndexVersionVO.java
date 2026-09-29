@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 索引版本视图（step-13 B08，列表与详情共用）：
+ * 索引版本视图（列表与详情共用）：
  * 组合快照结构化展开（文件范围/切片策略/向量策略/形态）+ 状态机 + 统计 + 发布/退役留痕 + 在线标记。
  * 在线口径：kb_index_set.currentPublishedVersionId 命中（online=true），与状态值解耦。
  *
@@ -38,7 +38,7 @@ public class IndexVersionVO {
     /** 索引形态（一期 FULL_VECTOR） */
     private IndexShape shape;
 
-    /** 环节策略映射（stage → 策略 name-version；定稿口径，前端逐环节展示） */
+    /** 环节策略映射（stage → 策略 name-version；口径，前端逐环节展示） */
     private Map<String, String> stageStrategies;
 
     /** 纳入片数 */

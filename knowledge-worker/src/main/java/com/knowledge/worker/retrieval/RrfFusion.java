@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * RRF（Reciprocal Rank Fusion）融合纯函数（step-14 B4，B09 检索引擎）：
+ * RRF（Reciprocal Rank Fusion）融合纯函数（检索引擎）：
  * score(chunkId) = Σ_c 1/(k + rank_c)，rank 从 1 起（跨通道贡献求和，同名 chunkId 合并）；
  * 按融合分降序。纯函数、无依赖；WEIGHTED 融合预留同包扩展。
  *

@@ -5,7 +5,7 @@ import lombok.Data;
 import java.util.List;
 
 /**
- * 产物内容响应（step-12 B2，恢复 T3）：对比视图内容层数据源。
+ * 产物内容响应：对比视图内容层数据源。
  * latest = 该次运行产物是否可用（按 task.productId 精确取产物；历史任务同样可展示）。
  *
  * @author cxxl

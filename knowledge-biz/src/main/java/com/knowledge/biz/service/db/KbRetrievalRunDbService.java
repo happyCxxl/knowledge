@@ -7,7 +7,7 @@ import java.util.Collection;
 import java.util.List;
 
 /**
- * 检索运行记录数据访问服务（step-14 B6）。
+ * 检索运行记录数据访问服务。
  *
  * @author cxxl
  */

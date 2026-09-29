@@ -6,7 +6,7 @@ import lombok.Data;
 import java.util.List;
 
 /**
- * 向量检索查询（step-13 B3）。
+ * 向量检索查询。
  *
  * @author cxxl
  */

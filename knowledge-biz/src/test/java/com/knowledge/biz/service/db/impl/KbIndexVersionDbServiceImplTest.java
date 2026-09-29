@@ -22,7 +22,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 索引版本数据访问服务单测（step-13 B1）：列表排序 / 版本号生成。
+ * 索引版本数据访问服务单测：列表排序 / 版本号生成。
  *
  * @author cxxl
  */

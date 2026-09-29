@@ -29,7 +29,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * 索引组合对账器单测（step-13 B6，2026-09 定稿；B8.1 增单一取数口径）：
+ * 索引组合对账器单测（单一取数口径）：
  * 对账不变量——组合必须携带三环节策略维度（旧口径快照由快照边界断言显式拒绝，
  * 对账器按同一维度判定不完整，两者口径一致）；
  * 单一取数口径——selectComboProducts（血统匹配/缺口/血统不符）、latestChunkMap（同策略取 id 最大）、

@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 可构建组合枚举视图（step-13 B08，测评模式构建弹窗数据源）：
+ * 可构建组合枚举视图（测评模式构建弹窗数据源）：
  * 组合四维 + 产物完整标记 + 构建前预览统计（成员文件数 × 向量数）。
  * fileResultIds = 该组合血统匹配的成员文件（范围收窄时仅计范围内文件）；
  * fileCount = 成员数；vectorCount = Σ 成员最新向量集合 recordCount
@@ -32,7 +32,7 @@ public class IndexComboVO {
     /** 索引形态（一期 FULL_VECTOR） */
     private IndexShape shape;
 
-    /** 环节策略映射（stage → 策略 name-version；定稿口径） */
+    /** 环节策略映射（stage → 策略 name-version；口径） */
     private Map<String, String> stageStrategies;
 
     /** 产物完整标记（枚举仅返回完整组合，恒 true） */

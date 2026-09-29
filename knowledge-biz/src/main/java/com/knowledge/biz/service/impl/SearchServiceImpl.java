@@ -51,7 +51,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * 检索引擎编排实现（step-14 B4，B09）：唯一执行路径 search(kbId, query, ruleSpec, collectionName)。
+ * 检索引擎编排实现：唯一执行路径 search(kbId, query, ruleSpec, collectionName)。
  * 生产检索（回退链）与测试台检索（显式版本+规则）同引擎；预留能力经 RetrievalRuleResolver.validate
  * 双保险拒执行；查询向量化跟随集合 EMBED 策略（queryTemplate 口径）；网关失败该通道降级为空。
  *

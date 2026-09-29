@@ -4,7 +4,7 @@ import lombok.Builder;
 import lombok.Data;
 
 /**
- * 向量检索命中（step-13 B3）：返回字段原样入索引，命中直取不回查库。
+ * 向量检索命中：返回字段原样入索引，命中直取不回查库。
  *
  * @author cxxl
  */

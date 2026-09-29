@@ -5,7 +5,7 @@ import com.knowledge.common.domain.entity.KbIndexSet;
 import org.apache.ibatis.annotations.Mapper;
 
 /**
- * 索引集合 Mapper（step-13 B08）。
+ * 索引集合 Mapper。
  *
  * @author cxxl
  */

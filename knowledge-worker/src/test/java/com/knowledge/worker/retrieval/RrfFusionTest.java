@@ -8,7 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * RRF 融合纯函数单测（step-14 B4）：名次融合/同名去重取最高分/k 参数/空通道容忍。
+ * RRF 融合纯函数单测：名次融合/同名去重取最高分/k 参数/空通道容忍。
  *
  * @author cxxl
  */

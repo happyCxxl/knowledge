@@ -6,7 +6,7 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * 知识库-策略绑定视图（step-09）：未绑定时仅返回 strategyType。
+ * 知识库-策略绑定视图：未绑定时仅返回 strategyType。
  *
  * <p>既能表达"**某个库**绑了什么"（单体查询），也能表达"**一批库**各绑了什么"
  * （批量查询，见 {@code GET /knowledge-base/strategy-bindings}）——

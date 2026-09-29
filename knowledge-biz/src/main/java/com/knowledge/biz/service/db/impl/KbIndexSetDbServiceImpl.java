@@ -17,7 +17,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * 索引集合数据访问服务实现（step-13 B08）。
+ * 索引集合数据访问服务实现。
  *
  * @author cxxl
  */

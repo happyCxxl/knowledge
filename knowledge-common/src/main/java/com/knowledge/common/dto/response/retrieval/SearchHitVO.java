@@ -3,7 +3,7 @@ package com.knowledge.common.dto.response.retrieval;
 import lombok.Data;
 
 /**
- * 检索命中（step-14 B5，B09）：命中字段原样入 VO（命中直取不回查库）；
+ * 检索命中：命中字段原样入 VO（命中直取不回查库）；
  * 父片展开命中 = 父片内容 + isParent=true。
  *
  * @author cxxl

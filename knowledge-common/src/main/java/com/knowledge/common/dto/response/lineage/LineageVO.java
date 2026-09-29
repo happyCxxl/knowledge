@@ -5,7 +5,7 @@ import lombok.Data;
 import java.util.List;
 
 /**
- * 执行树聚合响应（step-12 B1）：一个文件的全部运行节点 + 血缘边。
+ * 执行树聚合响应：一个文件的全部运行节点 + 血缘边。
  * 节点 = 一次运行（taskId）；边 = upstreamProductId 血缘（反查产物产出任务）。
  *
  * @author cxxl

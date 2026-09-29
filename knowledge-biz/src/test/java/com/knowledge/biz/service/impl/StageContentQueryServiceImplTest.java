@@ -98,7 +98,7 @@ class StageContentQueryServiceImplTest {
 
     @Test
     void historyTaskShouldReturnOwnContent() {
-        // step-13 口径修正：历史任务按 task.productId 精确取自己的产物内容（不再仅最新任务可展示）
+        // 历史任务按 task.productId 精确取自己的产物内容（不再仅最新任务可展示）
         when(fileResultDbService.getById(10L)).thenReturn(new KbFileResult());
         KbPipelineTask task = latestTask(PipelineStage.CHUNK.name());
         when(pipelineTaskDbService.getById(41L)).thenReturn(task);

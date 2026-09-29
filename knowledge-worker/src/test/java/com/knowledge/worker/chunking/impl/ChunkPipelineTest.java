@@ -49,7 +49,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * 切片管线单测：四路路由、父子层级、titlePath、剔除跳过、兜底降级、异常隔离、确定性、空集合；
- * step-08 扩展：算法选择/flush 规则/tableInBodyFlow/leadParagraph/后置处理链/未支持算法报错。
+ * 算法选择/flush 规则/tableInBodyFlow/leadParagraph/后置处理链/未支持算法报错。
  *
  * @author cxxl
  */
@@ -364,7 +364,7 @@ class ChunkPipelineTest {
         assertEquals(first.getChunkSet().getChunks().getFirst().getContent(), second.getChunkSet().getChunks().getFirst().getContent());
     }
 
-    // ---------------- step-08 扩展用例 ----------------
+    // ---------------- 扩展用例 ----------------
 
     @Test
     void tableInBodyFlowShouldMergeTableIntoBodyChunk() {

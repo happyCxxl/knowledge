@@ -31,7 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
 /**
- * 索引组合口径服务单测（step-13 B2，2026-09 定稿；B8.1 增范围收窄枚举）：
+ * 索引组合口径服务单测（范围收窄枚举）：
  * 绑定单组合（预处理+切片+向量化三环节）/ 枚举完整组合（三维血缘匹配）/ 血统缺失排除 / 开关分发
  * / 指定文件范围枚举（完整性判定复用 IndexComboReconciler.selectComboProducts 单一口径）。
  *
@@ -181,7 +181,7 @@ class IndexComboServiceImplTest {
 
     @Test
     void enumerateCombosScopedShouldOnlyConsiderGivenFiles() {
-        // B8.1 范围收窄：只枚举指定文件的组合（范围外文件缺失不影响完整性判定）
+        // 范围收窄：只枚举指定文件的组合（范围外文件缺失不影响完整性判定）
         when(chunkSetDbService.listByFileResultIds(List.of(10L))).thenReturn(List.of(
                 chunkSet(1L, 10L, "chunk-a-v1", 100L), chunkSet(2L, 10L, "chunk-b-v1", 200L)));
         when(embeddingSetDbService.listByFileResultIds(List.of(10L))).thenReturn(List.of(

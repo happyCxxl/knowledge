@@ -15,7 +15,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 组合快照（step-13 B08，2026-09 定稿：策略集合模型）：
+ * 组合快照（策略集合模型）：
  * 组合身份 = 文件范围 × 索引形态 × 环节策略映射（stage → name-version，环节可扩展）。
  * 记入 kb_index_version.combo_snapshot（JSON）；组合全等判定 = 三部分全等（JSON 序列化确定性：
  * stageStrategies 为 LinkedHashMap 保持插入序）。
@@ -33,7 +33,7 @@ public class ComboSnapshot implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
 
-    /** 文件范围模式：ALL（全部）/ LIST（评测冻结集，B8.1 已激活） */
+    /** 文件范围模式：ALL（全部）/ LIST（评测冻结集） */
     private String fileScopeMode = "ALL";
 
     /** LIST 模式下的文件结果 ID 列表（ALL 模式为 null） */
@@ -80,7 +80,7 @@ public class ComboSnapshot implements Serializable {
         }
     }
 
-    /** 是否评测冻结集范围（LIST；B8.1 激活，见实现文档 §12） */
+    /** 是否评测冻结集范围（LIST） */
     public boolean isListScope() {
         return "LIST".equals(fileScopeMode);
     }

@@ -6,7 +6,7 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * 索引构建命令（step-13 B08）：biz 生成、worker 消费（随 BUILD_INDEX 任务快照下发）。
+ * 索引构建命令：biz 生成、worker 消费（随 BUILD_INDEX 任务快照下发）。
  *
  * @author cxxl
  */

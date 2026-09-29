@@ -4,7 +4,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
- * 检索运行记录开关（step-14 B6，B09）：测试台检索必记；
+ * 检索运行记录开关：测试台检索必记；
  * 生产检索按 Nacos 配置 `retrieval.run.record-production`（默认关，逐查询记录量大）。
  *
  * @author cxxl

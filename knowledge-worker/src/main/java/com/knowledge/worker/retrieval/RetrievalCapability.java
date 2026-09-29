@@ -1,7 +1,7 @@
 package com.knowledge.worker.retrieval;
 
 /**
- * 检索能力（step-14 B1，B09 能力分层解锁）：
+ * 检索能力（能力分层解锁）：
  * 一期全关的预留能力清单——规则注册校验与执行引擎按此拒执行（40451），
  * 解锁 = Nacos 配置 `retrieval.capabilities.enabled` 加枚举名，结构零迁移。
  * 一期恒开的能力（三通道/RRF/父片展开）不进本清单。

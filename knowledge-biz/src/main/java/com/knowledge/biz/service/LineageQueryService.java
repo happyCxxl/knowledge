@@ -3,7 +3,7 @@ package com.knowledge.biz.service;
 import com.knowledge.common.dto.response.lineage.LineageVO;
 
 /**
- * 执行树聚合查询（step-12 B1）：一个文件的全部运行节点 + 血缘边，纯读聚合。
+ * 执行树聚合查询：一个文件的全部运行节点 + 血缘边，纯读聚合。
  *
  * @author cxxl
  */

@@ -3,7 +3,7 @@ package com.knowledge.biz.service;
 import com.knowledge.common.dto.response.stagecontent.StageContentVO;
 
 /**
- * 产物内容查询（step-12 B2，恢复 T3）：对比视图内容层数据源，纯读。
+ * 产物内容查询：对比视图内容层数据源，纯读。
  *
  * @author cxxl
  */

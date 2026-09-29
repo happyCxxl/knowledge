@@ -8,7 +8,7 @@ import com.knowledge.worker.indexing.search.VectorQuery;
 import java.util.List;
 
 /**
- * Milvus 索引 Port（step-13 B08，2026-09 定稿：策略集合模型）。
+ * Milvus 索引 Port（策略集合模型）。
  * 一个组合 = 一个集合（kb_{kbId}_{versionNo}）；本 Port 所有操作按集合名寻址，
  * 集合即边界：无 version 过滤、无 kb_id 过滤，查询只带业务过滤（documentId/owner/contentType）。
  *
@@ -45,6 +45,6 @@ public interface MilvusIndexPort {
     /** 列出集合内指定文件的 chunkId（追加批次对账数据源，分页） */
     List<String> listChunkIds(String collectionName, Long documentId);
 
-    /** 按 chunkId（主键）批量取行（B09 父片展开数据源；空入参 → 空列表；返回顺序不保证） */
+    /** 按 chunkId（主键）批量取行（父片展开数据源；空入参 → 空列表；返回顺序不保证） */
     List<IndexRow> queryChunkByIds(String collectionName, List<String> chunkIds);
 }

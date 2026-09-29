@@ -8,7 +8,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * 索引版本行（step-13 B08）：组合快照 + 状态机 + 发布/退役留痕。
+ * 索引版本行：组合快照 + 状态机 + 发布/退役留痕。
  * 机器表：append-only、仅 create_time、不挂平台五件套。
  *
  * @author cxxl
@@ -39,7 +39,7 @@ public class KbIndexVersion {
     /** 状态（IndexVersionStatus 枚举名） */
     private String status;
 
-    /** 默认检索规则行 ID（kb_pipeline_strategy_version.id，type=RETRIEVAL；空 → kb 默认 → 引擎基线，step-14 B2） */
+    /** 默认检索规则行 ID（kb_pipeline_strategy_version.id，type=RETRIEVAL；空 → kb 默认 → 引擎基线） */
     private Long defaultRuleId;
 
     /** 失败原因（完整性缺口/维度不一致/一致性失败/写失败） */

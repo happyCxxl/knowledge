@@ -28,7 +28,7 @@ public class ChunkItemVO {
     /** 页码范围（如 1-3） */
     private String pageRange;
 
-    /** 表格引用（B03 表元素 ID） */
+    /** 表格引用（表元素 ID） */
     private String tableRef;
 
     /** 集合内顺序 */

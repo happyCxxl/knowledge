@@ -32,7 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.when;
 
 /**
- * 执行树聚合单测（step-12 B1）：多分支节点/血缘边/统计摘要/孤立节点/空文件/40432。
+ * 执行树聚合单测：多分支节点/血缘边/统计摘要/孤立节点/空文件/40432。
  *
  * @author cxxl
  */

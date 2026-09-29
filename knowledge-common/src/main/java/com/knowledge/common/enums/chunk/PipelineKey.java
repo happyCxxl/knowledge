@@ -1,7 +1,7 @@
 package com.knowledge.common.enums.chunk;
 
 /**
- * 流程层设置键（step-08）：ChunkStrategy.pipeline 映射的键目录。
+ * 流程层设置键：ChunkStrategy.pipeline 映射的键目录。
  *
  * @author cxxl
  */

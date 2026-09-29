@@ -26,7 +26,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * 检索规则服务实现（step-14 B2）：规则列表复用策略版本机制（RETRIEVAL 白名单）；
+ * 检索规则服务实现：规则列表复用策略版本机制（RETRIEVAL 白名单）；
  * 选优发布 = 版本行 default_rule_id 切换 + 审计（规则行不可变，发布即切指针，评测可复现）。
  *
  * @author cxxl

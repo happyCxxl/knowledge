@@ -72,7 +72,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * 索引构建与发布控制面实现（step-13 B08，口径见 {@link IndexSetService}）。
+ * 索引构建与发布控制面实现（口径见 {@link IndexSetService}）。
  * 发布/回退为单事务三级指针（版本 publishedAt/By + 集合二级指针 + 知识库一级指针首次置位）。
  *
  * @author cxxl
@@ -140,7 +140,7 @@ public class IndexSetServiceImpl implements IndexSetService {
             milvusIndexPort.append(collectionName, rows);
             updateLedger(version, rows);
 
-            // ③ 批次对账（本文件：产物 chunkId == 集合内本文件 chunkId；不一致告警，B6 升级处置）
+            // ③ 批次对账（本文件：产物 chunkId == 集合内本文件 chunkId；不一致告警，升级为处置）
             reconcileFile(collectionName, fileResultId, rows);
 
             // ④ 发布判定：绑定开且产物组合==绑定组合 → READY + 自动发布（文件即版本：新文件即上线）
@@ -150,7 +150,7 @@ public class IndexSetServiceImpl implements IndexSetService {
         // ⑤ 规则三：产物组合 ≠ 在线组合 → 按在线组合全链补齐该文件（文件永不丢）
         maybeBackfillToOnline(kbId, fileResultId, product.combo());
 
-        // ⑥ 评测冻结集路由（B8.1）：范围内文件的活跃 LIST 版本同步追加（冻结语义：只认 fileResultIds）
+        // ⑥ 评测冻结集路由：范围内文件的活跃 LIST 版本同步追加（冻结语义：只认 fileResultIds）
         if (ObjectUtil.isNotNull(rows) && !rows.isEmpty()) {
             appendToFrozenScopes(kbId, fileResultId, product.combo(), rows);
         }
@@ -235,7 +235,7 @@ public class IndexSetServiceImpl implements IndexSetService {
         indexVersionDbService.updateById(version);
     }
 
-    /** 批次对账：本文件产物 chunkId 集合 == 集合内本文件 chunkId 集合（不一致告警，B6 升级为处置） */
+    /** 批次对账：本文件产物 chunkId 集合 == 集合内本文件 chunkId 集合（不一致告警，升级为处置） */
     private void reconcileFile(String collectionName, Long fileResultId, List<IndexRow> rows) {
         Set<String> expected = rows.stream().map(IndexRow::getChunkId).collect(Collectors.toSet());
         List<String> actual = milvusIndexPort.listChunkIds(collectionName, fileResultId);
@@ -248,7 +248,7 @@ public class IndexSetServiceImpl implements IndexSetService {
     /** 追加后处置：批次对账通过 → 版本 READY（活账本）；绑定开且产物组合==绑定组合 → 自动发布 */
     private void maybeAutoPublish(Long kbId, KbIndexVersion version, ComboSnapshot combo) {
         if (combo.isListScope()) {
-            return; // 评测冻结集永不自动发布（B8.1；发布/回退亦拒 40449）
+            return; // 评测冻结集永不自动发布（发布/回退亦拒 40449）
         }
         String status = version.getStatus();
         if (IndexVersionStatus.CREATED.name().equals(status) || IndexVersionStatus.BUILDING.name().equals(status)) {
@@ -271,7 +271,7 @@ public class IndexSetServiceImpl implements IndexSetService {
     }
 
     /**
-     * 评测冻结集路由（B8.1）：三元组匹配且范围包含该文件的活跃 LIST 版本 → 幂等追加。
+     * 评测冻结集路由：三元组匹配且范围包含该文件的活跃 LIST 版本 → 幂等追加。
      * 冻结语义：只认 fileResultIds 列表，列表外文件永不进；不逐条更账本（READY 对账统一收敛）。
      * 追加失败不致命：集合可能尚未就绪（构建任务并发窗口），warn 记录，重触发构建回填可补齐。
      */
@@ -415,7 +415,7 @@ public class IndexSetServiceImpl implements IndexSetService {
         return null;
     }
 
-    /** 组合全等判定（范围 × 形态 × stageStrategies；任一维变化 = 新组合 = 新集合，B8.1 补范围维度） */
+    /** 组合全等判定（范围 × 形态 × stageStrategies；任一维变化 = 新组合 = 新集合，含范围维度） */
     private boolean comboEquals(ComboSnapshot a, ComboSnapshot b) {
         return Objects.equals(a.getShape(), b.getShape())
                 && Objects.equals(a.getFileScopeMode(), b.getFileScopeMode())
@@ -431,7 +431,7 @@ public class IndexSetServiceImpl implements IndexSetService {
         Long kbId = order.getKnowledgeBaseId();
         ThrowUtil.throwIf(ObjectUtil.isNull(knowledgeBaseDbService.getById(kbId)), ErrorCode.KB_NOT_FOUND);
         ComboSnapshot combo = order.getComboSnapshot();
-        // 范围口径（B8.1）：LIST = 评测冻结集（文件列表非空且全属本 KB）；ALL = 范围字段归一化
+        // 范围口径：LIST = 评测冻结集（文件列表非空且全属本 KB）；ALL = 范围字段归一化
         if (combo.isListScope()) {
             List<Long> fileIds = combo.getFileResultIds();
             ThrowUtil.throwIf(ObjectUtil.isNull(fileIds) || fileIds.isEmpty(),

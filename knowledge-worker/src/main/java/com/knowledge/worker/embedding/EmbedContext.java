@@ -20,7 +20,7 @@ import java.util.List;
 @Data
 public class EmbedContext {
 
-    /** 上游切片产物（B05 ChunkSet，只读） */
+    /** 上游切片产物（ChunkSet，只读） */
     private ChunkSet chunkSet;
 
     /** 上游切片集合引用（kb_chunk_set.id，血缘回填集合头） */

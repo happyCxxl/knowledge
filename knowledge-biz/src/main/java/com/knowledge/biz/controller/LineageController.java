@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 执行树聚合 Controller（step-12 B1）：链图数据源，纯读聚合。
+ * 执行树聚合 Controller：链图数据源，纯读聚合。
  *
  * @author cxxl
  */

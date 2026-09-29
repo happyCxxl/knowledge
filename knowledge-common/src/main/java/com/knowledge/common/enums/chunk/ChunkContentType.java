@@ -7,7 +7,7 @@ package com.knowledge.common.enums.chunk;
  */
 public enum ChunkContentType {
 
-    /** 章节级父片（父子层级，供上下文扩展；向量化归 B07 策略开关默认关） */
+    /** 章节级父片（父子层级，供上下文扩展；向量化由策略开关控制，默认关） */
     SECTION,
 
     /** 正文段落/列表片 */

@@ -11,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 预处理策略解析器单测（step-10）：结构化解析补全默认 / 空与非法回退内置默认 / custom 解析。
+ * 预处理策略解析器单测：结构化解析补全默认 / 空与非法回退内置默认 / custom 解析。
  *
  * @author cxxl
  */

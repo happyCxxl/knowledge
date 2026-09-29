@@ -6,7 +6,7 @@ import java.time.LocalDateTime;
 import java.util.Map;
 
 /**
- * 执行树节点 = 一次运行（step-12 口径：节点是运行不是策略，同策略多跑 = 多个节点）。
+ * 执行树节点 = 一次运行（节点是运行不是策略，同策略多跑 = 多个节点）。
  *
  * @author cxxl
  */

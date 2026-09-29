@@ -6,7 +6,7 @@ import com.knowledge.common.domain.entity.KbIndexVersion;
 import java.util.List;
 
 /**
- * 索引版本数据访问服务（step-13 B08）。
+ * 索引版本数据访问服务。
  *
  * @author cxxl
  */

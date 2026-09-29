@@ -24,7 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 /**
- * 索引构建与发布 Controller（step-13 B08，接口契约见实现细则 §7）：
+ * 索引构建与发布 Controller：
  * 候选构建 → 验证 → 原子发布 → 回退 → 回收，挂 /knowledge-base/{id}。
  *
  * @author cxxl
@@ -33,7 +33,7 @@ import java.util.List;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/knowledge-base")
-@Tag(name = "索引构建与发布", description = "B08 索引候选构建/验证/发布/回退/回收")
+@Tag(name = "索引构建与发布", description = "索引候选构建/验证/发布/回退/回收")
 public class KnowledgeFileIndexController {
 
     private final IndexSetService indexSetService;

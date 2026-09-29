@@ -42,9 +42,9 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 产物内容查询实现（step-12 B2，恢复 T3）：
+ * 产物内容查询实现：
  * 白名单五环节；按 task.productId 精确取该次运行的产物内容（与详情接口同口径，历史任务同样可展示）；
- * 对齐键：PARSE/STRUCTURE/PREPROCESS=elementId、CHUNK/EMBED=顺序号（口径见 step-12 实现文档 §3.4）。
+ * 对齐键：PARSE/STRUCTURE/PREPROCESS=elementId、CHUNK/EMBED=顺序号。
  *
  * @author cxxl
  */

@@ -16,7 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
 /**
- * 检索规则解析/校验器单测（step-14 B1）：
+ * 检索规则解析/校验器单测：
  * 全目录 body 解析 / 未知字段拒绝 / 取值白名单 / 参数边界 / 预留能力锁定（40451）/ 能力开启后放行。
  *
  * @author cxxl

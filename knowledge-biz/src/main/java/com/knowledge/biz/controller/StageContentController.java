@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 产物内容 Controller（step-12 B2，恢复 T3）：对比视图内容层数据源。
+ * 产物内容 Controller：对比视图内容层数据源。
  *
  * @author cxxl
  */

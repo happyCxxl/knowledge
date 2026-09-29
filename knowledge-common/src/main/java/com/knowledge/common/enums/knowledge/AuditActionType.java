@@ -25,16 +25,16 @@ public enum AuditActionType {
     /** 逻辑删除 */
     DELETE,
 
-    /** 索引发布（step-13 B08） */
+    /** 索引发布 */
     PUBLISH_INDEX,
 
-    /** 索引回退（step-13 B08） */
+    /** 索引回退 */
     ROLLBACK_INDEX,
 
-    /** 索引候选回收（step-13 B08） */
+    /** 索引候选回收 */
     RECYCLE_INDEX,
 
-    /** 检索规则选优发布（step-14 B09/B10） */
+    /** 检索规则选优发布 */
     RETRIEVAL_RULE_PUBLISH,
 
     /** 用户管理：新增账号 */

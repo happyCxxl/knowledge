@@ -7,7 +7,7 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * 知识库-策略绑定请求（step-09）。
+ * 知识库-策略绑定请求。
  *
  * @author cxxl
  */

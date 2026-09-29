@@ -51,8 +51,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 索引构建任务单测（step-13 B08，2026-09 定稿：注册+对账语义，期望值来自 IndexComboReconciler；
- * B8.1 增评测冻结集回填/永不自动发布）：
+ * 索引构建任务单测（注册+对账语义，期望值来自 IndexComboReconciler；
+ * 评测冻结集回填/永不自动发布）：
  * 组合缺口 FAILED / 维度不一致 FAILED / 血统不符 FAILED / 集合初始化失败 FAILED /
  * 一致性失败保留集合 FAILED / 对账通过 READY（COMPENSATE 自动发布、REBUILD 停留、INCREMENT 绑定开自动、统计收敛）/
  * LIST 冻结集回填后 READY 且任何触发都不自动发布。
@@ -105,7 +105,7 @@ class IndexBuildTaskRunnerTest {
         return task;
     }
 
-    /** LIST 冻结集构建任务（B8.1）：范围 = 文件 10 */
+    /** LIST 冻结集构建任务：范围 = 文件 10 */
     private KbPipelineTask queuedListBuildTask(String trigger) {
         ComboSnapshot combo = comboAll();
         combo.setFileScopeMode("LIST");
@@ -317,7 +317,7 @@ class IndexBuildTaskRunnerTest {
 
     @Test
     void runShouldBackfillFrozenScopeAndBecomeReady() {
-        // B8.1：LIST 冻结集构建 → 回填范围文件行 → 对账通过 → READY（REBUILD 停留不发布）
+        // LIST 冻结集构建 → 回填范围文件行 → 对账通过 → READY（REBUILD 停留不发布）
         KbPipelineTask task = queuedListBuildTask(IndexBuildTrigger.REBUILD.name());
         KbIndexVersion version = versionRow();
         when(pipelineTaskDbService.getById(1L)).thenReturn(task);
@@ -349,7 +349,7 @@ class IndexBuildTaskRunnerTest {
 
     @Test
     void runShouldNotAutoPublishFrozenScopeEvenOnCompensate() {
-        // B8.1：LIST 冻结集永不自动发布——即使 COMPENSATE 触发也停留 READY
+        // LIST 冻结集永不自动发布——即使 COMPENSATE 触发也停留 READY
         KbPipelineTask task = queuedListBuildTask(IndexBuildTrigger.COMPENSATE.name());
         KbIndexVersion version = versionRow();
         when(pipelineTaskDbService.getById(1L)).thenReturn(task);

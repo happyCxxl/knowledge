@@ -4,7 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
 /**
- * 检索请求（step-14 B5，B09）：
+ * 检索请求：
  * 生产检索不传 ruleId/versionId（走回退链）；测试台检索必须同时传（显式版本+规则）。
  * 过滤项为请求参数，不属于规则本体。
  *

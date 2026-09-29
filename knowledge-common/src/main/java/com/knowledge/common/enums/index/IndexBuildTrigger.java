@@ -1,7 +1,7 @@
 package com.knowledge.common.enums.index;
 
 /**
- * 索引构建触发类型（step-13 B08）：
+ * 索引构建触发类型：
  * NEW=知识库首建、INCREMENT=文件产物就绪增量（文件即版本）、REBUILD=全量重建、COMPENSATE=回退补齐。
  *
  * @author cxxl

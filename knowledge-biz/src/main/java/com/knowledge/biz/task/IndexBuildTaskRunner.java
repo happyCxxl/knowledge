@@ -35,7 +35,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 索引构建任务执行器（step-13 B08，2026-09 定稿：策略集合模型，注册 + 对账语义；B8.1 增评测冻结集回填）：
+ * 索引构建任务执行器（策略集合模型，注册 + 对账语义；评测冻结集回填）：
  * 领任务 → 版本行 CREATED→BUILDING → ① 组合完整性/维度/血缘校验（IndexComboReconciler 实时重算，
  * 吸收并发追加）→ ② 集合生命周期（ensureCollection + 预热 load，幂等）→ ②.5 LIST 冻结集回填（范围文件 ×
  * 单一取数口径批量追加，幂等）→ ③ 全量对账（产物 chunkId == 集合 chunkId；失败保留集合可重试）→ ④ READY +
@@ -132,7 +132,7 @@ public class IndexBuildTaskRunner {
             return;
         }
 
-        // ②.5 评测冻结集回填（B8.1）：LIST 版本的行写入不依赖追加回调（产物就绪事件已发生，需回补）
+        // ②.5 评测冻结集回填：LIST 版本的行写入不依赖追加回调（产物就绪事件已发生，需回补）
         if (combo.isListScope()) {
             backfillFrozenScope(combo, collectionName);
         }
@@ -170,7 +170,7 @@ public class IndexBuildTaskRunner {
     }
 
     /**
-     * 评测冻结集回填（B8.1）：遍历范围文件 × 单一取数口径（selectComboProducts）→ 组装 → 幂等追加。
+     * 评测冻结集回填：遍历范围文件 × 单一取数口径（selectComboProducts）→ 组装 → 幂等追加。
      * 缺口文件跳过（computeExpected 对账报缺、不进集合）；账本不逐条更，READY 时以对账期望统一收敛。
      */
     private void backfillFrozenScope(ComboSnapshot combo, String collectionName) {
