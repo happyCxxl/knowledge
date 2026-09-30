@@ -2,7 +2,7 @@ package com.knowledge.biz.config;
 
 import com.baomidou.mybatisplus.core.handlers.MetaObjectHandler;
 import com.knowledge.common.security.KnowledgeUser;
-import com.knowledge.common.security.SecurityUtils;
+import com.knowledge.common.utils.SecurityUtils;
 import org.apache.ibatis.reflection.MetaObject;
 import org.springframework.context.annotation.Configuration;
 

@@ -7,23 +7,29 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.knowledge.auth.db.UserDbService;
 import com.knowledge.auth.service.UserService;
+import com.knowledge.auth.util.JwtUtil;
 import com.knowledge.common.domain.entity.User;
+import com.knowledge.common.dto.request.user.PasswordUpdateRequest;
+import com.knowledge.common.dto.request.user.ProfileUpdateRequest;
 import com.knowledge.common.dto.request.user.UserCreateRequest;
 import com.knowledge.common.dto.request.user.UserUpdateRequest;
 import com.knowledge.common.dto.response.user.UserVO;
 import com.knowledge.common.enums.knowledge.AuditActionType;
 import com.knowledge.common.enums.knowledge.AuditObjectType;
 import com.knowledge.common.enums.user.UserRole;
+import com.knowledge.common.enums.user.UserStatus;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.ThrowUtil;
 import com.knowledge.common.security.KnowledgeUser;
-import com.knowledge.common.security.SecurityUtils;
+import com.knowledge.common.utils.SecurityUtils;
 import com.knowledge.common.security.audit.AuditEventPublisher;
 import com.knowledge.common.utils.JsonUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.Map;
 
@@ -39,20 +45,19 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class UserServiceImpl implements UserService {
 
-    /** 启用状态码值 */
-    private static final int STATUS_ENABLED = 1;
-
-    /** 停用状态码值 */
-    private static final int STATUS_DISABLED = 0;
-
     /** 审计对象类型：用户账号 */
     private static final String AUDIT_OBJECT_TYPE = AuditObjectType.KB_USER.key();
+
+    /** 补签令牌的有效期下限：改密后剩余时间过短时按它下发 */
+    private static final Duration MIN_SESSION_TTL = Duration.ofHours(1);
 
     private final UserDbService userDbService;
 
     private final PasswordEncoder passwordEncoder;
 
     private final AuditEventPublisher auditEventPublisher;
+
+    private final JwtUtil jwtUtil;
 
     @Override
     public IPage<UserVO> pageUsers(long current, long size, String username, String role, Integer status) {
@@ -69,9 +74,13 @@ public class UserServiceImpl implements UserService {
                 ErrorCode.USERNAME_EXISTS);
         User user = new User();
         user.setUsername(request.getUsername());
+        user.setDisplayName(request.getDisplayName());
+        user.setEmail(StrUtil.trimToNull(request.getEmail()));
+        user.setPhone(StrUtil.trimToNull(request.getPhone()));
         user.setPassword(passwordEncoder.encode(request.getPassword()));
         user.setRole(parseRole(request.getRole()).getCode());
-        user.setStatus(request.getStatus() == null ? Integer.valueOf(STATUS_ENABLED) : parseStatus(request.getStatus()));
+        user.setStatus(request.getStatus() == null
+                ? Integer.valueOf(UserStatus.ENABLED.getCode()) : parseStatus(request.getStatus()));
         userDbService.save(user);
         auditEventPublisher.publish(AuditActionType.USER_CREATE, AUDIT_OBJECT_TYPE, user.getId(),
                 null, auditSummary(user));
@@ -111,6 +120,16 @@ public class UserServiceImpl implements UserService {
         if (passwordChanged) {
             user.setPassword(passwordEncoder.encode(request.getPassword()));
         }
+        // 资料字段：不传表示不变，传空串表示清空（真实姓名的空值已由校验拦下）
+        if (request.getDisplayName() != null) {
+            user.setDisplayName(request.getDisplayName());
+        }
+        if (request.getEmail() != null) {
+            user.setEmail(StrUtil.trimToNull(request.getEmail()));
+        }
+        if (request.getPhone() != null) {
+            user.setPhone(StrUtil.trimToNull(request.getPhone()));
+        }
         // 凭据或权限变更：递增令牌版本，让该账号已签发的令牌立即失效
         if (roleChanged || statusChanged || passwordChanged) {
             user.setTokenVersion(nextTokenVersion(user));
@@ -135,13 +154,51 @@ public class UserServiceImpl implements UserService {
                 auditSummary(user), null);
     }
 
+    @Override
+    public UserVO getUserProfile(Long id) {
+        User user = userDbService.getById(id);
+        ThrowUtil.throwIf(user == null, ErrorCode.USER_NOT_FOUND);
+        return toUserVO(user);
+    }
+
+    @Override
+    public void updateProfile(Long id, ProfileUpdateRequest request) {
+        User user = userDbService.getById(id);
+        ThrowUtil.throwIf(user == null, ErrorCode.USER_NOT_FOUND);
+        String beforeSummary = auditSummary(user);
+        user.setDisplayName(request.getDisplayName());
+        user.setEmail(StrUtil.trimToNull(request.getEmail()));
+        user.setPhone(StrUtil.trimToNull(request.getPhone()));
+        userDbService.updateById(user);
+        auditEventPublisher.publish(AuditActionType.USER_UPDATE, AUDIT_OBJECT_TYPE, id,
+                beforeSummary, auditSummary(user));
+    }
+
+    @Override
+    public String changePassword(Long id, PasswordUpdateRequest request) {
+        User user = userDbService.getById(id);
+        ThrowUtil.throwIf(user == null, ErrorCode.USER_NOT_FOUND);
+        ThrowUtil.throwIf(!passwordEncoder.matches(request.getOldPassword(), user.getPassword()),
+                ErrorCode.OLD_PASSWORD_MISMATCH);
+        ThrowUtil.throwIf(passwordEncoder.matches(request.getNewPassword(), user.getPassword()),
+                ErrorCode.PARAM_INVALID, "新密码不能与当前密码相同");
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        // 凭据变更：递增令牌版本，该账号此前签发的令牌（含本次请求用的那张）全部失效
+        user.setTokenVersion(nextTokenVersion(user));
+        userDbService.updateById(user);
+        auditEventPublisher.publish(AuditActionType.USER_PASSWORD_CHANGE, AUDIT_OBJECT_TYPE, id, null, null);
+        // 以新版本补签令牌，当前会话不必重新登录；有效期沿用本会话的剩余时长
+        return jwtUtil.sign(user.getId(), user.getUsername(), UserRole.of(user.getRole()),
+                user.getTokenVersion(), remainingTtl());
+    }
+
     /**
      * 更新动作归类：只改状态时记「启用 / 停用」，其余（改角色、重置密码、两者混合）记为更新。
      * 密码变更不落任何明文或哈希，摘要只体现角色与状态。
      */
     private AuditActionType resolveUpdateAction(boolean roleChanged, boolean statusChanged, Integer targetStatus) {
         if (!roleChanged && statusChanged) {
-            return Integer.valueOf(STATUS_ENABLED).equals(targetStatus)
+            return UserStatus.isEnabled(targetStatus)
                     ? AuditActionType.USER_ENABLE
                     : AuditActionType.USER_DISABLE;
         }
@@ -171,8 +228,7 @@ public class UserServiceImpl implements UserService {
 
     /** 状态校验：只接受 1 启用 / 0 停用，其他值拒绝落库 */
     private Integer parseStatus(Integer status) {
-        ThrowUtil.throwIf(!Integer.valueOf(STATUS_ENABLED).equals(status)
-                && !Integer.valueOf(STATUS_DISABLED).equals(status), ErrorCode.USER_STATUS_INVALID);
+        ThrowUtil.throwIf(UserStatus.of(status) == null, ErrorCode.USER_STATUS_INVALID);
         return status;
     }
 
@@ -184,14 +240,14 @@ public class UserServiceImpl implements UserService {
     /** 指定「角色 + 状态」组合是否构成一个启用的管理员 */
     private boolean isEnabledAdmin(String role, Integer status) {
         return UserRole.ADMIN.getCode().equalsIgnoreCase(role)
-                && Integer.valueOf(STATUS_ENABLED).equals(status);
+                && UserStatus.isEnabled(status);
     }
 
     /** 除指定用户外，仍在启用状态的管理员数量 */
     private long countOtherEnabledAdmins(Long excludeId) {
         LambdaQueryWrapper<User> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(User::getRole, UserRole.ADMIN.getCode())
-                .eq(User::getStatus, STATUS_ENABLED)
+                .eq(User::getStatus, UserStatus.ENABLED.getCode())
                 .ne(User::getId, excludeId);
         return userDbService.count(queryWrapper);
     }
@@ -199,6 +255,17 @@ public class UserServiceImpl implements UserService {
     /** 递增令牌版本：null 视为 0（与库表默认值一致） */
     private int nextTokenVersion(User user) {
         return (user.getTokenVersion() == null ? 0 : user.getTokenVersion()) + 1;
+    }
+
+    /** 本会话令牌的剩余时长；无令牌上下文或剩余不足下限时按下限，避免改完密码立刻掉线 */
+    private Duration remainingTtl() {
+        KnowledgeUser current = SecurityUtils.getUser();
+        Instant expiresAt = current == null ? null : current.getExpiresAt();
+        if (expiresAt == null) {
+            return MIN_SESSION_TTL;
+        }
+        Duration remaining = Duration.between(Instant.now(), expiresAt);
+        return remaining.compareTo(MIN_SESSION_TTL) < 0 ? MIN_SESSION_TTL : remaining;
     }
 
     /** 当前登录用户是否就是目标用户 */

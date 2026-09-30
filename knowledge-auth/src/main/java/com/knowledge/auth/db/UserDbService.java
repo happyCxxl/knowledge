@@ -20,6 +20,14 @@ public interface UserDbService extends InfraDbService<User> {
     User findActiveByUsername(String username);
 
     /**
+     * 判断用户名是否已被占用（含停用用户，不含已删除）。
+     *
+     * @param username 登录用户名
+     * @return 已存在返回 true
+     */
+    boolean existsByUsername(String username);
+
+    /**
      * 分页查询用户（不含已删除），支持用户名模糊、角色与状态精确过滤。
      *
      * @param current  当前页

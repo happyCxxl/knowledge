@@ -36,7 +36,15 @@ knowledge:
   auth:
     jwt:
       secret: knowledge-jwt-secret-change-me-in-production
-      ttl-days: 7
+      # 不勾选「记住我」：短期令牌 + sessionStorage；勾选：长期令牌 + localStorage
+      ttl-days: 1
+      ttl-days-remember: 30
+    # 登录失败防护：达阈值后按「账号 + IP」或「IP」维度临时锁定（窗口自首次失败起算）
+    guard:
+      enabled: true
+      fail-threshold: 5
+      ip-fail-threshold: 20
+      lock-minutes: 15
   file:
     max-size: 104857600
     enabled-formats: PDF,DOC,DOCX,XLS,XLSX

@@ -5,6 +5,8 @@ import lombok.Data;
 /**
  * 登录结果。
  *
+ * <p>只带令牌里没有、界面又需要的用户信息：角色与用户 ID 可从令牌载荷解析，不重复下发。
+ *
  * @author cxxl
  */
 @Data
@@ -13,6 +15,12 @@ public class LoginVO {
     /** 访问令牌 */
     private String token;
 
-    /** 角色码值：ADMIN 管理员 / USER 普通用户（前端据此渲染菜单） */
-    private String role;
+    /** 真实姓名（顶栏展示用） */
+    private String displayName;
+
+    /** 邮箱 */
+    private String email;
+
+    /** 手机号 */
+    private String phone;
 }

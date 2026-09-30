@@ -1,6 +1,8 @@
 package com.knowledge.auth.service;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.knowledge.common.dto.request.user.PasswordUpdateRequest;
+import com.knowledge.common.dto.request.user.ProfileUpdateRequest;
 import com.knowledge.common.dto.request.user.UserCreateRequest;
 import com.knowledge.common.dto.request.user.UserUpdateRequest;
 import com.knowledge.common.dto.response.user.UserVO;
@@ -26,6 +28,31 @@ public interface UserService {
      * @return 用户分页结果
      */
     IPage<UserVO> pageUsers(long current, long size, String username, String role, Integer status);
+
+    /**
+     * 查询个人信息（本人操作，响应不含密码）。
+     *
+     * @param id 用户主键
+     * @return 用户资料
+     */
+    UserVO getUserProfile(Long id);
+
+    /**
+     * 修改个人信息（本人操作）：只改真实姓名、邮箱、手机号，不动角色、状态与令牌版本。
+     *
+     * @param id      用户主键
+     * @param request 个人信息请求
+     */
+    void updateProfile(Long id, ProfileUpdateRequest request);
+
+    /**
+     * 修改密码（本人操作）：校验当前密码后写入新密码，并递增令牌版本让该账号此前签发的令牌全部失效。
+     *
+     * @param id      用户主键
+     * @param request 修改密码请求
+     * @return 以新令牌版本补签的令牌（当前会话可继续使用，不必重新登录）
+     */
+    String changePassword(Long id, PasswordUpdateRequest request);
 
     /**
      * 新增用户（管理员操作）。

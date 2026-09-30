@@ -18,4 +18,7 @@ public class LoginRequest {
     /** 密码 */
     @NotBlank(message = "密码不能为空")
     private String password;
+
+    /** 是否「记住我」：true 下发长期令牌，false 下发短期令牌（不传按 false） */
+    private boolean remember;
 }

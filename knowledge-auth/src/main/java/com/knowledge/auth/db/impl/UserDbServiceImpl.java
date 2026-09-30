@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.knowledge.auth.db.UserDbService;
 import com.knowledge.common.domain.entity.User;
+import com.knowledge.common.enums.user.UserStatus;
 import com.knowledge.auth.mapper.UserMapper;
 import com.knowledge.infra.persistence.InfraDbServiceImpl;
 import org.springframework.stereotype.Service;
@@ -22,8 +23,15 @@ public class UserDbServiceImpl extends InfraDbServiceImpl<UserMapper, User> impl
     public User findActiveByUsername(String username) {
         LambdaQueryWrapper<User> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(User::getUsername, username)
-                .eq(User::getStatus, 1);
+                .eq(User::getStatus, UserStatus.ENABLED.getCode());
         return getOne(queryWrapper, false);
+    }
+
+    @Override
+    public boolean existsByUsername(String username) {
+        LambdaQueryWrapper<User> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(User::getUsername, username);
+        return exists(queryWrapper);
     }
 
     @Override

@@ -2,18 +2,23 @@ package com.knowledge.auth.service.impl;
 
 import com.knowledge.auth.db.UserDbService;
 import com.knowledge.auth.service.AuthService;
+import com.knowledge.auth.service.support.LoginAttemptGuard;
 import com.knowledge.auth.util.JwtUtil;
 import com.knowledge.common.domain.entity.User;
 import com.knowledge.common.dto.request.auth.LoginRequest;
 import com.knowledge.common.dto.request.auth.RegisterRequest;
 import com.knowledge.common.dto.response.auth.LoginVO;
 import com.knowledge.common.enums.user.UserRole;
+import com.knowledge.common.enums.user.UserStatus;
 import com.knowledge.common.error.ErrorCode;
+import com.knowledge.common.exception.KnowledgeException;
 import com.knowledge.common.exception.ThrowUtil;
+import com.knowledge.infra.web.ClientIpResolver;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.util.Objects;
 
 /**
@@ -31,28 +36,47 @@ public class AuthServiceImpl implements AuthService {
 
     private final JwtUtil jwtUtil;
 
+    private final LoginAttemptGuard loginAttemptGuard;
+
+    private final ClientIpResolver clientIpResolver;
+
     @Override
     public LoginVO login(LoginRequest request) {
+        String ip = clientIpResolver.resolve();
+        // 已锁定则直接拒绝：不查库、不跑 BCrypt（BCrypt 是慢哈希，放任尝试等于给对方一个 CPU 放大器）
+        ThrowUtil.throwIf(loginAttemptGuard.isLocked(request.getUsername(), ip),
+                ErrorCode.LOGIN_TOO_FREQUENT);
         User user = userDbService.findActiveByUsername(request.getUsername());
-        ThrowUtil.throwIf(user == null || !passwordEncoder.matches(request.getPassword(), user.getPassword()),
-                ErrorCode.LOGIN_FAILED);
-        LoginVO vo = new LoginVO();
-        // 角色与令牌版本随令牌下发：角色供菜单/鉴权，版本供失效校验
+        boolean credentialsMatch = user != null
+                && passwordEncoder.matches(request.getPassword(), user.getPassword());
+        if (!credentialsMatch) {
+            loginAttemptGuard.recordFailure(request.getUsername(), ip);
+            throw new KnowledgeException(ErrorCode.LOGIN_FAILED);
+        }
+        loginAttemptGuard.clearAccount(request.getUsername(), ip);
+        // 角色与令牌版本写入令牌载荷：角色供鉴权判定，版本供失效校验
         UserRole role = UserRole.of(user.getRole());
         Integer tokenVersion = Objects.requireNonNullElse(user.getTokenVersion(), 0);
-        vo.setToken(jwtUtil.sign(user.getId(), user.getUsername(), role, tokenVersion));
-        vo.setRole(role.getCode());
+        Duration ttl = request.isRemember() ? jwtUtil.rememberTtl() : jwtUtil.standardTtl();
+        LoginVO vo = new LoginVO();
+        vo.setToken(jwtUtil.sign(user.getId(), user.getUsername(), role, tokenVersion, ttl));
+        vo.setDisplayName(user.getDisplayName());
+        vo.setEmail(user.getEmail());
+        vo.setPhone(user.getPhone());
         return vo;
     }
 
     @Override
     public void register(RegisterRequest request) {
-        ThrowUtil.throwIf(userDbService.findActiveByUsername(request.getUsername()) != null,
+        ThrowUtil.throwIf(userDbService.existsByUsername(request.getUsername()),
                 ErrorCode.USERNAME_EXISTS);
         User user = new User();
         user.setUsername(request.getUsername());
+        user.setDisplayName(request.getDisplayName());
+        user.setEmail(request.getEmail());
+        user.setPhone(request.getPhone());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
-        user.setStatus(1);
+        user.setStatus(UserStatus.ENABLED.getCode());
         // 自助注册一律为普通用户，管理员由既有管理员在用户管理中调整
         user.setRole(UserRole.USER.getCode());
         userDbService.save(user);

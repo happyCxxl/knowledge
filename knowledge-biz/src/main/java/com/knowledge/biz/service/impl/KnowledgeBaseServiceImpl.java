@@ -35,7 +35,7 @@ import com.knowledge.common.enums.task.RowStatus;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.ThrowUtil;
 import com.knowledge.common.security.KnowledgeUser;
-import com.knowledge.common.security.SecurityUtils;
+import com.knowledge.common.utils.SecurityUtils;
 import com.knowledge.common.utils.JsonUtil;
 
 import com.knowledge.worker.chunking.strategy.ChunkStrategy;

@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.Date;
 import java.util.Objects;
 
@@ -33,12 +34,28 @@ public class JwtUtil {
 
     private final byte[] secret;
 
-    private final long ttlMillis;
+    /** 不勾选「记住我」的令牌有效期 */
+    private final Duration standardTtl;
+
+    /** 勾选「记住我」的令牌有效期 */
+    private final Duration rememberTtl;
 
     public JwtUtil(@Value("${knowledge.auth.jwt.secret}") String secret,
-                   @Value("${knowledge.auth.jwt.ttl-days:7}") long ttlDays) {
+                   @Value("${knowledge.auth.jwt.ttl-days:1}") long ttlDays,
+                   @Value("${knowledge.auth.jwt.ttl-days-remember:30}") long rememberTtlDays) {
         this.secret = secret.getBytes(StandardCharsets.UTF_8);
-        this.ttlMillis = ttlDays * 24 * 60 * 60 * 1000L;
+        this.standardTtl = Duration.ofDays(ttlDays);
+        this.rememberTtl = Duration.ofDays(rememberTtlDays);
+    }
+
+    /** 不勾选「记住我」的令牌有效期 */
+    public Duration standardTtl() {
+        return standardTtl;
+    }
+
+    /** 勾选「记住我」的令牌有效期 */
+    public Duration rememberTtl() {
+        return rememberTtl;
     }
 
     /**
@@ -48,15 +65,16 @@ public class JwtUtil {
      * @param username     用户名（写入载荷）
      * @param role         角色（写入载荷，供鉴权判定）
      * @param tokenVersion 令牌版本（写入载荷，供失效校验）
+     * @param ttl          本次令牌的有效期
      * @return 令牌串
      */
-    public String sign(Long userId, String username, UserRole role, Integer tokenVersion) {
+    public String sign(Long userId, String username, UserRole role, Integer tokenVersion, Duration ttl) {
         return JWT.create()
                 .setSubject(String.valueOf(userId))
                 .setPayload(CLAIM_USERNAME, username)
                 .setPayload(CLAIM_ROLE, role.getCode())
                 .setPayload(CLAIM_TOKEN_VERSION, Objects.requireNonNullElse(tokenVersion, 0))
-                .setExpiresAt(new Date(System.currentTimeMillis() + ttlMillis))
+                .setExpiresAt(new Date(System.currentTimeMillis() + ttl.toMillis()))
                 .setKey(secret)
                 .sign();
     }
@@ -65,7 +83,7 @@ public class JwtUtil {
      * 解析令牌。
      *
      * @param token 令牌串
-     * @return 用户模型
+     * @return 用户模型（含令牌到期时刻）
      * @throws KnowledgeException 签名无效或已过期（UNAUTHORIZED）
      */
     public KnowledgeUser parse(String token) {
@@ -85,6 +103,7 @@ public class JwtUtil {
             Object role = jwt.getPayload(CLAIM_ROLE);
             user.setRole(UserRole.of(role == null ? null : role.toString()));
             user.setTokenVersion(readTokenVersion(jwt));
+            user.setExpiresAt(expiresAt.toInstant());
             return user;
         } catch (KnowledgeException e) {
             throw e;

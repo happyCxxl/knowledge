@@ -1,5 +1,6 @@
 package com.knowledge.infra.redis;
 
+import cn.hutool.core.util.ObjectUtil;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.data.redis.core.script.RedisScript;
@@ -29,10 +30,11 @@ public class RedisCounter {
         this.stringRedisTemplate = stringRedisTemplate;
     }
 
-    /** 计数 +1 并返回新值；仅首次创建时写入过期时间，后续自增不续期 */
+    /** 计数 +1 并返回新值；仅首次创建时写入过期时间，后续自增不续期；脚本未返回值时按 0 处理 */
     public long increment(String key, Duration ttl) {
-        return stringRedisTemplate.execute(INCR_WITH_TTL_SCRIPT, List.of(key),
+        Long count = stringRedisTemplate.execute(INCR_WITH_TTL_SCRIPT, List.of(key),
                 String.valueOf(ttl.toMillis()));
+        return ObjectUtil.defaultIfNull(count, 0L);
     }
 
     /** 当前计数值；key 不存在或值不是数字时返回 0 */

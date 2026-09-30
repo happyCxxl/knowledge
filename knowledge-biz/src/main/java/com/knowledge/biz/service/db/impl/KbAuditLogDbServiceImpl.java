@@ -10,7 +10,7 @@ import com.knowledge.biz.service.db.KbAuditLogDbService;
 import com.knowledge.common.domain.entity.KbAuditLog;
 import com.knowledge.common.enums.knowledge.AuditActionType;
 import com.knowledge.common.security.KnowledgeUser;
-import com.knowledge.common.security.SecurityUtils;
+import com.knowledge.common.utils.SecurityUtils;
 import com.knowledge.infra.persistence.InfraDbServiceImpl;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

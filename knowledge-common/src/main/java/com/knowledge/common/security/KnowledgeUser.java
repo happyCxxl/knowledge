@@ -5,6 +5,7 @@ import lombok.Data;
 
 import java.io.Serial;
 import java.io.Serializable;
+import java.time.Instant;
 
 /**
  * 用户模型。
@@ -28,4 +29,7 @@ public class KnowledgeUser implements Serializable {
 
     /** 令牌版本（令牌载荷携带；用于比对库值判断令牌是否已失效） */
     private Integer tokenVersion;
+
+    /** 令牌到期时刻（令牌载荷携带；供补签令牌沿用剩余时长） */
+    private Instant expiresAt;
 }
