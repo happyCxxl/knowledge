@@ -29,6 +29,15 @@ public class User extends BaseInfo {
     /** 登录用户名 */
     private String username;
 
+    /** 真实姓名 */
+    private String displayName;
+
+    /** 邮箱 */
+    private String email;
+
+    /** 手机号 */
+    private String phone;
+
     /** 密码（BCrypt 哈希） */
     private String password;
 

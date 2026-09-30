@@ -50,5 +50,8 @@ public enum AuditActionType {
     USER_ENABLE,
 
     /** 用户管理：删除账号（逻辑删除） */
-    USER_DELETE
+    USER_DELETE,
+
+    /** 账号本人：修改密码 */
+    USER_PASSWORD_CHANGE
 }

@@ -1,6 +1,7 @@
 package com.knowledge.common.dto.request.user;
 
 import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
@@ -9,40 +10,37 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * 编辑用户请求（管理员操作）。
- *
- * <p>用户名不可修改：它是登录凭据与留痕口径，改动会让历史记录对不上。
- * 密码不传表示不重置；角色与状态不传表示保持不变。
+ * 创建账号类请求的公共字段：自助注册与管理员新增共用。
  *
  * @author cxxl
  */
 @Data
-public class UserUpdateRequest implements Serializable {
+public abstract class UserCreateBaseDto implements Serializable {
 
     @Serial
     private static final long serialVersionUID = 1L;
 
-    /** 真实姓名（不传表示不变） */
+    /** 登录用户名（3-32 位，全局唯一） */
+    @NotBlank(message = "用户名不能为空")
+    @Size(min = 3, max = 32, message = "用户名长度须为 3-32 位")
+    private String username;
+
+    /** 真实姓名 */
+    @NotBlank(message = "真实姓名不能为空")
     @Size(max = 64, message = "真实姓名长度不能超过 64 位")
-    @Pattern(regexp = ".*\\S.*", message = "真实姓名不能为空")
     private String displayName;
 
-    /** 邮箱（不传表示不变，传空串表示清空） */
+    /** 邮箱（可空） */
     @Email(message = "邮箱格式不正确")
     @Size(max = 128, message = "邮箱长度不能超过 128 位")
     private String email;
 
-    /** 手机号（不传表示不变，传空串表示清空） */
+    /** 手机号（可空，允许数字与 + - ( ) 空格） */
     @Pattern(regexp = "^$|^[0-9+()\\- ]{6,32}$", message = "手机号格式不正确")
     private String phone;
 
-    /** 新密码（明文，8-64 位，不传表示不重置） */
+    /** 密码（8-64 位） */
+    @NotBlank(message = "密码不能为空")
     @Size(min = 8, max = 64, message = "密码长度须为 8-64 位")
     private String password;
-
-    /** 角色码值：ADMIN / USER（不传表示不变） */
-    private String role;
-
-    /** 状态：1 启用 / 0 停用（不传表示不变） */
-    private Integer status;
 }
