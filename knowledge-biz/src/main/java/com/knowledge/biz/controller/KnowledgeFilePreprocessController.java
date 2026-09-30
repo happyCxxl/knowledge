@@ -1,7 +1,7 @@
 package com.knowledge.biz.controller;
 
 import com.knowledge.biz.service.PreprocessControlService;
-import com.knowledge.common.core.util.R;
+import com.knowledge.common.dto.response.R;
 import com.knowledge.common.dto.response.preprocess.PreprocessDetailVO;
 import com.knowledge.common.dto.response.preprocess.PreprocessTriggerVO;
 import io.swagger.v3.oas.annotations.Operation;

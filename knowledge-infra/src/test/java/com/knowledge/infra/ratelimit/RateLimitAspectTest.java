@@ -1,16 +1,20 @@
-package com.knowledge.common.ratelimit;
+package com.knowledge.infra.ratelimit;
 
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
-import com.knowledge.infra.ratelimit.BucketRateLimiter;
-import com.knowledge.infra.web.ClientIpResolver;
+import com.knowledge.common.annotation.RateLimit;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.reflect.MethodSignature;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -32,9 +36,6 @@ class RateLimitAspectTest {
     private BucketRateLimiter bucketRateLimiter;
 
     @Mock
-    private ClientIpResolver clientIpResolver;
-
-    @Mock
     private ProceedingJoinPoint joinPoint;
 
     @Mock
@@ -42,6 +43,18 @@ class RateLimitAspectTest {
 
     @InjectMocks
     private RateLimitAspect rateLimitAspect;
+
+    @BeforeEach
+    void stubRequestContext() {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRemoteAddr("10.0.0.1");
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+    }
+
+    @AfterEach
+    void clearRequestContext() {
+        RequestContextHolder.resetRequestAttributes();
+    }
 
     @Test
     void shouldRejectWhenBucketExhausted() throws Throwable {
@@ -81,6 +94,5 @@ class RateLimitAspectTest {
         when(joinPoint.getSignature()).thenReturn(signature);
         when(signature.getDeclaringType()).thenReturn(RateLimitAspectTest.class);
         when(signature.getName()).thenReturn("annotatedSample");
-        when(clientIpResolver.resolve()).thenReturn("10.0.0.1");
     }
 }

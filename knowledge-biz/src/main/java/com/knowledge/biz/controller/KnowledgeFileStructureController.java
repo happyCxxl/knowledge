@@ -1,7 +1,7 @@
 package com.knowledge.biz.controller;
 
 import com.knowledge.biz.service.StructureControlService;
-import com.knowledge.common.core.util.R;
+import com.knowledge.common.dto.response.R;
 import com.knowledge.common.dto.response.structure.StructureDetailVO;
 import com.knowledge.common.dto.response.task.StageTriggerVO;
 import io.swagger.v3.oas.annotations.Operation;

@@ -1,7 +1,7 @@
 package com.knowledge.auth.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.knowledge.common.core.util.R;
+import com.knowledge.common.dto.response.R;
 import com.knowledge.common.error.ErrorCode;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;

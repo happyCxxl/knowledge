@@ -1,6 +1,6 @@
 package com.knowledge.biz.web;
 
-import com.knowledge.common.core.util.R;
+import com.knowledge.common.dto.response.R;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
 import lombok.extern.slf4j.Slf4j;

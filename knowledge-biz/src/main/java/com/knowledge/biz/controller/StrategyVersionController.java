@@ -1,7 +1,7 @@
 package com.knowledge.biz.controller;
 
 import com.knowledge.biz.service.StrategyVersionService;
-import com.knowledge.common.core.util.R;
+import com.knowledge.common.dto.response.R;
 import com.knowledge.common.dto.request.strategy.StrategyVersionCreateDto;
 import com.knowledge.common.dto.request.strategy.StrategyVersionUpdateDto;
 import com.knowledge.common.dto.response.strategy.StrategyVersionVO;

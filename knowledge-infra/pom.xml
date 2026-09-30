@@ -25,6 +25,12 @@
 
     <dependencies>
         <!-- MyBatis-Plus（通用数据访问基类与统一配置；版本由根 pom 钉版） -->
+        <!-- 公共契约与工具（限流切面要用注解、错误码与客户端 IP 工具） -->
+        <dependency>
+            <groupId>com.knowledge</groupId>
+            <artifactId>knowledge-common</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>com.baomidou</groupId>
             <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
@@ -59,23 +65,10 @@
             <artifactId>bucket4j_jdk17-lettuce</artifactId>
         </dependency>
 
-        <!-- 限流切面所需的 AOP；运行期由 knowledge-common 的 spring-boot-starter-aop 提供，故为 provided -->
+        <!-- 限流切面所需的 AOP：@Aspect 织入需要 aspectjweaver，且必须随 infra 传给运行方（provided 会静默失效） -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-aop</artifactId>
-            <scope>provided</scope>
-        </dependency>
-
-        <!-- 取客户端 IP（限流切面与登录守卫）；运行期由各 Web 模块提供，故为 provided -->
-        <dependency>
-            <groupId>org.springframework</groupId>
-            <artifactId>spring-web</artifactId>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>jakarta.servlet</groupId>
-            <artifactId>jakarta.servlet-api</artifactId>
-            <scope>provided</scope>
         </dependency>
 
         <!-- Lombok -->
@@ -85,10 +78,15 @@
             <scope>provided</scope>
         </dependency>
 
-        <!-- 单元测试（JUnit5 + Mockito） -->
+        <!-- 单元测试（JUnit5 + Mockito；servlet-api 供 MockHttpServletRequest 构造请求上下文用） -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>jakarta.servlet</groupId>
+            <artifactId>jakarta.servlet-api</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>

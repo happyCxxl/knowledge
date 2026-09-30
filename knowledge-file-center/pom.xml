@@ -30,6 +30,12 @@
             <artifactId>knowledge-common</artifactId>
         </dependency>
 
+        <!-- 数据访问基类（InfraBaseMapper / InfraDbService / InfraDbServiceImpl） -->
+        <dependency>
+            <groupId>com.knowledge</groupId>
+            <artifactId>knowledge-infra</artifactId>
+        </dependency>
+
         <!-- MyBatis-Plus（档案表持久化；版本与根 pom mybatis-plus.version 对齐） -->
         <dependency>
             <groupId>com.baomidou</groupId>

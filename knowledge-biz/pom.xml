@@ -109,6 +109,10 @@
             <groupId>com.knowledge</groupId>
             <artifactId>knowledge-common</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.knowledge</groupId>
+            <artifactId>knowledge-infra</artifactId>
+        </dependency>
 
         <!-- 鏂囦欢鏈嶅姟妯″潡锛堟彁浜ゆ牎楠屽紑娴佷笌鍏冩暟鎹潵婧愶級 -->
         <dependency>

@@ -1,11 +1,11 @@
 package com.knowledge.auth.controller;
 
 import com.knowledge.auth.service.AuthService;
-import com.knowledge.common.core.util.R;
+import com.knowledge.common.dto.response.R;
 import com.knowledge.common.dto.request.auth.LoginRequest;
 import com.knowledge.common.dto.request.auth.RegisterRequest;
 import com.knowledge.common.dto.response.auth.LoginVO;
-import com.knowledge.common.ratelimit.RateLimit;
+import com.knowledge.common.annotation.RateLimit;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.PostMapping;

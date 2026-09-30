@@ -1,5 +1,6 @@
 package com.knowledge.auth.service.impl;
 
+import cn.hutool.core.util.ObjectUtil;
 import com.knowledge.auth.db.UserDbService;
 import com.knowledge.auth.service.AuthService;
 import com.knowledge.auth.service.support.LoginAttemptGuard;
@@ -11,9 +12,8 @@ import com.knowledge.common.dto.response.auth.LoginVO;
 import com.knowledge.common.enums.user.UserRole;
 import com.knowledge.common.enums.user.UserStatus;
 import com.knowledge.common.error.ErrorCode;
-import com.knowledge.common.exception.KnowledgeException;
 import com.knowledge.common.exception.ThrowUtil;
-import com.knowledge.infra.web.ClientIpResolver;
+import com.knowledge.common.utils.ClientIpUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -38,21 +38,17 @@ public class AuthServiceImpl implements AuthService {
 
     private final LoginAttemptGuard loginAttemptGuard;
 
-    private final ClientIpResolver clientIpResolver;
-
     @Override
     public LoginVO login(LoginRequest request) {
-        String ip = clientIpResolver.resolve();
+        String ip = ClientIpUtils.getClientIp();
         // 已锁定则直接拒绝：不查库、不跑 BCrypt（BCrypt 是慢哈希，放任尝试等于给对方一个 CPU 放大器）
         ThrowUtil.throwIf(loginAttemptGuard.isLocked(request.getUsername(), ip),
                 ErrorCode.LOGIN_TOO_FREQUENT);
         User user = userDbService.findActiveByUsername(request.getUsername());
-        boolean credentialsMatch = user != null
+        boolean credentialsMatch = ObjectUtil.isNotNull(user)
                 && passwordEncoder.matches(request.getPassword(), user.getPassword());
-        if (!credentialsMatch) {
-            loginAttemptGuard.recordFailure(request.getUsername(), ip);
-            throw new KnowledgeException(ErrorCode.LOGIN_FAILED);
-        }
+        ThrowUtil.throwIf(!credentialsMatch, ErrorCode.LOGIN_FAILED,
+                () -> loginAttemptGuard.recordFailure(request.getUsername(), ip));
         loginAttemptGuard.clearAccount(request.getUsername(), ip);
         // 角色与令牌版本写入令牌载荷：角色供鉴权判定，版本供失效校验
         UserRole role = UserRole.of(user.getRole());
@@ -60,9 +56,14 @@ public class AuthServiceImpl implements AuthService {
         Duration ttl = request.isRemember() ? jwtUtil.rememberTtl() : jwtUtil.standardTtl();
         LoginVO vo = new LoginVO();
         vo.setToken(jwtUtil.sign(user.getId(), user.getUsername(), role, tokenVersion, ttl));
+        vo.setId(user.getId());
+        vo.setUsername(user.getUsername());
         vo.setDisplayName(user.getDisplayName());
         vo.setEmail(user.getEmail());
         vo.setPhone(user.getPhone());
+        vo.setStatus(user.getStatus());
+        vo.setRole(user.getRole());
+        vo.setTokenVersion(user.getTokenVersion());
         return vo;
     }
 

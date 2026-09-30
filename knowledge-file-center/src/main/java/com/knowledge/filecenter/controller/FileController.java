@@ -1,6 +1,6 @@
 package com.knowledge.filecenter.controller;
 
-import com.knowledge.common.core.util.R;
+import com.knowledge.common.dto.response.R;
 import com.knowledge.filecenter.service.FileService;
 import com.knowledge.filecenter.service.FileStorage;
 import jakarta.servlet.http.HttpServletResponse;

@@ -2,7 +2,7 @@ package com.knowledge.biz.controller;
 
 import com.knowledge.biz.seed.SeedResetService;
 import com.knowledge.biz.seed.SeedService;
-import com.knowledge.common.core.util.R;
+import com.knowledge.common.dto.response.R;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;

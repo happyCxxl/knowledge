@@ -2,7 +2,7 @@ package com.knowledge.auth.controller;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.knowledge.auth.service.UserService;
-import com.knowledge.common.core.util.R;
+import com.knowledge.common.dto.response.R;
 import com.knowledge.common.dto.request.user.PasswordUpdateRequest;
 import com.knowledge.common.dto.request.user.ProfileUpdateRequest;
 import com.knowledge.common.dto.request.user.UserCreateRequest;
@@ -10,7 +10,7 @@ import com.knowledge.common.dto.request.user.UserUpdateRequest;
 import com.knowledge.common.dto.response.user.UserVO;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.ThrowUtil;
-import com.knowledge.common.security.AdminOnly;
+import com.knowledge.common.annotation.AdminOnly;
 import com.knowledge.common.security.KnowledgeUser;
 import com.knowledge.common.utils.SecurityUtils;
 import io.swagger.v3.oas.annotations.Operation;

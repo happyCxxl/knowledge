@@ -1,5 +1,6 @@
-package com.knowledge.common.security;
+package com.knowledge.common.annotation;
 
+import com.knowledge.common.security.RoleExpressions;
 import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.lang.annotation.Documented;

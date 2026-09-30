@@ -442,7 +442,7 @@ async function handleSubmit(): Promise<void> {
       password: form.password,
       remember: form.remember,
     });
-    authStore.setToken(loginResult.token, form.remember, loginResult.displayName ?? null);
+    authStore.setLogin(loginResult, form.remember);
     ElMessage.success('登录成功');
     await router.push(takeRedirectTarget());
   } catch {

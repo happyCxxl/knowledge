@@ -2,7 +2,7 @@ package com.knowledge.biz.controller;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.knowledge.biz.service.KnowledgeBaseService;
-import com.knowledge.common.core.util.R;
+import com.knowledge.common.dto.response.R;
 import com.knowledge.common.dto.request.knowledge.KnowledgeBaseCreateDto;
 import com.knowledge.common.dto.request.knowledge.KnowledgeBaseUpdateDto;
 import com.knowledge.common.dto.request.knowledge.StrategyBindingUpdateDto;

@@ -1,4 +1,4 @@
-package com.knowledge.common.core.util;
+package com.knowledge.common.dto.response;
 
 import lombok.Getter;
 import lombok.Setter;

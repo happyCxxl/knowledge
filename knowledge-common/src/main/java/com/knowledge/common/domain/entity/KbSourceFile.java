@@ -3,7 +3,7 @@ package com.knowledge.common.domain.entity;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import com.knowledge.infra.domain.base.BaseCreateInfo;
+import com.knowledge.common.domain.base.BaseCreateInfo;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 

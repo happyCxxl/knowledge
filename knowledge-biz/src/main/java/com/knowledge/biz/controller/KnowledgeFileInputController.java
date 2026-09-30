@@ -2,7 +2,7 @@ package com.knowledge.biz.controller;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.knowledge.biz.service.FileSubmitService;
-import com.knowledge.common.core.util.R;
+import com.knowledge.common.dto.response.R;
 import com.knowledge.common.dto.request.input.FileSubmitRequest;
 import com.knowledge.common.dto.response.input.FileResultVO;
 import com.knowledge.common.dto.response.input.FileSubmitResponse;

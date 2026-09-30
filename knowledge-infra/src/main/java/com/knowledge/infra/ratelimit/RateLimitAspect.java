@@ -1,9 +1,9 @@
-package com.knowledge.common.ratelimit;
+package com.knowledge.infra.ratelimit;
 
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
-import com.knowledge.infra.ratelimit.BucketRateLimiter;
-import com.knowledge.infra.web.ClientIpResolver;
+import com.knowledge.common.annotation.RateLimit;
+import com.knowledge.common.utils.ClientIpUtils;
 import lombok.RequiredArgsConstructor;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
@@ -27,8 +27,6 @@ public class RateLimitAspect {
 
     private final BucketRateLimiter bucketRateLimiter;
 
-    private final ClientIpResolver clientIpResolver;
-
     @Around("@annotation(rateLimit)")
     public Object around(ProceedingJoinPoint joinPoint, RateLimit rateLimit) throws Throwable {
         String key = bucketKey(joinPoint);
@@ -41,7 +39,7 @@ public class RateLimitAspect {
     /** 桶键：客户端 IP + 接口名，不同接口各自独立计数 */
     private String bucketKey(ProceedingJoinPoint joinPoint) {
         MethodSignature signature = (MethodSignature) joinPoint.getSignature();
-        return KEY_PREFIX + clientIpResolver.resolve() + ":"
+        return KEY_PREFIX + ClientIpUtils.getClientIp() + ":"
                 + signature.getDeclaringType().getSimpleName() + "." + signature.getName();
     }
 

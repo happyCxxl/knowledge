@@ -10,8 +10,8 @@ import com.knowledge.common.dto.response.auth.LoginVO;
 import com.knowledge.common.enums.user.UserRole;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
-import com.knowledge.infra.web.ClientIpResolver;
 import java.time.Duration;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -19,7 +19,10 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -53,9 +56,6 @@ class AuthServiceTest {
     @Mock
     private LoginAttemptGuard loginAttemptGuard;
 
-    @Mock
-    private ClientIpResolver clientIpResolver;
-
     @InjectMocks
     private AuthServiceImpl authService;
 
@@ -63,6 +63,18 @@ class AuthServiceTest {
     void stubConfiguredTtls() {
         lenient().when(jwtUtil.standardTtl()).thenReturn(STANDARD_TTL);
         lenient().when(jwtUtil.rememberTtl()).thenReturn(REMEMBER_TTL);
+    }
+
+    @BeforeEach
+    void stubRequestContext() {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRemoteAddr("10.0.0.1");
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+    }
+
+    @AfterEach
+    void clearRequestContext() {
+        RequestContextHolder.resetRequestAttributes();
     }
 
     @Test
@@ -156,7 +168,6 @@ class AuthServiceTest {
 
     @Test
     void loginShouldRejectWhenLockedWithoutTouchingDatabase() {
-        when(clientIpResolver.resolve()).thenReturn("10.0.0.1");
         when(loginAttemptGuard.isLocked("admin", "10.0.0.1")).thenReturn(true);
 
         KnowledgeException e = assertThrows(KnowledgeException.class,
@@ -170,7 +181,6 @@ class AuthServiceTest {
 
     @Test
     void loginShouldRecordFailureWhenPasswordMismatch() {
-        when(clientIpResolver.resolve()).thenReturn("10.0.0.1");
         when(userDbService.findActiveByUsername("admin")).thenReturn(adminUser());
         when(passwordEncoder.matches("wrong", "encoded")).thenReturn(false);
 
@@ -184,7 +194,6 @@ class AuthServiceTest {
 
     @Test
     void loginShouldClearAccountCounterOnSuccess() {
-        when(clientIpResolver.resolve()).thenReturn("10.0.0.1");
         when(userDbService.findActiveByUsername("admin")).thenReturn(adminUser());
         when(passwordEncoder.matches("pass123456", "encoded")).thenReturn(true);
         when(jwtUtil.sign(1L, "admin", UserRole.ADMIN, 0, STANDARD_TTL)).thenReturn("jwt-token");

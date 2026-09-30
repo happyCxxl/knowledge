@@ -1,4 +1,8 @@
 // 认证契约（与后端 LoginRequest/LoginVO/RegisterRequest 对齐）
+
+/** 角色码值：与后端 UserRole 对齐 */
+export type UserRole = 'ADMIN' | 'USER';
+
 export interface LoginRequest {
   username: string;
   password: string;
@@ -6,12 +10,21 @@ export interface LoginRequest {
   remember: boolean;
 }
 
-/** 登录结果：角色与用户 ID 从令牌载荷解析，这里只带界面要用的资料字段 */
+/** 登录结果：用户信息由后端显式下发，前端不再解析令牌载荷 */
 export interface LoginVO {
-  token: string;
+  /** 主键（雪花 ID，后端按字符串下发） */
+  id: string;
+  username: string;
   displayName: string | null;
   email: string | null;
   phone: string | null;
+  /** 状态：1 启用 / 0 停用 */
+  status: number;
+  role: UserRole;
+  /** 令牌版本：递增即让该账号已签发的令牌全部失效 */
+  tokenVersion: number;
+  /** 访问令牌 */
+  token: string;
 }
 
 export interface RegisterRequest {

@@ -1,6 +1,6 @@
 package com.knowledge.biz.controller;
 
-import com.knowledge.common.core.util.R;
+import com.knowledge.common.dto.response.R;
 import com.knowledge.biz.service.LineageQueryService;
 import com.knowledge.common.dto.response.lineage.LineageVO;
 import io.swagger.v3.oas.annotations.Operation;

@@ -1,5 +1,6 @@
 package com.knowledge.common.security;
 
+import com.knowledge.common.annotation.AdminOnly;
 import com.knowledge.common.enums.user.UserRole;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.access.prepost.PreAuthorize;
