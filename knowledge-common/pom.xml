@@ -42,11 +42,10 @@
             <scope>test</scope>
         </dependency>
 
-        <!-- AOP 代理（测试用：让 @EnableMethodSecurity 的拦截器能织入） -->
+        <!-- AOP：限流切面（RateLimitAspect）需要 aspectjweaver 织入；方法级安全的测试也依赖它 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-aop</artifactId>
-            <scope>test</scope>
         </dependency>
 
         <!-- MyBatis-Plus 注解（实体映射，无运行时重依赖）；版本与根 pom mybatis-plus.version 对齐 -->

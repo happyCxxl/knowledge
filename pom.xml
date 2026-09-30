@@ -26,6 +26,7 @@
     <druid.version>1.2.23</druid.version>
     <milvus.version>2.5.5</milvus.version>
     <minio.version>8.5.12</minio.version>
+    <bucket4j.version>8.20.0</bucket4j.version>
   </properties>
 
   <dependencyManagement>
@@ -77,6 +78,19 @@
         <groupId>io.minio</groupId>
         <artifactId>minio</artifactId>
         <version>${minio.version}</version>
+      </dependency>
+
+      <!-- Bucket4j（注解式限流的令牌桶实现；jdk17 线匹配本工程 Java 21，
+           lettuce 版复用工程已有的 Lettuce 客户端，不引入第二个 Redis 客户端） -->
+      <dependency>
+        <groupId>com.bucket4j</groupId>
+        <artifactId>bucket4j_jdk17-core</artifactId>
+        <version>${bucket4j.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.bucket4j</groupId>
+        <artifactId>bucket4j_jdk17-lettuce</artifactId>
+        <version>${bucket4j.version}</version>
       </dependency>
 
       <!-- Spring Cloud / Spring Cloud Alibaba（Nacos 相关 starter 的版本来源） -->
