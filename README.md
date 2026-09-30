@@ -49,7 +49,8 @@
    ```
 
 > `mvn verify` 在打包之外还会执行静态检查门禁（SpotBugs / Checkstyle / PMD / CPD）；门禁绑在
-> `verify` 相位，因此 `mvn package` 不会触发它。提交前钩子（`.husky/pre-commit`）对暂存改动跑同一套门禁。
+> `verify` 相位，因此 `mvn package` 不会触发它。推送前钩子（`.husky/pre-push`）对本次推送范围的
+> 改动跑同一套门禁；提交前钩子只做就地格式化（`tools/frontend/README.md`）。
 
 ## 文档
 

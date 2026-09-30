@@ -1,0 +1,57 @@
+#!/bin/sh
+set -e
+# pre-push gate：对「本次要推上去的改动」跑验证类检查（前端全量 lint + 后端门禁）。
+#
+# 为什么在这里而不是 pre-commit：
+#   这些检查都是只读的（不改文件、不碰索引），晚一步执行不影响正确性；
+#   而放在提交路径上，每次分批提交都要等一遍全量检查（改到 pom 时是全 8 模块）。
+#   代价：本地可能出现「能提交但推不上去」的提交——检查不过时 push 会被拦下。
+#
+# 范围：取本次推送范围（远端 sha..本地 sha）内变更的文件。
+#   新分支（远端 ref 还不存在）或远端 sha 本地没有（未 fetch）时取不到可靠基点，
+#   退回全量检查——这种情形少，慢一次可以接受。
+#
+# 路径一律取 core.quotePath=false：git 默认转义非 ASCII 路径，
+# 会让 \.java$ / \.md$ 这类后缀匹配静默失效。
+zero=0000000000000000000000000000000000000000
+ranges=""
+full=0
+while read -r local_ref local_sha remote_ref remote_sha; do
+  if [ "$local_sha" = "$zero" ]; then
+    # 删除远端分支：没有要检查的内容
+    continue
+  fi
+  if [ "$remote_sha" = "$zero" ] || ! git cat-file -e "$remote_sha^{commit}" 2>/dev/null; then
+    full=1
+    break
+  fi
+  ranges="$ranges $remote_sha..$local_sha"
+done
+
+if [ "$full" = "1" ] || [ -z "$ranges" ]; then
+  changed=$(git -c core.quotePath=false ls-tree -r --name-only HEAD)
+else
+  changed=$(git -c core.quotePath=false diff --name-only $ranges | sort -u)
+fi
+
+# 前端组：全量检查（格式检查、eslint、vue-tsc 构建模式、stylelint、ls-lint、命名词表、规范合规）。
+# lint-staged 的自动修复留在 pre-commit，这里只验证「已经修好了」。
+if echo "$changed" | grep -qE '^(web|tools/frontend)/'; then
+  (
+    cd "$(git rev-parse --show-toplevel)/web"
+    pnpm lint
+  )
+fi
+
+# 后端组：Checkstyle + PMD + CPD 为源码级分析，全 8 模块一次约 16 秒，无需 compile；
+# SpotBugs 为字节码级、必须 compile：用 -pl <改动模块> -amd 让 Maven 按真实 pom
+# 展开「改动模块 + 依赖它的模块」，改到 common/infra 时闭包自然扩为全量。
+if echo "$changed" | grep -qE '(\.java$|pom\.xml$|^tools/backend/)'; then
+  mvn -o checkstyle:check pmd:check pmd:cpd-check
+  scoped=$(echo "$changed" | grep -oE '^knowledge-[a-z-]+' | sort -u | tr '\n' ',' | sed 's/,$//')
+  if [ -z "$scoped" ] || echo "$changed" | grep -qE '^(pom\.xml$|tools/backend/)'; then
+    mvn -o compile spotbugs:check
+  else
+    mvn -o -pl "$scoped" -amd compile spotbugs:check
+  fi
+fi

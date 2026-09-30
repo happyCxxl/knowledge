@@ -15,4 +15,4 @@
 
 ## 机器层条款（无需人工核对）
 
-以下条款已由 pre-commit 门禁自动拦截：格式（prettier）、代码规范与命名/嵌套（eslint）、类型（vue-tsc）、样式（stylelint）、文件命名（ls-lint）、API 词表（check-naming）、SFC 结构与未使用类名（check-spec）。
+以下条款已由钩子门禁自动拦截（就地修复在 pre-commit，全量校验在 pre-push）：格式（prettier）、代码规范与命名/嵌套（eslint）、类型（vue-tsc）、样式（stylelint）、文件命名（ls-lint）、API 词表（check-naming）、SFC 结构与未使用类名（check-spec）。

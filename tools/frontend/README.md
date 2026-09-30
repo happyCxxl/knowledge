@@ -9,12 +9,12 @@
 | 格式          | `web/.prettierrc.json` + `web/.prettierignore` | `pnpm lint:format`；提交钩子对暂存文件 `prettier --write` |
 | JS / Vue 代码 | `web/eslint.config.mjs`                        | `pnpm lint:js`；提交钩子对暂存文件 `eslint --fix`         |
 | 样式          | `web/stylelint.config.mjs`                     | `pnpm lint:css`；提交钩子对暂存文件 `stylelint --fix`     |
-| 文件命名      | `web/.ls-lint.yml`                             | `pnpm lint:files`；提交钩子全树执行                       |
-| 接口命名词表  | 本目录 `check-naming.mjs`                      | `pnpm lint:names`；提交钩子全树执行                       |
-| 工程规范合规  | 本目录 `check-spec.mjs`                        | `pnpm lint:spec`；提交钩子全树执行                        |
-| 类型          | `web/tsconfig.json`                            | `pnpm lint:types`（`vue-tsc -b`）；提交钩子全树执行       |
+| 文件命名      | `web/.ls-lint.yml`                             | `pnpm lint:files`；推送钩子全树执行                       |
+| 接口命名词表  | 本目录 `check-naming.mjs`                      | `pnpm lint:names`；推送钩子全树执行                       |
+| 工程规范合规  | 本目录 `check-spec.mjs`                        | `pnpm lint:spec`；推送钩子全树执行                        |
+| 类型          | `web/tsconfig.json`                            | `pnpm lint:types`（`vue-tsc -b`）；推送钩子全树执行       |
 
-七步的入口是 `web/package.json` 的 `lint` 脚本；提交钩子（`.husky/pre-commit` 前端组）跑的是同一批检查，只是内容检查（prettier / eslint / stylelint）只针对暂存文件。
+七步的入口是 `web/package.json` 的 `lint` 脚本；**推送钩子（`.husky/pre-push` 前端组）跑的就是 `pnpm lint`**——全量、只报不改。**提交钩子（`.husky/pre-commit` 前端组）只做就地修复**：对暂存文件跑 lint-staged（prettier / eslint / stylelint 的 fix 结果回写索引），让推送时的全量检查能过。两段的分工是因为全量检查放在提交路径上太慢。
 
 ## 为什么第三方工具的配置留在 `web/`
 
@@ -32,4 +32,4 @@
 ## 维护须知
 
 - **`web/` 下新增点目录时，要往 `web/.ls-lint.yml` 的 `ignore` 补一条**：ls-lint 会把点目录本身判为不符合 kebab-case，并进入目录内检查文件（`.git` / `.idea` / `.vscode` 就是因此列入的）。
-- 改规则时：内容检查改 `web/` 下的配置，命名词表与规范合规改本目录的脚本。两者都在提交钩子的覆盖范围内。
+- 改规则时：内容检查改 `web/` 下的配置，命名词表与规范合规改本目录的脚本。两者都在钩子覆盖范围内（就地修复在提交前，全量校验在推送前）。
