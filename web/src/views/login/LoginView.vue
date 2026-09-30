@@ -47,7 +47,6 @@
               </div>
             </div>
             <h1 class="login-title">欢迎回来</h1>
-            <p class="login-sub">登录以继续你的知识工作</p>
             <el-form
               ref="formRef"
               :model="form"
@@ -55,6 +54,7 @@
               label-position="top"
               :hide-required-asterisk="true"
               class="login-form"
+              @submit.prevent="handleSubmit"
             >
               <el-form-item prop="account" label="账号" class="login-item">
                 <el-input
@@ -78,7 +78,6 @@
               </el-form-item>
               <div class="login-row">
                 <el-checkbox v-model="form.remember" class="login-remember">记住我</el-checkbox>
-                <a class="login-forget" href="#">忘记密码？</a>
               </div>
               <el-button
                 class="login-button"
@@ -100,7 +99,6 @@
                 立即注册
               </button>
             </div>
-            <div class="login-foot">knowledge · 企业内部知识管理平台</div>
           </div>
         </div>
         <div
@@ -142,7 +140,6 @@
               </div>
             </div>
             <h1 class="login-title">创建账号</h1>
-            <p class="login-sub">注册一个 knowledge 平台账号</p>
             <el-form
               ref="registerFormRef"
               :model="registerForm"
@@ -150,38 +147,71 @@
               label-position="top"
               :hide-required-asterisk="true"
               class="login-form"
+              @submit.prevent="handleRegister"
             >
-              <el-form-item prop="username" label="用户名" class="login-item">
-                <el-input
-                  v-model="registerForm.username"
-                  class="login-input"
-                  placeholder="3-32 位用户名"
-                  autocomplete="username"
-                  :tabindex="cardSide === 'register' ? 0 : -1"
-                />
-              </el-form-item>
-              <el-form-item prop="password" label="密码" class="login-item">
-                <el-input
-                  v-model="registerForm.password"
-                  class="login-input"
-                  type="password"
-                  placeholder="6-64 位密码"
-                  show-password
-                  autocomplete="new-password"
-                  :tabindex="cardSide === 'register' ? 0 : -1"
-                />
-              </el-form-item>
-              <el-form-item prop="confirmPassword" label="确认密码" class="login-item">
-                <el-input
-                  v-model="registerForm.confirmPassword"
-                  class="login-input"
-                  type="password"
-                  placeholder="请再次输入密码"
-                  show-password
-                  autocomplete="new-password"
-                  :tabindex="cardSide === 'register' ? 0 : -1"
-                />
-              </el-form-item>
+              <div class="login-pair">
+                <el-form-item prop="username" label="用户名" class="login-item">
+                  <el-input
+                    v-model="registerForm.username"
+                    class="login-input"
+                    placeholder="用户名"
+                    autocomplete="username"
+                    :tabindex="cardSide === 'register' ? 0 : -1"
+                  />
+                </el-form-item>
+                <el-form-item prop="displayName" label="真实姓名" class="login-item">
+                  <el-input
+                    v-model="registerForm.displayName"
+                    class="login-input"
+                    placeholder="真实姓名"
+                    :tabindex="cardSide === 'register' ? 0 : -1"
+                  />
+                </el-form-item>
+              </div>
+              <div class="login-pair">
+                <el-form-item prop="password" label="密码" class="login-item">
+                  <el-input
+                    v-model="registerForm.password"
+                    class="login-input"
+                    type="password"
+                    placeholder="密码"
+                    show-password
+                    autocomplete="new-password"
+                    :tabindex="cardSide === 'register' ? 0 : -1"
+                  />
+                </el-form-item>
+                <el-form-item prop="confirmPassword" label="确认密码" class="login-item">
+                  <el-input
+                    v-model="registerForm.confirmPassword"
+                    class="login-input"
+                    type="password"
+                    placeholder="再次输入"
+                    show-password
+                    autocomplete="new-password"
+                    :tabindex="cardSide === 'register' ? 0 : -1"
+                  />
+                </el-form-item>
+              </div>
+              <div class="login-pair">
+                <el-form-item prop="email" label="邮箱" class="login-item">
+                  <el-input
+                    v-model="registerForm.email"
+                    class="login-input"
+                    placeholder="选填"
+                    autocomplete="email"
+                    :tabindex="cardSide === 'register' ? 0 : -1"
+                  />
+                </el-form-item>
+                <el-form-item prop="phone" label="手机号" class="login-item">
+                  <el-input
+                    v-model="registerForm.phone"
+                    class="login-input"
+                    placeholder="选填"
+                    autocomplete="tel"
+                    :tabindex="cardSide === 'register' ? 0 : -1"
+                  />
+                </el-form-item>
+              </div>
               <el-button
                 class="login-button"
                 :loading="loading"
@@ -202,53 +232,43 @@
                 直接登录
               </button>
             </div>
-            <div class="login-foot">knowledge · 企业内部知识管理平台</div>
           </div>
         </div>
       </div>
     </main>
-    <div class="login-status">
-      <span class="login-dot"></span>
-      系统运行正常
-    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
-import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 
 import { getToken, addUser } from '@/api/auth';
 import { useAuthStore } from '@/stores/auth';
 
 // 登录页：登录 / 注册各为一张独立卡片，互切时绕水平轴竖向翻转
+const route = useRoute();
 const router = useRouter();
 
-/** 登录后要跳回的路径的暂存键；与 api/http.ts 的 REDIRECT_KEY 保持一致 */
-const REDIRECT_KEY = 'knowledge-redirect';
+/** 是否站内路径：以 / 开头且不是协议相对地址（//host 会被浏览器当作外站） */
+function isInternalPath(target: unknown): target is string {
+  return typeof target === 'string' && target.startsWith('/') && !target.startsWith('//');
+}
 
-/**
- * 取出被中断前的页面路径并清除暂存；无暂存或指向登录页时回落首页。
- *
- * <p>接口层遇 40101/401/403 是硬跳转（window.location.href），会丢失当前 URL，
- * 因此由它把来源写进 sessionStorage，登录成功后在这里读回。
- */
+/** 登录后要跳回的路径：取路由 redirect 参数，指向登录页或非站内路径时回落首页 */
 function takeRedirectTarget(): string {
-  const target = sessionStorage.getItem(REDIRECT_KEY);
-  sessionStorage.removeItem(REDIRECT_KEY);
-  if (!target || target === '/login' || target.startsWith('/login?')) {
+  const target = route.query.redirect;
+  if (!isInternalPath(target) || target === '/login' || target.startsWith('/login?')) {
     return '/home';
   }
   return target;
 }
+
 const authStore = useAuthStore();
 
 // 翻转时长（ms）
 const FLIP_DURATION = 520;
-// 卡片高度下限与视口余量：避免容器塌到 90° 侧棱时页面跳动
-const MIN_CARD_HEIGHT = 520;
-const VIEWPORT_GAP = 96;
 
 const mode = ref<'login' | 'register'>('login');
 // half：翻转进度，0 = 登录面朝前，1 = 注册面朝前
@@ -267,7 +287,6 @@ let startedAt = 0;
 // 本次翻转的起点与终点：回登录是 1 → 0，不是 0 → 1
 let fromFlip = 0;
 let toFlip = 1;
-let resizeObserver: ResizeObserver | undefined;
 
 const cardSide = computed<'login' | 'register'>(() => (half.value > 0.5 ? 'register' : 'login'));
 
@@ -279,6 +298,9 @@ const form = reactive({
 
 const registerForm = reactive({
   username: '',
+  displayName: '',
+  email: '',
+  phone: '',
   password: '',
   confirmPassword: '',
 });
@@ -293,9 +315,15 @@ const registerRules: FormRules = {
     { required: true, message: '请输入用户名', trigger: 'blur' },
     { min: 3, max: 32, message: '用户名长度须为 3-32 位', trigger: 'blur' },
   ],
+  displayName: [
+    { required: true, message: '请输入真实姓名', trigger: 'blur' },
+    { max: 64, message: '真实姓名不能超过 64 位', trigger: 'blur' },
+  ],
+  email: [{ type: 'email', message: '邮箱格式不正确', trigger: 'blur' }],
+  phone: [{ pattern: /^[0-9+()\- ]{6,32}$/, message: '手机号格式不正确', trigger: 'blur' }],
   password: [
     { required: true, message: '请输入密码', trigger: 'blur' },
-    { min: 6, max: 64, message: '密码长度须为 6-64 位', trigger: 'blur' },
+    { min: 8, max: 64, message: '密码长度须为 8-64 位', trigger: 'blur' },
   ],
   confirmPassword: [
     { required: true, message: '请再次输入密码', trigger: 'blur' },
@@ -315,12 +343,6 @@ const registerRules: FormRules = {
 // 回弹缓动：1-(1-t)^4，末段收得干净、不拖尾
 function easeFlip(t: number): number {
   return 1 - Math.pow(1 - t, 4);
-}
-
-// 全局限幅：容器高度不越过视口，避免溢出
-function clampHeight(value: number): number {
-  const max = Math.max(280, window.innerHeight - VIEWPORT_GAP);
-  return Math.round(Math.min(Math.max(value, MIN_CARD_HEIGHT), max));
 }
 
 // 逐帧只做两件事：写进度变量、按进度算高光/投影强度。
@@ -356,19 +378,6 @@ function showBothFaces(active: boolean): void {
       face?.classList.remove('no-frost');
     }
   }
-}
-
-// 容器高度显式写成像素（CSS transition 负责过渡）：
-// 逐帧只写变量、不读布局，避免「写样式 → 读布局」交替触发强制重排
-function syncHeight(): void {
-  const stage = flipRef.value;
-  const active = mode.value === 'login' ? loginCard.value : registerCard.value;
-  if (!stage || !active) {
-    return;
-  }
-  const height = clampHeight(active.offsetHeight);
-  stage.style.height = `${height}px`;
-  stage.style.setProperty('--h', `${height}px`);
 }
 
 function setFlipping(active: boolean): void {
@@ -419,14 +428,21 @@ function switchMode(next: 'login' | 'register'): void {
 
 // 校验表单并调用登录接口；成功后持久化令牌并进入工作台
 async function handleSubmit(): Promise<void> {
+  if (loading.value) {
+    return;
+  }
   const valid = await formRef.value?.validate().catch(() => false);
   if (!valid) {
     return;
   }
   loading.value = true;
   try {
-    const loginResult = await getToken({ username: form.account, password: form.password });
-    authStore.setToken(loginResult.token, form.remember);
+    const loginResult = await getToken({
+      username: form.account,
+      password: form.password,
+      remember: form.remember,
+    });
+    authStore.setToken(loginResult.token, form.remember, loginResult.displayName ?? null);
     ElMessage.success('登录成功');
     await router.push(takeRedirectTarget());
   } catch {
@@ -438,13 +454,22 @@ async function handleSubmit(): Promise<void> {
 
 // 校验注册表单 → 注册 → 翻回登录卡并带好账号，由用户自己登录
 async function handleRegister(): Promise<void> {
+  if (loading.value) {
+    return;
+  }
   const valid = await registerFormRef.value?.validate().catch(() => false);
   if (!valid) {
     return;
   }
   loading.value = true;
   try {
-    await addUser({ username: registerForm.username, password: registerForm.password });
+    await addUser({
+      username: registerForm.username,
+      displayName: registerForm.displayName,
+      email: registerForm.email || undefined,
+      phone: registerForm.phone || undefined,
+      password: registerForm.password,
+    });
     ElMessage.success('注册成功，请登录');
     // 带回账号、清掉密码，避免浏览器把注册密码当成登录凭据留存
     form.account = registerForm.username;
@@ -459,19 +484,9 @@ async function handleRegister(): Promise<void> {
   }
 }
 
-onMounted(async () => {
-  await nextTick();
-  resizeObserver = new ResizeObserver(() => syncHeight());
-  // 两张卡都观察：表单校验提示出现/消失会改变卡片高度，容器要跟着走
-  for (const el of [loginCard.value, registerCard.value]) {
-    if (el) {
-      resizeObserver.observe(el);
-    }
-  }
-  window.addEventListener('resize', syncHeight);
+onMounted(() => {
   // 初始把 --flip / --edge 落到 DOM 上，之后逐帧读写都有确定的值
   paintFlip(half.value);
-  syncHeight();
 });
 
 onBeforeUnmount(() => {
@@ -479,8 +494,6 @@ onBeforeUnmount(() => {
     cancelAnimationFrame(frame);
   }
   frame = 0;
-  resizeObserver?.disconnect();
-  window.removeEventListener('resize', syncHeight);
 });
 </script>
 
@@ -575,28 +588,30 @@ onBeforeUnmount(() => {
   animation: login-twinkle 5s ease-in-out infinite alternate-reverse;
 }
 
+/* 舞台是固定尺寸：视口比它矮时页面可滚动，且居中不裁掉顶部 */
 .login-main {
   position: relative;
   z-index: 1;
   display: grid;
   height: 100%;
   place-items: center;
+  align-items: safe center;
+  overflow-y: auto;
   padding: 24px;
 }
 
-/* 3D 舞台：--h 是卡片高度，--flip 是翻转进度（0=登录面朝前，1=注册面朝前），
+/* 3D 舞台：--flip 是翻转进度（0=登录面朝前，1=注册面朝前），
    --edge 是侧棱强度（sin(π·--flip)，翻转中由 JS 逐帧写入，静止时为 0）。
-   两张脸的旋转、缩放、阴影与面板高光全部由这三个变量推导，只有一个数据源。 */
+   两张脸的旋转、缩放、阴影与面板高光全部由这两个变量推导，只有一个数据源。
+   容器尺寸是常量：两张卡同宽同高，不随字段多少或校验提示出现而变化 */
 .login-flip {
-  --h: 623px;
   --flip: 0;
   --edge: 0;
 
   position: relative;
-  width: min(428px, 100%);
-  height: var(--h);
+  width: min(448px, 100%);
+  height: 680px;
   perspective: 1700px;
-  transition: height 0.3s cubic-bezier(0.2, 0.7, 0.3, 1);
   animation: login-rise 0.55s cubic-bezier(0.2, 0.7, 0.3, 1) both;
 }
 
@@ -604,7 +619,8 @@ onBeforeUnmount(() => {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 100%;
+  width: 110%;
+  height: 70%;
   transform-origin: 50% 50%;
   transform: translate(-50%, -50%);
   backface-visibility: hidden;
@@ -640,15 +656,19 @@ onBeforeUnmount(() => {
 }
 
 /* 背光层：静态用 backdrop-filter 做毛玻璃；
-   翻转中由 JS 加 .no-frost 关掉，并同时给面板加一层实底保证对比度 */
+   翻转中由 JS 加 .no-frost 关掉，并同时给面板加一层实底保证对比度。
+   面板高度固定，内容超出时在面板内滚动，不会把容器撑大 */
 .login-face {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
   padding: 44px 40px 36px;
   border: 1px solid var(--kb-line);
   border-radius: 20px;
   background: transparent;
   box-shadow: 0 30px 90px rgb(0 0 0 / 50%);
-  overflow: hidden;
+  overflow: hidden auto;
 }
 
 .login-face::before {
@@ -658,16 +678,6 @@ onBeforeUnmount(() => {
   background: linear-gradient(180deg, rgb(255 255 255 / 6%), rgb(255 255 255 / 2.8%));
   backdrop-filter: blur(28px);
   content: '';
-}
-
-/* 翻转中给面板加实底并关掉毛玻璃：避让 Chromium 在 transform 祖先上的
-   backdrop-filter 合成异常（会导致整张卡不渲染）。切换由 JS 加 .no-frost 完成 */
-.login-face.no-frost {
-  background: linear-gradient(180deg, rgb(13 18 30 / 96%), rgb(9 13 22 / 94%));
-}
-
-.login-face.no-frost::before {
-  backdrop-filter: none;
 }
 
 /* 高光扫过：贴到 90° 侧棱时最亮，是「酷炫」的主要来源。
@@ -732,16 +742,26 @@ onBeforeUnmount(() => {
   color: transparent;
 }
 
-.login-sub {
-  margin: 0 0 30px;
-  color: var(--kb-text-2);
-  font-size: 14px;
-}
-
 /* 表单项留出固定错误位，校验提示出现时不撑动卡片高度 */
 .login-item {
   min-height: 82px;
   margin-bottom: 0;
+}
+
+/* 两列并排：注册字段较多，成对排布以控制卡片高度 */
+.login-pair {
+  display: flex;
+  gap: 14px;
+}
+
+.login-pair > .login-item {
+  flex: 1;
+  min-width: 0;
+}
+
+/* 并排的格子更窄，错误提示可能折行，错误位略收紧 */
+.login-pair .login-item {
+  min-height: 78px;
 }
 
 .login-row {
@@ -751,23 +771,13 @@ onBeforeUnmount(() => {
   margin-top: 16px;
 }
 
-.login-forget {
-  color: var(--kb-text-2);
-  font-size: 13px;
-  text-decoration: none;
-  transition: color 0.2s;
-}
-
-.login-forget:hover {
-  color: var(--kb-primary);
-}
-
+/* 面板高度固定：底部两行靠下对齐，两张卡的版式才一致 */
 .login-switch {
   display: flex;
   gap: 6px;
   align-items: center;
   justify-content: center;
-  margin-top: 22px;
+  margin-top: auto;
   color: var(--kb-text-2);
   font-size: 13px;
 }
@@ -829,37 +839,6 @@ onBeforeUnmount(() => {
   transform: none;
 }
 
-.login-foot {
-  margin-top: 30px;
-  color: var(--kb-text-3);
-  font-size: 12px;
-  letter-spacing: 0.06em;
-  text-align: center;
-}
-
-.login-status {
-  position: fixed;
-  bottom: 22px;
-  left: 50%;
-  z-index: 1;
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  color: var(--kb-text-3);
-  font-size: 12px;
-  letter-spacing: 0.08em;
-  transform: translateX(-50%);
-}
-
-.login-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--kb-ok);
-  box-shadow: 0 0 10px rgb(163 230 53 / 80%);
-  animation: login-pulse 2.4s ease-in-out infinite;
-}
-
 @keyframes login-rise {
   from {
     opacity: 0;
@@ -889,20 +868,6 @@ onBeforeUnmount(() => {
 
   to {
     opacity: 0.95;
-  }
-}
-
-@keyframes login-pulse {
-  0% {
-    opacity: 1;
-  }
-
-  50% {
-    opacity: 0.35;
-  }
-
-  100% {
-    opacity: 1;
   }
 }
 

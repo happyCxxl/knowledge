@@ -76,12 +76,14 @@
           <div class="layout-user-trigger">
             <div class="layout-avatar">{{ avatarText }}</div>
             <div class="layout-user">
-              <div class="layout-user-name">{{ username }}</div>
+              <div class="layout-user-name">{{ displayNameLabel }}</div>
               <div class="layout-user-role">{{ roleLabel }}</div>
             </div>
           </div>
           <template #dropdown>
             <el-dropdown-menu>
+              <el-dropdown-item @click="profileVisible = true">个人信息</el-dropdown-item>
+              <el-dropdown-item @click="passwordVisible = true">修改密码</el-dropdown-item>
               <el-dropdown-item @click="handleLogout">退出登录</el-dropdown-item>
             </el-dropdown-menu>
           </template>
@@ -137,6 +139,8 @@
             <div class="layout-avatar layout-avatar-clickable">{{ avatarText }}</div>
             <template #dropdown>
               <el-dropdown-menu>
+                <el-dropdown-item @click="profileVisible = true">个人信息</el-dropdown-item>
+                <el-dropdown-item @click="passwordVisible = true">修改密码</el-dropdown-item>
                 <el-dropdown-item @click="handleLogout">退出登录</el-dropdown-item>
               </el-dropdown-menu>
             </template>
@@ -147,6 +151,8 @@
         <router-view />
       </div>
     </div>
+    <ProfileDialog v-model="profileVisible" @saved="handleProfileSaved" />
+    <ChangePasswordDialog v-model="passwordVisible" />
   </div>
 </template>
 
@@ -155,6 +161,8 @@ import { ElMessage } from 'element-plus';
 import { computed, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
+import ChangePasswordDialog from '@/components/user/ChangePasswordDialog.vue';
+import ProfileDialog from '@/components/user/ProfileDialog.vue';
 import { useAuthStore } from '@/stores/auth';
 import { readCollapsed, writeCollapsed } from '@/utils/ui-state-storage';
 
@@ -249,9 +257,20 @@ function goBack(): void {
   void router.push(backTarget.value.path);
 }
 
-// 登录用户名与角色：JWT 载荷在登录时下发，前端只做展示与菜单渲染
-const username = computed(() => authStore.username ?? '未登录');
-const avatarText = computed(() => username.value.slice(0, 1).toUpperCase());
+// 展示用姓名：优先真实姓名（登录响应下发并本地持久化），无则回落登录名
+const displayNameLabel = computed(() => authStore.displayName ?? authStore.username ?? '未登录');
+const avatarText = computed(() => displayNameLabel.value.slice(0, 1).toUpperCase());
+
+/** 个人信息弹窗可见性 */
+const profileVisible = ref(false);
+
+/** 修改密码弹窗可见性 */
+const passwordVisible = ref(false);
+
+/** 个人信息保存后同步展示，不必重新登录 */
+function handleProfileSaved(displayName: string): void {
+  authStore.setDisplayName(displayName);
+}
 
 const roleLabels: Record<string, string> = {
   ADMIN: '管理员',

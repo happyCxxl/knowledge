@@ -5,8 +5,6 @@ import type { R } from '@/types/response';
 
 const TOKEN_KEY = 'knowledge-token';
 
-/** 登录后要跳回的路径的暂存键（硬跳转会丢失当前 URL，用它带回来） */
-const REDIRECT_KEY = 'knowledge-redirect';
 const CODE_UNAUTHORIZED = 40101;
 const CODE_SYSTEM_ERROR = 40500;
 
@@ -28,16 +26,16 @@ http.interceptors.request.use((config) => {
   return config;
 });
 
-/** 清令牌并回登录页；已在登录页时不重复跳，避免刷新循环 */
+/** 清令牌并携来源路径回登录页；已在登录页时不重复跳，避免刷新循环 */
 function redirectToLogin(): void {
   localStorage.removeItem(TOKEN_KEY);
   sessionStorage.removeItem(TOKEN_KEY);
   if (window.location.pathname === '/login') {
     return;
   }
-  // 记下来源：登录成功后由登录页读回
-  sessionStorage.setItem(REDIRECT_KEY, window.location.pathname + window.location.search);
-  window.location.href = '/login';
+  // 来源写进 redirect 参数：登录成功后由登录页读回
+  const from = encodeURIComponent(window.location.pathname + window.location.search);
+  window.location.href = `/login?redirect=${from}`;
 }
 
 http.interceptors.response.use(

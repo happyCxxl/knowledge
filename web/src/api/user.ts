@@ -1,6 +1,30 @@
 import { http } from './http';
 import type { PageResult } from '@/types/response';
-import type { UserCreateRequest, UserPageQuery, UserUpdateRequest, UserVO } from '@/types/user';
+import type {
+  PasswordUpdateRequest,
+  ProfileUpdateRequest,
+  UserCreateRequest,
+  UserPageQuery,
+  UserUpdateRequest,
+  UserVO,
+} from '@/types/user';
+
+/** 查询个人信息（本人） */
+export async function getProfile(): Promise<UserVO> {
+  const response = await http.get<UserVO>('/user/profile');
+  return response.data;
+}
+
+/** 修改个人信息（本人；只改真实姓名、邮箱、手机号） */
+export async function updateProfile(request: ProfileUpdateRequest): Promise<void> {
+  await http.put<void>('/user/profile', request);
+}
+
+/** 修改密码（本人）：返回以新令牌版本补签的令牌，调用方需替换本地令牌 */
+export async function updatePassword(request: PasswordUpdateRequest): Promise<string> {
+  const response = await http.put<string>('/user/password', request);
+  return response.data;
+}
 
 /** 分页查询用户（仅管理员；响应不含密码） */
 export async function getUserPage(query: UserPageQuery): Promise<PageResult<UserVO>> {

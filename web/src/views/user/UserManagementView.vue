@@ -28,8 +28,8 @@
         </el-select>
         <el-select v-model="statusFilter" class="user-select" placeholder="状态">
           <el-option label="全部状态" value="" />
-          <el-option label="启用" :value="1" />
-          <el-option label="停用" :value="0" />
+          <el-option label="启用" :value="USER_STATUS.ENABLED" />
+          <el-option label="停用" :value="USER_STATUS.DISABLED" />
         </el-select>
         <el-button class="user-btn-primary" @click="handleSearch">查询</el-button>
         <el-button class="user-btn-ghost" @click="handleReset">重置</el-button>
@@ -60,6 +60,9 @@
           :border="false"
         >
           <el-table-column prop="username" label="用户名" min-width="160" />
+          <el-table-column label="姓名" min-width="110">
+            <template #default="{ row }">{{ row.displayName || '-' }}</template>
+          </el-table-column>
           <el-table-column label="角色" width="110">
             <template #default="{ row }">
               <el-tag :type="row.role === 'ADMIN' ? 'warning' : 'info'" effect="plain" size="small">
@@ -69,8 +72,12 @@
           </el-table-column>
           <el-table-column label="状态" width="100">
             <template #default="{ row }">
-              <el-tag :type="row.status === 1 ? 'success' : 'info'" effect="dark" size="small">
-                {{ row.status === 1 ? '启用' : '停用' }}
+              <el-tag
+                :type="row.status === USER_STATUS.ENABLED ? 'success' : 'info'"
+                effect="dark"
+                size="small"
+              >
+                {{ row.status === USER_STATUS.ENABLED ? '启用' : '停用' }}
               </el-tag>
             </template>
           </el-table-column>
@@ -150,13 +157,16 @@
             :disabled="isEdit"
           />
         </el-form-item>
+        <el-form-item prop="displayName" label="真实姓名" class="user-dialog-item">
+          <el-input v-model="dialogForm.displayName" class="login-input" placeholder="真实姓名" />
+        </el-form-item>
         <el-form-item prop="password" label="密码" class="user-dialog-item">
           <el-input
             v-model="dialogForm.password"
             class="login-input"
             type="password"
             show-password
-            :placeholder="isEdit ? '留空表示不重置密码' : '6-64 位密码'"
+            :placeholder="isEdit ? '留空表示不重置密码' : '8-64 位密码'"
           />
         </el-form-item>
         <el-form-item prop="confirmPassword" label="确认密码" class="user-dialog-item">
@@ -168,6 +178,14 @@
             :placeholder="isEdit ? '留空表示不重置密码' : '请再次输入密码'"
           />
         </el-form-item>
+        <div class="user-dialog-pair">
+          <el-form-item prop="email" label="邮箱" class="user-dialog-item">
+            <el-input v-model="dialogForm.email" class="login-input" placeholder="选填" />
+          </el-form-item>
+          <el-form-item prop="phone" label="手机号" class="user-dialog-item">
+            <el-input v-model="dialogForm.phone" class="login-input" placeholder="选填" />
+          </el-form-item>
+        </div>
         <el-form-item prop="role" label="角色" class="user-dialog-item">
           <el-select v-model="dialogForm.role" class="user-dialog-select" :disabled="isEditSelf">
             <el-option label="普通用户" value="USER" />
@@ -176,8 +194,8 @@
         </el-form-item>
         <el-form-item prop="status" label="状态" class="user-dialog-item">
           <el-radio-group v-model="dialogForm.status" :disabled="isEditSelf">
-            <el-radio :value="1">启用</el-radio>
-            <el-radio :value="0">停用</el-radio>
+            <el-radio :value="USER_STATUS.ENABLED">启用</el-radio>
+            <el-radio :value="USER_STATUS.DISABLED">停用</el-radio>
           </el-radio-group>
         </el-form-item>
       </el-form>
@@ -197,7 +215,7 @@ import { computed, onMounted, reactive, ref } from 'vue';
 
 import { addUserByAdmin, deleteUser, getUserPage, updateUser } from '@/api/user';
 import { useAuthStore } from '@/stores/auth';
-import type { UserVO } from '@/types/user';
+import { USER_STATUS, type UserVO } from '@/types/user';
 
 // 用户管理页：分页查询 + 新增/编辑/删除（接口层已统一处理失败提示，页面只处理成功分支）
 const authStore = useAuthStore();
@@ -220,10 +238,13 @@ const dialogFormRef = ref<FormInstance>();
 
 const dialogForm = reactive({
   username: '',
+  displayName: '',
+  email: '',
+  phone: '',
   password: '',
   confirmPassword: '',
   role: 'USER',
-  status: 1,
+  status: USER_STATUS.ENABLED,
 });
 
 const isEdit = computed(() => editingId.value !== null);
@@ -235,6 +256,12 @@ const dialogRules: FormRules = {
     { required: true, message: '请输入用户名', trigger: 'blur' },
     { min: 3, max: 32, message: '用户名长度须为 3-32 位', trigger: 'blur' },
   ],
+  displayName: [
+    { required: true, message: '请输入真实姓名', trigger: 'blur' },
+    { max: 64, message: '真实姓名不能超过 64 位', trigger: 'blur' },
+  ],
+  email: [{ type: 'email', message: '邮箱格式不正确', trigger: 'blur' }],
+  phone: [{ pattern: /^[0-9+()\- ]{6,32}$/, message: '手机号格式不正确', trigger: 'blur' }],
   password: [
     {
       validator: (_rule, value: string, callback: (error?: Error) => void) => {
@@ -242,8 +269,8 @@ const dialogRules: FormRules = {
           callback(new Error('请输入密码'));
           return;
         }
-        if (value && (value.length < 6 || value.length > 64)) {
-          callback(new Error('密码长度须为 6-64 位'));
+        if (value && (value.length < 8 || value.length > 64)) {
+          callback(new Error('密码长度须为 8-64 位'));
           return;
         }
         callback();
@@ -318,10 +345,13 @@ function handlePageChange(current: number): void {
 
 function resetDialogForm(): void {
   dialogForm.username = '';
+  dialogForm.displayName = '';
+  dialogForm.email = '';
+  dialogForm.phone = '';
   dialogForm.password = '';
   dialogForm.confirmPassword = '';
   dialogForm.role = 'USER';
-  dialogForm.status = 1;
+  dialogForm.status = USER_STATUS.ENABLED;
 }
 
 function openCreate(): void {
@@ -333,6 +363,9 @@ function openCreate(): void {
 function openEdit(row: UserVO): void {
   editingId.value = row.id;
   dialogForm.username = row.username;
+  dialogForm.displayName = row.displayName ?? '';
+  dialogForm.email = row.email ?? '';
+  dialogForm.phone = row.phone ?? '';
   dialogForm.password = '';
   dialogForm.confirmPassword = '';
   dialogForm.role = row.role === 'ADMIN' ? 'ADMIN' : 'USER';
@@ -355,6 +388,9 @@ async function handleSubmit(): Promise<void> {
     if (editingId.value === null) {
       await addUserByAdmin({
         username: dialogForm.username,
+        displayName: dialogForm.displayName,
+        email: dialogForm.email,
+        phone: dialogForm.phone,
         password: dialogForm.password,
         role: dialogForm.role,
         status: dialogForm.status,
@@ -362,6 +398,10 @@ async function handleSubmit(): Promise<void> {
       ElMessage.success('新增成功');
     } else {
       await updateUser(editingId.value, {
+        displayName: dialogForm.displayName,
+        // 邮箱与手机号传空串表示清空，传 undefined 会被后端当成「不变」
+        email: dialogForm.email,
+        phone: dialogForm.phone,
         // 留空表示不重置密码，不把空串发给后端
         password: dialogForm.password || undefined,
         role: dialogForm.role,
@@ -507,5 +547,16 @@ onMounted(() => {
 
 .user-dialog-select {
   width: 100%;
+}
+
+/* 邮箱与手机号并排：弹窗字段较多，成对排布以控制高度 */
+.user-dialog-pair {
+  display: flex;
+  gap: 12px;
+}
+
+.user-dialog-pair > .user-dialog-item {
+  flex: 1;
+  min-width: 0;
 }
 </style>
