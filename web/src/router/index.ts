@@ -60,6 +60,12 @@ const router = createRouter({
           // 仅管理员可进入；非管理员回落工作台
           meta: { adminOnly: true },
         },
+        {
+          // 个人中心：账号信息、联系方式与修改密码；入口在布局壳的用户菜单
+          path: 'profile',
+          name: 'Profile',
+          component: () => import('@/views/profile/ProfileView.vue'),
+        },
       ],
     },
   ],

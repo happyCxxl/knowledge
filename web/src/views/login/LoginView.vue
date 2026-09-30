@@ -323,7 +323,7 @@ const registerRules: FormRules = {
   phone: [{ pattern: /^[0-9+()\- ]{6,32}$/, message: '手机号格式不正确', trigger: 'blur' }],
   password: [
     { required: true, message: '请输入密码', trigger: 'blur' },
-    { min: 8, max: 64, message: '密码长度须为 8-64 位', trigger: 'blur' },
+    { min: 8, max: 10, message: '密码长度须为 8-10 位', trigger: 'blur' },
   ],
   confirmPassword: [
     { required: true, message: '请再次输入密码', trigger: 'blur' },

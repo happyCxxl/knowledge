@@ -14,6 +14,8 @@ export interface AuthUser {
   displayName: string | null;
   email: string | null;
   phone: string | null;
+  /** 头像地址；null = 未设置，界面回落姓名首字 */
+  avatar: string | null;
   status: number | null;
   role: UserRole;
 }
@@ -44,6 +46,7 @@ function normalizeUser(raw: unknown): AuthUser {
     displayName: typeof source.displayName === 'string' ? source.displayName : null,
     email: typeof source.email === 'string' ? source.email : null,
     phone: typeof source.phone === 'string' ? source.phone : null,
+    avatar: typeof source.avatar === 'string' ? source.avatar : null,
     status: typeof source.status === 'number' ? source.status : null,
     role: source.role === 'ADMIN' ? 'ADMIN' : 'USER',
   };
@@ -98,10 +101,20 @@ export const useAuthStore = defineStore('auth', () => {
 
   const isLoggedIn = computed(() => Boolean(token.value));
 
+  // 供个人中心展示：令牌到期时刻，以及「记住我」档位（档位就是令牌当前所在的那一档存储）
+  const expiresAt = computed(() => {
+    const seconds = readNumberClaim(token.value, 'exp');
+    return seconds === null ? null : new Date(seconds * 1000);
+  });
+  const rememberTier = computed<'LONG' | 'SHORT'>(() =>
+    localStorage.getItem(TOKEN_KEY) === null ? 'SHORT' : 'LONG',
+  );
+
   const username = computed(() => user.value?.username ?? null);
   // 用于识别「当前账号自己」（用户管理页判断是否在编辑自己）
   const userId = computed(() => user.value?.id ?? null);
   const displayName = computed(() => user.value?.displayName ?? null);
+  const avatar = computed(() => user.value?.avatar ?? null);
   const status = computed(() => user.value?.status ?? null);
   const role = computed<UserRole>(() => user.value?.role ?? 'USER');
   const isAdmin = computed(() => role.value === 'ADMIN');
@@ -128,6 +141,15 @@ export const useAuthStore = defineStore('auth', () => {
     tokenStorage().setItem(USER_KEY, JSON.stringify(user.value));
   }
 
+  /** 更新本地头像（上传或移除后调用）：与令牌同档落盘，不必重新登录 */
+  function setAvatar(url: string | null): void {
+    if (user.value === null) {
+      return;
+    }
+    user.value = { ...user.value, avatar: url };
+    tokenStorage().setItem(USER_KEY, JSON.stringify(user.value));
+  }
+
   /** 换发令牌（修改密码后）：写回令牌当前所在的那一档存储，不改变「记住我」的选择 */
   function replaceToken(value: string): void {
     token.value = value;
@@ -143,15 +165,19 @@ export const useAuthStore = defineStore('auth', () => {
   return {
     token,
     isLoggedIn,
+    expiresAt,
+    rememberTier,
     user,
     username,
     userId,
     displayName,
+    avatar,
     status,
     role,
     isAdmin,
     setLogin,
     setDisplayName,
+    setAvatar,
     replaceToken,
     clearToken,
   };

@@ -74,7 +74,14 @@
       <div class="layout-side-foot">
         <el-dropdown class="layout-user-drop" trigger="click" placement="top-start">
           <div class="layout-user-trigger">
-            <div class="layout-avatar">{{ avatarText }}</div>
+            <img
+              v-if="avatarUrl"
+              class="layout-avatar layout-avatar-img"
+              :src="avatarUrl"
+              alt=""
+              @error="onAvatarError"
+            />
+            <div v-else class="layout-avatar">{{ avatarText }}</div>
             <div class="layout-user">
               <div class="layout-user-name">{{ displayNameLabel }}</div>
               <div class="layout-user-role">{{ roleLabel }}</div>
@@ -82,8 +89,6 @@
           </div>
           <template #dropdown>
             <el-dropdown-menu>
-              <el-dropdown-item @click="profileVisible = true">个人信息</el-dropdown-item>
-              <el-dropdown-item @click="passwordVisible = true">修改密码</el-dropdown-item>
               <el-dropdown-item @click="handleLogout">退出登录</el-dropdown-item>
             </el-dropdown-menu>
           </template>
@@ -119,28 +124,17 @@
           </button>
         </div>
         <div class="layout-top-right">
-          <!-- 搜索：与返回按钮同一款图标按钮（无边框、悬停显淡圆底）。
-               此前是个 230px 宽的假输入框 —— 没有绑定也没有回车处理，占位大且抢眼 -->
-          <button class="layout-icon-btn" type="button" title="搜索">
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.5"
-              stroke-linecap="round"
-            >
-              <circle cx="7" cy="7" r="4.4" />
-              <path d="m10.4 10.4 3.4 3.4" />
-            </svg>
-          </button>
           <el-dropdown trigger="click" placement="bottom-end">
-            <div class="layout-avatar layout-avatar-clickable">{{ avatarText }}</div>
+            <img
+              v-if="avatarUrl"
+              class="layout-avatar layout-avatar-clickable layout-avatar-img"
+              :src="avatarUrl"
+              alt=""
+              @error="onAvatarError"
+            />
+            <div v-else class="layout-avatar layout-avatar-clickable">{{ avatarText }}</div>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item @click="profileVisible = true">个人信息</el-dropdown-item>
-                <el-dropdown-item @click="passwordVisible = true">修改密码</el-dropdown-item>
                 <el-dropdown-item @click="handleLogout">退出登录</el-dropdown-item>
               </el-dropdown-menu>
             </template>
@@ -151,8 +145,6 @@
         <router-view />
       </div>
     </div>
-    <ProfileDialog v-model="profileVisible" @saved="handleProfileSaved" />
-    <ChangePasswordDialog v-model="passwordVisible" />
   </div>
 </template>
 
@@ -161,8 +153,6 @@ import { ElMessage } from 'element-plus';
 import { computed, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
-import ChangePasswordDialog from '@/components/user/ChangePasswordDialog.vue';
-import ProfileDialog from '@/components/user/ProfileDialog.vue';
 import { useAuthStore } from '@/stores/auth';
 import { readCollapsed, writeCollapsed } from '@/utils/ui-state-storage';
 
@@ -219,6 +209,16 @@ const navItems: NavItem[] = [
     iconCircle: true,
     adminOnly: true,
   },
+  {
+    // 个人中心：账号信息、联系方式与改密；放在主导航末项，人人可见
+    label: '个人中心',
+    path: '/profile',
+    iconPaths: [
+      'M8 2.2a5.8 5.8 0 1 1 0 11.6A5.8 5.8 0 0 1 8 2.2',
+      'M4.8 12.4c0-1.7 1.4-2.8 3.2-2.8s3.2 1.1 3.2 2.8',
+    ],
+    iconCircle: true,
+  },
 ];
 
 /** 按角色过滤菜单：管理员看全部，普通用户看不到管理类菜单 */
@@ -245,8 +245,10 @@ const BACK_TARGETS: Record<string, { path: string; label: string }> = {
   KnowledgeBase: { path: '/home', label: '首页' },
   PipelineStage: { path: '/knowledge-base', label: '知识库' },
   IndexBuild: { path: '/knowledge-base', label: '知识库' },
+  RetrievalEval: { path: '/knowledge-base', label: '知识库' },
   StrategyManagement: { path: '/home', label: '首页' },
   UserManagement: { path: '/home', label: '首页' },
+  Profile: { path: '/home', label: '首页' },
 };
 
 const routeName = computed(() => String(route.name ?? ''));
@@ -261,15 +263,12 @@ function goBack(): void {
 const displayNameLabel = computed(() => authStore.displayName ?? authStore.username ?? '未登录');
 const avatarText = computed(() => displayNameLabel.value.slice(0, 1).toUpperCase());
 
-/** 个人信息弹窗可见性 */
-const profileVisible = ref(false);
+// 头像：登录与资料接口带回的是可直接渲染的接口地址；未设置、或图挂了都回落姓名首字
+const avatarFailed = ref(false);
+const avatarUrl = computed(() => (avatarFailed.value ? null : authStore.avatar));
 
-/** 修改密码弹窗可见性 */
-const passwordVisible = ref(false);
-
-/** 个人信息保存后同步展示，不必重新登录 */
-function handleProfileSaved(displayName: string): void {
-  authStore.setDisplayName(displayName);
+function onAvatarError(): void {
+  avatarFailed.value = true;
 }
 
 const roleLabels: Record<string, string> = {
@@ -335,7 +334,13 @@ function handleLogout(): void {
   display: flex;
   gap: 8px;
   align-items: center;
-  padding: 0 6px 24px;
+
+  /*
+   * 品牌 logo 与导航图标对齐到同一条竖中线：
+   *   logo 左缘 = 14(侧栏) + 10 = 24，logo 21px → 中线 34.5 ≈ 导航图标中线(14 + 12 + 8 = 34)
+   * 微调：只改这个 padding 的左右值，1px 对应 1px。
+   */
+  padding: 0 0 24px;
 }
 
 /*
@@ -433,20 +438,44 @@ function handleLogout(): void {
   gap: 10px;
   align-items: center;
   margin-top: auto;
-  padding: 14px 10px 4px;
+
+  /*
+   * 左右内边距归 0：头像左缘 = 14(侧栏) + 0 + 4(触发元素) = 18，头像 32px → 中线 34，
+   * 与导航图标的中线（14 + 12 + 8 = 34）重合。
+   * 该值与折叠状态无关（折叠只改文字块宽度），所以折叠动画期间头像不会横向移动。
+   * 微调：改下面 .layout-user-trigger 的 padding-left，1px 对应 1px。
+   */
+  padding: 14px 0 4px;
   border-top: 1px solid var(--kb-line);
 }
 
 /* 底部用户块整块可点：点开是退出登录菜单 */
 .layout-user-drop {
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .layout-user-trigger {
   display: flex;
+
+  /*
+   * 撑满整行：与上面菜单项的悬浮框同宽（左边距、宽度、圆角、底色全部一致）。
+   * 宽度只决定盒子右边界，不影响头像位置 —— 头像的横向位置由 padding-left 决定。
+   */
+  width: 100%;
   gap: 10px;
   align-items: center;
-  padding: 4px 6px;
+
+  /*
+   * 盒子绝不超出容器：hover 背景就是触发元素的盒子，max-width 夹住它即可。
+   * 这里**不能**用 overflow: hidden —— 折叠态底栏只有 36px，而 4 + 32(头像) + 6 = 42px，
+   * 一旦裁剪就会把头像右边切掉（已踩过一次）。
+   */
+  max-width: 100%;
+
+  /* 左侧 4px 决定头像横向位置（对齐微调只改这一个值）；右侧 6px 给姓名留呼吸位，不影响对齐 */
+  padding: 4px 6px 4px 4px;
   border-radius: 10px;
   cursor: pointer;
   outline: none;
@@ -475,7 +504,9 @@ function handleLogout(): void {
 }
 
 .layout-user-name {
+  overflow: hidden;
   font-size: 13px;
+  text-overflow: ellipsis;
 }
 
 .layout-user-role {
@@ -542,33 +573,9 @@ function handleLogout(): void {
 }
 
 /*
- * 顶栏图标按钮（搜索）：与返回按钮同一款 —— 无边框、悬停才显淡圆底。
- * 顶栏是次要区域，常驻描边会让这些低重要度动作过于抢眼。
+ * 内容区不自己滚动（overflow: hidden）：页面若要「固定高度 + 内部滚动」，
+ * 百分比/flex 高度链必须一路确定下来。为此子页面需自行管理超高内容的滚动。
  */
-.layout-icon-btn {
-  display: grid;
-  width: 28px;
-  height: 28px;
-  flex: none;
-  place-items: center;
-  padding: 0;
-  border: none;
-  border-radius: 8px;
-  background: none;
-  color: var(--kb-text-3);
-  cursor: pointer;
-  transition:
-    background 0.15s,
-    color 0.15s;
-}
-
-.layout-icon-btn:hover {
-  background: rgb(255 255 255 / 6%);
-  color: var(--kb-text-1);
-}
-
-/* 内容区不自己滚动（overflow: hidden）：页面若要「固定高度 + 内部滚动」，
-   百分比/flex 高度链必须一路确定下来。为此子页面需自行管理超高内容的滚动。 */
 .layout-content {
   display: flex;
   flex: 1;
@@ -617,6 +624,9 @@ function handleLogout(): void {
 
 .layout-user {
   width: 200px;
+
+  /* min-width:auto 会以"最宽一行文字"为下限，导致这个块撑破侧栏；置 0 才允许收缩 */
+  min-width: 0;
   overflow: hidden;
   white-space: nowrap;
   transition:
@@ -729,5 +739,22 @@ function handleLogout(): void {
 
 .layout-side-toggle.is-collapsed:hover {
   box-shadow: 0 0 20px rgb(52 211 153 / 85%);
+}
+
+/* 图片头像：按方形裁切填满圆框，不设会拉变形 */
+.layout-avatar-img {
+  object-fit: cover;
+}
+
+/*
+ * 侧栏底部用户块的触发元素：Element Plus 会给它加
+ * `.el-tooltip__trigger:focus-visible { outline: 2px solid …; outline-offset: 1px }`（特异性 0,2,0），
+ * 会盖过组件里 `.layout-user-trigger { outline: none }`（0,1,0），而且带 1px 外偏移 ——
+ * 那个框会画到侧栏容器外面。借助 scoped 附加的 [data-v-*]（0,3,0）压掉它。
+ */
+.layout-user-trigger:focus,
+.layout-user-trigger:focus-visible,
+.layout-user-drop:focus-within {
+  outline: none;
 }
 </style>

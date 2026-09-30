@@ -18,6 +18,8 @@ export interface UserVO {
   email: string | null;
   /** 手机号 */
   phone: string | null;
+  /** 头像地址（/user/avatar/{id}?v={版本段}）；未设置头像时为 null */
+  avatar: string | null;
   /** 状态码值：1 启用 / 0 停用 */
   status: number;
   /** 角色码值：ADMIN 管理员 / USER 普通用户 */

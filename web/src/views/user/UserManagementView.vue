@@ -166,7 +166,7 @@
             class="login-input"
             type="password"
             show-password
-            :placeholder="isEdit ? '留空表示不重置密码' : '8-64 位密码'"
+            :placeholder="isEdit ? '留空表示不重置密码' : '8-10 位密码'"
           />
         </el-form-item>
         <el-form-item prop="confirmPassword" label="确认密码" class="user-dialog-item">
@@ -270,7 +270,7 @@ const dialogRules: FormRules = {
           return;
         }
         if (value && (value.length < 8 || value.length > 64)) {
-          callback(new Error('密码长度须为 8-64 位'));
+          callback(new Error('密码长度须为 8-10 位'));
           return;
         }
         callback();

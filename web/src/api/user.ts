@@ -26,6 +26,19 @@ export async function updatePassword(request: PasswordUpdateRequest): Promise<st
   return response.data;
 }
 
+/** 上传头像（本人）：每次上传都换一个新地址，返回值可直接渲染 */
+export async function updateAvatar(file: File): Promise<string> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const response = await http.post<string>('/user/avatar', formData);
+  return response.data;
+}
+
+/** 移除头像（本人）：库里清空，界面回落姓名首字 */
+export async function deleteAvatar(): Promise<void> {
+  await http.delete<void>('/user/avatar');
+}
+
 /** 分页查询用户（仅管理员；响应不含密码） */
 export async function getUserPage(query: UserPageQuery): Promise<PageResult<UserVO>> {
   const response = await http.get<PageResult<UserVO>>('/user/page', { params: query });

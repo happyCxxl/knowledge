@@ -20,6 +20,8 @@ export interface LoginVO {
   phone: string | null;
   /** 状态：1 启用 / 0 停用 */
   status: number;
+  /** 头像地址；未设置头像时为 null，界面回落姓名首字 */
+  avatar: string | null;
   role: UserRole;
   /** 令牌版本：递增即让该账号已签发的令牌全部失效 */
   tokenVersion: number;
