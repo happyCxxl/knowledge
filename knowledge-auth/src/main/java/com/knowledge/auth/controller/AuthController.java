@@ -5,6 +5,7 @@ import com.knowledge.common.core.util.R;
 import com.knowledge.common.dto.request.auth.LoginRequest;
 import com.knowledge.common.dto.request.auth.RegisterRequest;
 import com.knowledge.common.dto.response.auth.LoginVO;
+import com.knowledge.common.ratelimit.RateLimit;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -28,6 +29,7 @@ public class AuthController {
 
     /** 登录 */
     @PostMapping("/login")
+    @RateLimit()
     public R<LoginVO> login(@Valid @RequestBody LoginRequest request) {
         return R.ok(authService.login(request));
     }

@@ -42,6 +42,13 @@
             <artifactId>spring-boot-starter-data-redis</artifactId>
         </dependency>
 
+        <!-- hutool 工具类（判空统一用 ObjectUtil，与仓库口径一致；版本与其它模块对齐） -->
+        <dependency>
+            <groupId>cn.hutool</groupId>
+            <artifactId>hutool-core</artifactId>
+            <version>5.8.22</version>
+        </dependency>
+
         <!-- 注解式限流：令牌桶（bucket4j 本体）+ Lettuce 版分布式代理 -->
         <dependency>
             <groupId>com.bucket4j</groupId>
