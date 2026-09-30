@@ -13,7 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  *
  * @author cxxl
  */
-class ClientIpUtilsTest {
+class ClientIpUtilTest {
 
     @AfterEach
     void clearRequestContext() {
@@ -26,11 +26,11 @@ class ClientIpUtilsTest {
         request.setRemoteAddr("10.0.0.1");
         RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
 
-        assertEquals("10.0.0.1", ClientIpUtils.getClientIp());
+        assertEquals("10.0.0.1", ClientIpUtil.getClientIp());
     }
 
     @Test
     void shouldReturnUnknownWhenNoRequestContext() {
-        assertEquals("unknown", ClientIpUtils.getClientIp());
+        assertEquals("unknown", ClientIpUtil.getClientIp());
     }
 }

@@ -30,7 +30,7 @@ import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.ThrowUtil;
 import com.knowledge.common.security.KnowledgeUser;
-import com.knowledge.common.utils.SecurityUtils;
+import com.knowledge.common.utils.SecurityUtil;
 import com.knowledge.common.utils.JsonUtil;
 import com.knowledge.filecenter.service.FileStorage;
 import com.knowledge.worker.input.FileValidatorPort;
@@ -301,7 +301,7 @@ public class FileSubmitServiceImpl implements FileSubmitService {
 
     /** 当前登录用户 ID（无登录态返回 null）。 */
     private Long currentUserId() {
-        KnowledgeUser user = SecurityUtils.getUser();
+        KnowledgeUser user = SecurityUtil.getUser();
         return user == null ? null : user.getId();
     }
 

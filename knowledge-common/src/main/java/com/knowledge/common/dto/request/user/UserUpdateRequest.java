@@ -36,8 +36,8 @@ public class UserUpdateRequest implements Serializable {
     @Pattern(regexp = "^$|^[0-9+()\\- ]{6,32}$", message = "手机号格式不正确")
     private String phone;
 
-    /** 新密码（明文，8-64 位，不传表示不重置） */
-    @Size(min = 8, max = 64, message = "密码长度须为 8-64 位")
+    /** 新密码（明文，8-10 位，不传表示不重置） */
+    @Size(min = 8, max = 10, message = "密码长度须为 8-10 位")
     private String password;
 
     /** 角色码值：ADMIN / USER（不传表示不变） */

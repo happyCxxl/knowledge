@@ -54,6 +54,11 @@ public class LoginVO {
     private Integer tokenVersion;
 
     /**
+     * 头像地址（/user/avatar/{id}?v={版本段}）；未设置头像时为 null，界面回落姓名首字
+     */
+    private String avatar;
+
+    /**
      * 访问令牌
      */
     private String token;

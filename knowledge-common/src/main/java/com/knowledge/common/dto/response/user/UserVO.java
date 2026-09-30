@@ -32,6 +32,9 @@ public class UserVO implements Serializable {
     /** 手机号 */
     private String phone;
 
+    /** 头像地址（/user/avatar/{id}?v={版本段}）；未设置头像时为 null */
+    private String avatar;
+
     /** 状态码值：1 启用 / 0 停用 */
     private Integer status;
 

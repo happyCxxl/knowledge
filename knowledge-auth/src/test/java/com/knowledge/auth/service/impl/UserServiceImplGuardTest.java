@@ -13,7 +13,7 @@ import com.knowledge.common.enums.user.UserRole;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
 import com.knowledge.common.security.KnowledgeUser;
-import com.knowledge.common.utils.SecurityUtils;
+import com.knowledge.common.utils.SecurityUtil;
 import com.knowledge.common.security.audit.AuditEvent;
 import com.knowledge.common.security.audit.AuditEventPublisher;
 import java.time.Duration;
@@ -66,13 +66,13 @@ class UserServiceImplGuardTest {
     @InjectMocks
     private UserServiceImpl userService;
 
-    private MockedStatic<SecurityUtils> securityUtils;
+    private MockedStatic<SecurityUtil> securityUtils;
 
     @BeforeEach
     void stubSecurityContext() {
-        securityUtils = Mockito.mockStatic(SecurityUtils.class);
+        securityUtils = Mockito.mockStatic(SecurityUtil.class);
         // 默认无认证上下文（匿名）；需要时在用例内覆盖
-        securityUtils.when(SecurityUtils::getUser).thenReturn(null);
+        securityUtils.when(SecurityUtil::getUser).thenReturn(null);
     }
 
     @AfterEach
@@ -629,7 +629,7 @@ class UserServiceImplGuardTest {
         current.setId(userId);
         current.setUsername("operator");
         current.setRole(UserRole.ADMIN);
-        securityUtils.when(SecurityUtils::getUser).thenReturn(current);
+        securityUtils.when(SecurityUtil::getUser).thenReturn(current);
         lenient().when(userDbService.count(any())).thenReturn(0L);
     }
 }

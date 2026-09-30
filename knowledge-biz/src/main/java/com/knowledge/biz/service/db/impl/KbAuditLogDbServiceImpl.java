@@ -10,7 +10,7 @@ import com.knowledge.biz.service.db.KbAuditLogDbService;
 import com.knowledge.common.domain.entity.KbAuditLog;
 import com.knowledge.common.enums.knowledge.AuditActionType;
 import com.knowledge.common.security.KnowledgeUser;
-import com.knowledge.common.utils.SecurityUtils;
+import com.knowledge.common.utils.SecurityUtil;
 import com.knowledge.infra.persistence.InfraDbServiceImpl;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -68,7 +68,7 @@ public class KbAuditLogDbServiceImpl extends InfraDbServiceImpl<KbAuditLogMapper
     /** 取当前登录用户：无认证时可能为 null 或抛异常，统一防御 */
     private KnowledgeUser currentUser() {
         try {
-            return SecurityUtils.getUser();
+            return SecurityUtil.getUser();
         } catch (Exception e) {
             log.warn("获取当前登录用户失败，审计操作人回退 system", e);
             return null;

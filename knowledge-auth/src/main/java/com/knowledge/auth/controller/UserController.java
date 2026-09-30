@@ -12,7 +12,7 @@ import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.ThrowUtil;
 import com.knowledge.common.annotation.AdminOnly;
 import com.knowledge.common.security.KnowledgeUser;
-import com.knowledge.common.utils.SecurityUtils;
+import com.knowledge.common.utils.SecurityUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import jakarta.validation.Valid;
@@ -56,7 +56,7 @@ public class UserController {
     }
 
     @PutMapping("/password")
-    @Operation(summary = "修改密码", description = "本人修改密码：须提供当前密码，新密码 8-64 位且不得与当前密码相同；"
+    @Operation(summary = "修改密码", description = "本人修改密码：须提供当前密码，新密码 8-10 位且不得与当前密码相同；"
             + "修改后该账号此前签发的令牌全部失效，响应返回补签的新令牌")
     public R<String> changePassword(@Valid @RequestBody PasswordUpdateRequest request) {
         return R.ok(userService.changePassword(currentUserId(), request), "密码已修改");
@@ -105,7 +105,7 @@ public class UserController {
      * 当前登录用户主键；无认证上下文视为未认证
      */
     private Long currentUserId() {
-        KnowledgeUser user = SecurityUtils.getUser();
+        KnowledgeUser user = SecurityUtil.getUser();
         ThrowUtil.throwIf(user == null || user.getId() == null, ErrorCode.UNAUTHORIZED);
         return user.getId();
     }

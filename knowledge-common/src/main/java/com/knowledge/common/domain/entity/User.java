@@ -38,6 +38,9 @@ public class User extends BaseInfo {
     /** 手机号 */
     private String phone;
 
+    /** 头像对象 key（avatar/{userId}/{随机段}.{扩展名}）；null = 未设置，界面回落姓名首字 */
+    private String avatar;
+
     /** 密码（BCrypt 哈希） */
     private String password;
 

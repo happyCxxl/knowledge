@@ -10,7 +10,7 @@ import java.io.Serializable;
 /**
  * 修改密码请求（本人操作）。
  *
- * <p>当前密码用于校验身份；新密码长度须为 8-64 位且不得与当前密码相同。
+ * <p>当前密码用于校验身份；新密码长度须为 8-10 位且不得与当前密码相同。
  *
  * @author cxxl
  */
@@ -24,8 +24,8 @@ public class PasswordUpdateRequest implements Serializable {
     @NotBlank(message = "当前密码不能为空")
     private String oldPassword;
 
-    /** 新密码（8-64 位） */
+    /** 新密码（8-10 位） */
     @NotBlank(message = "新密码不能为空")
-    @Size(min = 8, max = 64, message = "密码长度须为 8-64 位")
+    @Size(min = 8, max = 10, message = "密码长度须为 8-10 位")
     private String newPassword;
 }

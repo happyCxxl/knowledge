@@ -10,9 +10,9 @@ import org.springframework.security.core.context.SecurityContextHolder;
  *
  * @author cxxl
  */
-public final class SecurityUtils {
+public final class SecurityUtil {
 
-    private SecurityUtils() {
+    private SecurityUtil() {
     }
 
     /**

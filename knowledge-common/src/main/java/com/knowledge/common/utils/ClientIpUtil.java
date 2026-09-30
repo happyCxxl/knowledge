@@ -12,12 +12,12 @@ import org.springframework.web.context.request.ServletRequestAttributes;
  *
  * @author cxxl
  */
-public final class ClientIpUtils {
+public final class ClientIpUtil {
 
     /** 无请求上下文（后台线程/单元测试）时的占位值 */
     private static final String UNKNOWN = "unknown";
 
-    private ClientIpUtils() {
+    private ClientIpUtil() {
     }
 
     /** 当前请求的客户端 IP；无请求上下文时返回 unknown */

@@ -13,7 +13,8 @@ import com.knowledge.common.enums.user.UserRole;
 import com.knowledge.common.enums.user.UserStatus;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.ThrowUtil;
-import com.knowledge.common.utils.ClientIpUtils;
+import com.knowledge.common.utils.AvatarUrlUtil;
+import com.knowledge.common.utils.ClientIpUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -40,7 +41,7 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public LoginVO login(LoginRequest request) {
-        String ip = ClientIpUtils.getClientIp();
+        String ip = ClientIpUtil.getClientIp();
         // 已锁定则直接拒绝：不查库、不跑 BCrypt（BCrypt 是慢哈希，放任尝试等于给对方一个 CPU 放大器）
         ThrowUtil.throwIf(loginAttemptGuard.isLocked(request.getUsername(), ip),
                 ErrorCode.LOGIN_TOO_FREQUENT);
@@ -61,6 +62,7 @@ public class AuthServiceImpl implements AuthService {
         vo.setDisplayName(user.getDisplayName());
         vo.setEmail(user.getEmail());
         vo.setPhone(user.getPhone());
+        vo.setAvatar(AvatarUrlUtil.readUrl(user.getId(), user.getAvatar()));
         vo.setStatus(user.getStatus());
         vo.setRole(user.getRole());
         vo.setTokenVersion(user.getTokenVersion());

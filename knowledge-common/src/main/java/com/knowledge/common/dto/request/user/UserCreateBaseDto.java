@@ -39,8 +39,8 @@ public abstract class UserCreateBaseDto implements Serializable {
     @Pattern(regexp = "^$|^[0-9+()\\- ]{6,32}$", message = "手机号格式不正确")
     private String phone;
 
-    /** 密码（8-64 位） */
+    /** 密码（8-10 位） */
     @NotBlank(message = "密码不能为空")
-    @Size(min = 8, max = 64, message = "密码长度须为 8-64 位")
+    @Size(min = 8, max = 10, message = "密码长度须为 8-10 位")
     private String password;
 }

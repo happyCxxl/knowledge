@@ -14,6 +14,7 @@ import com.knowledge.common.dto.request.user.ProfileUpdateRequest;
 import com.knowledge.common.dto.request.user.UserCreateRequest;
 import com.knowledge.common.dto.request.user.UserUpdateRequest;
 import com.knowledge.common.dto.response.user.UserVO;
+import com.knowledge.common.utils.AvatarUrlUtil;
 import com.knowledge.common.enums.knowledge.AuditActionType;
 import com.knowledge.common.enums.knowledge.AuditObjectType;
 import com.knowledge.common.enums.user.UserRole;
@@ -21,7 +22,7 @@ import com.knowledge.common.enums.user.UserStatus;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.ThrowUtil;
 import com.knowledge.common.security.KnowledgeUser;
-import com.knowledge.common.utils.SecurityUtils;
+import com.knowledge.common.utils.SecurityUtil;
 import com.knowledge.common.security.audit.AuditEventPublisher;
 import com.knowledge.common.utils.JsonUtil;
 import lombok.RequiredArgsConstructor;
@@ -259,7 +260,7 @@ public class UserServiceImpl implements UserService {
 
     /** 本会话令牌的剩余时长；无令牌上下文或剩余不足下限时按下限，避免改完密码立刻掉线 */
     private Duration remainingTtl() {
-        KnowledgeUser current = SecurityUtils.getUser();
+        KnowledgeUser current = SecurityUtil.getUser();
         Instant expiresAt = current == null ? null : current.getExpiresAt();
         if (expiresAt == null) {
             return MIN_SESSION_TTL;
@@ -270,7 +271,7 @@ public class UserServiceImpl implements UserService {
 
     /** 当前登录用户是否就是目标用户 */
     private boolean isSelf(Long id) {
-        KnowledgeUser current = SecurityUtils.getUser();
+        KnowledgeUser current = SecurityUtil.getUser();
         return current != null && current.getId() != null && current.getId().equals(id);
     }
 
@@ -278,6 +279,8 @@ public class UserServiceImpl implements UserService {
     private static UserVO toUserVO(User user) {
         UserVO vo = new UserVO();
         BeanUtil.copyProperties(user, vo);
+        // 库里存的是对象 key，对外一律换成可直接渲染的接口地址
+        vo.setAvatar(AvatarUrlUtil.readUrl(user.getId(), user.getAvatar()));
         return vo;
     }
 }
