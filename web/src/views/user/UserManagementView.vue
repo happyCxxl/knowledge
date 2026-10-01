@@ -91,14 +91,19 @@
             <template #default="{ row }">{{ formatTime(row.updateTime) }}</template>
           </el-table-column>
           <el-table-column label="操作" width="140" fixed="right">
+            <!--
+              插槽里的 row 是 el-table 的 DefaultRow（不是 any，也不能给插槽 props 收窄类型 —— 那违反参数逆变），
+              所以交给 isSelf / openEdit / handleDelete 这几个强类型函数时逐个显式断言成 UserVO：
+              表格的 :data 本来就是 UserVO[]，断言在这里是安全的。
+            -->
             <template #default="{ row }">
               <el-button
                 class="user-row-btn"
                 link
                 type="primary"
-                :disabled="isSelf(row)"
-                :title="isSelf(row) ? '不能编辑当前登录账号' : ''"
-                @click="openEdit(row)"
+                :disabled="isSelf(row as UserVO)"
+                :title="isSelf(row as UserVO) ? '不能编辑当前登录账号' : ''"
+                @click="openEdit(row as UserVO)"
               >
                 编辑
               </el-button>
@@ -106,9 +111,9 @@
                 class="user-row-btn"
                 link
                 type="danger"
-                :disabled="isSelf(row)"
-                :title="isSelf(row) ? '不能删除当前登录账号' : ''"
-                @click="handleDelete(row)"
+                :disabled="isSelf(row as UserVO)"
+                :title="isSelf(row as UserVO) ? '不能删除当前登录账号' : ''"
+                @click="handleDelete(row as UserVO)"
               >
                 删除
               </el-button>

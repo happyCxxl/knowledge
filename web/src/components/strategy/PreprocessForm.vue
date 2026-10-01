@@ -9,7 +9,7 @@
       v-if="!readonly"
       :model-value="actionOf(key)"
       size="small"
-      @update:model-value="(value: string | number | boolean) => setAction(key, value)"
+      @update:model-value="(value: string | number | boolean | undefined) => setAction(key, value)"
     >
       <el-radio-button v-for="action in ACTIONS" :key="action" :value="action">
         {{ PREPROCESS_ACTION_LABELS[action] }}
