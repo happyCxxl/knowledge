@@ -33,7 +33,7 @@
 |----|-----------------------------------------------|---------------------------------|---------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------|
 | 壳 | 布局壳（菜单 / 返回 / 退出登录 / 账号区入口） | 无独立路由                      | `../web/src/layouts/AppLayout.vue`                      | —                                                                                                                                                                                                                                                                        | 已梳理 |
 | 01 | 认证（登录 / 注册）                           | `/login`                        | `../web/src/views/login/LoginView.vue`                  | `AuthController`                                                                                                                                                                                                                                                         | 已梳理 |
-| 02 | 工作台                                        | `/home`                         | `../web/src/views/home/HomeView.vue`                    | `HomeController`                                                                                                                                                                                                                                                         | 待梳理 |
+| 02 | 首页                                          | `/home`                         | `../web/src/views/home/HomeView.vue`                    | `KnowledgeHomeController`                                                                                                                                                                                                                                                | 已梳理 |
 | 03 | 知识库列表                                    | `/knowledge-base`               | `../web/src/views/knowledge-base/KnowledgeBaseView.vue` | `KnowledgeBaseController`                                                                                                                                                                                                                                                | 待梳理 |
 | 04 | 切片阶段（执行链）                            | `/knowledge-base/:id/stages`    | `../web/src/views/knowledge-base/PipelineStageView.vue` | `KnowledgeFileInputController`、`KnowledgeFileParseController`、`KnowledgeFileStructureController`、`KnowledgeFilePreprocessController`、`KnowledgeFileChunkController`、`KnowledgeFileEmbedController`、`StageContentController`、`LineageController`、`FileController` | 待梳理 |
 | 05 | 索引与发布                                    | `/knowledge-base/:id/index`     | `../web/src/views/knowledge-base/IndexBuildView.vue`    | `KnowledgeFileIndexController`                                                                                                                                                                                                                                           | 待梳理 |
@@ -48,8 +48,9 @@
 
 - 壳 布局壳（菜单 / 返回 / 退出登录 / 账号区入口）→ `pages/布局壳/README.md`
 - 01 认证（登录 / 注册）→ `pages/登录认证/README.md`
+- 02 首页 → `pages/首页/README.md`
 - 09 个人中心 → `pages/个人中心/README.md`
-- 其余功能单元（02~08）梳理后在此补上
+- 其余功能单元（03~08）梳理后在此补上
 
 ## 全局约定
 
