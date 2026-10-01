@@ -1,0 +1,9 @@
+# 行尾口径：钩子是 sh 脚本，必须固定 LF。
+#
+# 起因：仓库开了 core.autocrlf=true 又没有本文件，于是 .husky/ 下的钩子工作区行尾由
+# checkout 时的转换决定——实测 pre-commit 是 CRLF、pre-push 是 LF，两者不一致。
+# Git for Windows 的 sh 容忍 CRLF（所以一直能跑），但把"能不能跑"押在这种容忍上不可取：
+# 换个 sh、换台机器、或某些工具链里就会直接报 `$'\r': command not found`。
+#
+# 因此把钩子目录钉死为 LF：git 检出与入库都按 LF 处理，不再随 autocrlf 漂移。
+.husky/** text eol=lf

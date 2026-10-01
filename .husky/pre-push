@@ -13,6 +13,12 @@ set -e
 #
 # 路径一律取 core.quotePath=false：git 默认转义非 ASCII 路径，
 # 会让 \.java$ / \.md$ 这类后缀匹配静默失效。
+#
+# 输出口径（推送时是"黑盒等几分钟"，所以每一步都给看得见的进度）：
+#   先打印本次要跑几步、涉及多少改动文件；每步前打 [i/N] 横幅，子命令输出**原样透传**
+#   （不重定向、不捕获——捕获就看不到实时进度了）；每步后打通过与否 + 耗时；
+#   失败时明确指出第几步、并给出手动复跑的命令；最后给总耗时。
+#   标记一律用 ASCII（==== / ---- / !!!!），避免不同终端编码下中文与符号错位。
 zero=0000000000000000000000000000000000000000
 ranges=""
 full=0
@@ -28,30 +34,111 @@ while read -r local_ref local_sha remote_ref remote_sha; do
   ranges="$ranges $remote_sha..$local_sha"
 done
 
+# ranges 是逐个累加出来的，开头会留一个空格；先收掉，免得范围那行出现"范围：  sha..sha"
+ranges=$(printf '%s' "$ranges" | sed 's/^ *//')
+
 if [ "$full" = "1" ] || [ -z "$ranges" ]; then
   changed=$(git -c core.quotePath=false ls-tree -r --name-only HEAD)
+  scope_note="远端基点不可得，按全量检查"
 else
   changed=$(git -c core.quotePath=false diff --name-only $ranges | sort -u)
+  scope_note="本次推送范围 $ranges"
 fi
+
+changed_count=$(printf '%s\n' "$changed" | sed '/^$/d' | wc -l | tr -d ' ')
+
+# 先算清楚要跑哪几步，才能给出 [i/N] 与总步数。
+# 后端拆成两步（源码级 / 字节码级），计数必须分开——合成一步会打出 [3/2] 这种越界编号。
+run_frontend=0
+run_source=0
+run_bytecode=0
+if printf '%s\n' "$changed" | grep -qE '^(web|tools/frontend)/'; then
+  run_frontend=1
+fi
+if printf '%s\n' "$changed" | grep -qE '(\.java$|pom\.xml$|^tools/backend/)'; then
+  run_source=1
+  run_bytecode=1
+fi
+total=$((run_frontend + run_source + run_bytecode))
+
+echo ""
+echo "==================== 推送前检查 ===================="
+echo "范围：$scope_note（$changed_count 个改动文件）"
+if [ "$total" = "0" ]; then
+  echo "结论：改动不涉及前后端源码，无需检查"
+  echo "===================================================="
+  exit 0
+fi
+echo "步骤：共 $total 步，耗时最长的是后端字节码门禁（compile + spotbugs）"
+echo "===================================================="
+
+step=0
+started_all=$(date +%s)
 
 # 前端组：全量检查（格式检查、eslint、vue-tsc 构建模式、stylelint、ls-lint、命名词表、规范合规）。
 # lint-staged 的自动修复留在 pre-commit，这里只验证「已经修好了」。
-if echo "$changed" | grep -qE '^(web|tools/frontend)/'; then
-  (
+if [ "$run_frontend" = "1" ]; then
+  step=$((step + 1))
+  started=$(date +%s)
+  echo ""
+  echo ">>>> [$step/$total] 前端全量检查：pnpm lint"
+  echo "     （prettier / eslint / vue-tsc / stylelint / ls-lint / 命名 / 规范，共七项）"
+  if (
     cd "$(git rev-parse --show-toplevel)/web"
     pnpm lint
-  )
+  ); then
+    echo "---- [$step/$total] 通过（$(( $(date +%s) - started ))s）"
+  else
+    echo ""
+    echo "!!!! [$step/$total] 前端检查失败"
+    echo "     复跑：cd web && pnpm lint"
+    echo "     （修完再推送；本地检查过了，推送时就不会被拦）"
+    exit 1
+  fi
 fi
 
 # 后端组：Checkstyle + PMD + CPD 为源码级分析，全 8 模块一次约 16 秒，无需 compile；
 # SpotBugs 为字节码级、必须 compile：用 -pl <改动模块> -amd 让 Maven 按真实 pom
 # 展开「改动模块 + 依赖它的模块」，改到 common/infra 时闭包自然扩为全量。
-if echo "$changed" | grep -qE '(\.java$|pom\.xml$|^tools/backend/)'; then
-  mvn -o checkstyle:check pmd:check pmd:cpd-check
-  scoped=$(echo "$changed" | grep -oE '^knowledge-[a-z-]+' | sort -u | tr '\n' ',' | sed 's/,$//')
-  if [ -z "$scoped" ] || echo "$changed" | grep -qE '^(pom\.xml$|tools/backend/)'; then
-    mvn -o compile spotbugs:check
+if [ "$run_source" = "1" ]; then
+  scoped=$(printf '%s\n' "$changed" | grep -oE '^knowledge-[a-z-]+' | sort -u | tr '\n' ',' | sed 's/,$//')
+  if [ -z "$scoped" ] || printf '%s\n' "$changed" | grep -qE '^(pom\.xml$|tools/backend/)'; then
+    bytecode_cmd="mvn -o compile spotbugs:check"
+    bytecode_scope="全量 9 模块（改到了 pom 或 tools/backend，闭包即全量）"
   else
-    mvn -o -pl "$scoped" -amd compile spotbugs:check
+    bytecode_cmd="mvn -o -pl \"$scoped\" -amd compile spotbugs:check"
+    bytecode_scope="改动模块及下游：$scoped"
+  fi
+
+  step=$((step + 1))
+  started=$(date +%s)
+  echo ""
+  echo ">>>> [$step/$total] 后端源码级门禁：checkstyle + pmd + cpd（全 9 模块）"
+  if mvn -o checkstyle:check pmd:check pmd:cpd-check; then
+    echo "---- [$step/$total] 通过（$(( $(date +%s) - started ))s）"
+  else
+    echo ""
+    echo "!!!! [$step/$total] 后端源码级门禁失败"
+    echo "     复跑：mvn -o checkstyle:check pmd:check pmd:cpd-check"
+    exit 1
+  fi
+
+  step=$((step + 1))
+  started=$(date +%s)
+  echo ""
+  echo ">>>> [$step/$total] 后端字节码门禁：compile + spotbugs"
+  echo "     （范围：$bytecode_scope）"
+  if sh -c "$bytecode_cmd"; then
+    echo "---- [$step/$total] 通过（$(( $(date +%s) - started ))s）"
+  else
+    echo ""
+    echo "!!!! [$step/$total] 后端字节码门禁失败"
+    echo "     复跑：$bytecode_cmd"
+    exit 1
   fi
 fi
+
+echo ""
+echo "==================== 检查通过 ===================="
+echo "总耗时 $(( $(date +%s) - started_all ))s，现在开始传输"
+echo "=================================================="

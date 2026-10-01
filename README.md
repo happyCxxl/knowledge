@@ -52,7 +52,8 @@
 
 > `mvn verify` 在打包之外还会执行静态检查门禁（SpotBugs / Checkstyle / PMD / CPD）；门禁绑在
 > `verify` 相位，因此 `mvn package` 不会触发它。推送前钩子（`.husky/pre-push`）对本次推送范围的
-> 改动跑同一套门禁；提交前钩子只做就地格式化（`tools/frontend/README.md`）。
+> 改动跑同一套门禁，**并逐步打印进度**（`[i/N]` 横幅 + 每步耗时 + 失败定位与复跑命令，子命令输出
+> 照旧实时透传），免得推送时只能干等；提交前钩子只做就地格式化（`tools/frontend/README.md`）。
 
 ## 文档
 
