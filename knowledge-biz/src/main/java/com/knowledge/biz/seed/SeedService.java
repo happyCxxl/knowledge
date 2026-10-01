@@ -33,6 +33,7 @@ import com.knowledge.common.domain.preprocess.ViewElement;
 import com.knowledge.common.domain.structure.DocumentInfo;
 import com.knowledge.common.domain.structure.UnifiedDocument;
 import com.knowledge.common.domain.structure.UnifiedElement;
+import com.knowledge.common.enums.base.DelFlag;
 import com.knowledge.common.enums.embed.EmbedRecordStatus;
 import com.knowledge.common.enums.embed.EmbeddingModel;
 import com.knowledge.common.enums.task.PipelineStage;
@@ -74,7 +75,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class SeedService {
 
-    /** 复用已有切片的来源：默认库里那份真实 PDF 的切片集 */
+    /** 复用已有切片的来源：那 152 片真实 PDF 切片所在的文件结果 */
     private static final Long SOURCE_FILE_RESULT_ID = 2103824816453214209L;
     private static final String SOURCE_CHUNK_STRATEGY = "chunk-window-v1";
 
@@ -440,7 +441,7 @@ public class SeedService {
         row.setOwner(origin.getOwner());
         row.setSourceFileId(source.getId());
         row.setUserId(source.getUserId());
-        row.setDelFlag("0");
+        row.setDelFlag(DelFlag.NORMAL.getCode());
         row.setCreateBy("ADMIN");
         row.setCreateTime(LocalDateTime.now());
         return row;

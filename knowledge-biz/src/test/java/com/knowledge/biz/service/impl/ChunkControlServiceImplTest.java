@@ -110,7 +110,7 @@ class ChunkControlServiceImplTest {
                 .thenReturn(preprocessProduct());
     }
 
-    /** 默认知识库（绑定开关未显式关闭 → 视为开启） */
+    /** 知识库夹具（绑定开关未显式关闭 → 视为开启） */
     private KnowledgeBase knowledgeBase() {
         KnowledgeBase kb = new KnowledgeBase();
         kb.setId(10L);

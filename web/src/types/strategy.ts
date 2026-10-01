@@ -5,8 +5,8 @@ export type StrategyType = (typeof STRATEGY_TYPES)[number];
 
 /** 策略类型中文名（索引签名，未知类型回落原值） */
 export const STRATEGY_TYPE_LABELS: Record<string, string> = {
-  PREPROCESS: '预处理',
   CHUNK: '切片',
+  PREPROCESS: '预处理',
   EMBED: '向量化',
 };
 

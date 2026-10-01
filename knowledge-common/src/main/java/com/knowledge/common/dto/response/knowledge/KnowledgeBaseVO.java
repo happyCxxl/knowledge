@@ -48,9 +48,6 @@ public class KnowledgeBaseVO implements Serializable {
     /** 绑定的向量化策略版本串（如 embed-default-v1，无绑定为 null） */
     private String embedStrategyVersion;
 
-    /** 默认知识库标记：1=默认库（全库唯一，固定不可停用/删除）/ 0=普通库 */
-    private Integer defaultFlag;
-
     /**
      * 文档总数：kb_file_result 记录数（一次提交 = 一个任务 = 一行）。
      * 同一文件重复提交会各占一行，这是提交次数而非去重文件数。

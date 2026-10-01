@@ -102,7 +102,6 @@
 
       <div class="page-panel-foot">
         <span>共 {{ submitTotal }} 条</span>
-        <!-- 页码固定显示：首页是唯一的提交历史入口，需要精确跳页 -->
         <el-pagination
           v-model:current-page="submitQuery.current"
           class="home-pager"
@@ -270,9 +269,8 @@ onMounted(() => {
   min-height: 0;
 }
 
-/* 分页：总数在左侧那行文字里，这里只放页码与翻页按钮 */
+/* 分页：总数在左侧那行文字里，这里只放翻页按钮与当前页 */
 .home-pager {
-  --el-pagination-bg-color: transparent;
   --el-pagination-button-bg-color: transparent;
   --el-pagination-text-color: var(--kb-text-2);
   --el-pagination-button-color: var(--kb-text-2);

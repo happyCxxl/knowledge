@@ -25,14 +25,6 @@
         </svg>
       </span>
       <span class="kb-name">{{ kb.name }}</span>
-      <!-- 默认库不能停用/删除的原因写在标记上：卡片操作区里那两个入口直接不渲染 -->
-      <span
-        v-if="kb.defaultFlag === 1"
-        class="kb-default-tag"
-        title="默认知识库：不可停用，也不可删除"
-      >
-        默认
-      </span>
       <span
         class="kb-tag"
         :class="{
@@ -83,12 +75,7 @@
       <button class="kb-op" type="button" @click.stop="emit('update', kb)">编辑</button>
       <button class="kb-op" type="button" @click.stop="openIndex">索引与发布</button>
       <button class="kb-op" type="button" @click.stop="openRetrieval">评测</button>
-      <!--
-        停用/启用：默认库不渲染 —— 后端 KnowledgeBaseRules.checkNotDefault 会拒绝停用默认库，
-        渲染出来只会是"点了报错"。启用入口则在默认库上保留（允许把异常置停的默认库修回启用态）。
-      -->
       <button
-        v-if="kb.defaultFlag !== 1 || kb.status === KB_STATUS_DISABLED"
         class="kb-op"
         :class="{ 'kb-op-warn': kb.status === KB_STATUS_ACTIVE }"
         type="button"
@@ -96,13 +83,7 @@
       >
         {{ kb.status === KB_STATUS_ACTIVE ? '停用' : '启用' }}
       </button>
-      <!-- 默认库不可删除：直接不渲染入口，避免点了才被后端拒绝 -->
-      <button
-        v-if="kb.defaultFlag !== 1"
-        class="kb-op kb-op-danger"
-        type="button"
-        @click.stop="emit('delete', kb)"
-      >
+      <button class="kb-op kb-op-danger" type="button" @click.stop="emit('delete', kb)">
         删除
       </button>
       <span class="kb-op-date">{{ dateText }}</span>
@@ -130,9 +111,9 @@ const emit = defineEmits<{
   update: [kb: KnowledgeBase];
   /** 导入文档：预选该知识库打开导入弹窗 */
   import: [kb: KnowledgeBase];
-  /** 停用/启用：默认库不渲染停用入口；二次确认与接口调用由页面负责 */
+  /** 停用/启用：二次确认与接口调用由页面负责 */
   toggle: [kb: KnowledgeBase];
-  /** 删除：默认库不渲染该入口 */
+  /** 删除 */
   delete: [kb: KnowledgeBase];
 }>();
 
@@ -183,7 +164,7 @@ const strategies = computed(() =>
  * 绑定开关关着（测评模式不绑定）说"开关已关闭"，开关开着才是"未绑定"。
  */
 const fallbackStrategyText = computed(() =>
-  props.kb.strategyBindingEnabled === 1 ? '未绑定' : '开关已关闭',
+  props.kb.strategyBindingEnabled === 1 ? '未绑定' : '已关闭',
 );
 </script>
 
@@ -248,24 +229,12 @@ const fallbackStrategyText = computed(() =>
   font-weight: 600;
 }
 
-/* 默认库标记：该库恒排最前且不可停用/删除，需与普通库一眼区分 */
-.kb-default-tag {
-  flex: none;
-  padding: 2px 8px;
-  border: 1px solid rgb(52 211 153 / 35%);
-  border-radius: 999px;
-  background: var(--kb-tint);
-  color: var(--kb-primary);
-  font-size: 11px;
-  line-height: 1.5;
-}
-
 /*
  * 状态标签：**不许收缩、不许折行**。
  *
  * flex 的收缩量按各子项宽度比例分摊：库名很长时状态标签会被扣掉几十像素，
  * 「已启用」折成"已启 / 用"两行、把标题行撑高。
- * 状态标签与同行的「默认」标记一样给 flex: none，让库名那侧独自承担收缩（它有省略号）。
+ * 状态标签给 flex: none，让库名那侧独自承担收缩（它有省略号）。
  */
 .kb-tag {
   display: inline-flex;

@@ -38,8 +38,22 @@
   color: var(--kb-text-1);
 }
 
+/*
+ * 分页只留当前页：`.el-pager` 里除当前页外的页码项（`.number`）与省略号项（`.more`）
+ * 一概不占位，一屏就是「上一页 ‹ 当前页 › 下一页」三格。
+ *
+ * 隐藏用 `display: none` 而不是 `visibility` / `opacity`：后两者仍占 32px 宽，
+ * 页码多时会留下一整排空白。
+ */
+
 /* noinspection CssUnusedSymbol */
-.kb-pager .el-pager .is-active {
+.el-pager .number:not(.is-active),
+.el-pager .more {
+  display: none;
+}
+
+/* noinspection CssUnusedSymbol */
+.el-pagination .el-pager .is-active {
   border-radius: 8px;
   background: var(--kb-tint);
   color: var(--kb-primary);
@@ -52,9 +66,9 @@
  * （一块实心填充），而可用态默认是透明 —— 于是"翻不动"的那一侧会长出一块深色方块。
  * 首尾页各有一侧不可翻，每处分页都必然看到它。
  *
- * 与 `.home-pager` / `.kb-pager` 里 `--el-pagination-button-bg-color: transparent` 的口径
+ * 与 `.home-pager` 里 `--el-pagination-button-bg-color: transparent` 的口径
  * 统一：**按钮不做填充，只靠图标颜色区分可用性**（禁用态图标已被 Element Plus 调暗）。
- * 放在全局而不是逐页覆盖：这个底色是组件默认值带来的通病，全站 5 处分页都有。
+ * 放在全局而不是逐页覆盖：这个底色是组件默认值带来的通病，全站 4 处分页都有。
  */
 
 /*
@@ -70,6 +84,11 @@
 /* noinspection CssUnusedSymbol */
 .el-pagination {
   --el-pagination-button-disabled-bg-color: transparent;
+
+  /* 页码项与左右箭头的底色：组件默认取 --el-fill-color-blank（一块实心填充），
+     在玻璃质感的暗色底上就是分页上那圈突兀的方块。可用态与禁用态统一为透明，
+     分页里只保留当前页那一个青绿方块。 */
+  --el-pagination-bg-color: transparent;
 
   /* 28% 白，与下面「不可交互状态」段的 --el-disabled-text-color 保持同一档 */
   --el-pagination-button-disabled-color: rgb(230 234 242 / 28%);

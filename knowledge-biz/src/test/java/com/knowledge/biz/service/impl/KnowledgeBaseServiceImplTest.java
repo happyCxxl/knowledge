@@ -11,8 +11,13 @@ import com.knowledge.biz.service.db.KbFileResultDbService;
 import com.knowledge.biz.service.db.KbIndexSetDbService;
 import com.knowledge.biz.service.db.KbIndexVersionDbService;
 import com.knowledge.biz.service.db.KbPipelineStrategyVersionDbService;
+import com.knowledge.biz.service.db.KbPipelineTaskDbService;
+import com.knowledge.biz.service.db.KbSourceFileDbService;
 import com.knowledge.biz.service.db.KbStrategyBindingDbService;
+import com.knowledge.biz.service.db.KbSubmitLogDbService;
 import com.knowledge.biz.service.db.KnowledgeBaseDbService;
+import com.knowledge.biz.service.support.InputVoAssembler;
+import com.knowledge.biz.service.support.TaskVoAssembler;
 import com.knowledge.common.domain.entity.KbIndexSet;
 import com.knowledge.common.domain.entity.KbIndexVersion;
 import com.knowledge.common.domain.entity.KbPipelineStrategyVersion;
@@ -25,12 +30,15 @@ import com.knowledge.common.dto.request.knowledge.StrategyBindingsUpdateRequest;
 import com.knowledge.common.dto.response.knowledge.KnowledgeBaseStatsVO;
 import com.knowledge.common.dto.response.knowledge.KnowledgeBaseVO;
 import com.knowledge.common.dto.response.knowledge.StrategyBindingVO;
+import com.knowledge.common.enums.base.DelFlag;
 import com.knowledge.common.enums.knowledge.AuditActionType;
 import com.knowledge.common.enums.knowledge.KnowledgeBaseStatus;
 import com.knowledge.common.enums.user.UserRole;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
 import com.knowledge.common.security.KnowledgeUser;
+import com.knowledge.filecenter.service.FileStorage;
+import com.knowledge.worker.input.FileValidatorPort;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -83,6 +91,16 @@ class KnowledgeBaseServiceImplTest {
 
     private KbIndexVersionDbService indexVersionDbService;
 
+    private KbSourceFileDbService sourceFileDbService;
+
+    private KbSubmitLogDbService submitLogDbService;
+
+    private KbPipelineTaskDbService pipelineTaskDbService;
+
+    private FileValidatorPort fileValidator;
+
+    private FileStorage fileStorage;
+
     private KnowledgeBaseServiceImpl service;
 
     @BeforeEach
@@ -94,9 +112,17 @@ class KnowledgeBaseServiceImplTest {
         kbFileResultDbService = mock(KbFileResultDbService.class);
         indexSetDbService = mock(KbIndexSetDbService.class);
         indexVersionDbService = mock(KbIndexVersionDbService.class);
+        sourceFileDbService = mock(KbSourceFileDbService.class);
+        submitLogDbService = mock(KbSubmitLogDbService.class);
+        pipelineTaskDbService = mock(KbPipelineTaskDbService.class);
+        fileValidator = mock(FileValidatorPort.class);
+        fileStorage = mock(FileStorage.class);
+        // 组装器为纯映射无状态类，用真实实例（mock 会让 VO 组装返回 null）
         service = new KnowledgeBaseServiceImpl(knowledgeBaseDbService, kbAuditLogDbService,
                 strategyBindingDbService, strategyVersionDbService, kbFileResultDbService,
-                indexSetDbService, indexVersionDbService);
+                indexSetDbService, indexVersionDbService, sourceFileDbService, submitLogDbService,
+                pipelineTaskDbService, fileValidator, fileStorage,
+                new InputVoAssembler(), new TaskVoAssembler());
         // 默认以普通用户登录：可见范围 = 自己的库。管理员视角的用例单独 login(ADMIN)
         login(ME, UserRole.USER);
     }
@@ -124,13 +150,6 @@ class KnowledgeBaseServiceImplTest {
         k.setStatus(status);
         // 归属：本夹具统一归当前登录用户，反向用例另行 setUserId(OTHER)
         k.setUserId(ME);
-        return k;
-    }
-
-    /** 默认知识库（defaultFlag=1，固定不可停用/删除） */
-    private KnowledgeBase kbDefault(long id) {
-        KnowledgeBase k = kb(id, 1);
-        k.setDefaultFlag(1);
         return k;
     }
 
@@ -200,15 +219,6 @@ class KnowledgeBaseServiceImplTest {
     }
 
     @Test
-    void detailShouldMapDefaultFlag() {
-        when(knowledgeBaseDbService.getActiveById(2L)).thenReturn(kbDefault(2L));
-
-        KnowledgeBaseVO vo = service.detail(2L);
-
-        assertEquals(1, vo.getDefaultFlag());
-    }
-
-    @Test
     void updateShouldChangeNameAndAudit() {
         KnowledgeBase k = kb(3L, 1);
         when(knowledgeBaseDbService.getActiveById(3L)).thenReturn(k);
@@ -250,17 +260,6 @@ class KnowledgeBaseServiceImplTest {
     }
 
     @Test
-    void disableDefaultKbShouldThrowAndNotUpdate() {
-        when(knowledgeBaseDbService.getActiveById(4L)).thenReturn(kbDefault(4L));
-
-        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.disable(4L));
-
-        assertEquals(ErrorCode.KB_STATUS_ILLEGAL, e.getErrorCode());
-        assertEquals("默认知识库不可停用或删除", e.getMessage());
-        verify(knowledgeBaseDbService, never()).updateById(any());
-    }
-
-    @Test
     void enableOnDisabledShouldUpdateStatus() {
         when(knowledgeBaseDbService.getActiveById(5L)).thenReturn(kb(5L, 0));
 
@@ -285,18 +284,7 @@ class KnowledgeBaseServiceImplTest {
     }
 
     @Test
-    void deleteDefaultKbShouldThrowAndNotRemove() {
-        when(knowledgeBaseDbService.getActiveById(6L)).thenReturn(kbDefault(6L));
-
-        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.delete(6L));
-
-        assertEquals(ErrorCode.KB_STATUS_ILLEGAL, e.getErrorCode());
-        assertEquals("默认知识库不可停用或删除", e.getMessage());
-        verify(knowledgeBaseDbService, never()).removeById(any());
-    }
-
-    @Test
-    void pageShouldOrderDefaultKbFirstThenNewestFirst() {
+    void pageShouldOrderNewestFirst() {
         // 直接验证查询条件构造：Lambda 必须解析成正确的列名与排序方向。
         // 若 lambda 引用写错（例如误用 name），解析出来会是别的列名而不报错，属于静默 bug。
         // 注意：脱离 Spring 上下文时 MPJ 没有 TableInfo 缓存，需先初始化
@@ -308,15 +296,11 @@ class KnowledgeBaseServiceImplTest {
                 // 归属条件必须落在 user_id 上：Lambda 引用写错（例如误用 create_by）不报错，
                 // 只是静默变成"按别的列过滤"，那等于归属隔离失效
                 .eq(true, KnowledgeBase::getUserId, ME)
-                .orderByDesc(KnowledgeBase::getDefaultFlag)
                 .orderByDesc(KnowledgeBase::getId);
         String sql = wrapper.getSqlSegment();
 
         assertTrue(sql.contains("user_id ="), "归属过滤应落在 user_id 列，实际: " + sql);
-        assertTrue(sql.contains("default_flag DESC"), "默认库应排最前，实际: " + sql);
-        assertTrue(sql.contains("id DESC"), "其余应按 id 倒序，实际: " + sql);
-        assertTrue(sql.indexOf("default_flag DESC") < sql.indexOf("id DESC"),
-                "排序优先级应为 default_flag 先于 id，实际: " + sql);
+        assertTrue(sql.contains("id DESC"), "应按 id 倒序（新建的在前），实际: " + sql);
     }
 
     @Test
@@ -442,7 +426,7 @@ class KnowledgeBaseServiceImplTest {
         when(knowledgeBaseDbService.getActiveById(2L)).thenReturn(kb(2L, 1));
         when(strategyVersionDbService.getById(66L)).thenReturn(chunkVersion());
         KbStrategyBinding existing = binding(55L);
-        existing.setDelFlag("1");
+        existing.setDelFlag(DelFlag.DELETED.getCode());
         when(strategyBindingDbService.getAnyByKbAndType(2L, "CHUNK")).thenReturn(existing);
 
         StrategyBindingUpdateDto dto = new StrategyBindingUpdateDto();
@@ -451,7 +435,7 @@ class KnowledgeBaseServiceImplTest {
 
         assertTrue(service.bindStrategy(2L, dto));
 
-        assertEquals("0", existing.getDelFlag());
+        assertEquals(DelFlag.NORMAL.getCode(), existing.getDelFlag());
         assertEquals(66L, existing.getStrategyVersionId());
         verify(strategyBindingDbService).updateById(existing);
         verify(kbAuditLogDbService).saveAudit(
@@ -471,7 +455,7 @@ class KnowledgeBaseServiceImplTest {
 
         ArgumentCaptor<KbStrategyBinding> captor = ArgumentCaptor.forClass(KbStrategyBinding.class);
         verify(strategyBindingDbService).updateById(captor.capture());
-        assertEquals("1", captor.getValue().getDelFlag());
+        assertEquals(DelFlag.DELETED.getCode(), captor.getValue().getDelFlag());
         verify(kbAuditLogDbService).saveAudit(
                 eq(AuditActionType.BIND), eq("KNOWLEDGE_BASE"), eq(2L), anyString(), isNull());
     }

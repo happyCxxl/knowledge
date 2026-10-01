@@ -36,7 +36,6 @@
             <span class="import-kb-main">
               <span class="import-kb-name" :title="item.name">{{ item.name }}</span>
               <span class="import-kb-meta">
-                <span v-if="item.defaultFlag === 1" class="import-kb-tag">默认</span>
                 <span v-if="item.status !== KB_STATUS_ACTIVE">已停用 · </span>
                 {{ item.documentCount ?? 0 }} 篇
               </span>
@@ -493,14 +492,6 @@ watch(visible, (open) => {
   margin-top: 3px;
   color: var(--kb-text-3);
   font-size: 10px;
-}
-
-.import-kb-tag {
-  padding: 0 5px;
-  border-radius: 99px;
-  background: var(--kb-tint);
-  color: var(--kb-primary);
-  font-size: 9px;
 }
 
 .import-kb-empty {

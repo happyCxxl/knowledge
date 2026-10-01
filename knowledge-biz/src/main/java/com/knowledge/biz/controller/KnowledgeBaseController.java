@@ -1,7 +1,6 @@
 package com.knowledge.biz.controller;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
-import com.knowledge.biz.service.FileSubmitService;
 import com.knowledge.biz.service.KnowledgeBaseService;
 import com.knowledge.common.dto.response.R;
 import com.knowledge.common.dto.request.input.FileSubmitRequest;
@@ -39,13 +38,9 @@ import java.util.List;
 /**
  * 知识库管理接口：知识库读写 + 文件提交（建档）、提交记录、文件结果查询
  * （三者归属与生命周期都由知识库决定，路径挂在 `/knowledge-base/{id}/**` 下）。
- * 业务编排在 `FileSubmitService`，本类只做薄转发。
+ * 业务编排在 `KnowledgeBaseService` 实现（含文档提交建档、提交记录与文件结果查询），本类只做薄转发。
  *
- * <p>**可见范围**：普通用户只读写自己创建的知识库，管理员不限归属。分页与统计按当前用户
- * 的归属过滤（不接受"创建人"参数 —— 前端传谁就查谁等于没做隔离）；所有按 ID 的接口
- * 都校验归属，**不可访问时返回 40401「知识库不存在」而不是 40104**：后者等于确认该库存在，
- * 会把别人的库 ID 变成可枚举、可探测的信息。口径实现在
- * `KnowledgeBaseRules.visibleOwnerId` / `checkAccessible`。
+ * <p>**可见范围**：普通用户只读写自己创建的知识库，管理员不限归属
  *
  * @author cxxl
  */
@@ -58,19 +53,15 @@ public class KnowledgeBaseController {
 
     private final KnowledgeBaseService knowledgeBaseService;
 
-    private final FileSubmitService fileSubmitService;
-
     /**
-     * 创建知识库。
+     * 创建知识库：默认启用状态、归属为当前登录用户，同事务记 CREATE 审计。
      *
-     * <p>**返回 String 而不是 Long**：雪花 ID 有 19 位，超过 JS 的
-     * `Number.MAX_SAFE_INTEGER`（2^53-1 ≈ 9.0e15），而 Jackson 对裸 Long 会序列化成
-     * **不带引号的数字**，前端 `JSON.parse` 按 Number 读会丢精度 —— 实测
-     * `2104612193694224386` 被读成 `2104612193694220000`（末 4 位归零）。
+     * <p>无认证上下文直接抛 40101，不落 user_id 为空的孤儿行 —— 可见范围就是按 user_id 划分的，
+     * 没有归属的库普通用户谁也看不见，只有管理员能碰。
      *
-     * <p>这个坑的实际后果：前端拿到失真 ID 后用去调绑定接口，后端查不到该库而报
-     * 「知识库不存在」—— 表现为"新建时勾选绑定策略就失败"。改为 String 后前端拿到的是
-     * 精确的 19 位串。项目里其它雪花 ID 字段（如 StrategyBindingVO）也是这么处理的。
+     * @param dto 创建请求体：name（必填，≤14 字符）、description（≤64 字符）、
+     *            strategyBindingEnabled（1 开启 / 0 关闭；null 视为开启）
+     * @return 新知识库 ID（雪花 ID 以字符串返回，避免前端 JS 大整数精度丢失）
      */
     @PostMapping
     @Operation(summary = "创建知识库", description = "创建一个新的知识库，默认启用状态、归属为当前登录用户；返回新库 ID（字符串）")
@@ -79,6 +70,17 @@ public class KnowledgeBaseController {
         return R.ok(String.valueOf(knowledgeBaseService.create(dto)), "创建成功");
     }
 
+    /**
+     * 更新知识库：名称、业务场景说明与策略绑定开关，同事务记 UPDATE 审计（before/after 快照）。
+     *
+     * <p>路径 id 覆盖请求体 id（`dto.setId(id)`），归属校验只认路径参数；只能改本人可访问的库，
+     * 不可访问按「不存在」处理（40401）。开关口径：null 或非 0 一律归一为开启（1），兼容存量数据。
+     *
+     * @param id  知识库 ID（路径参数）
+     * @param dto 更新请求体：name（必填，≤14 字符）、description（≤64 字符）、
+     *            strategyBindingEnabled（可空，null 视为开启）
+     * @return 是否更新成功（恒 true，失败以业务异常表达）
+     */
     @PutMapping("/{id}")
     @Operation(summary = "更新知识库", description = "更新知识库名称、业务场景说明与策略绑定开关；仅本人可访问的库可改")
     public R<Boolean> update(
@@ -89,6 +91,15 @@ public class KnowledgeBaseController {
         return R.ok(knowledgeBaseService.update(dto), "更新成功");
     }
 
+    /**
+     * 知识库详情：基础字段 + 预处理/切片/向量化策略绑定摘要 + 文档数（kb_file_result 计数）。
+     *
+     * <p>已逻辑删除不可见；非本人可访问的库按「不存在」处理（40401），不返回 40104
+     * —— 后者等于确认该库存在，会把别人的库 ID 变成可探测的信息。
+     *
+     * @param id 知识库 ID（路径参数）
+     * @return 知识库详情 VO
+     */
     @GetMapping("/{id}")
     @Operation(summary = "知识库详情", description = "查询单个知识库详情（已删除不可见；非本人可访问的按「不存在」处理，返回 40401）")
     public R<KnowledgeBaseVO> detail(
@@ -96,6 +107,19 @@ public class KnowledgeBaseController {
         return R.ok(knowledgeBaseService.detail(id));
     }
 
+    /**
+     * 分页查询知识库：名称模糊 + 状态过滤 + 排序；每行回填策略绑定摘要、文档数与已发布索引版本号
+     * （按页批量查询，不逐行查）。
+     *
+     * <p>可见范围在服务端定：普通用户只查自己创建的库，管理员不限；接口**不接受"创建人"参数**。
+     * 未知 sort 值回落 DEFAULT（不报错，避免旧客户端失败）。
+     *
+     * @param pageQuery 分页参数（current/size；缺省 1/10，小于 1 回落缺省）
+     * @param name      名称模糊关键字（可选）
+     * @param status    状态过滤：1 启用 / 0 停用；不传不过滤
+     * @param sort      排序口径：DEFAULT 默认 / UPDATED 最近更新 / NAME 名称；未知值按默认
+     * @return 知识库分页 VO（不含已删除）
+     */
     @GetMapping("/page")
     @Operation(summary = "分页查询知识库", description = "分页列表，支持名称模糊查询、状态过滤与排序，不含已删除")
     public R<IPage<KnowledgeBaseVO>> page(
@@ -109,12 +133,29 @@ public class KnowledgeBaseController {
                 KnowledgeBaseSort.of(sort)));
     }
 
+    /**
+     * 统计概览：知识库总数、启用数、文档总数，仅统计未删除数据。
+     *
+     * <p>三个数与分页列表**同一可见范围**：文档数先取当前用户可见的库 ID 再按集合计数
+     * （kb_file_result 没有归属列，不能直接按用户过滤）。
+     *
+     * @return 统计概览 VO
+     */
     @GetMapping("/stats")
     @Operation(summary = "知识库统计概览", description = "知识库总数、启用数、文档总数；仅统计未删除数据")
     public R<KnowledgeBaseStatsVO> stats() {
         return R.ok(knowledgeBaseService.stats());
     }
 
+    /**
+     * 停用知识库：停用后拒绝新文件接入与检索，同事务记 DISABLE 审计（before/after 快照）。
+     *
+     * <p>状态校验在服务端做：仅启用状态可停用（反之为 40402）；
+     * 非本人可访问的库按「不存在」处理（40401）。
+     *
+     * @param id 知识库 ID（路径参数）
+     * @return 是否停用成功（恒 true，失败以业务异常表达）
+     */
     @PostMapping("/{id}/disable")
     @Operation(summary = "停用知识库", description = "停用后拒绝新文件接入与检索；仅启用状态可停用")
     public R<Boolean> disable(
@@ -123,6 +164,12 @@ public class KnowledgeBaseController {
         return R.ok(knowledgeBaseService.disable(id), "停用成功");
     }
 
+    /**
+     * 启用知识库：仅停用状态可启用，同事务记 ENABLE 审计（before/after 快照）。
+     *
+     * @param id 知识库 ID（路径参数）
+     * @return 是否启用成功（恒 true，失败以业务异常表达）
+     */
     @PostMapping("/{id}/enable")
     @Operation(summary = "启用知识库", description = "重新启用；仅停用状态可启用")
     public R<Boolean> enable(
@@ -131,6 +178,15 @@ public class KnowledgeBaseController {
         return R.ok(knowledgeBaseService.enable(id), "启用成功");
     }
 
+    /**
+     * 删除知识库：逻辑删除（del_flag='1'），无恢复接口，同事务记 DELETE 审计。
+     *
+     * <p>非本人可访问的库按「不存在」处理（40401）。
+     * 删除只作用于知识库本体，历史提交记录与文件结果不做级联清理。
+     *
+     * @param id 知识库 ID（路径参数）
+     * @return 是否删除成功（恒 true，失败以业务异常表达）
+     */
     @DeleteMapping("/{id}")
     @Operation(summary = "删除知识库", description = "逻辑删除，无恢复接口")
     public R<Boolean> delete(
@@ -160,18 +216,17 @@ public class KnowledgeBaseController {
             @Valid @RequestBody FileSubmitRequest request) {
         log.info("===> KnowledgeBaseController submit 提交文件, kbId={}, fileId={}, requestId={}",
                 id, request.getFileId(), request.getRequestId());
-        return R.ok(fileSubmitService.submit(id, request));
+        return R.ok(knowledgeBaseService.submit(id, request));
     }
 
     /**
      * 提交记录分页查询：按知识库分页返回提交流水（PASS/FAIL 均记录，数据源 kb_submit_log），
      * 支持按提交结果与文件名模糊筛选；失败原因随记录一并返回。
      *
-     * @param id       知识库 ID（路径参数）
-     * @param current  当前页，从 1 开始（缺省 1）
-     * @param size     每页条数（缺省 10）
-     * @param status   提交结果筛选（PASS/FAIL，可选）
-     * @param fileName 文件名模糊筛选（可选）
+     * @param id        知识库 ID（路径参数）
+     * @param pageQuery 分页参数（current/size；缺省 1/10，小于 1 回落缺省）
+     * @param status    提交结果筛选（PASS/FAIL，可选）
+     * @param fileName  文件名模糊筛选（可选）
      * @return 提交记录分页 VO
      */
     @GetMapping("/{id}/submit-logs")
@@ -181,7 +236,7 @@ public class KnowledgeBaseController {
             @ParameterObject PageQueryDto pageQuery,
             @Parameter(description = "提交结果（PASS/FAIL）") @RequestParam(value = "status", required = false) String status,
             @Parameter(description = "文件名（模糊查询）") @RequestParam(value = "fileName", required = false) String fileName) {
-        return R.ok(fileSubmitService.pageSubmitLogs(pageQuery.currentOrDefault(), pageQuery.sizeOrDefault(), id,
+        return R.ok(knowledgeBaseService.pageSubmitLogs(pageQuery.currentOrDefault(), pageQuery.sizeOrDefault(), id,
                 status, fileName));
     }
 
@@ -189,10 +244,9 @@ public class KnowledgeBaseController {
      * 文件结果分页查询（执行链工作台列表数据源）：按知识库分页返回文件处理结果，
      * 每行附带各环节最新任务状态（PARSE/STRUCTURE/PREPROCESS/CHUNK/EMBED 五环节）。
      *
-     * @param id      知识库 ID（路径参数）
-     * @param current 当前页，从 1 开始（缺省 1）
-     * @param size    每页条数（缺省 10）
-     * @param stage   环节（可选；合法值 PARSE/STRUCTURE/PREPROCESS/CHUNK/EMBED，非法值 40001）
+     * @param id        知识库 ID（路径参数）
+     * @param pageQuery 分页参数（current/size；缺省 1/10，小于 1 回落缺省）
+     * @param stage     环节（可选；合法值 PARSE/STRUCTURE/PREPROCESS/CHUNK/EMBED，非法值 40001）
      * @return 文件结果分页 VO（含来源文件信息与各环节状态列表）
      */
     @GetMapping("/{id}/file-results")
@@ -201,10 +255,21 @@ public class KnowledgeBaseController {
             @Parameter(description = "知识库ID", required = true) @PathVariable("id") Long id,
             @ParameterObject PageQueryDto pageQuery,
             @Parameter(description = "环节（可选）") @RequestParam(value = "stage", required = false) String stage) {
-        return R.ok(fileSubmitService.pageFileResults(pageQuery.currentOrDefault(), pageQuery.sizeOrDefault(), id,
+        return R.ok(knowledgeBaseService.pageFileResults(pageQuery.currentOrDefault(), pageQuery.sizeOrDefault(), id,
                 stage));
     }
 
+    /**
+     * 查询知识库某类型的策略绑定（单类型，页面回显用）。
+     *
+     * <p>未绑定、或绑定行存在但版本已被删/停用时，只返回 strategyType（不返回半截数据）；
+     * 策略类型须在 BINDABLE_TYPES 白名单内（PREPROCESS/CHUNK/EMBED；白名单外 40001）；
+     * 非本人可访问的库按「不存在」处理（40401）。
+     *
+     * @param id           知识库 ID（路径参数）
+     * @param strategyType 策略类型（BINDABLE_TYPES 白名单：PREPROCESS/CHUNK/EMBED）
+     * @return 策略绑定 VO（未绑定或版本失效时仅含 strategyType）
+     */
     @GetMapping("/{id}/strategy-binding")
     @Operation(summary = "查询知识库策略绑定", description = "按策略类型查知识库绑定（未绑定返回仅含 strategyType）")
     public R<StrategyBindingVO> strategyBinding(
@@ -213,6 +278,16 @@ public class KnowledgeBaseController {
         return R.ok(knowledgeBaseService.strategyBinding(id, strategyType));
     }
 
+    /**
+     * 批量查询某策略类型下所有已绑定的知识库：一条 SQL 取回该类型全部绑定行（每条含
+     * knowledgeBaseId），替代前端按库逐个查。
+     *
+     * <p>路径上没有知识库 ID，故**不按当前用户归属过滤**，返回的是该策略类型的全量绑定；
+     * 版本被删或已停用的绑定行跳过（与单类型查询口径一致），无有效绑定时返回空列表。
+     *
+     * @param strategyType 策略类型（BINDABLE_TYPES 白名单：PREPROCESS/CHUNK/EMBED；白名单外 40001）
+     * @return 每条含 knowledgeBaseId / strategyVersionId / 策略名与版本号；无绑定时空列表
+     */
     @GetMapping("/strategy-bindings")
     @Operation(summary = "批量查询策略绑定",
             description = "按策略类型查所有已绑定的知识库（一次查询，每条含 knowledgeBaseId）")
@@ -221,6 +296,18 @@ public class KnowledgeBaseController {
         return R.ok(knowledgeBaseService.strategyBindings(strategyType));
     }
 
+    /**
+     * 绑定/解绑知识库某类型的策略（单类型）：strategyVersionId 为 null = 解绑。
+     *
+     * <p>绑定前校验：知识库归属 + 绑定开关（关闭即评测模式，禁止绑定）+ 类型白名单
+     * （PREPROCESS/CHUNK/EMBED）+ 版本存在 + 版本类型匹配 + 版本启用中，任一不满足 40001。
+     * 解绑为绑定行逻辑删除（无绑定行时幂等成功）；重绑复用原行（含已删行），不占用唯一键；
+     * 两种操作都记 BIND 审计。
+     *
+     * @param id  知识库 ID（路径参数）
+     * @param dto 绑定请求体：strategyType（必填）+ strategyVersionId（null = 解绑）
+     * @return 是否绑定成功（恒 true，失败以业务异常表达）
+     */
     @PutMapping("/{id}/strategy-binding")
     @Operation(summary = "绑定/解绑知识库策略", description = "strategyVersionId 为 null 解绑；绑定校验类型/版本/启用状态")
     public R<Boolean> bindStrategy(
@@ -230,6 +317,18 @@ public class KnowledgeBaseController {
         return R.ok(knowledgeBaseService.bindStrategy(id, dto), "绑定成功");
     }
 
+    /**
+     * 批量设置知识库策略集合（发布口径：一次调用设置整套绑定）。
+     *
+     * <p>与单类型接口的差别：请求必须一次给全 BINDABLE_TYPES（PREPROCESS/CHUNK/EMBED）、
+     * 每项都要有非空 strategyVersionId、且请求内类型不可重复（不满足即 40001）——
+     * 「开关开着但还没绑」的中间态由不调用本接口来表达，一旦调用就必须给全。
+     * 逐类型复用单类型绑定逻辑（校验/upsert/审计），外层事务覆盖，任一项失败整体回滚。
+     *
+     * @param id      知识库 ID（路径参数）
+     * @param request 批量绑定请求体：bindings 列表（至少一项、类型不重复、版本非空）
+     * @return 是否绑定成功（恒 true，失败以业务异常表达）
+     */
     @PutMapping("/{id}/strategy-bindings")
     @Operation(summary = "批量设置知识库策略集合", description = "一次调用设置整套（发布=知识库策略集合）；strategyVersionId 为 null 解绑")
     public R<Boolean> bindStrategies(

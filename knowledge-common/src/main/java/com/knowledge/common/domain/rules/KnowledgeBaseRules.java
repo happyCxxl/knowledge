@@ -10,7 +10,7 @@ import com.knowledge.common.exception.KnowledgeException;
 import com.knowledge.common.security.KnowledgeUser;
 
 /**
- * 知识库规则：状态两态（启用/停用）迁移校验 + 默认库保护 + 可见范围（归属）。
+ * 知识库规则：状态两态（启用/停用）迁移校验 + 可见范围（归属）。
  *
  * @author cxxl
  */
@@ -37,19 +37,6 @@ public final class KnowledgeBaseRules {
      */
     public static void checkCanEnable(KnowledgeBase kb) {
         requireStatus(kb, KnowledgeBaseStatus.DISABLED, ErrorCode.KB_STATUS_ILLEGAL, "仅停用状态的知识库可以启用");
-    }
-
-    /**
-     * 默认知识库保护校验：默认库（default_flag=1）不可停用/删除。
-     * 启用不拦截，允许把异常置停的默认库修回启用态。
-     *
-     * @param kb 知识库实体
-     * @throws KnowledgeException 默认库（KB_STATUS_ILLEGAL 40402）
-     */
-    public static void checkNotDefault(KnowledgeBase kb) {
-        if (ObjectUtil.isNotNull(kb) && Integer.valueOf(1).equals(kb.getDefaultFlag())) {
-            throw new KnowledgeException(ErrorCode.KB_STATUS_ILLEGAL, "默认知识库不可停用或删除");
-        }
     }
 
     /**

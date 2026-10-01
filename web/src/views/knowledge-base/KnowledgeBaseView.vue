@@ -40,7 +40,7 @@
           </button>
         </div>
         <el-select v-model="sortBy" class="kb-sort-select" @change="handleSort">
-          <el-option label="默认（默认库优先）" value="DEFAULT" />
+          <el-option label="默认（新建在前）" value="DEFAULT" />
           <el-option label="最近更新" value="UPDATED" />
           <el-option label="名称" value="NAME" />
         </el-select>
@@ -554,7 +554,7 @@ async function handleSubmit(): Promise<void> {
   }
 }
 
-/** 删除知识库：二次确认 → 逻辑删除 → 刷新；默认库卡片不渲染删除入口 */
+/** 删除知识库：二次确认 → 逻辑删除 → 刷新 */
 async function handleDelete(kb: KnowledgeBase): Promise<void> {
   const confirmed = await ElMessageBox.confirm(
     `确认删除知识库「${kb.name}」？删除后该库及其下的文档任务将不可见，且无法恢复`,
@@ -584,8 +584,6 @@ async function handleDelete(kb: KnowledgeBase): Promise<void> {
  * <p>停用是「中止服务」而不是「隐藏」：停用后该库拒绝新文件接入与检索
  * （后端 `KnowledgeBaseRules.checkCanSubmit` → KB_NOT_ACTIVE），已发布索引不受影响。
  * 确认文案要把后果说清，不能只说「停用」两个字。
- *
- * <p>默认库卡片不渲染停用入口（后端 `checkNotDefault` 会拒），这里不做默认库判断。
  */
 async function handleToggleStatus(kb: KnowledgeBase): Promise<void> {
   const disabling = kb.status === KB_STATUS_ACTIVE;

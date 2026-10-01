@@ -19,7 +19,7 @@ public class HomeSummaryVO implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
 
-    /** 可见范围内知识库总数（含已停用、含默认库） */
+    /** 可见范围内知识库总数（含已停用） */
     private Long knowledgeBaseCount;
 
     /** 其中启用中的知识库数 */

@@ -33,9 +33,7 @@ public class KnowledgeBaseDbServiceImpl extends InfraDbServiceImpl<KnowledgeBase
         queryWrapper.like(StrUtil.isNotBlank(name), KnowledgeBase::getName, name)
                 .eq(status != null, KnowledgeBase::getStatus, status)
                 // 归属过滤：ownerId 为 null 时不加条件（管理员视角）
-                .eq(ownerId != null, KnowledgeBase::getUserId, ownerId)
-                // 默认库（default_flag=1）在任何排序口径下都恒排最前
-                .orderByDesc(KnowledgeBase::getDefaultFlag);
+                .eq(ownerId != null, KnowledgeBase::getUserId, ownerId);
         switch (sort == null ? KnowledgeBaseSort.DEFAULT : sort) {
             case UPDATED -> queryWrapper.orderByDesc(KnowledgeBase::getUpdateTime)
                     .orderByDesc(KnowledgeBase::getId);

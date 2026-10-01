@@ -39,9 +39,6 @@ public class KnowledgeBase extends BaseInfo {
     /** 策略绑定开关：1 开启（触发默认走 KB 绑定策略）/ 0 关闭（测评模式，触发必须显式选策略）；null 视为开启 */
     private Integer strategyBindingEnabled;
 
-    /** 默认知识库标记：1=评测默认库（全库唯一，固定不可停用/删除）；0/null=普通库 */
-    private Integer defaultFlag;
-
     /** 绑定处理策略版本（三件套之一） */
     private Long bindingProfileVersionId;
 

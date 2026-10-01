@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.knowledge.biz.mapper.KbStrategyBindingMapper;
 import com.knowledge.biz.service.db.KbStrategyBindingDbService;
 import com.knowledge.common.domain.entity.KbStrategyBinding;
+import com.knowledge.common.enums.base.DelFlag;
 import com.knowledge.infra.persistence.InfraDbServiceImpl;
 import org.springframework.stereotype.Service;
 
@@ -36,7 +37,7 @@ public class KbStrategyBindingDbServiceImpl
         // 供解绑后重新绑定复用原行（uk(knowledge_base_id, strategy_type) 不被已删行占用）
         queryWrapper.eq(KbStrategyBinding::getKnowledgeBaseId, knowledgeBaseId)
                 .eq(KbStrategyBinding::getStrategyType, strategyType)
-                .in(KbStrategyBinding::getDelFlag, "0", "1")
+                .in(KbStrategyBinding::getDelFlag, DelFlag.NORMAL.getCode(), DelFlag.DELETED.getCode())
                 .last("LIMIT 1");
         return getOne(queryWrapper, false);
     }

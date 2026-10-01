@@ -2,9 +2,14 @@ package com.knowledge.biz.service.impl;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.knowledge.biz.service.db.KbAuditLogDbService;
 import com.knowledge.biz.service.db.KbFileResultDbService;
+import com.knowledge.biz.service.db.KbIndexSetDbService;
+import com.knowledge.biz.service.db.KbIndexVersionDbService;
+import com.knowledge.biz.service.db.KbPipelineStrategyVersionDbService;
 import com.knowledge.biz.service.db.KbPipelineTaskDbService;
 import com.knowledge.biz.service.db.KbSourceFileDbService;
+import com.knowledge.biz.service.db.KbStrategyBindingDbService;
 import com.knowledge.biz.service.db.KbSubmitLogDbService;
 import com.knowledge.biz.service.db.KnowledgeBaseDbService;
 import com.knowledge.biz.service.support.InputVoAssembler;
@@ -57,19 +62,29 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 提交链路单测。
+ * 提交链路单测（文档输入：提交建档、提交记录、文件结果）。
  *
  * @author cxxl
  */
 @ExtendWith(MockitoExtension.class)
-class FileSubmitServiceImplTest {
+class KnowledgeBaseFileSubmitTest {
 
     @Mock
     private KnowledgeBaseDbService knowledgeBaseDbService;
     @Mock
-    private KbSourceFileDbService sourceFileDbService;
+    private KbAuditLogDbService kbAuditLogDbService;
     @Mock
-    private KbFileResultDbService fileResultDbService;
+    private KbStrategyBindingDbService strategyBindingDbService;
+    @Mock
+    private KbPipelineStrategyVersionDbService strategyVersionDbService;
+    @Mock
+    private KbFileResultDbService kbFileResultDbService;
+    @Mock
+    private KbIndexSetDbService indexSetDbService;
+    @Mock
+    private KbIndexVersionDbService indexVersionDbService;
+    @Mock
+    private KbSourceFileDbService sourceFileDbService;
     @Mock
     private KbSubmitLogDbService submitLogDbService;
     @Mock
@@ -79,7 +94,7 @@ class FileSubmitServiceImplTest {
     @Mock
     private FileStorage fileStorage;
 
-    private FileSubmitServiceImpl service;
+    private KnowledgeBaseServiceImpl service;
 
     /** 当前登录用户：夹具知识库默认归它，正向用例才能过归属校验 */
     private static final long ME = 1001L;
@@ -87,8 +102,10 @@ class FileSubmitServiceImplTest {
     @BeforeEach
     void setUp() {
         // 组装器为纯映射无状态类，用真实实例（mock 会让 VO 组装返回 null，无法验证响应内容）
-        service = new FileSubmitServiceImpl(knowledgeBaseDbService, sourceFileDbService, fileResultDbService,
-                submitLogDbService, pipelineTaskDbService, fileValidator, fileStorage,
+        service = new KnowledgeBaseServiceImpl(knowledgeBaseDbService, kbAuditLogDbService,
+                strategyBindingDbService, strategyVersionDbService, kbFileResultDbService,
+                indexSetDbService, indexVersionDbService, sourceFileDbService, submitLogDbService,
+                pipelineTaskDbService, fileValidator, fileStorage,
                 new InputVoAssembler(), new TaskVoAssembler());
         // 提交链路会做知识库归属校验，用例必须有登录上下文
         KnowledgeUser user = new KnowledgeUser();
@@ -135,7 +152,7 @@ class FileSubmitServiceImplTest {
             inv.getArgument(0, KbSourceFile.class).setId(1L);
             return true;
         });
-        when(fileResultDbService.save(any(KbFileResult.class))).thenAnswer(inv -> {
+        when(kbFileResultDbService.save(any(KbFileResult.class))).thenAnswer(inv -> {
             inv.getArgument(0, KbFileResult.class).setId(10L);
             return true;
         });
@@ -159,7 +176,7 @@ class FileSubmitServiceImplTest {
         assertEquals(SubmitStatus.PASS.name(), response.getSubmitLog().getStatus());
         // 手动逐环节口径：提交只建档三写，不登记任务（解析由页面触发）
         assertNull(response.getPipelineTaskId());
-        verify(fileResultDbService).save(any(KbFileResult.class));
+        verify(kbFileResultDbService).save(any(KbFileResult.class));
         verify(pipelineTaskDbService, never()).save(any(KbPipelineTask.class));
     }
 
@@ -179,7 +196,7 @@ class FileSubmitServiceImplTest {
         assertEquals(SubmitStatus.FAIL.name(), response.getSubmitLog().getStatus());
         assertEquals(FileValidationFailReason.FORMAT_NOT_ALLOWED.name(), response.getSubmitLog().getFailReason());
         assertNull(response.getPipelineTaskId());
-        verify(fileResultDbService, never()).save(any(KbFileResult.class));
+        verify(kbFileResultDbService, never()).save(any(KbFileResult.class));
         verify(pipelineTaskDbService, never()).save(any(KbPipelineTask.class));
     }
 
@@ -198,7 +215,7 @@ class FileSubmitServiceImplTest {
 
         assertEquals(SubmitStatus.FAIL.name(), response.getSubmitLog().getStatus());
         assertEquals(FileValidationFailReason.FILE_NOT_FOUND.name(), response.getSubmitLog().getFailReason());
-        verify(fileResultDbService, never()).save(any(KbFileResult.class));
+        verify(kbFileResultDbService, never()).save(any(KbFileResult.class));
     }
 
     @Test
@@ -231,7 +248,7 @@ class FileSubmitServiceImplTest {
             inv.getArgument(0, KbSourceFile.class).setId(1L);
             return true;
         });
-        when(fileResultDbService.save(any(KbFileResult.class))).thenAnswer(inv -> {
+        when(kbFileResultDbService.save(any(KbFileResult.class))).thenAnswer(inv -> {
             inv.getArgument(0, KbFileResult.class).setId(10L);
             return true;
         });
@@ -265,7 +282,7 @@ class FileSubmitServiceImplTest {
         existing.setId(7L);
         existing.setFileId("88");
         when(sourceFileDbService.findByFileId("88")).thenReturn(null, existing);
-        when(fileResultDbService.save(any(KbFileResult.class))).thenAnswer(inv -> {
+        when(kbFileResultDbService.save(any(KbFileResult.class))).thenAnswer(inv -> {
             inv.getArgument(0, KbFileResult.class).setId(10L);
             return true;
         });
@@ -278,7 +295,7 @@ class FileSubmitServiceImplTest {
 
         assertNull(response.getPipelineTaskId());
         ArgumentCaptor<KbFileResult> captor = ArgumentCaptor.forClass(KbFileResult.class);
-        verify(fileResultDbService).save(captor.capture());
+        verify(kbFileResultDbService).save(captor.capture());
         assertEquals(7L, captor.getValue().getSourceFileId());
     }
 
@@ -328,7 +345,7 @@ class FileSubmitServiceImplTest {
         fr11.setSourceFileId(1L);
         Page<KbFileResult> page = new Page<>(1, 10);
         page.setRecords(List.of(fr10, fr11));
-        when(fileResultDbService.pageByKb(1L, 10L, 1L)).thenReturn(page);
+        when(kbFileResultDbService.pageByKb(1L, 10L, 1L)).thenReturn(page);
         KbSourceFile source = new KbSourceFile();
         source.setId(1L);
         source.setFileId("88");
@@ -410,7 +427,7 @@ class FileSubmitServiceImplTest {
 
     @Test
     void pageFileResultsShouldValidateStageOnly() {
-        when(fileResultDbService.pageByKb(1L, 10L, 1L))
+        when(kbFileResultDbService.pageByKb(1L, 10L, 1L))
                 .thenReturn(new Page<>(1, 10));
 
         // 合法 stage（PARSE/STRUCTURE/空）只做合法性校验；按上游产物过滤在解析环节落地后启用
@@ -419,7 +436,7 @@ class FileSubmitServiceImplTest {
         service.pageFileResults(1L, 10L, 1L, null);
         service.pageFileResults(1L, 10L, 1L, "");
 
-        verify(fileResultDbService, times(4)).pageByKb(1L, 10L, 1L);
+        verify(kbFileResultDbService, times(4)).pageByKb(1L, 10L, 1L);
     }
 
     @Test
@@ -427,6 +444,6 @@ class FileSubmitServiceImplTest {
         KnowledgeException e = assertThrows(KnowledgeException.class,
                 () -> service.pageFileResults(1L, 10L, 1L, "INDEX"));
         assertEquals(ErrorCode.PARAM_INVALID, e.getErrorCode());
-        verify(fileResultDbService, never()).pageByKb(anyLong(), anyLong(), any());
+        verify(kbFileResultDbService, never()).pageByKb(anyLong(), anyLong(), any());
     }
 }

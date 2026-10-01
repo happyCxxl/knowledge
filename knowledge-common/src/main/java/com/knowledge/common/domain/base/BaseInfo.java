@@ -3,6 +3,7 @@ package com.knowledge.common.domain.base;
 import com.baomidou.mybatisplus.annotation.FieldFill;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableLogic;
+import com.knowledge.common.enums.base.DelFlag;
 import lombok.Data;
 
 import java.io.Serial;
@@ -22,8 +23,8 @@ public class BaseInfo implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
 
-    /** 删除标记：0 正常 / 1 已删（逻辑删除） */
-    @TableLogic(value = "0", delval = "1")
+    /** 删除标记：0 正常 / 1 已删（逻辑删除）；码值见 {@link DelFlag} */
+    @TableLogic(value = DelFlag.Code.NORMAL, delval = DelFlag.Code.DELETED)
     @TableField(fill = FieldFill.INSERT)
     private String delFlag;
 

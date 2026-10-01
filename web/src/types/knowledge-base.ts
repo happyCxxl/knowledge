@@ -58,8 +58,6 @@ export interface KnowledgeBase {
   embedStrategyVersionId?: string | null;
   /** 策略绑定开关：1 开启（触发走本库绑定策略）/ 0 关闭（测评模式，触发须显式选策略） */
   strategyBindingEnabled: number | null;
-  /** 默认知识库标记：1=默认库（恒排最前、不可停用/删除）/ 0=普通库 */
-  defaultFlag: number;
   /** 当前已发布索引版本号（如 v3；未发布为 null） */
   publishedIndexVersion: string | null;
   /** 最近更新时间（ISO 字符串） */
@@ -76,7 +74,7 @@ export interface KnowledgeBaseStats {
   documentCount: number;
 }
 
-/** 列表排序口径（与后端 KnowledgeBaseSort 对齐；默认库在任何口径下都恒排最前） */
+/** 列表排序口径（与后端 KnowledgeBaseSort 对齐） */
 export type KnowledgeBaseSort = 'DEFAULT' | 'UPDATED' | 'NAME';
 
 /** 知识库分页入参 */
@@ -87,7 +85,7 @@ export interface KnowledgeBasePageQuery {
   name?: string;
   /** 状态过滤：1 启用 / 0 停用；不传不过滤 */
   status?: number;
-  /** 排序口径；不传按后端默认（默认库最前 + id 倒序） */
+  /** 排序口径；不传按后端默认（新建的在前） */
   sort?: KnowledgeBaseSort;
 }
 

@@ -50,7 +50,6 @@ class VoJsonContractTest {
         vo.setStrategyBindingEnabled(1);
         vo.setEmbedStrategyVersionId(2104612193694224387L);
         vo.setEmbedStrategyVersion("embed-default-v1");
-        vo.setDefaultFlag(0);
         vo.setDocumentCount(7L);
         return vo;
     }
@@ -80,7 +79,6 @@ class VoJsonContractTest {
         assertTrue(json.contains("\"description\":"), json);
         assertTrue(json.contains("\"status\":1"), json);
         assertTrue(json.contains("\"embedStrategyVersion\":\"embed-default-v1\""), json);
-        assertTrue(json.contains("\"defaultFlag\":0"), json);
     }
 
     @Test

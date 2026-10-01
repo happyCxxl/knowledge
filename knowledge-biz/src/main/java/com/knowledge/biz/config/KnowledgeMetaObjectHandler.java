@@ -2,6 +2,7 @@ package com.knowledge.biz.config;
 
 import cn.hutool.core.util.ObjectUtil;
 import com.baomidou.mybatisplus.core.handlers.MetaObjectHandler;
+import com.knowledge.common.enums.base.DelFlag;
 import com.knowledge.common.security.KnowledgeUser;
 import com.knowledge.common.utils.SecurityUtil;
 import org.apache.ibatis.reflection.MetaObject;
@@ -20,7 +21,7 @@ public class KnowledgeMetaObjectHandler implements MetaObjectHandler {
     @Override
     public void insertFill(MetaObject metaObject) {
         String operator = currentOperator();
-        this.strictInsertFill(metaObject, "delFlag", String.class, "0");
+        this.strictInsertFill(metaObject, "delFlag", String.class, DelFlag.NORMAL.getCode());
         this.strictInsertFill(metaObject, "createBy", String.class, operator);
         this.strictInsertFill(metaObject, "createTime", LocalDateTime.class, LocalDateTime.now());
         this.strictInsertFill(metaObject, "updateBy", String.class, operator);
