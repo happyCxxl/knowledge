@@ -35,7 +35,7 @@ public class LoginAttemptGuard {
                 || redisCounter.get(ipKey(ip)) >= properties.getIpFailThreshold();
     }
 
-    /** 记一次失败：两个维度都计数；账号不存在时同样计数，否则「打存在的账号会锁、不存在的不会」即账号枚举侧信道 */
+    /** 记一次失败：两个维度都计数；账号不存在时同样计数 */
     public void recordFailure(String username, String ip) {
         if (!properties.isEnabled()) {
             return;
@@ -45,7 +45,7 @@ public class LoginAttemptGuard {
         redisCounter.increment(ipKey(ip), window);
     }
 
-    /** 登录成功后清零账号维度；IP 维度保留，否则持有一个有效账号即可反复刷掉喷洒计数 */
+    /** 登录成功后清零账号维度；IP 维度保留 */
     public void clearAccount(String username, String ip) {
         if (properties.isEnabled()) {
             redisCounter.reset(accountKey(username, ip));

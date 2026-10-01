@@ -68,8 +68,8 @@ public class MilvusKnowledgeCollection implements KnowledgeCollectionPort {
      * source_element_ids 最大长度。
      *
      * <p>父片溯源是该章节全部子片元素 ID 的并集，随章节大小无界增长。
-     * 实测一份 116 页招标文件（512 元素）的单父片溯源为 3503 字符，
-     * 因此原 2048 不够用，这里放到 16384（约 900 个元素 ID）留足余量。
+     * 实测一份 116 页招标文件（512 元素）的单父片溯源为 3503 字符，原 2048 不够用，
+     * 这里放到 16384（约 900 个元素 ID）留足余量。
      */
     public static final int SOURCE_ELEMENT_IDS_MAX_LENGTH = 16384;
 
@@ -228,7 +228,7 @@ public class MilvusKnowledgeCollection implements KnowledgeCollectionPort {
             // **不可为空**：这两个字段是下方 BM25 函数的输入字段，Milvus 明确要求函数输入
             // 字段 non-nullable —— 声明成 nullable 会让 createCollection 直接失败
             // （实测：function input field cannot be nullable: function content_bm25_emb, field content）。
-            // 与写入侧口径一致：toJson() 本就把 null 归一成空串，所以业务上无需可空。
+            // 与写入侧口径一致：toJson() 本就把 null 归一成空串，业务上无需可空。
             schema.addField(AddFieldReq.builder()
                     .fieldName(field).dataType(DataType.VarChar)
                     .maxLength("content".equals(field) ? CONTENT_MAX_LENGTH : 1024)

@@ -33,8 +33,7 @@ public final class FakeVectorGenerator {
      * 生成单位向量。
      *
      * @param text      输入文本（= 切片内容口径）
-     * @param dimension 目标维度（必须与 {@code kb_embedding_set.dimension} 一致，
-     *                  否则 Milvus 写入会因维度不匹配失败）
+     * @param dimension 目标维度（必须与 {@code kb_embedding_set.dimension} 一致）
      * @return 长度为 dimension 的单位向量
      * @throws IllegalArgumentException 维度非正
      */
@@ -58,7 +57,7 @@ public final class FakeVectorGenerator {
         double norm = Math.sqrt(sumOfSquares);
         if (norm == 0.0) {
             // 概率上不可能（1024 个高斯分量同时为 0），但零向量会让 COSINE 距离无定义，
-            // 所以显式兜底成一个合法单位向量，而不是把 NaN 写进向量库
+            // 显式兜底成一个合法单位向量，而不是把 NaN 写进向量库
             List<Float> fallback = new ArrayList<>(dimension);
             for (int i = 0; i < dimension; i += 1) {
                 fallback.add(i == 0 ? 1.0f : 0.0f);

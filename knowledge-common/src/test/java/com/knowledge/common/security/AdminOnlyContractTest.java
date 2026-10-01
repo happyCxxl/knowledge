@@ -44,7 +44,7 @@ class AdminOnlyContractTest {
 
     @Test
     void filterShouldGrantAuthorityMatchingExpression() {
-        // 过滤器写入的权限串必须能被 @AdminOnly 的表达式命中，否则注解永远不通过
+        // 过滤器写入的权限串必须能被 @AdminOnly 的表达式命中
         String granted = RoleExpressions.ROLE_PREFIX + UserRole.ADMIN.getCode();
 
         assertTrue(RoleExpressions.ADMIN_ONLY.contains("'" + granted + "'"),

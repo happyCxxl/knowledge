@@ -30,7 +30,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  *
  * <p>本测试同时回答「要不要自己写切面」：不需要。{@code @EnableMethodSecurity} 会注册
  * {@code preAuthorizeAuthorizationMethodInterceptor} 这个基础设施 Bean 作为切面，
- * 它借助 Spring Core 的 {@code MergedAnnotations} 解析注解，因此能识别把
+ * 它借助 Spring Core 的 {@code MergedAnnotations} 解析注解，能识别把
  * {@code @PreAuthorize} 作为元注解的 {@link AdminOnly}。
  *
  * @author cxxl

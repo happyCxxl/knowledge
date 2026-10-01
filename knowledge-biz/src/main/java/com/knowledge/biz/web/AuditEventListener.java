@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component;
 /**
  * 审计事件监听：把跨模块发布的 {@link AuditEvent} 落到 kb_audit_log。
  *
- * <p>监听是同步的，因此审计写入与发布方的业务操作处于同一事务：
+ * <p>监听为同步调用，审计写入与发布方的业务操作处于同一事务：
  * 业务回滚时审计一并回滚，不会留下"操作没生效却有审计"的脏记录。
  *
  * @author cxxl

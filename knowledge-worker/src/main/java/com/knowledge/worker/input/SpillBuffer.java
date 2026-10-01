@@ -61,12 +61,12 @@ public class SpillBuffer {
         target.write(buffer, offset, length);
     }
 
-    /** 重开读取流：溢写场景必须先 flush 落盘再开流，否则读到残缺文件。 */
+    /** 重开读取流：溢写场景必须先 flush 落盘再开流。 */
     public InputStream openStream() throws IOException {
         if (ObjectUtil.isNull(tempFile)) {
             return new ByteArrayInputStream(memory.toByteArray());
         }
-        // 溢写缓冲必须落盘后再开读流，否则读到的是残缺文件
+        // 溢写缓冲必须落盘后再开读流
         target.flush();
         return new BufferedInputStream(Files.newInputStream(tempFile));
     }

@@ -209,13 +209,11 @@ public class LineageQueryServiceImpl implements LineageQueryService {
     /**
      * 能力快照 JSON 文本 → 结构化对象。
      *
-     * <p>**为什么解析而不是透传原文**：product.capabilitySnapshot 存的是
-     * {@link CapabilitySnapshot} 序列化后的 JSON，透传出去前端就只能"截断显示原文"
-     * 或自己解析 JSON —— 那是接口设计错误。与 {@link #resolveStrategyVersion} 同一口径：
-     * 在服务层解析，出去的就是可用的数据。
+     * <p>**解析成对象，不透传原文**：product.capabilitySnapshot 存的是
+     * {@link CapabilitySnapshot} 序列化后的 JSON；解析在服务层完成，下发的就是可用字段
+     * （与 {@link #resolveStrategyVersion} 同一口径）。
      *
-     * <p>解析失败返回 null（**不回落原文**）：脏数据不该继续往上层传，
-     * 前端拿到 null 只会不显示这一行，比显示一段 JSON 好。
+     * <p>解析失败返回 null（**不回落原文**）：脏数据不继续往上层传。
      *
      * @param snapshot 产物上的能力快照 JSON 文本，可空
      * @return 结构化能力快照；快照为空或解析失败返回 null

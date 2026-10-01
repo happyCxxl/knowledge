@@ -297,7 +297,7 @@ class FileSubmitServiceImplTest {
 
     @Test
     void submitToOthersKbShouldBehaveAsNotFound() {
-        // 看不到的库也不能往里塞文档：否则"只看到自己创建的"只是列表少了几行，数据仍可被写入
+        // 看不到的库也不能往里塞文档
         when(submitLogDbService.getByRequestId("req-1")).thenReturn(null);
         KnowledgeBase others = activeKb();
         others.setUserId(ME + 1);

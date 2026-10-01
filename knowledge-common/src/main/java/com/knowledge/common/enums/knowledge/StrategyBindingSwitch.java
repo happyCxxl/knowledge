@@ -49,7 +49,7 @@ public enum StrategyBindingSwitch {
         return of(code) != OFF;
     }
 
-    /** 是否关闭：null 视为开启，所以只有显式 0 才返回 true */
+    /** 是否关闭：null 视为开启，只有显式 0 才返回 true */
     public static boolean isOff(Integer code) {
         return of(code) == OFF;
     }

@@ -17,7 +17,7 @@ import java.util.Objects;
  *
  * <p>**bucket 直接复用为目录名**：{@code kb_file_object.bucket} 已把桶名记在档案里
  * （MinIO 实现写的是 {@code properties.getFileBucket()}），读取时也从档案取，
- * 因此 DB 契约不变，只是"桶"变成目录层级。
+ * DB 契约不变，只是"桶"变成目录层级。
  *
  * <p>**目录布局**：{@code {local-root}/{bucket}/{key}}，与对象存储的两级结构一一对应。
  *

@@ -18,7 +18,6 @@ import java.util.List;
  * <p>**可见范围**：普通用户只操作自己创建的知识库，管理员不限于归属（见
  * {@link com.knowledge.common.domain.rules.KnowledgeBaseRules#visibleOwnerId} 与
  * {@link com.knowledge.common.domain.rules.KnowledgeBaseRules#checkAccessible}）。
- * 因此：
  *
  * <ul>
  *   <li>分页与统计按当前用户的归属过滤 —— 接口**不接受**"创建人"参数，由前端传参决定查谁等于没做隔离；</li>
@@ -64,7 +63,7 @@ public interface KnowledgeBaseService {
      * 统计概览（仅未删除数据）：知识库总数、启用数、文档数。
      *
      * <p>三个数与 {@link #page} **同一可见范围**：文档数先取可见库 ID 再按集合计数
-     * （`kb_file_result` 没有归属列），否则新账号会看到「知识库 0 / 文档 1284」。
+     * （`kb_file_result` 没有归属列）。
      */
     KnowledgeBaseStatsVO stats();
 
@@ -94,9 +93,8 @@ public interface KnowledgeBaseService {
     /**
      * 批量查某策略类型下**所有已绑定的知识库**（一次查询替代按库逐个查）。
      *
-     * <p>为什么需要它：绑定按知识库维度存储，而"这个策略版本被哪些库绑了"是反方向的
-     * 问题 —— 只提供按库查的接口时，前端只能对每个库发一次请求（知识库越多请求越多，
-     * 实测 3 个库切一次策略 tab 就是 3 次）。这里用一条 SQL 取回该类型下的全部绑定行。
+     * <p>绑定按知识库维度存储，"这个策略版本被哪些库绑了"是反方向的问题；本方法用一条 SQL
+     * 取回该策略类型下的全部绑定行，替代按库逐个查。
      *
      * <p>只返回**确实绑定了启用中版本**的行：版本被删或已停用时跳过（与单体查询
      * {@link #strategyBinding} 的口径一致 —— 它查不到版本时也只返回 strategyType）。

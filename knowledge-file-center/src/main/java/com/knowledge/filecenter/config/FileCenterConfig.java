@@ -9,7 +9,7 @@ import org.springframework.stereotype.Component;
  *
  * <p>**两种后端**（{@link #storageType}）：{@code minio}（默认，对象存储）与
  * {@code local}（本地磁盘，开发/演示用）。两者的"桶"语义一致 —— 本地实现把桶名当
- * 子目录，所以 {@code kb_file_object.bucket} 档案字段无需区分后端。
+ * 子目录，{@code kb_file_object.bucket} 档案字段无需区分后端。
  *
  * <p><b>切换后端前请注意</b>：已写入的对象不会自动迁移，切换后旧对象在新后端里读不到
  * （反过来也一样）。要让存量数据可用，需要先把对象文件复制到新后端的对应位置。

@@ -155,12 +155,12 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     @Override
     public KnowledgeBaseStatsVO stats() {
         KnowledgeBaseStatsVO vo = new KnowledgeBaseStatsVO();
-        // 口径与列表页一致：普通用户只数自己创建的库，管理员数全部（否则顶部计数与列表总数会对不上）
+        // 口径与列表页一致：普通用户只数自己创建的库，管理员数全部
         Long ownerId = visibleOwnerId();
         vo.setKnowledgeBaseCount(knowledgeBaseDbService.countByStatus(null, ownerId));
         vo.setEnabledCount(knowledgeBaseDbService.countByStatus(KnowledgeBaseStatus.ACTIVE.getCode(), ownerId));
         // 文档数与「知识库」必须同一范围：文档表只有 knowledge_base_id，没有归属列，
-        // 所以先取可见库 ID 再按集合计数（沿用全平台口径会出现「知识库 3 / 文档 1284」这种自相矛盾的同一屏）
+        // 先取可见库 ID 再按集合计数
         vo.setDocumentCount(
                 kbFileResultDbService.countByKbIds(knowledgeBaseDbService.listIdsByOwner(ownerId)));
         return vo;
@@ -383,8 +383,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             ThrowUtil.throwIf(!seen.add(type), ErrorCode.PARAM_INVALID, "策略类型重复: " + type);
         }
         // 本接口是「设置整套绑定」：必须一次给全三件套，且每项都要有版本
-        // （允许"开关开着但还没绑"的中间态由不调用本接口来表达；一旦调用就必须给全，
-        //   否则会出现"部分环节走绑定、部分走最新启用"的隐性不一致）
+        // （允许"开关开着但还没绑"的中间态由不调用本接口来表达；一旦调用就必须给全）
         ThrowUtil.throwIf(!seen.containsAll(StrategyVersionService.BINDABLE_TYPES),
                 ErrorCode.PARAM_INVALID, "需一次设置全部可绑定策略（预处理 / 切片 / 向量化）");
         for (StrategyBindingsUpdateRequest.StrategyBindItem item : bindings) {
@@ -518,7 +517,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
      *
      * <p>知识库必须带归属：可见范围就是按 `user_id` 划分的（见
      * {@link KnowledgeBaseRules#visibleOwnerId}），落一条没有归属的库等于建了一条
-     * 普通用户谁也看不见、只有管理员能碰的孤儿数据。所以这里无认证上下文直接拒绝，
+     * 普通用户谁也看不见、只有管理员能碰的孤儿数据。这里无认证上下文直接拒绝，
      * 不静默落 NULL —— 存量 NULL 数据是早期占位，不该再新增。
      *
      * @return 当前用户 ID

@@ -31,7 +31,7 @@ public class KnowledgeMetaObjectHandler implements MetaObjectHandler {
      * 更新填充：**必须非严格**。
      *
      * <p>「先查出来改几个字段再 updateById」是项目里的主流写法，这种实体自带库里的旧
-     * updateTime / updateBy，而 strictUpdateFill 只在字段为空时才填 —— 于是旧值被原样写进
+     * updateTime / updateBy，而 strictUpdateFill 只在字段为空时才填 —— 旧值被原样写进
      * SET 子句，反而让 DDL 上的 {@code ON UPDATE CURRENT_TIMESTAMP} 失效（显式赋值不触发），
      * 表现为"改了信息但更新时间不动"。updateBy 在无认证上下文时为 null，此时保持原值不动。
      */
@@ -47,7 +47,7 @@ public class KnowledgeMetaObjectHandler implements MetaObjectHandler {
     /**
      * 覆盖式填充：MP 默认的 fillStrategy 与 strictUpdateFill 一样是"**有值不覆盖**"，
      * 而这里是"先查出来改几个字段再 updateById"的主流写法 —— 实体自带库里的旧
-     * updateTime / updateBy，默认策略会把旧值原样写回 SET 子句，于是 UPDATE 执行成功、
+     * updateTime / updateBy，默认策略会把旧值原样写回 SET 子句，UPDATE 执行成功、
      * 时间却不动（显式赋值还会让 DDL 上的 ON UPDATE CURRENT_TIMESTAMP 也失效）。
      *
      * <p>只影响调用 {@code fillStrategy} 的地方；插入走 {@code strictInsertFill}（另一个方法），

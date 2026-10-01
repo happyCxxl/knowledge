@@ -52,8 +52,8 @@ import java.util.Map;
 /**
  * 演示数据种子：为指定知识库造一条**从文件上传到向量化 + 索引构建**的完整链路。
  *
- * <p><b>为什么需要它</b>：向量化要经 {@code ModelGatewayPort} 调远程向量模型，模型未接入时
- * 整条链路断在 EMBED。本类用"直插数据 + 复用生产代码"的方式补出这条链路。
+ * <p><b>用途</b>：向量化要经 {@code ModelGatewayPort} 调远程向量模型，模型未接入时整条链路断在
+ * EMBED。本类用"直插数据 + 复用生产代码"的方式补出这条链路。
  *
  * <p><b>真实与模拟的边界</b>（诚实口径）：
  * <ul>
@@ -61,7 +61,7 @@ import java.util.Map;
  *       产物序列化与落库（走 {@code ProductPersistence} 与领域对象，格式与生产一致）；
  *       索引构建（直接调 {@code IndexSetService.onFileProductsReady}，是生产代码）；</li>
  *   <li><b>模拟</b>：向量本体（{@link FakeVectorGenerator} 确定性生成，<b>无语义</b>，
- *       所以向量检索的排序没有语义意义）；PARSE/STRUCTURE 产物（由切片文本反推，
+ *       向量检索的排序没有语义意义）；PARSE/STRUCTURE 产物（由切片文本反推，
  *       不是真解析器/组装器跑的）。</li>
  * </ul>
  *
@@ -290,7 +290,7 @@ public class SeedService {
             /*
              * 父片（SECTION）跳过 —— 与生产 EmbedPipeline 同口径：
              * {@code if (SECTION.equals(contentType) && !strategy.includeParentOn()) markSkipped(...)}
-             * 本库绑定的 embed-nocache 策略 config 里 includeParent=OFF，所以父片只进
+             * 本库绑定的 embed-nocache 策略 config 里 includeParent=OFF，父片只进
              * kb_chunk（供父子检索做上下文扩展），不生成向量、不进 Milvus。
              *
              * **这条规则不能省**：父片是整章内容，实测最长 22572 字符，而 Milvus 的
@@ -401,7 +401,7 @@ public class SeedService {
 
     private String preprocessSnapshot() {
         // resolveProductCombo 会把它反序列化成 PreprocessStrategy 并取 fullVersion()，
-        // 所以 name/version 必须与知识库绑定的策略一致
+        // name/version 必须与知识库绑定的策略一致
         return "{\"type\":\"PREPROCESS\",\"name\":\"preproc-keep-toc\",\"version\":\"v1\","
                 + "\"rules\":{\"tidy\":{\"enabled\":\"ON\",\"params\":{\"whitespace\":\"ON\"}}},"
                 + "\"custom\":{\"enabled\":\"ON\",\"rules\":[]}}";

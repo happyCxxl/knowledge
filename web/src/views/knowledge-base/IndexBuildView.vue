@@ -411,7 +411,7 @@ function buildStageText(version: IndexVersionVO): string {
 }
 
 /**
- * 发布按钮不可用的原因（仅解释为什么点不动，不替发布环节做判断）。
+ * 发布按钮不可用的原因（只解释点不动，不替发布环节做判断）。
  *
  * <p>禁用的按钮不派发鼠标事件，浏览器原生 title 仍会显示，这里用 title
  * 而不是应用内的 data-tip 气泡。

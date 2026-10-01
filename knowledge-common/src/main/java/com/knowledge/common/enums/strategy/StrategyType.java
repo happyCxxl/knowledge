@@ -12,7 +12,7 @@ import java.util.stream.Collectors;
  * <p>四类策略的**码值**集中在这里。
  *
  * <p>与 {@link com.knowledge.common.enums.task.PipelineStage} 的关系：环节枚举含
- * PARSE / STRUCTURE（不挂策略）与 BUILD_INDEX（索引构建），所以不能直接用环节枚举当策略类型。
+ * PARSE / STRUCTURE（不挂策略）与 BUILD_INDEX（索引构建），不能直接用环节枚举当策略类型。
  *
  * <p>**绑定可分性**（{@link #bindable()}）：只有三件套能绑到知识库；检索规则不绑 KB ——
  * 它走索引版本行的 `default_rule_id`。

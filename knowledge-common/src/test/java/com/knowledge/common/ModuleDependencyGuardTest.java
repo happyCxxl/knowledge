@@ -44,7 +44,7 @@ class ModuleDependencyGuardTest {
 
     @Test
     void guardShouldSeeTheModuleItself() throws IOException {
-        // 反向确认解析逻辑没写坏：pom 里必然出现自身 artifactId，否则上面那条断言是「空过」
+        // 反向确认解析逻辑没写坏：pom 里必然出现自身 artifactId
         String pom = Files.readString(Path.of("pom.xml"), StandardCharsets.UTF_8);
 
         Matcher matcher = KNOWLEDGE_ARTIFACT.matcher(pom);

@@ -34,7 +34,7 @@ import java.util.HexFormat;
  *
  * <p>写操作（上传 / 移除）只作用于**当前登录用户**，userId 一律取自安全上下文、不接受请求参数；
  * 读取接口免登录（见 SecurityConfig），供 {@code <img src>} 直接渲染——浏览器不会在 img 请求上带
- * Authorization 头，所以这条读路径必须公开。
+ * Authorization 头，这条读路径必须公开。
  *
  * @author cxxl
  */
@@ -85,7 +85,7 @@ public class AvatarController {
 
     /**
      * 读取头像：未设置头像与用户不存在都回 404，两种情况响应完全一致，
-     * 因此探测不出"某个 userId 是否存在"。
+     * 探测不出"某个 userId 是否存在"。
      */
     @GetMapping("/{userId}")
     public ResponseEntity<byte[]> read(@PathVariable Long userId) {

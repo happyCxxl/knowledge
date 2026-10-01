@@ -14,9 +14,8 @@ import java.util.Map;
 /**
  * 演示数据种子入口（**临时代码，演示数据灌好后应删除**）。
  *
- * <p>为什么用 HTTP 入口而不是 CommandLineRunner：种子需要跑在**已完整启动**的应用里
- * （要连 MySQL / 本地产物目录 / Milvus），而且执行时机由人控制更好 ——
- * CommandLineRunner 会在每次启动时都尝试灌数据。
+ * <p>入口为 HTTP：种子跑在**已完整启动**的应用里（要连 MySQL / 本地产物目录 / Milvus），
+ * 执行时机由人控制。
  *
  * @author cxxl
  */
