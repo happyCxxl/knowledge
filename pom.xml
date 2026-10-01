@@ -277,18 +277,9 @@
           </rulesets>
           <printFailingErrors>true</printFailingErrors>
           <!--
-            阈值 100 = CPD 默认值，也就是这个门禁**一直实际生效**的值（写成显式值只为不再依赖默认）。
-
-            **必须配在插件级**：cpd-check 自己**没有** minimumTokens 参数 —— 官方文档写明它
-            "先触发 cpd 目标、再执行自身"，阈值只有 cpd 读得到。原先写在 cpd-check 的
-            <execution><configuration> 里，被 Maven 静默忽略（IDE 报 "Element minimumTokens
-            is not allowed here"），注释里声称的 45 从来没生效过。
-
-            为什么不是 45：45 是"与 IDEA 重复片段灵敏度对齐"的目标值，但实测存量在这个阈值下有
-            **40 处重复**（knowledge-biz 25 / knowledge-worker 15），且几乎全是架构上刻意保留的
-            平行家族样板（Chunk/Embed/Preprocess/Structure 四件套的 ControlService 与 TaskRunner、
-            五个 KnowledgeFile*Controller、三个文档解析器、两个切片策略……）。要压到 45 得先决定
-            是抽公共基类还是走 CPD 排除清单，属独立一轮；在那之前保持 100，避免门禁变成红着不管。
+            阈值 45：cpd-check 没有 minimumTokens 参数，阈值只有 cpd 读得到，因此必须配在插件级
+            （写进 cpd-check 的 execution 会被忽略、IDE 还会报 "Element minimumTokens is not
+            allowed here"）。
           -->
           <minimumTokens>45</minimumTokens>
         </configuration>
