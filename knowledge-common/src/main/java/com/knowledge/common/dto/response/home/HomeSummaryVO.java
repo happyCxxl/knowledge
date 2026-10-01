@@ -25,7 +25,7 @@ public class HomeSummaryVO implements Serializable {
     /** 启用中的知识库数 */
     private Long enabledKnowledgeBaseCount;
 
-    /** 策略版本总数（四类合计，含已停用） */
+    /** 可用策略版本数（四类合计，**只含启用中的**，与界面「可用策略」文案一致） */
     private Long strategyVersionCount;
 
     /** 预处理策略版本数 */
@@ -40,12 +40,6 @@ public class HomeSummaryVO implements Serializable {
     /** 检索策略版本数 */
     private Long retrievalVersionCount;
 
-    /** 索引版本总数（含已退役） */
-    private Long indexVersionCount;
-
-    /** 在线索引版本数（按二级发布指针命中，正常为 0 或 1） */
-    private Long onlineIndexVersionCount;
-
-    /** 文档提交总数：kb_file_result 记录数（一次提交 = 一个任务 = 一行） */
+    /** 文档数：kb_file_result 行数（已建档文档，**不含文件校验失败**） */
     private Long documentCount;
 }

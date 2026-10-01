@@ -6,7 +6,7 @@ import cn.hutool.core.util.StrUtil;
  * 审计对象类型（kb_audit_log.object_type）。
  *
  * <p>原先这些码值散在各业务 service 的私有常量里（`AUDIT_OBJECT_TYPE = "KNOWLEDGE_BASE"`），
- * 首页行为记录要按类型反查对象名，需要一处集中的口径。
+ * 集中到这里作为唯一口径：写入侧一律取 {@link #key()}，不写字符串字面量。
  *
  * @author cxxl
  */
@@ -24,7 +24,7 @@ public enum AuditObjectType {
     /** 码值（与库表 object_type 列一致） */
     private final String key;
 
-    /** 中文名（首页行为记录展示用；后端下发，避免前端再维护映射表） */
+    /** 中文名（展示用词表；当前无调用方，留给审计视图复用） */
     private final String label;
 
     AuditObjectType(String key, String label) {

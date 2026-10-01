@@ -117,7 +117,7 @@ class VoJsonContractTest {
     }
 
     @Test
-    @DisplayName("首页资产速览的 10 个计数同样是数字")
+    @DisplayName("首页资产速览的计数字段同样是数字")
     void homeSummaryCountsShouldStayNumbers() throws Exception {
         HomeSummaryVO vo = new HomeSummaryVO();
         vo.setKnowledgeBaseCount(6L);
@@ -127,8 +127,6 @@ class VoJsonContractTest {
         vo.setChunkVersionCount(5L);
         vo.setEmbedVersionCount(2L);
         vo.setRetrievalVersionCount(4L);
-        vo.setIndexVersionCount(1L);
-        vo.setOnlineIndexVersionCount(1L);
         vo.setDocumentCount(9L);
 
         String json = objectMapper.writeValueAsString(vo);
@@ -136,7 +134,7 @@ class VoJsonContractTest {
         // 这些字段此前全被 @JsonSerialize(ToStringSerializer) 标注 → 下发成 "6" 这样的字符串。
         // 它们只是"有多少个"的计数，字符串化没有意义且会让前端比较出错。
         for (String expect : List.of("\"knowledgeBaseCount\":6", "\"enabledKnowledgeBaseCount\":5",
-                "\"strategyVersionCount\":24", "\"onlineIndexVersionCount\":1", "\"documentCount\":9")) {
+                "\"strategyVersionCount\":24", "\"retrievalVersionCount\":4", "\"documentCount\":9")) {
             assertTrue(json.contains(expect), "期望 " + expect + "，实际: " + json);
         }
     }

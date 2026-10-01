@@ -32,7 +32,7 @@ import java.io.IOException;
  * <h2>为什么放在这里而不是给字段加注解</h2>
  * 之前是逐字段 {@code @JsonSerialize(using = ToStringSerializer.class)}，29 个 VO 里散着
  * 65 处 —— **而且已经漏过两次**（知识库创建接口返回裸 {@code Long}、检索包的 4 个 VO 全漏），
- * 每次都要等前端接上才发现。更糟的是它加得盲目：{@code HomeSummaryVO} 的 10 个**计数字段**
+ * 每次都要等前端接上才发现。更糟的是它加得盲目：{@code HomeSummaryVO} 的**计数字段**
  * 也被字符串化了。全局配置让"默认就对"，不再依赖谁记得加注解。
  *
  * <h2>影响范围</h2>

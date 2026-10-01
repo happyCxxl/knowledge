@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.knowledge.biz.mapper.KbPipelineStrategyVersionMapper;
 import com.knowledge.biz.service.db.KbPipelineStrategyVersionDbService;
 import com.knowledge.common.domain.entity.KbPipelineStrategyVersion;
+import com.knowledge.common.enums.strategy.StrategyType;
 import com.knowledge.common.enums.task.RowStatus;
 import com.knowledge.infra.persistence.InfraDbServiceImpl;
 import org.springframework.stereotype.Service;
@@ -56,5 +57,13 @@ public class KbPipelineStrategyVersionDbServiceImpl
                 .orderByDesc(KbPipelineStrategyVersion::getId)
                 .last("LIMIT 1");
         return getOne(queryWrapper, false);
+    }
+
+    @Override
+    public long countEnabledByType(StrategyType type) {
+        LambdaQueryWrapper<KbPipelineStrategyVersion> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(KbPipelineStrategyVersion::getType, type.key())
+                .eq(KbPipelineStrategyVersion::getStatus, RowStatus.ACTIVE.name());
+        return count(queryWrapper);
     }
 }

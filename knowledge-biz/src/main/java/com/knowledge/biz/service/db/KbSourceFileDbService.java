@@ -3,6 +3,9 @@ package com.knowledge.biz.service.db;
 import com.knowledge.common.domain.entity.KbSourceFile;
 import com.knowledge.infra.persistence.InfraDbService;
 
+import java.util.Collection;
+import java.util.List;
+
 /**
  * 来源文件数据访问服务（kb_source_file）。
  *
@@ -17,4 +20,12 @@ public interface KbSourceFileDbService extends InfraDbService<KbSourceFile> {
      * @return 来源文件实体；不存在返回 null
      */
     KbSourceFile findByFileId(String fileId);
+
+    /**
+     * 按文件 ID 批量查来源文件（列表展示用，避免逐行查库）。
+     *
+     * @param fileIds 文件 ID 集合
+     * @return 命中的来源文件；集合为空时返回空列表
+     */
+    List<KbSourceFile> listByFileIds(Collection<String> fileIds);
 }
