@@ -83,8 +83,9 @@ if [ "${GATE_DEBUG:-0}" = "1" ]; then
 fi
 
 if [ "${FORCE_GATE:-0}" != "1" ] && [ -f "$cache_file" ]; then
-  cached=$(sed -n '1p' "$cache_file")
-  cached_at=$(sed -n '2p' "$cache_file")
+  # 比对前统一去掉行尾 CR/空白：缓存可能被别的工具按不同行尾重写过，比对不该因 \r 失败
+  cached=$(sed -n '1p' "$cache_file" | tr -d ' \r\n')
+  cached_at=$(sed -n '2p' "$cache_file" | tr -d '\r\n')
   if [ "$cached" = "$fingerprint" ]; then
     echo ""
     echo "==================== 推送前检查 ===================="
@@ -94,6 +95,10 @@ if [ "${FORCE_GATE:-0}" != "1" ] && [ -f "$cache_file" ]; then
     echo "===================================================="
     exit 0
   fi
+  # 未命中时给出可比对的证据，避免"又重跑了"只能靠猜：旧指纹与新指纹各打一条，细节看 GATE_DEBUG
+  echo ""
+  echo "---- 缓存未命中：重跑（旧 ${cached:-无} → 新 $fingerprint）"
+  echo "     查是哪一项变了：GATE_DEBUG=1 sh tools/pre-push-gate.sh"
 fi
 
 # ---------- 3. 规划步骤 ----------
@@ -119,7 +124,11 @@ echo "范围：$scope_note（$changed_count 个改动文件）"
 if [ "$total" = "0" ]; then
   echo "结论：改动不涉及前后端源码，无需检查"
   echo "===================================================="
-  printf '%s\n%s\n' "$fingerprint" "$(date '+%Y-%m-%d %H:%M:%S')" > "$cache_file"
+  {
+  printf '%s\n%s\n' "$fingerprint" "$(date '+%Y-%m-%d %H:%M:%S')"
+  printf 'ranges=%s\nchanged=%s(%s 个文件)\nhook=%s\nscript=%s\nchecker=%s\npom=%s\n' \
+    "$ranges" "$changed_hash" "$changed_count" "$hook_hash" "$script_hash" "$checker_hash" "$pom_hash"
+} > "$cache_file"
   exit 0
 fi
 echo "步骤：共 $total 步，耗时最长的是后端字节码门禁（compile + spotbugs）"
@@ -209,7 +218,11 @@ if [ "$run_source" = "1" ]; then
   fi
 fi
 
-printf '%s\n%s\n' "$fingerprint" "$(date '+%Y-%m-%d %H:%M:%S')" > "$cache_file"
+{
+  printf '%s\n%s\n' "$fingerprint" "$(date '+%Y-%m-%d %H:%M:%S')"
+  printf 'ranges=%s\nchanged=%s(%s 个文件)\nhook=%s\nscript=%s\nchecker=%s\npom=%s\n' \
+    "$ranges" "$changed_hash" "$changed_count" "$hook_hash" "$script_hash" "$checker_hash" "$pom_hash"
+} > "$cache_file"
 
 echo ""
 echo "==================== 检查通过 ===================="
