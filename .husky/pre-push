@@ -1,18 +1,12 @@
 #!/bin/sh
 set -e
-# pre-push gate：对「本次要推上去的改动」跑验证类检查（前端全量 lint + 后端门禁）。
+# pre-push gate：对「本次要推上去的改动」跑验证类检查（注释口径 + 前端全量 lint + 后端门禁）。
 #
-# 为什么在这里而不是 pre-commit：
-#   这些检查都是只读的（不改文件、不碰索引），晚一步执行不影响正确性；
-#   而放在提交路径上，每次分批提交都要等一遍全量检查（改到 pom 时是全 8 模块）。
-#   代价：本地可能出现「能提交但推不上去」的提交——检查不过时 push 会被拦下。
-#
-# 范围：取本次推送范围（远端 sha..本地 sha）内变更的文件。
+# 范围：取本次推送范围（远端 sha..本地 sha）内变更的文件；
 #   新分支（远端 ref 还不存在）或远端 sha 本地没有（未 fetch）时取不到可靠基点，
 #   退回全量检查——这种情形少，慢一次可以接受。
 #
-# 路径一律取 core.quotePath=false：git 默认转义非 ASCII 路径，
-# 会让 \.java$ / \.md$ 这类后缀匹配静默失效。
+# 路径一律取 core.quotePath=false：保证 \.java$ / \.md$ 这类后缀匹配对中文名文件同样有效。
 #
 # 输出口径（推送时是"黑盒等几分钟"，所以每一步都给看得见的进度）：
 #   先打印本次要跑几步、涉及多少改动文件；每步前打 [i/N] 横幅，子命令输出**原样透传**
@@ -34,7 +28,7 @@ while read -r local_ref local_sha remote_ref remote_sha; do
   ranges="$ranges $remote_sha..$local_sha"
 done
 
-# ranges 是逐个累加出来的，开头会留一个空格；先收掉，免得范围那行出现"范围：  sha..sha"
+# ranges 是逐个累加出来的，开头会留一个空格；先收掉，范围那行才不带多余空格
 ranges=$(printf '%s' "$ranges" | sed 's/^ *//')
 
 if [ "$full" = "1" ] || [ -z "$ranges" ]; then
@@ -49,9 +43,13 @@ changed_count=$(printf '%s\n' "$changed" | sed '/^$/d' | wc -l | tr -d ' ')
 
 # 先算清楚要跑哪几步，才能给出 [i/N] 与总步数。
 # 后端拆成两步（源码级 / 字节码级），计数必须分开——合成一步会打出 [3/2] 这种越界编号。
+run_comments=0
 run_frontend=0
 run_source=0
 run_bytecode=0
+if printf '%s\n' "$changed" | grep -qE '(\.java$|\.ts$|\.vue$|\.css$|\.mjs$|\.md$|^\.husky/|^tools/check-comments\.mjs$)'; then
+  run_comments=1
+fi
 if printf '%s\n' "$changed" | grep -qE '^(web|tools/frontend)/'; then
   run_frontend=1
 fi
@@ -59,7 +57,7 @@ if printf '%s\n' "$changed" | grep -qE '(\.java$|pom\.xml$|^tools/backend/)'; th
   run_source=1
   run_bytecode=1
 fi
-total=$((run_frontend + run_source + run_bytecode))
+total=$((run_comments + run_frontend + run_source + run_bytecode))
 
 echo ""
 echo "==================== 推送前检查 ===================="
@@ -75,8 +73,27 @@ echo "===================================================="
 step=0
 started_all=$(date +%s)
 
+# 注释口径：只写"做什么"（职责与行为），禁词表见 tools/check-comments.mjs。
+# 只扫注释文本与文档正文，不扫字符串字面量；某行确需保留禁词时写「口径豁免：<理由>」。
+if [ "$run_comments" = "1" ]; then
+  step=$((step + 1))
+  started=$(date +%s)
+  echo ""
+  echo ">>>> [$step/$total] 注释口径：node tools/check-comments.mjs"
+  echo "     （阶段词 / 历史沿革 / 因果目的 / 给谁用；ERROR 拦下，WARN 只提示）"
+  if node tools/check-comments.mjs; then
+    echo "---- [$step/$total] 通过（$(( $(date +%s) - started ))s）"
+  else
+    echo ""
+    echo "!!!! [$step/$total] 注释口径检查失败（上方列出 文件:行 与命中的词）"
+    echo "     复跑：node tools/check-comments.mjs"
+    echo "     说明：注释只写做什么；确需保留禁词时在该行写「口径豁免：<理由>」"
+    exit 1
+  fi
+fi
+
 # 前端组：全量检查（格式检查、eslint、vue-tsc 构建模式、stylelint、ls-lint、命名词表、规范合规）。
-# lint-staged 的自动修复留在 pre-commit，这里只验证「已经修好了」。
+# 本钩子只验证「已经修好了」；自动修复在 pre-commit 的 lint-staged。
 if [ "$run_frontend" = "1" ]; then
   step=$((step + 1))
   started=$(date +%s)

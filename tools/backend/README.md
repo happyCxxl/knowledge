@@ -1,6 +1,6 @@
 # 后端静态检查
 
-后端交付自检与构建门禁，替代已下线的 IDEA 无头检测。规则文件与排除清单均在本目录，由根 pom 统一接入（8 个模块生效）。
+后端交付自检与构建门禁。规则文件与排除清单均在本目录，由根 pom 统一接入（8 个模块生效）。
 
 ## 引擎
 
@@ -15,9 +15,11 @@
 ## 触发节点
 
 - **构建门禁**：`mvn verify` 阶段自动执行 spotbugs:check（阈值 Low）+ checkstyle:check + pmd:check + pmd:cpd-check，有告警构建失败；
-- **交付自检**：写完代码后手动执行 `mvn compile spotbugs:check checkstyle:check pmd:check pmd:cpd-check`，0 告警才交付；- 检查须从仓库根目录执行（规则文件经 `${maven.multiModuleProjectDirectory}` 解析）。
+- **交付自检**：写完代码后手动执行 `mvn compile spotbugs:check checkstyle:check pmd:check pmd:cpd-check`，0 告警才交付；
+- **注释口径**：不在 `mvn verify` 里，由跨前后端的 `tools/check-comments.mjs` 检查（见 `tools/README.md`），推送钩子单独一步执行；
+- 检查须从仓库根目录执行（规则文件经 `${maven.multiModuleProjectDirectory}` 解析）。
 
-## 排除口径（评审记录）
+## 排除口径
 
 - `EI_EXPOSE_REP / EI_EXPOSE_REP2`：Lombok 生成访问器与 Spring 容器注入字段对外暴露可变对象——项目通用模式，防御性拷贝与 DTO 风格冲突且无实际收益；
 - `REC_CATCH_EXCEPTION`：任务链与解析器统一捕获 Exception 归一化错误码——捕获范围即调用边界；
@@ -46,5 +48,5 @@
 - [ ] 新增子步骤/组装逻辑先查公共助手（StepLogHelper 等）再自行构造，避免低 token 重复片段
 - [ ] 平行家族（各环节 TaskRunner / ControlServiceImpl / 解析器 / 切片策略 / 规则）先看有没有现成基类或助手（`TaskRunnerSupport`、`TaskDetailSupport`、`StageStrategySupport`、`AbstractTableSliceStrategy`、`AbstractPoiDocumentParser` 等），再决定是否新写一份
 - [ ] Controller 查询参数优先复用共享查询对象（`PageQueryDto` / `StageTriggerQueryDto` / `StageDetailQueryDto` + `@ParameterObject`），注解样板不在每个方法上重写一遍
-- [ ] 注释只写"做什么"（职责与行为），不写给谁用、为什么存在、从哪来、阶段/编号（大厂规范；前后端同一口径，前端见 `web/docs/前端开发规范.md` §9）
-- [ ] 改了被依赖的模块（`knowledge-common` / `knowledge-infra` 等）后，跑 `mvn -o -q -pl <模块> install -DskipTests` 回写本地仓库——钩子里的范围检查用 `compile`，只写 `target/` 不写 `.m2`；否则后续按 `-pl` 检查会读到旧 jar（症状：`cannot find symbol`，但代码本身没错）
+- [ ] 注释只写"做什么"（职责与行为），不写给谁用、为什么存在、从哪来、阶段/编号（前后端同一口径：前端见 `web/docs/前端开发规范.md` §9；机器检查见 `tools/check-comments.mjs`）
+- [ ] 改了被依赖的模块（`knowledge-common` / `knowledge-infra` 等）后，跑 `mvn -o -q -pl <模块> install -DskipTests` 回写本地仓库。按 `-pl` 检查读到旧 jar 时的症状是 `cannot find symbol`（代码本身没错）

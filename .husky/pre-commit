@@ -1,29 +1,19 @@
 #!/bin/sh
 set -e
-# pre-commit：只做「就地改写型」的格式化，秒级返回。
+# pre-commit：对暂存文件做就地格式化（format-md 与 lint-staged 的 fix 结果回写索引），秒级返回。
+# 验证类检查（注释口径、前端全量 lint、后端门禁）在 pre-push。
 #
-# 为什么验证类检查（后端门禁、前端全量 lint）挪到了 pre-push：
-#   它们都是只读的（不改文件、不碰索引），晚一步执行不影响正确性；
-#   留在提交路径上会让每次分批提交都等一遍全量检查（改到 pom 时是全 8 模块）。
-#   代价：本地可能出现「能提交但推不上去」的提交——检查不过时 push 会被拦下。
-#
-# 为什么格式化必须留在提交前（不能一起挪走）：
-#   format-md 与 lint-staged 都是「改写文件 + git add 回写索引」，
-#   提交对象一旦生成，再改文件就进不了这个提交了。
-#
-# 路径一律取 core.quotePath=false：git 默认把非 ASCII 路径转义成 "\345\256\236..."
-# 并加引号，那样中文名文件的后缀匹配（\.md$）会全部失效——静默漏检。
+# 路径一律取 core.quotePath=false：保证中文名文件的 \.md$ 后缀匹配有效。
 staged=$(git -c core.quotePath=false diff --cached --name-only)
 
-# 格式器自检：暂存了格式器本身时先验证它仍然健康。改坏它会在这里被明确拦下，
-# 而不是等下次提交文档时丢一堆 PowerShell 的 parse 错误。
+# 格式器自检：暂存了格式器本身时先验证它仍然健康（改坏它会在提交时被明确拦下）。
 if echo "$staged" | grep -qE '^tools/format-md\.ps1$'; then
   powershell -NoProfile -ExecutionPolicy Bypass -File tools/format-md.ps1 -SelfTest
 fi
 
 if echo "$staged" | grep -q '\.md$'; then
-  # 排除已删除：文件不存在会让 PowerShell 的 Resolve-Path 报错，配合 set -e 会中断提交。
-  # 末尾 || true：本次只删除了 .md 时 grep 无匹配返回 1，否则 set -e 会中断提交。
+  # 已删除的文件不进列表：文件不存在会让 Resolve-Path 报错，配合 set -e 会中断提交。
+  # 末尾 || true：只删了 .md 时 grep 无匹配返回 1，否则 set -e 会中断提交。
   md=$(git -c core.quotePath=false diff --cached --name-only --diff-filter=ACMR | grep '\.md$' || true)
   if [ -n "$md" ]; then
     paths=$(echo "$md" | sed "s/^/'/;s/\$/'/" | tr '\n' ',' | sed 's/,$//')
@@ -32,7 +22,7 @@ if echo "$staged" | grep -q '\.md$'; then
   fi
 fi
 
-# 前端组：只对暂存文件做自动修复（prettier/eslint/stylelint 的 fix 结果回写索引）。
+# 前端组：对暂存文件做自动修复（prettier / eslint / stylelint 的 fix 结果回写索引）。
 # 全量检查（vue-tsc / ls-lint / 命名词表 / 规范合规）在 pre-push。
 if echo "$staged" | grep -qE '^(web|tools/frontend)/'; then
   (

@@ -88,8 +88,8 @@ function extractRootTemplate(content) {
   return content.slice(openEnd + 1);
 }
 
-// 运行时类名：classList.add/remove/toggle('x') 与 setProperty('--x') 里的类名同样算「已使用」，
-// 否则纯靠 JS 切换状态的样式类会被误判为未使用
+// 运行时类名：classList.add/remove/toggle/contains('x') 里的类名算「已使用」，
+// 这些类名并入模板类名集合，不参与未使用类名检查
 function collectScriptClasses(script) {
   const classes = new Set();
   for (const match of script.matchAll(/classList\.(?:add|remove|toggle|contains)\(\s*'([^']+)'/g)) {
