@@ -15,8 +15,9 @@
 ## 触发节点
 
 - **构建门禁**：`mvn verify` 阶段自动执行 spotbugs:check（阈值 Low）+ checkstyle:check + pmd:check + pmd:cpd-check，有告警构建失败；
+- **推送门禁**：`tools/pre-push-gate.sh`（`.husky/pre-push` 转发，按推送范围触发；也可手动预跑）。全部步骤通过后写指纹缓存 `.git/knowledge-prepush-ok`：同一次推送重试直接跳过，任何文件改动都让缓存失效并全量重跑；
 - **交付自检**：写完代码后手动执行 `mvn compile spotbugs:check checkstyle:check pmd:check pmd:cpd-check`，0 告警才交付；
-- **注释口径**：不在 `mvn verify` 里，由跨前后端的 `tools/check-comments.mjs` 检查（见 `tools/README.md`），推送钩子单独一步执行；
+- **注释口径**：不在 `mvn verify` 里，由跨前后端的 `tools/check-comments.mjs` 检查（见 `tools/README.md`），是推送门禁的第 1 步；
 - 检查须从仓库根目录执行（规则文件经 `${maven.multiModuleProjectDirectory}` 解析）。
 
 ## 排除口径

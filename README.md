@@ -51,9 +51,14 @@
    ```
 
 > `mvn verify` 在打包之外还会执行静态检查门禁（SpotBugs / Checkstyle / PMD / CPD）；门禁绑在
-> `verify` 相位，因此 `mvn package` 不会触发它。推送前钩子（`.husky/pre-push`）对本次推送范围的
-> 改动跑同一套门禁，**并逐步打印进度**（`[i/N]` 横幅 + 每步耗时 + 失败定位与复跑命令，子命令输出
-> 照旧实时透传），推送过程随时可见进度；提交前钩子只做就地格式化（`tools/frontend/README.md`）。
+> `verify` 相位，因此 `mvn package` 不会触发它。推送前钩子（`.husky/pre-push` → `tools/pre-push-gate.sh`）
+> 对本次推送范围的改动跑同一套门禁，**并逐步打印进度**（`[i/N]` 横幅 + 每步耗时 + 失败定位与复跑命令，
+> 子命令输出照旧实时透传），推送过程随时可见进度；提交前钩子只做就地格式化（`tools/frontend/README.md`）。
+>
+> 门禁结果按「推送范围 + 改动清单 + 钩子/检查器/pom 的内容哈希」缓存到 `.git/knowledge-prepush-ok`：
+> **推送失败后原样重推会直接跳过**（打印上次通过时间），改过任何文件就自动全量重跑。想在推送前先跑，
+> 或想强制重跑：`sh tools/pre-push-gate.sh`（可带范围，如 `sh tools/pre-push-gate.sh origin/main..HEAD`）、
+> `FORCE_GATE=1 git push`。
 
 构建环境的两处约定都在仓库里，不用每人配环境变量：
 
