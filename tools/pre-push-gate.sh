@@ -25,20 +25,15 @@ zero=0000000000000000000000000000000000000000
 # ---------- 1. 取推送范围 ----------
 ranges=""
 full=0
+read_lines=0
 if [ -n "${1:-}" ]; then
   # 手动指定范围（优先级最高）：sh tools/pre-push-gate.sh origin/main..HEAD
   ranges="$1"
-elif [ -t 0 ]; then
-  # 手动执行且未给范围：比对当前分支与它的 upstream
-  base=$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || echo origin/main)
-  if git cat-file -e "$base^{commit}" 2>/dev/null; then
-    ranges="$(git rev-parse "$base")..$(git rev-parse HEAD)"
-  else
-    full=1
-  fi
 else
-  # 钩子触发：从标准输入读 push 协议行（<local ref> <local sha> <remote ref> <remote sha>）
+  # 钩子触发时从标准输入读 push 协议行（<local ref> <local sha> <remote ref> <remote sha>）；
+  # 手动执行（没有协议行，可能也没有终端，例如在后台/重定向下跑）时改按 upstream 兜底。
   while read -r local_ref local_sha remote_ref remote_sha; do
+    read_lines=$((read_lines + 1))
     if [ "$local_sha" = "$zero" ]; then
       continue
     fi
@@ -48,6 +43,14 @@ else
     fi
     ranges="$ranges $remote_sha..$local_sha"
   done
+  if [ "$read_lines" = "0" ] && [ "$full" = "0" ]; then
+    base=$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || echo origin/main)
+    if git cat-file -e "$base^{commit}" 2>/dev/null; then
+      ranges="$(git rev-parse "$base")..$(git rev-parse HEAD)"
+    else
+      full=1
+    fi
+  fi
 fi
 
 ranges=$(printf '%s' "$ranges" | sed 's/^ *//')
