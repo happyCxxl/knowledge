@@ -70,7 +70,7 @@ public class KnowledgeFileIndexController {
     @Operation(summary = "索引版本详情", description = "组合快照/统计/状态/任务/验证结果；不存在 40441")
     public R<IndexVersionVO> detail(
             @Parameter(description = "知识库ID", required = true) @PathVariable("id") Long id,
-            @Parameter(description = "版本ID", required = true) @PathVariable("versionId") Long versionId) {
+            @PathVariable("versionId") Long versionId) {
         return R.ok(indexSetService.versionDetail(id, versionId));
     }
 
@@ -79,7 +79,7 @@ public class KnowledgeFileIndexController {
             + "仅 READY/ONLINE/RETIRED 可验证（其余 40443）")
     public R<IndexValidateVO> validate(
             @Parameter(description = "知识库ID", required = true) @PathVariable("id") Long id,
-            @Parameter(description = "版本ID", required = true) @PathVariable("versionId") Long versionId) {
+            @PathVariable("versionId") Long versionId) {
         return R.ok(indexSetService.validate(versionId));
     }
 
@@ -87,7 +87,7 @@ public class KnowledgeFileIndexController {
     @Operation(summary = "发布索引版本", description = "单事务三级指针原子切换，旧在线版自动退役；仅 READY 可发布")
     public R<Boolean> publish(
             @Parameter(description = "知识库ID", required = true) @PathVariable("id") Long id,
-            @Parameter(description = "版本ID", required = true) @PathVariable("versionId") Long versionId) {
+            @PathVariable("versionId") Long versionId) {
         log.info("===> KnowledgeFileIndexController publish 发布索引, kbId={}, versionId={}", id, versionId);
         indexSetService.publish(versionId);
         return R.ok(true, "发布成功");
@@ -97,7 +97,7 @@ public class KnowledgeFileIndexController {
     @Operation(summary = "回退索引版本", description = "指针切回目标版本（同事务）+ 自动补齐（差异文件重跑/无差异直接补构建）")
     public R<Boolean> rollback(
             @Parameter(description = "知识库ID", required = true) @PathVariable("id") Long id,
-            @Parameter(description = "目标版本ID", required = true) @PathVariable("versionId") Long versionId) {
+            @PathVariable("versionId") Long versionId) {
         log.info("===> KnowledgeFileIndexController rollback 回退索引, kbId={}, versionId={}", id, versionId);
         indexSetService.rollback(versionId);
         return R.ok(true, "回退成功");
@@ -107,7 +107,7 @@ public class KnowledgeFileIndexController {
     @Operation(summary = "回收索引候选", description = "逻辑删除候选（Milvus 回收+删行）；在线版 40442 禁删、构建中 40443")
     public R<Boolean> delete(
             @Parameter(description = "知识库ID", required = true) @PathVariable("id") Long id,
-            @Parameter(description = "版本ID", required = true) @PathVariable("versionId") Long versionId) {
+            @PathVariable("versionId") Long versionId) {
         log.info("===> KnowledgeFileIndexController delete 回收索引候选, kbId={}, versionId={}", id, versionId);
         indexSetService.recycle(versionId);
         return R.ok(true, "删除成功");

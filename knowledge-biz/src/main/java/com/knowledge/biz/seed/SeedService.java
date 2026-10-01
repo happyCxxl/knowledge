@@ -10,6 +10,7 @@ import com.knowledge.biz.service.db.KbFileResultDbService;
 import com.knowledge.biz.service.db.KbPipelineProductDbService;
 import com.knowledge.biz.service.db.KbPipelineTaskDbService;
 import com.knowledge.biz.service.db.KbSourceFileDbService;
+import com.knowledge.biz.service.support.EmbedRowSupport;
 import com.knowledge.biz.task.ProductPersistence;
 import com.knowledge.common.domain.chunk.Chunk;
 import com.knowledge.common.domain.chunk.ChunkSet;
@@ -316,36 +317,16 @@ public class SeedService {
                 newTask(fileResult, PipelineStage.EMBED, chunkProduct.getId(), embedSnapshot()),
                 PipelineStage.EMBED, chunkProduct.getId(), embedSnapshot(), set);
 
-        KbEmbeddingSet setRow = new KbEmbeddingSet();
+        KbEmbeddingSet setRow = EmbedRowSupport.setRow(fileResult.getId(), set, EMBED_VERSION,
+                product.getArtifactId());
         setRow.setId(IdWorker.getId());
-        setRow.setFileResultId(fileResult.getId());
-        setRow.setChunkSetRef(set.getChunkSetRef());
-        setRow.setEmbeddingSetId(set.getEmbeddingSetId());
-        setRow.setStrategyVersion(EMBED_VERSION);
-        setRow.setModel(set.getModel());
-        setRow.setDimension(set.getDimension());
-        setRow.setMetric(set.getMetric());
-        setRow.setNormalized(set.isNormalized());
-        setRow.setRecordCount(set.getRecordCount());
-        setRow.setCachedCount(0);
-        setRow.setStatus(RowStatus.ACTIVE.name());
-        setRow.setArtifactId(product.getArtifactId());
         setRow.setCreateTime(LocalDateTime.now());
         embeddingSetDbService.save(setRow);
 
         List<KbEmbeddingRecord> recordRows = new ArrayList<>(records.size());
         for (EmbeddingRecord record : records) {
-            KbEmbeddingRecord row = new KbEmbeddingRecord();
+            KbEmbeddingRecord row = EmbedRowSupport.recordRow(setRow.getId(), record);
             row.setId(IdWorker.getId());
-            row.setEmbeddingSetId(setRow.getId());
-            row.setEmbeddingId(record.getEmbeddingId());
-            row.setChunkId(record.getChunkId());
-            row.setContentType(record.getContentType());
-            row.setParentChunkId(record.getParentChunkId());
-            row.setInputText(record.getInputText());
-            row.setInputTextHash(record.getInputTextHash());
-            row.setTokenCount(record.getTokenCount());
-            row.setStatus(record.getStatus());
             row.setCacheHit(false);
             row.setCreateTime(LocalDateTime.now());
             recordRows.add(row);

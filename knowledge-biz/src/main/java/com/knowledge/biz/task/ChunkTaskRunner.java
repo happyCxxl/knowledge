@@ -1,7 +1,6 @@
 package com.knowledge.biz.task;
 
 import cn.hutool.core.util.ObjectUtil;
-import cn.hutool.core.util.StrUtil;
 import com.knowledge.biz.service.db.KbChunkDbService;
 import com.knowledge.biz.service.db.KbChunkSetDbService;
 import com.knowledge.biz.service.db.KbFileResultDbService;
@@ -20,7 +19,6 @@ import com.knowledge.common.domain.rules.ChunkRules;
 import com.knowledge.common.domain.structure.UnifiedDocument;
 import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.enums.task.PipelineTaskErrorCode;
-import com.knowledge.common.enums.task.PipelineTaskStatus;
 import com.knowledge.common.enums.task.RowStatus;
 import com.knowledge.common.utils.JsonUtil;
 import com.knowledge.filecenter.service.FileStorage;
@@ -68,13 +66,8 @@ public class ChunkTaskRunner {
      * 执行单个切片任务（由消费循环提交，外层看门狗负责超时）。
      */
     public void run(Long taskId) {
-        KbPipelineTask task = pipelineTaskDbService.getById(taskId);
-        if (ObjectUtil.isNull(task)
-                || !PipelineTaskStatus.QUEUED.name().equals(task.getStatus())) {
-            return;
-        }
-        // 条件更新领任务：多实例防重复
-        if (pipelineTaskDbService.claim(taskId) != 1) {
+        KbPipelineTask task = TaskRunnerSupport.claim(pipelineTaskDbService, taskId);
+        if (ObjectUtil.isNull(task)) {
             return;
         }
         log.info("===> ChunkTaskRunner 领取切片任务, taskId={}, fileResultId={}",
@@ -102,7 +95,7 @@ public class ChunkTaskRunner {
             } catch (Exception e) {
                 log.warn("读取上游预处理视图产物失败, taskId={}, artifactId={}", taskId, preprocessProduct.getArtifactId(), e);
                 finishFailed(taskId, PipelineTaskErrorCode.CHUNK_EMPTY.name(),
-                        "上游预处理视图产物读取失败: " + truncate(String.valueOf(e.getMessage())));
+                        "上游预处理视图产物读取失败: " + e.getMessage());
                 return;
             }
             if (ObjectUtil.isNull(view)) {
@@ -127,17 +120,13 @@ public class ChunkTaskRunner {
                     this::finishFailed);
         } catch (Exception e) {
             log.error("切片任务执行异常, taskId={}", taskId, e);
-            finishFailed(taskId, PipelineTaskErrorCode.CHUNK_FAILED.name(), truncate(String.valueOf(e.getMessage())));
+            finishFailed(taskId, PipelineTaskErrorCode.CHUNK_FAILED.name(), String.valueOf(e.getMessage()));
         }
     }
 
     /** 上游预处理产物解析：任务指定 upstreamProductId 优先，查不到或缺省回退该环节最新产物。 */
     private KbPipelineProduct resolvePreprocessProduct(KbPipelineTask task) {
-        KbPipelineProduct product = ObjectUtil.isNull(task.getUpstreamProductId()) ? null
-                : pipelineProductDbService.getById(task.getUpstreamProductId());
-        return ObjectUtil.isNull(product)
-                ? pipelineProductDbService.getByFileResultIdAndStage(task.getFileResultId(), PipelineStage.PREPROCESS.name())
-                : product;
+        return TaskRunnerSupport.resolveUpstreamProduct(pipelineProductDbService, task, PipelineStage.PREPROCESS);
     }
 
     /** 结构参照：PREPROCESS 产物上游的 STRUCTURE 产物（缺失不阻断，titlePath/图注降级） */
@@ -248,11 +237,6 @@ public class ChunkTaskRunner {
     private void finishFailed(Long taskId, String errorCode, String errorMsg) {
         log.warn("===> ChunkTaskRunner 切片任务失败, taskId={}, errorCode={}, errorMsg={}",
                 taskId, errorCode, errorMsg);
-        pipelineTaskDbService.finish(taskId, PipelineTaskStatus.FAILED.name(), errorCode,
-                StrUtil.isBlank(errorMsg) ? null : truncate(errorMsg));
-    }
-
-    private String truncate(String message) {
-        return StrUtil.maxLength(message, 1000);
+        TaskRunnerSupport.finishFailed(pipelineTaskDbService, taskId, errorCode, errorMsg);
     }
 }

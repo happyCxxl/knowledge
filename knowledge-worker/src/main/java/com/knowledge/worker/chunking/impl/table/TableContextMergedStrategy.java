@@ -1,15 +1,12 @@
 package com.knowledge.worker.chunking.impl.table;
 
-import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.knowledge.common.domain.chunk.Chunk;
 import com.knowledge.common.domain.preprocess.ViewElement;
-import com.knowledge.worker.chunking.SliceContext;
-import com.knowledge.worker.chunking.slice.SliceStrategy;
 import com.knowledge.common.enums.chunk.ChunkAlgorithm;
+import com.knowledge.worker.chunking.SliceContext;
 import com.knowledge.worker.chunking.strategy.ChunkParamKeys;
 import com.knowledge.worker.chunking.strategy.ChunkRouteConfig;
-import com.knowledge.common.enums.chunk.ChunkRoute;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -22,7 +19,7 @@ import java.util.List;
  * @author cxxl
  */
 @Component
-public class TableContextMergedStrategy implements SliceStrategy {
+public class TableContextMergedStrategy extends AbstractTableSliceStrategy {
 
     @Override
     public ChunkAlgorithm algorithm() {
@@ -30,12 +27,9 @@ public class TableContextMergedStrategy implements SliceStrategy {
     }
 
     @Override
-    public List<Chunk> slice(ViewElement element, SliceContext context) {
-        TableMarkdownSupport.TablePrep prep = TableMarkdownSupport.prepare(element, context);
-        if (ObjectUtil.isNull(prep)) {
-            return List.of();
-        }
-        ChunkRouteConfig tableConfig = context.getStrategy().route(ChunkRoute.TABLE);
+    protected List<Chunk> slicePrepared(TableMarkdownSupport.TablePrep prep, ViewElement element,
+                                        SliceContext context) {
+        ChunkRouteConfig tableConfig = tableRoute(context);
         int leadMaxLen = tableConfig.intParam(ChunkParamKeys.LEAD_MAX_LEN, 200);
         int groupThreshold = tableConfig.intParam(ChunkParamKeys.GROUP_THRESHOLD, 30);
         int groupSize = tableConfig.intParam(ChunkParamKeys.GROUP_SIZE, 3);

@@ -1,11 +1,9 @@
 package com.knowledge.worker.chunking.impl.body;
 
-import cn.hutool.core.util.StrUtil;
 import com.knowledge.common.domain.chunk.Chunk;
 import com.knowledge.common.enums.chunk.ChunkContentType;
 import com.knowledge.common.domain.preprocess.ViewElement;
 import com.knowledge.worker.chunking.SliceContext;
-import com.knowledge.worker.chunking.slice.SliceStrategy;
 import com.knowledge.common.enums.chunk.ChunkAlgorithm;
 import com.knowledge.worker.chunking.strategy.ChunkParamKeys;
 import com.knowledge.worker.chunking.strategy.ChunkRouteConfig;
@@ -22,7 +20,7 @@ import java.util.List;
  * @author cxxl
  */
 @Component
-public class SentenceAggregateSliceStrategy implements SliceStrategy {
+public class SentenceAggregateSliceStrategy extends AbstractBodySliceStrategy {
 
     @Override
     public ChunkAlgorithm algorithm() {
@@ -30,11 +28,7 @@ public class SentenceAggregateSliceStrategy implements SliceStrategy {
     }
 
     @Override
-    public List<Chunk> slice(ViewElement element, SliceContext context) {
-        String text = element.getNormalizedText();
-        if (StrUtil.isBlank(text)) {
-            return List.of();
-        }
+    protected List<Chunk> sliceText(String text, ViewElement element, SliceContext context) {
         ChunkRouteConfig bodyConfig = context.getStrategy().route(ChunkRoute.BODY);
         int targetMaxLen = bodyConfig.intParam(ChunkParamKeys.TARGET_MAX_LEN, 800);
         int softMaxLen = bodyConfig.intParam(ChunkParamKeys.SOFT_MAX_LEN, 1000);
@@ -45,13 +39,7 @@ public class SentenceAggregateSliceStrategy implements SliceStrategy {
                 if (!context.getBodyBuffer().isEmpty()) {
                     emitted.add(flushGroup(context));
                 }
-                ChunkRouteConfig fallbackConfig = context.getStrategy().route(ChunkRoute.FALLBACK);
-                for (String piece : context.getFallback().slice(sentence, fallbackConfig)) {
-                    Chunk chunk = BodyChunkSupport.buildChunk(ChunkContentType.FALLBACK.name(), piece, context,
-                            List.of(element.getElementId()), BodyChunkSupport.pageRangeOf(element));
-                    chunk.setFallbackReason("超长句子递归降级");
-                    emitted.add(chunk);
-                }
+                emitted.addAll(fallbackChunks(sentence, element, context, "超长句子递归降级"));
             } else {
                 ViewElement synthetic = new ViewElement();
                 synthetic.setElementId(element.getElementId());
@@ -68,14 +56,7 @@ public class SentenceAggregateSliceStrategy implements SliceStrategy {
     }
 
     @Override
-    public List<Chunk> flush(SliceContext context) {
-        if (context.getBodyBuffer().isEmpty()) {
-            return List.of();
-        }
-        return List.of(flushGroup(context));
-    }
-
-    private Chunk flushGroup(SliceContext context) {
+    protected Chunk flushGroup(SliceContext context) {
         BodyChunkSupport.BodyBuffer settled = BodyChunkSupport.settleBuffer(context);
         return BodyChunkSupport.buildChunk(ChunkContentType.PARAGRAPH.name(), settled.text(), context,
                 settled.elementIds(), settled.pages());

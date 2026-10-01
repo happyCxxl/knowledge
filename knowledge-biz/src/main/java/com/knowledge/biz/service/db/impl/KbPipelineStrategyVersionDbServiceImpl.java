@@ -23,29 +23,17 @@ public class KbPipelineStrategyVersionDbServiceImpl
 
     @Override
     public KbPipelineStrategyVersion getLatestEnabledByType(String type) {
-        LambdaQueryWrapper<KbPipelineStrategyVersion> queryWrapper = new LambdaQueryWrapper<>();
-        queryWrapper.eq(KbPipelineStrategyVersion::getType, type)
-                .eq(KbPipelineStrategyVersion::getStatus, RowStatus.ACTIVE.name())
-                .orderByDesc(KbPipelineStrategyVersion::getId)
-                .last("LIMIT 1");
-        return getOne(queryWrapper, false);
+        return getOne(enabledByType(type).last("LIMIT 1"), false);
     }
 
     @Override
     public List<KbPipelineStrategyVersion> listByType(String type) {
-        LambdaQueryWrapper<KbPipelineStrategyVersion> queryWrapper = new LambdaQueryWrapper<>();
-        queryWrapper.eq(KbPipelineStrategyVersion::getType, type)
-                .orderByDesc(KbPipelineStrategyVersion::getId);
-        return list(queryWrapper);
+        return list(byType(type));
     }
 
     @Override
     public List<KbPipelineStrategyVersion> listEnabledByType(String type) {
-        LambdaQueryWrapper<KbPipelineStrategyVersion> queryWrapper = new LambdaQueryWrapper<>();
-        queryWrapper.eq(KbPipelineStrategyVersion::getType, type)
-                .eq(KbPipelineStrategyVersion::getStatus, RowStatus.ACTIVE.name())
-                .orderByDesc(KbPipelineStrategyVersion::getId);
-        return list(queryWrapper);
+        return list(enabledByType(type));
     }
 
     @Override
@@ -65,5 +53,18 @@ public class KbPipelineStrategyVersionDbServiceImpl
         queryWrapper.eq(KbPipelineStrategyVersion::getType, type.key())
                 .eq(KbPipelineStrategyVersion::getStatus, RowStatus.ACTIVE.name());
         return count(queryWrapper);
+    }
+
+    /** 按策略类型查询条件（新→旧） */
+    private LambdaQueryWrapper<KbPipelineStrategyVersion> byType(String type) {
+        LambdaQueryWrapper<KbPipelineStrategyVersion> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(KbPipelineStrategyVersion::getType, type)
+                .orderByDesc(KbPipelineStrategyVersion::getId);
+        return queryWrapper;
+    }
+
+    /** 按策略类型 + 仅启用中 的查询条件（新→旧） */
+    private LambdaQueryWrapper<KbPipelineStrategyVersion> enabledByType(String type) {
+        return byType(type).eq(KbPipelineStrategyVersion::getStatus, RowStatus.ACTIVE.name());
     }
 }

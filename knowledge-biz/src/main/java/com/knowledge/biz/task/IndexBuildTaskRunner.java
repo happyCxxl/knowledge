@@ -60,12 +60,8 @@ public class IndexBuildTaskRunner {
 
     /** 执行单个索引构建任务（由消费循环提交，外层看门狗负责超时）。 */
     public void run(Long taskId) {
-        KbPipelineTask task = pipelineTaskDbService.getById(taskId);
-        if (ObjectUtil.isNull(task)
-                || !PipelineTaskStatus.QUEUED.name().equals(task.getStatus())) {
-            return;
-        }
-        if (pipelineTaskDbService.claim(taskId) != 1) {
+        KbPipelineTask task = TaskRunnerSupport.claim(pipelineTaskDbService, taskId);
+        if (ObjectUtil.isNull(task)) {
             return;
         }
         try {
@@ -223,8 +219,7 @@ public class IndexBuildTaskRunner {
     }
 
     private void finishFailed(Long taskId, String errorCode, String errorMsg) {
-        pipelineTaskDbService.finish(taskId, PipelineTaskStatus.FAILED.name(), errorCode,
-                StrUtil.isBlank(errorMsg) ? null : truncate(errorMsg, 1000));
+        TaskRunnerSupport.finishFailed(pipelineTaskDbService, taskId, errorCode, errorMsg);
     }
 
     private String truncate(String message) {

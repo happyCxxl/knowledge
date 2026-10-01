@@ -1,7 +1,6 @@
 package com.knowledge.biz.task;
 
 import cn.hutool.core.util.ObjectUtil;
-import cn.hutool.core.util.StrUtil;
 import com.knowledge.biz.service.db.KbFileResultDbService;
 import com.knowledge.biz.service.db.KbPipelineProductDbService;
 import com.knowledge.biz.service.db.KbPipelineTaskDbService;
@@ -12,7 +11,6 @@ import com.knowledge.common.domain.preprocess.PreprocessOutcome;
 import com.knowledge.common.domain.structure.UnifiedDocument;
 import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.enums.task.PipelineTaskErrorCode;
-import com.knowledge.common.enums.task.PipelineTaskStatus;
 import com.knowledge.common.utils.JsonUtil;
 import com.knowledge.filecenter.service.FileStorage;
 import com.knowledge.worker.preprocessing.PreprocessContext;
@@ -53,13 +51,8 @@ public class PreprocessTaskRunner {
      * 执行单个预处理任务（由消费循环提交，外层看门狗负责超时）。
      */
     public void run(Long taskId) {
-        KbPipelineTask task = pipelineTaskDbService.getById(taskId);
-        if (ObjectUtil.isNull(task)
-                || !PipelineTaskStatus.QUEUED.name().equals(task.getStatus())) {
-            return;
-        }
-        // 条件更新领任务：多实例防重复
-        if (pipelineTaskDbService.claim(taskId) != 1) {
+        KbPipelineTask task = TaskRunnerSupport.claim(pipelineTaskDbService, taskId);
+        if (ObjectUtil.isNull(task)) {
             return;
         }
         log.info("===> PreprocessTaskRunner 领取预处理任务, taskId={}, fileResultId={}",
@@ -87,7 +80,7 @@ public class PreprocessTaskRunner {
             } catch (Exception e) {
                 log.warn("读取上游统一结构产物失败, taskId={}, artifactId={}", taskId, structureProduct.getArtifactId(), e);
                 finishFailed(taskId, PipelineTaskErrorCode.PREPROCESS_EMPTY.name(),
-                        "上游统一结构产物读取失败: " + truncate(String.valueOf(e.getMessage())));
+                        "上游统一结构产物读取失败: " + e.getMessage());
                 return;
             }
             if (ObjectUtil.isNull(document)) {
@@ -110,17 +103,13 @@ public class PreprocessTaskRunner {
                     this::finishFailed);
         } catch (Exception e) {
             log.error("预处理任务执行异常, taskId={}", taskId, e);
-            finishFailed(taskId, PipelineTaskErrorCode.PREPROCESS_FAILED.name(), truncate(String.valueOf(e.getMessage())));
+            finishFailed(taskId, PipelineTaskErrorCode.PREPROCESS_FAILED.name(), String.valueOf(e.getMessage()));
         }
     }
 
     /** 上游组装产物解析：任务指定 upstreamProductId 优先，查不到或缺省回退该环节最新产物。 */
     private KbPipelineProduct resolveStructureProduct(KbPipelineTask task) {
-        KbPipelineProduct product = ObjectUtil.isNull(task.getUpstreamProductId()) ? null
-                : pipelineProductDbService.getById(task.getUpstreamProductId());
-        return ObjectUtil.isNull(product)
-                ? pipelineProductDbService.getByFileResultIdAndStage(task.getFileResultId(), PipelineStage.STRUCTURE.name())
-                : product;
+        return TaskRunnerSupport.resolveUpstreamProduct(pipelineProductDbService, task, PipelineStage.STRUCTURE);
     }
 
     /** 写产物存储 + 阶段产物引用 + 子步骤记录（成功/PARTIAL_SUCCESS 路径） */
@@ -137,11 +126,6 @@ public class PreprocessTaskRunner {
     private void finishFailed(Long taskId, String errorCode, String errorMsg) {
         log.warn("===> PreprocessTaskRunner 预处理任务失败, taskId={}, errorCode={}, errorMsg={}",
                 taskId, errorCode, errorMsg);
-        pipelineTaskDbService.finish(taskId, PipelineTaskStatus.FAILED.name(), errorCode,
-                StrUtil.isBlank(errorMsg) ? null : truncate(errorMsg));
-    }
-
-    private String truncate(String message) {
-        return StrUtil.maxLength(message, 1000);
+        TaskRunnerSupport.finishFailed(pipelineTaskDbService, taskId, errorCode, errorMsg);
     }
 }

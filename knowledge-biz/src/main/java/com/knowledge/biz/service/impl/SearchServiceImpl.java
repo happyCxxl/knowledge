@@ -33,6 +33,7 @@ import com.knowledge.worker.indexing.IndexRow;
 import com.knowledge.worker.indexing.MilvusIndexPort;
 import com.knowledge.worker.indexing.search.FullTextHit;
 import com.knowledge.worker.indexing.search.FullTextQuery;
+import com.knowledge.worker.indexing.search.IndexHit;
 import com.knowledge.worker.indexing.search.VectorHit;
 import com.knowledge.worker.indexing.search.VectorQuery;
 import com.knowledge.worker.retrieval.RetrievalRuleSpec;
@@ -353,12 +354,8 @@ public class SearchServiceImpl implements SearchService {
         return new ArrayList<>(deduped.values());
     }
 
-    private SearchHitVO toVO(VectorHit hit, Double score) {
-        return toVO(hit.getChunkId(), hit.getContent(), hit.getTitlePath(), hit.getSourceElementIds(),
-                hit.getDocumentId(), hit.getContentType(), hit.getParentChunkId(), score);
-    }
-
-    private SearchHitVO toVO(FullTextHit hit, Double score) {
+    /** 命中 → VO（向量/全文两路命中字段口径一致，统一按 IndexHit 契约读） */
+    private SearchHitVO toVO(IndexHit hit, Double score) {
         return toVO(hit.getChunkId(), hit.getContent(), hit.getTitlePath(), hit.getSourceElementIds(),
                 hit.getDocumentId(), hit.getContentType(), hit.getParentChunkId(), score);
     }

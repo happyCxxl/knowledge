@@ -4,7 +4,6 @@ import cn.hutool.core.util.ObjectUtil;
 import com.knowledge.biz.service.StructureControlService;
 import com.knowledge.biz.service.db.KbFileResultDbService;
 import com.knowledge.biz.service.db.KbPipelineProductDbService;
-import com.knowledge.biz.service.db.KbPipelineStepLogDbService;
 import com.knowledge.biz.service.support.StructureVoAssembler;
 import com.knowledge.biz.service.support.TaskDetailSupport;
 import com.knowledge.biz.task.TaskTriggerSupport;
@@ -14,7 +13,6 @@ import com.knowledge.common.domain.entity.KbPipelineTask;
 import com.knowledge.common.domain.structure.UnifiedDocument;
 import com.knowledge.common.dto.response.structure.StructureDetailVO;
 import com.knowledge.common.dto.response.task.StageTriggerVO;
-import com.knowledge.common.dto.response.task.StepLogVO;
 import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.ThrowUtil;
@@ -42,7 +40,6 @@ public class StructureControlServiceImpl implements StructureControlService {
 
     private final KbFileResultDbService fileResultDbService;
     private final KbPipelineProductDbService pipelineProductDbService;
-    private final KbPipelineStepLogDbService stepLogDbService;
     private final TaskTriggerSupport triggerSupport;
     private final TaskDetailSupport detailSupport;
     private final FileStorage fileStorage;
@@ -73,22 +70,15 @@ public class StructureControlServiceImpl implements StructureControlService {
         KbPipelineTask task = detailSupport.resolveTask(fileResultId, PipelineStage.STRUCTURE, taskId, "组装");
 
         StructureDetailVO vo = new StructureDetailVO();
-        vo.setFileResultId(fileResultId);
-        if (ObjectUtil.isNotNull(task)) {
-            vo.applyFrom(task);
-            vo.setSteps(stepLogDbService.listByTaskId(task.getId()).stream().map(StepLogVO::of).toList());
-        }
+        detailSupport.withTask(vo, fileResultId, task);
 
         // 产物引用/统计/冲突/文档内容：按 task.productId 精确取该次运行的产物（历史任务同样可展示自己的产物；无任务/无产物留空）
         vo.setWarnings(new ArrayList<>());
         vo.setConflicts(new ArrayList<>());
         vo.setOutline(new ArrayList<>());
-        KbPipelineProduct product = ObjectUtil.isNull(task) || task.getProductId() == null ? null
-                : pipelineProductDbService.getById(task.getProductId());
+        KbPipelineProduct product = detailSupport.productOfTask(task);
         if (ObjectUtil.isNotNull(product)) {
-            vo.setArtifactId(product.getArtifactId());
-            vo.setContentHash(product.getContentHash());
-            vo.setCapabilitySnapshot(product.getCapabilitySnapshot());
+            detailSupport.withProductRef(vo, product);
             readDocument(product.getArtifactId(), vo);
         }
         return vo;

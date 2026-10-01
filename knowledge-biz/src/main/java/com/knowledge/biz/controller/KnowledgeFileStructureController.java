@@ -1,6 +1,7 @@
 package com.knowledge.biz.controller;
 
 import com.knowledge.biz.service.StructureControlService;
+import com.knowledge.common.dto.request.stage.StageDetailQueryDto;
 import com.knowledge.common.dto.response.R;
 import com.knowledge.common.dto.response.structure.StructureDetailVO;
 import com.knowledge.common.dto.response.task.StageTriggerVO;
@@ -9,6 +10,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -44,7 +46,7 @@ public class KnowledgeFileStructureController {
     @Operation(summary = "组装详情", description = "任务状态 + 子步骤列表 + 组装统计/冲突/章节/产物引用；taskId 可选（缺省取最新任务，传了则查该次运行）")
     public R<StructureDetailVO> structureDetail(
             @Parameter(description = "文件结果ID", required = true) @PathVariable("fileResultId") Long fileResultId,
-            @Parameter(description = "任务ID（可选，查历史运行详情）") @RequestParam(value = "taskId", required = false) Long taskId) {
-        return R.ok(structureControlService.structureDetail(fileResultId, taskId));
+            @ParameterObject StageDetailQueryDto query) {
+        return R.ok(structureControlService.structureDetail(fileResultId, query.getTaskId()));
     }
 }

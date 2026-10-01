@@ -1,11 +1,7 @@
 package com.knowledge.worker.chunking.impl.fallback;
 
-import cn.hutool.core.util.StrUtil;
-import com.knowledge.worker.chunking.slice.FallbackSlicer;
 import com.knowledge.worker.chunking.WindowSlicer;
 import com.knowledge.common.enums.chunk.ChunkAlgorithm;
-import com.knowledge.worker.chunking.strategy.ChunkParamKeys;
-import com.knowledge.worker.chunking.strategy.ChunkRouteConfig;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -16,7 +12,7 @@ import java.util.List;
  * @author cxxl
  */
 @Component
-public class FixedWindowFallback implements FallbackSlicer {
+public class FixedWindowFallback extends AbstractFallbackSlicer {
 
     @Override
     public ChunkAlgorithm algorithm() {
@@ -24,12 +20,7 @@ public class FixedWindowFallback implements FallbackSlicer {
     }
 
     @Override
-    public List<String> slice(String text, ChunkRouteConfig config) {
-        if (StrUtil.isBlank(text)) {
-            return List.of();
-        }
-        int len = config.intParam(ChunkParamKeys.LEN, 500);
-        int overlap = config.intParam(ChunkParamKeys.OVERLAP, 50);
+    protected List<String> doSlice(String text, int len, int overlap) {
         return WindowSlicer.slice(text, len, overlap);
     }
 }

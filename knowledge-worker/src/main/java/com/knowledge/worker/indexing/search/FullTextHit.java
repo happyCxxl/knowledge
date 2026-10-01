@@ -1,7 +1,9 @@
 package com.knowledge.worker.indexing.search;
 
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 /**
  * 全文检索命中：TEXT_MATCH 匹配召回（无 BM25 分数，score 恒为 null）。
@@ -10,7 +12,9 @@ import lombok.Data;
  */
 @Data
 @Builder
-public class FullTextHit {
+@NoArgsConstructor
+@AllArgsConstructor
+public class FullTextHit implements IndexHit {
 
     /** 片 ID */
     private String chunkId;

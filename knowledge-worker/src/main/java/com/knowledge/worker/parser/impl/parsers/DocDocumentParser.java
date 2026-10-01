@@ -37,17 +37,10 @@ public class DocDocumentParser extends AbstractPoiDocumentParser {
         return FileFormat.DOC.getMimeType().equals(mimeType);
     }
 
-    @Override
-    public ParseSource parse(ParseContext context) {
-        byte[] data = ParserStreamSupport.readAll(context);
-        ParseSource source = ParseSource.nativeSource(capabilityName() + "-" + capabilityVersion());
-        String fileId = context.getFileRef().getFileId();
-        parseDoc(source, data, fileId);
-        return source;
-    }
-
     /** DOC（HWPF 二进制）主流程：段落（表格内段落跳过，由 TableIterator 输出）+ 图片引用 + 表格。 */
-    private void parseDoc(ParseSource source, byte[] data, String fileId) {
+    @Override
+    protected void parseNative(ParseSource source, byte[] data, ParseContext context) {
+        String fileId = context.getFileRef().getFileId();
         try (HWPFDocument doc = new HWPFDocument(new ByteArrayInputStream(data))) {
             Range range = doc.getRange();
             int paragraphIndex = 0;
@@ -126,10 +119,7 @@ public class DocDocumentParser extends AbstractPoiDocumentParser {
                 cellElement.setIsHeader(r == 0);
                 cellElement.setProvenance(new Provenance(fileId,
                         "office#document/table[" + tableIndex + "]/cell[" + r + "," + c + "]"));
-                if (tableElement.getCells() == null) {
-                    tableElement.setCells(new java.util.ArrayList<>());
-                }
-                tableElement.getCells().add(cellElement);
+                appendCell(tableElement, cellElement);
             }
         }
         return tableElement;

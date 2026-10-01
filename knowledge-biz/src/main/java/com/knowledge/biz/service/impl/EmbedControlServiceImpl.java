@@ -8,10 +8,8 @@ import com.knowledge.biz.service.db.KbEmbeddingSetDbService;
 import com.knowledge.biz.service.db.KbFileResultDbService;
 import com.knowledge.biz.service.db.KbPipelineProductDbService;
 import com.knowledge.biz.service.db.KbPipelineStepLogDbService;
-import com.knowledge.biz.service.db.KbPipelineStrategyVersionDbService;
-import com.knowledge.biz.service.db.KbStrategyBindingDbService;
-import com.knowledge.biz.service.db.KnowledgeBaseDbService;
 import com.knowledge.biz.service.support.EmbedVoAssembler;
+import com.knowledge.biz.service.support.StageStrategySupport;
 import com.knowledge.biz.service.support.TaskDetailSupport;
 import com.knowledge.biz.task.TaskTriggerSupport;
 import com.knowledge.common.domain.entity.KbEmbeddingRecord;
@@ -20,15 +18,11 @@ import com.knowledge.common.domain.entity.KbFileResult;
 import com.knowledge.common.domain.entity.KbPipelineProduct;
 import com.knowledge.common.domain.entity.KbPipelineStrategyVersion;
 import com.knowledge.common.domain.entity.KbPipelineTask;
-import com.knowledge.common.domain.entity.KbStrategyBinding;
-import com.knowledge.common.domain.entity.KnowledgeBase;
-import com.knowledge.common.domain.rules.KnowledgeBaseRules;
 import com.knowledge.common.dto.response.embed.EmbedDetailVO;
 import com.knowledge.common.dto.response.embed.EmbedTriggerVO;
 import com.knowledge.common.dto.response.task.StageTriggerVO;
 import com.knowledge.common.dto.response.task.StepLogVO;
 import com.knowledge.common.enums.task.PipelineStage;
-import com.knowledge.common.enums.task.RowStatus;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.ThrowUtil;
 import com.knowledge.common.utils.JsonUtil;
@@ -59,9 +53,7 @@ import java.util.List;
 public class EmbedControlServiceImpl implements EmbedControlService {
 
     private final KbFileResultDbService fileResultDbService;
-    private final KnowledgeBaseDbService knowledgeBaseDbService;
     private final KbPipelineProductDbService pipelineProductDbService;
-    private final KbPipelineStrategyVersionDbService strategyVersionDbService;
     private final KbPipelineStepLogDbService stepLogDbService;
     private final KbEmbeddingSetDbService embeddingSetDbService;
     private final KbEmbeddingRecordDbService embeddingRecordDbService;
@@ -70,7 +62,7 @@ public class EmbedControlServiceImpl implements EmbedControlService {
     private final ChunkStrategyParser chunkStrategyParser;
     private final EmbedProperties embedProperties;
     private final ChunkProperties chunkProperties;
-    private final KbStrategyBindingDbService strategyBindingDbService;
+    private final StageStrategySupport strategySupport;
     private final TaskTriggerSupport triggerSupport;
     private final TaskDetailSupport detailSupport;
 
@@ -165,41 +157,14 @@ public class EmbedControlServiceImpl implements EmbedControlService {
         return chunkStrategyParser.parse(snapshot);
     }
 
+    /** 策略解析四档：显式指定（40433 校验存在/类型/启用）→ 知识库绑定（开关开启时，失效回退告警；测评模式的库跳过绑定档）→ 启用中最新 → 内置默认。 */
     private EmbedStrategy resolveStrategy(KbFileResult fileResult, Long strategyVersionId) {
-        if (ObjectUtil.isNotNull(strategyVersionId)) {
-            // 显式指定策略：按行 id 精确引用
-            KbPipelineStrategyVersion row = strategyVersionDbService.getById(strategyVersionId);
-            ThrowUtil.throwIf(ObjectUtil.isNull(row), ErrorCode.STRATEGY_VERSION_NOT_FOUND);
-            ThrowUtil.throwIf(!EmbedStrategy.TYPE.equals(row.getType()),
-                    ErrorCode.STRATEGY_VERSION_NOT_FOUND, "策略类型不匹配：期望 " + EmbedStrategy.TYPE);
-            ThrowUtil.throwIf(!RowStatus.ACTIVE.name().equals(row.getStatus()),
-                    ErrorCode.STRATEGY_VERSION_NOT_FOUND, "策略已停用，请先启用后再触发");
-            return toStrategy(row);
-        }
-        // 知识库绑定策略优先于全局最新启用（与 CHUNK/PREPROCESS 同构）；
-        // 知识库关闭策略绑定（测评模式）时跳过绑定档，必须显式选策略
-        KnowledgeBase kb = knowledgeBaseDbService.getById(fileResult.getKnowledgeBaseId());
-        if (KnowledgeBaseRules.isStrategyBindingEnabled(kb)) {
-            KbStrategyBinding binding = strategyBindingDbService
-                    .getByKbAndType(fileResult.getKnowledgeBaseId(), EmbedStrategy.TYPE);
-            if (ObjectUtil.isNotNull(binding)) {
-                KbPipelineStrategyVersion bound = strategyVersionDbService.getById(binding.getStrategyVersionId());
-                if (ObjectUtil.isNotNull(bound) && RowStatus.ACTIVE.name().equals(bound.getStatus())) {
-                    return toStrategy(bound);
-                }
-                log.warn("===> EmbedControlServiceImpl 知识库绑定向量策略失效, 回退全局最新启用, kbId={}, versionId={}",
-                        fileResult.getKnowledgeBaseId(), binding.getStrategyVersionId());
-            }
-        }
-        KbPipelineStrategyVersion latest = strategyVersionDbService.getLatestEnabledByType(EmbedStrategy.TYPE);
-        return ObjectUtil.isNull(latest) ? strategyParser.defaultStrategy() : toStrategy(latest);
+        KbPipelineStrategyVersion row = strategySupport.resolve(
+                fileResult, strategyVersionId, EmbedStrategy.TYPE, "EmbedControlServiceImpl 向量化");
+        return ObjectUtil.isNull(row) ? strategyParser.defaultStrategy() : toStrategy(row);
     }
 
     private EmbedStrategy toStrategy(KbPipelineStrategyVersion row) {
-        EmbedStrategy strategy = strategyParser.parse(row.getConfigSnapshot());
-        strategy.setType(row.getType());
-        strategy.setName(row.getName());
-        strategy.setVersion(row.getVersion());
-        return strategy;
+        return strategySupport.bindMeta(strategyParser.parse(row.getConfigSnapshot()), row);
     }
 }

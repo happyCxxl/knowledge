@@ -59,16 +59,10 @@ public class MilvusIndexPortImpl implements MilvusIndexPort {
         List<ScoredRow> rows = collectionPort.searchVector(collectionName, query.getVector(), query.getTopK(), filter);
         List<VectorHit> hits = new ArrayList<>(rows.size());
         for (ScoredRow row : rows) {
-            hits.add(VectorHit.builder()
-                    .chunkId(row.getId())
-                    .score(row.getScore())
-                    .documentId(row.getDocumentId())
-                    .contentType(row.getContentType())
-                    .parentChunkId(row.getParentChunkId())
-                    .content(row.getContent())
-                    .titlePath(row.getTitlePath())
-                    .sourceElementIds(row.getSourceElementIds())
-                    .build());
+            VectorHit hit = new VectorHit();
+            hit.fillFrom(row);
+            hit.setScore(row.getScore());
+            hits.add(hit);
         }
         return hits;
     }
@@ -80,15 +74,9 @@ public class MilvusIndexPortImpl implements MilvusIndexPort {
                 query.getLimit(), filter);
         List<FullTextHit> hits = new ArrayList<>(rows.size());
         for (CollectionRow row : rows) {
-            hits.add(FullTextHit.builder()
-                    .chunkId(row.getId())
-                    .documentId(row.getDocumentId())
-                    .contentType(row.getContentType())
-                    .parentChunkId(row.getParentChunkId())
-                    .content(row.getContent())
-                    .titlePath(row.getTitlePath())
-                    .sourceElementIds(row.getSourceElementIds())
-                    .build());
+            FullTextHit hit = new FullTextHit();
+            hit.fillFrom(row);
+            hits.add(hit);
         }
         return hits;
     }

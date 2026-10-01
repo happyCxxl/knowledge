@@ -5,7 +5,6 @@ import com.knowledge.common.domain.chunk.Chunk;
 import com.knowledge.common.enums.chunk.ChunkContentType;
 import com.knowledge.common.domain.preprocess.ViewElement;
 import com.knowledge.worker.chunking.SliceContext;
-import com.knowledge.worker.chunking.slice.SliceStrategy;
 import com.knowledge.common.enums.chunk.ChunkAlgorithm;
 import com.knowledge.worker.chunking.strategy.ChunkParamKeys;
 import com.knowledge.worker.chunking.strategy.ChunkRouteConfig;
@@ -24,7 +23,7 @@ import java.util.List;
  * @author cxxl
  */
 @Component
-public class ParagraphSliceStrategy implements SliceStrategy {
+public class ParagraphSliceStrategy extends AbstractBodySliceStrategy {
 
     @Override
     public ChunkAlgorithm algorithm() {
@@ -32,11 +31,7 @@ public class ParagraphSliceStrategy implements SliceStrategy {
     }
 
     @Override
-    public List<Chunk> slice(ViewElement element, SliceContext context) {
-        String text = element.getNormalizedText();
-        if (StrUtil.isBlank(text)) {
-            return List.of();
-        }
+    protected List<Chunk> sliceText(String text, ViewElement element, SliceContext context) {
         ChunkRouteConfig config = context.getStrategy().route(ChunkRoute.BODY);
         int softMaxLen = config.intParam(ChunkParamKeys.SOFT_MAX_LEN, 1000);
         int targetMaxLen = config.intParam(ChunkParamKeys.TARGET_MAX_LEN, 800);
@@ -48,13 +43,7 @@ public class ParagraphSliceStrategy implements SliceStrategy {
             if (!buffer.isEmpty()) {
                 emitted.add(flushGroup(buffer, context));
             }
-            ChunkRouteConfig fallbackConfig = context.getStrategy().route(ChunkRoute.FALLBACK);
-            for (String piece : context.getFallback().slice(text, fallbackConfig)) {
-                Chunk chunk = BodyChunkSupport.buildChunk(ChunkContentType.FALLBACK.name(), piece, context,
-                        List.of(element.getElementId()), BodyChunkSupport.pageRangeOf(element));
-                chunk.setFallbackReason("超长段落递归降级");
-                emitted.add(chunk);
-            }
+            emitted.addAll(fallbackChunks(text, element, context, "超长段落递归降级"));
             return emitted;
         }
 
@@ -67,13 +56,11 @@ public class ParagraphSliceStrategy implements SliceStrategy {
     }
 
     @Override
-    public List<Chunk> flush(SliceContext context) {
-        if (context.getBodyBuffer().isEmpty()) {
-            return List.of();
-        }
-        return List.of(flushGroup(context.getBodyBuffer(), context));
+    protected Chunk flushGroup(SliceContext context) {
+        return flushGroup(context.getBodyBuffer(), context);
     }
 
+    /** 结算段落组（非空文本拼片、合并页码，组已清空） */
     private Chunk flushGroup(List<ViewElement> group, SliceContext context) {
         List<String> texts = group.stream().map(ViewElement::getNormalizedText)
                 .filter(StrUtil::isNotBlank).toList();

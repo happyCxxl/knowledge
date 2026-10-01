@@ -2,33 +2,17 @@ package com.knowledge.biz.service.impl;
 
 import cn.hutool.core.util.ObjectUtil;
 import com.knowledge.biz.service.ChunkControlService;
-import com.knowledge.biz.service.db.KbChunkDbService;
-import com.knowledge.biz.service.db.KbChunkSetDbService;
-import com.knowledge.biz.service.db.KbFileResultDbService;
-import com.knowledge.biz.service.db.KbPipelineProductDbService;
-import com.knowledge.biz.service.db.KbPipelineStepLogDbService;
-import com.knowledge.biz.service.db.KbPipelineStrategyVersionDbService;
-import com.knowledge.biz.service.db.KbStrategyBindingDbService;
-import com.knowledge.biz.service.db.KnowledgeBaseDbService;
+import com.knowledge.biz.service.db.*;
 import com.knowledge.biz.service.support.ChunkVoAssembler;
+import com.knowledge.biz.service.support.StageStrategySupport;
 import com.knowledge.biz.service.support.TaskDetailSupport;
 import com.knowledge.biz.task.TaskTriggerSupport;
-import com.knowledge.common.domain.entity.KbChunk;
-import com.knowledge.common.domain.entity.KbChunkSet;
-import com.knowledge.common.domain.entity.KbFileResult;
-import com.knowledge.common.domain.entity.KbPipelineProduct;
-import com.knowledge.common.domain.entity.KbPipelineStrategyVersion;
-import com.knowledge.common.domain.entity.KbPipelineTask;
-import com.knowledge.common.domain.entity.KbStrategyBinding;
-import com.knowledge.common.domain.entity.KnowledgeBase;
+import com.knowledge.common.domain.entity.*;
 import com.knowledge.common.domain.rules.ChunkRules;
-import com.knowledge.common.domain.rules.KnowledgeBaseRules;
 import com.knowledge.common.dto.response.chunk.ChunkDetailVO;
 import com.knowledge.common.dto.response.chunk.ChunkTriggerVO;
 import com.knowledge.common.dto.response.task.StageTriggerVO;
-import com.knowledge.common.dto.response.task.StepLogVO;
 import com.knowledge.common.enums.task.PipelineStage;
-import com.knowledge.common.enums.task.RowStatus;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.ThrowUtil;
 import com.knowledge.common.utils.JsonUtil;
@@ -55,10 +39,7 @@ public class ChunkControlServiceImpl implements ChunkControlService {
 
     private final KbFileResultDbService fileResultDbService;
     private final KbPipelineProductDbService pipelineProductDbService;
-    private final KbPipelineStepLogDbService stepLogDbService;
-    private final KbPipelineStrategyVersionDbService strategyVersionDbService;
-    private final KbStrategyBindingDbService strategyBindingDbService;
-    private final KnowledgeBaseDbService knowledgeBaseDbService;
+    private final StageStrategySupport strategySupport;
     private final TaskTriggerSupport triggerSupport;
     private final TaskDetailSupport detailSupport;
     private final KbChunkSetDbService chunkSetDbService;
@@ -97,16 +78,11 @@ public class ChunkControlServiceImpl implements ChunkControlService {
         KbPipelineTask task = detailSupport.resolveTask(fileResultId, PipelineStage.CHUNK, taskId, "切片");
 
         ChunkDetailVO vo = new ChunkDetailVO();
-        vo.setFileResultId(fileResultId);
-        if (ObjectUtil.isNotNull(task)) {
-            vo.applyFrom(task);
-            vo.setSteps(stepLogDbService.listByTaskId(task.getId()).stream().map(StepLogVO::of).toList());
-        }
+        detailSupport.withTask(vo, fileResultId, task);
 
         // 切片集合/切片列表：按 task.productId → 产物 → artifactId 精确取该次运行的集合（历史任务同样可展示自己的集合；无任务/无产物留空）
         vo.setChunks(new ArrayList<>());
-        KbPipelineProduct product = ObjectUtil.isNull(task) || task.getProductId() == null ? null
-                : pipelineProductDbService.getById(task.getProductId());
+        KbPipelineProduct product = detailSupport.productOfTask(task);
         if (ObjectUtil.isNotNull(product)) {
             KbChunkSet chunkSet = chunkSetDbService.getByArtifactId(product.getArtifactId());
             if (ObjectUtil.isNotNull(chunkSet)) {
@@ -114,41 +90,16 @@ public class ChunkControlServiceImpl implements ChunkControlService {
                 vo.setSummary(voAssembler.toSummary(chunkSet, chunks));
                 vo.setChunks(voAssembler.toChunkItemVOs(chunks));
             }
-            vo.setArtifactId(product.getArtifactId());
-            vo.setContentHash(product.getContentHash());
-            vo.setCapabilitySnapshot(product.getCapabilitySnapshot());
+            detailSupport.withProductRef(vo, product);
         }
         return vo;
     }
 
     /** 策略解析四档：显式指定（40433 校验存在/类型/启用）→ KB 绑定（开关开启时，失效回退告警）→ 启用中最新 → 内置默认。 */
     private ChunkStrategy resolveStrategy(KbFileResult fileResult, Long strategyVersionId) {
-        if (ObjectUtil.isNotNull(strategyVersionId)) {
-            // 显式指定策略：按行 id 精确引用
-            KbPipelineStrategyVersion row = strategyVersionDbService.getById(strategyVersionId);
-            ThrowUtil.throwIf(ObjectUtil.isNull(row), ErrorCode.STRATEGY_VERSION_NOT_FOUND);
-            ThrowUtil.throwIf(!ChunkStrategy.TYPE.equals(row.getType()),
-                    ErrorCode.STRATEGY_VERSION_NOT_FOUND, "策略类型不匹配：期望 " + ChunkStrategy.TYPE);
-            ThrowUtil.throwIf(!RowStatus.ACTIVE.name().equals(row.getStatus()),
-                    ErrorCode.STRATEGY_VERSION_NOT_FOUND, "策略已停用，请先启用后再触发");
-            return toStrategy(row);
-        }
-        // KB 绑定档位：绑定开关开启且存在有效绑定则用之；绑定行失效（行缺失/停用）回退下一档并告警
-        KnowledgeBase kb = knowledgeBaseDbService.getActiveById(fileResult.getKnowledgeBaseId());
-        if (KnowledgeBaseRules.isStrategyBindingEnabled(kb)) {
-            KbStrategyBinding binding = strategyBindingDbService
-                    .getByKbAndType(fileResult.getKnowledgeBaseId(), ChunkStrategy.TYPE);
-            if (ObjectUtil.isNotNull(binding)) {
-                KbPipelineStrategyVersion bound = strategyVersionDbService.getById(binding.getStrategyVersionId());
-                if (ObjectUtil.isNotNull(bound) && RowStatus.ACTIVE.name().equals(bound.getStatus())) {
-                    return toStrategy(bound);
-                }
-                log.warn("===> ChunkControlServiceImpl 切片 KB 绑定策略失效，回退全局最新启用, fileResultId={}, bindingId={}",
-                        fileResult.getId(), binding.getId());
-            }
-        }
-        KbPipelineStrategyVersion latest = strategyVersionDbService.getLatestEnabledByType(ChunkStrategy.TYPE);
-        return ObjectUtil.isNull(latest) ? strategyParser.defaultStrategy() : toStrategy(latest);
+        KbPipelineStrategyVersion row = strategySupport.resolve(
+                fileResult, strategyVersionId, ChunkStrategy.TYPE, "ChunkControlServiceImpl 切片");
+        return ObjectUtil.isNull(row) ? strategyParser.defaultStrategy() : toStrategy(row);
     }
 
     /** 上游预处理产物校验：指定 id 则校验存在/环节/归属；缺省取该文件结果最新 PREPROCESS 产物。 */
@@ -167,10 +118,6 @@ public class ChunkControlServiceImpl implements ChunkControlService {
 
     private ChunkStrategy toStrategy(KbPipelineStrategyVersion row) {
         // configSnapshot 为 routes/pipeline 结构（无 name/version），解析补全默认后回填行信息
-        ChunkStrategy strategy = strategyParser.parse(row.getConfigSnapshot());
-        strategy.setType(row.getType());
-        strategy.setName(row.getName());
-        strategy.setVersion(row.getVersion());
-        return strategy;
+        return strategySupport.bindMeta(strategyParser.parse(row.getConfigSnapshot()), row);
     }
 }

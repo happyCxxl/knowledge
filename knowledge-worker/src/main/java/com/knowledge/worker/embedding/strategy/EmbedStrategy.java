@@ -1,5 +1,7 @@
 package com.knowledge.worker.embedding.strategy;
 
+import com.knowledge.worker.StageStrategy;
+
 import lombok.Data;
 
 /**
@@ -11,7 +13,7 @@ import lombok.Data;
  * @author cxxl
  */
 @Data
-public class EmbedStrategy {
+public class EmbedStrategy implements StageStrategy {
 
     /** 策略类型 */
     public static final String TYPE = "EMBED";

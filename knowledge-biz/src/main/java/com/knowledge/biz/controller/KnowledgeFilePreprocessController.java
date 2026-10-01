@@ -1,6 +1,8 @@
 package com.knowledge.biz.controller;
 
 import com.knowledge.biz.service.PreprocessControlService;
+import com.knowledge.common.dto.request.stage.StageDetailQueryDto;
+import com.knowledge.common.dto.request.stage.StageTriggerQueryDto;
 import com.knowledge.common.dto.response.R;
 import com.knowledge.common.dto.response.preprocess.PreprocessDetailVO;
 import com.knowledge.common.dto.response.preprocess.PreprocessTriggerVO;
@@ -9,11 +11,11 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -35,20 +37,18 @@ public class KnowledgeFilePreprocessController {
             + "strategyVersionId 可选（策略行 ID，缺省取库内启用中最新版本）；upstreamProductId 可选（指定上游 STRUCTURE 产物，缺省取最新）；RUNNING 拒绝（40431）、QUEUED 补投唤醒、终态/无任务新建")
     public R<PreprocessTriggerVO> preprocess(
             @Parameter(description = "文件结果ID", required = true) @PathVariable("fileResultId") Long fileResultId,
-            @Parameter(description = "策略版本行 ID（可选）")
-            @RequestParam(value = "strategyVersionId", required = false) Long strategyVersionId,
-            @Parameter(description = "上游产物ID（可选，指定 STRUCTURE 产物）")
-            @RequestParam(value = "upstreamProductId", required = false) Long upstreamProductId) {
+            @ParameterObject StageTriggerQueryDto query) {
         log.info("===> KnowledgeFilePreprocessController preprocess 触发预处理, fileResultId={}, strategyVersionId={}, upstreamProductId={}",
-                fileResultId, strategyVersionId, upstreamProductId);
-        return R.ok(preprocessControlService.preprocess(fileResultId, strategyVersionId, upstreamProductId));
+                fileResultId, query.getStrategyVersionId(), query.getUpstreamProductId());
+        return R.ok(preprocessControlService.preprocess(fileResultId, query.getStrategyVersionId(),
+                query.getUpstreamProductId()));
     }
 
     @GetMapping("/{fileResultId}/preprocess-detail")
     @Operation(summary = "预处理详情", description = "任务状态 + 子步骤列表 + 策略信息 + 预处理统计/视图元素/产物引用；taskId 可选（缺省取最新任务，传了则查该次运行）")
     public R<PreprocessDetailVO> preprocessDetail(
             @Parameter(description = "文件结果ID", required = true) @PathVariable("fileResultId") Long fileResultId,
-            @Parameter(description = "任务ID（可选，查历史运行详情）") @RequestParam(value = "taskId", required = false) Long taskId) {
-        return R.ok(preprocessControlService.preprocessDetail(fileResultId, taskId));
+            @ParameterObject StageDetailQueryDto query) {
+        return R.ok(preprocessControlService.preprocessDetail(fileResultId, query.getTaskId()));
     }
 }

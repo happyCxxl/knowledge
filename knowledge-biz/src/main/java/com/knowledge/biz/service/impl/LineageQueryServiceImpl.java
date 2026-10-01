@@ -47,11 +47,6 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class LineageQueryServiceImpl implements LineageQueryService {
 
-    /** 执行树覆盖的环节（不含 BUILD_INDEX/RETRIEVAL_TEST） */
-    private static final Set<String> LINEAGE_STAGES = Set.of(
-            PipelineStage.PARSE.name(), PipelineStage.STRUCTURE.name(), PipelineStage.PREPROCESS.name(),
-            PipelineStage.CHUNK.name(), PipelineStage.EMBED.name());
-
     /** 有策略环节（strategySnapshot 为策略快照，节点展示 strategyVersion） */
     private static final Set<String> STRATEGY_STAGES = Set.of(
             PipelineStage.PREPROCESS.name(), PipelineStage.CHUNK.name(), PipelineStage.EMBED.name());
@@ -69,7 +64,7 @@ public class LineageQueryServiceImpl implements LineageQueryService {
                 ErrorCode.FILE_RESULT_NOT_FOUND);
 
         List<KbPipelineTask> tasks = pipelineTaskDbService.listByFileResultId(fileResultId).stream()
-                .filter(task -> LINEAGE_STAGES.contains(task.getStage()))
+                .filter(task -> PipelineStage.FILE_CHAIN_STAGES.contains(task.getStage()))
                 .toList();
         List<KbPipelineProduct> products = pipelineProductDbService.listByFileResultId(fileResultId);
 

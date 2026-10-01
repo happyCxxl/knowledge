@@ -1,0 +1,52 @@
+package com.knowledge.worker.preprocessing.impl.rule;
+
+import com.knowledge.common.domain.preprocess.TraceEntry;
+import com.knowledge.common.domain.preprocess.ViewElement;
+import com.knowledge.common.enums.preprocess.PreprocessAction;
+import com.knowledge.common.enums.preprocess.ViewElementStatus;
+import com.knowledge.worker.preprocessing.rule.RuleOutcome;
+
+/**
+ * 标记类规则处置档公共支撑（package-private）：页眉页脚与目录都按"剔除 / 保留 / 标记（默认）"三档处置，
+ * 三档的状态、追踪动作与 changed 口径完全一致，各规则只给自己的状态名与追踪文案。
+ *
+ * @author cxxl
+ */
+final class MarkDisposeSupport {
+
+    private MarkDisposeSupport() {
+    }
+
+    /**
+     * 三档处置：EXCLUDE → 置剔除态并清检索文本（changed=1）；KEEP → 置 NORMAL；其余（含未配置）→ 置标记态。
+     *
+     * @param element        目标元素
+     * @param option         策略处置值（EXCLUDE / KEEP / 其他一律按 MARK）
+     * @param excludedStatus 剔除档状态名
+     * @param markedStatus   标记档状态名
+     * @param ruleName       规则名（写追踪来源）
+     * @param texts          三档追踪文案
+     */
+    static RuleOutcome dispose(ViewElement element, String option, String excludedStatus, String markedStatus,
+                               String ruleName, TraceTexts texts) {
+        TraceEntry trace;
+        int changed = 0;
+        if (PreprocessAction.EXCLUDE.name().equalsIgnoreCase(option)) {
+            element.setStatus(excludedStatus);
+            element.setNormalizedText(null);
+            trace = TraceEntry.of(ruleName, null, TraceEntry.ACTION_EXCLUDE, null, null, texts.exclude());
+            changed = 1;
+        } else if (PreprocessAction.KEEP.name().equalsIgnoreCase(option)) {
+            element.setStatus(ViewElementStatus.NORMAL.name());
+            trace = TraceEntry.of(ruleName, null, TraceEntry.ACTION_KEEP, null, null, texts.keep());
+        } else {
+            element.setStatus(markedStatus);
+            trace = TraceEntry.of(ruleName, null, TraceEntry.ACTION_MARK, null, null, texts.mark());
+        }
+        return RuleOutcome.hit(trace, changed);
+    }
+
+    /** 三档追踪文案（EXCLUDE / KEEP / MARK），由各规则按自己的参数名与佐证拼好 */
+    record TraceTexts(String exclude, String keep, String mark) {
+    }
+}

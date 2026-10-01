@@ -47,6 +47,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -291,12 +292,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         }
 
         // 一次批量取版本，避免逐行查（N+1）
-        List<Long> versionIds = bindings.stream()
-                .map(KbStrategyBinding::getStrategyVersionId)
-                .distinct()
-                .toList();
-        Map<Long, KbPipelineStrategyVersion> versionById = strategyVersionDbService.listByIds(versionIds).stream()
-                .collect(Collectors.toMap(KbPipelineStrategyVersion::getId, Function.identity(), (a, b) -> a));
+        Map<Long, KbPipelineStrategyVersion> versionById = versionsOf(bindings);
 
         List<StrategyBindingVO> result = new ArrayList<>(bindings.size());
         for (KbStrategyBinding binding : bindings) {
@@ -441,12 +437,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         if (bindingByKb.isEmpty()) {
             return;
         }
-        List<Long> versionIds = bindingByKb.values().stream()
-                .map(KbStrategyBinding::getStrategyVersionId)
-                .distinct()
-                .toList();
-        Map<Long, KbPipelineStrategyVersion> versionById = strategyVersionDbService.listByIds(versionIds).stream()
-                .collect(Collectors.toMap(KbPipelineStrategyVersion::getId, Function.identity(), (a, b) -> a));
+        Map<Long, KbPipelineStrategyVersion> versionById = versionsOf(bindingByKb.values());
         for (KnowledgeBaseVO vo : records) {
             KbStrategyBinding binding = bindingByKb.get(vo.getId());
             if (binding == null) {
@@ -468,6 +459,16 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             return;
         }
         applyBinding(vo, version);
+    }
+
+    /** 批量取策略版本并按 id 建索引（绑定行只取一次版本，避免逐行查的 N+1） */
+    private Map<Long, KbPipelineStrategyVersion> versionsOf(Collection<KbStrategyBinding> bindings) {
+        List<Long> versionIds = bindings.stream()
+                .map(KbStrategyBinding::getStrategyVersionId)
+                .distinct()
+                .toList();
+        return strategyVersionDbService.listByIds(versionIds).stream()
+                .collect(Collectors.toMap(KbPipelineStrategyVersion::getId, Function.identity(), (a, b) -> a));
     }
 
     /** 绑定摘要字段分发：按策略版本行类型落 VO 字段 */

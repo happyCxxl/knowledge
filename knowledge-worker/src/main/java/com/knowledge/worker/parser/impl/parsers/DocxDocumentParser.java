@@ -12,8 +12,7 @@ import com.knowledge.worker.parser.ParseContext;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.xwpf.usermodel.IBodyElement;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
-import org.apache.poi.xwpf.usermodel.XWPFFooter;
-import org.apache.poi.xwpf.usermodel.XWPFHeader;
+import org.apache.poi.xwpf.usermodel.XWPFHeaderFooter;
 import org.apache.poi.xwpf.usermodel.XWPFParagraph;
 import org.apache.poi.xwpf.usermodel.XWPFPicture;
 import org.apache.poi.xwpf.usermodel.XWPFRun;
@@ -45,17 +44,10 @@ public class DocxDocumentParser extends AbstractPoiDocumentParser {
         return FileFormat.DOCX.getMimeType().equals(mimeType);
     }
 
-    @Override
-    public ParseSource parse(ParseContext context) {
-        byte[] data = ParserStreamSupport.readAll(context);
-        ParseSource source = ParseSource.nativeSource(capabilityName() + "-" + capabilityVersion());
-        String fileId = context.getFileRef().getFileId();
-        parseDocx(source, data, fileId);
-        return source;
-    }
-
     /** DOCX 主流程：按 body 顺序产出段落/表格元素 + 段落内嵌图片引用 + 页眉页脚部件。 */
-    private void parseDocx(ParseSource source, byte[] data, String fileId) {
+    @Override
+    protected void parseNative(ParseSource source, byte[] data, ParseContext context) {
+        String fileId = context.getFileRef().getFileId();
         try (XWPFDocument doc = new XWPFDocument(new ByteArrayInputStream(data))) {
             List<IBodyElement> bodyElements = doc.getBodyElements();
             int paragraphIndex = 0;
@@ -85,42 +77,41 @@ public class DocxDocumentParser extends AbstractPoiDocumentParser {
 
     /** DOCX 页眉页脚部件 → HEADER/FOOTER 元素；单部件异常不阻断整档解析 */
     private void appendDocxHeaderFooter(ParseSource source, XWPFDocument doc, String fileId) {
-        int headerIndex = 0;
+        appendParts(source, doc.getHeaderList(), PartKind.HEADER, fileId);
+        appendParts(source, doc.getFooterList(), PartKind.FOOTER, fileId);
+    }
+
+    /** 单个部件列表 → 元素（部件文本非空才产出；按部件出现顺序编号） */
+    private void appendParts(ParseSource source, List<? extends XWPFHeaderFooter> parts, PartKind kind,
+                             String fileId) {
+        int index = 0;
         try {
-            for (XWPFHeader header : doc.getHeaderList()) {
-                String text = header.getParagraphs().stream()
+            for (XWPFHeaderFooter part : parts) {
+                String text = part.getParagraphs().stream()
                         .map(XWPFParagraph::getText)
                         .filter(StrUtil::isNotBlank)
                         .reduce("", String::concat);
                 if (StrUtil.isNotBlank(text)) {
-                    ParseElement element = ParseElement.of("h" + headerIndex, ElementType.HEADER);
+                    ParseElement element = ParseElement.of(kind.idPrefix() + index, kind.elementType());
                     element.setText(text);
-                    element.setProvenance(new Provenance(fileId, "docx#header[" + headerIndex + "]"));
+                    element.setProvenance(new Provenance(fileId, kind.provenancePrefix() + index + "]"));
                     source.getElements().add(element);
                 }
-                headerIndex++;
+                index++;
             }
         } catch (Exception e) {
-            log.warn("DOCX 页眉部件读取失败, fileId={}", fileId, e);
+            log.warn(kind.errorLog() + ", fileId={}", fileId, e);
         }
-        int footerIndex = 0;
-        try {
-            for (XWPFFooter footer : doc.getFooterList()) {
-                String text = footer.getParagraphs().stream()
-                        .map(XWPFParagraph::getText)
-                        .filter(StrUtil::isNotBlank)
-                        .reduce("", String::concat);
-                if (StrUtil.isNotBlank(text)) {
-                    ParseElement element = ParseElement.of("f" + footerIndex, ElementType.FOOTER);
-                    element.setText(text);
-                    element.setProvenance(new Provenance(fileId, "docx#footer[" + footerIndex + "]"));
-                    source.getElements().add(element);
-                }
-                footerIndex++;
-            }
-        } catch (Exception e) {
-            log.warn("DOCX 页脚部件读取失败, fileId={}", fileId, e);
-        }
+    }
+
+    /** 页眉/页脚部件口径：id 前缀 / 元素类型 / 溯源前缀 / 读取失败告警文案 */
+    private record PartKind(String idPrefix, ElementType elementType, String provenancePrefix, String errorLog) {
+
+        private static final PartKind HEADER =
+                new PartKind("h", ElementType.HEADER, "docx#header[", "DOCX 页眉部件读取失败");
+
+        private static final PartKind FOOTER =
+                new PartKind("f", ElementType.FOOTER, "docx#footer[", "DOCX 页脚部件读取失败");
     }
 
     /** DOCX 段落元素：空段跳过；样式名 + 首个有效 run 的字体事实（无样式标题只输出事实，层级归组装环节）。 */
@@ -211,10 +202,7 @@ public class DocxDocumentParser extends AbstractPoiDocumentParser {
                     cellElement.setIsHeader(rowIndex == 0);
                     cellElement.setProvenance(new Provenance(fileId,
                             "office#document.xml/table[" + tableIndex + "]/cell[" + rowIndex + "," + colIndex + "]"));
-                    if (tableElement.getCells() == null) {
-                        tableElement.setCells(new java.util.ArrayList<>());
-                    }
-                    tableElement.getCells().add(cellElement);
+                    appendCell(tableElement, cellElement);
                     if (STMerge.RESTART.equals(vMerge)) {
                         columnMergePending.put(colIndex, 1);
                     }

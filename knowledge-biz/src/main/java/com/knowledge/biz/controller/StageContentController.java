@@ -1,5 +1,6 @@
 package com.knowledge.biz.controller;
 
+import com.knowledge.common.dto.request.stage.StageDetailQueryDto;
 import com.knowledge.common.dto.response.R;
 import com.knowledge.biz.service.StageContentQueryService;
 import com.knowledge.common.dto.response.stagecontent.StageContentVO;
@@ -7,6 +8,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -33,7 +35,7 @@ public class StageContentController {
             @Parameter(description = "文件结果ID", required = true) @PathVariable("fileResultId") Long fileResultId,
             @Parameter(description = "环节（PARSE/STRUCTURE/PREPROCESS/CHUNK/EMBED）", required = true)
             @RequestParam("stage") String stage,
-            @Parameter(description = "任务ID（可选，查指定运行）") @RequestParam(value = "taskId", required = false) Long taskId) {
-        return R.ok(stageContentQueryService.stageContent(fileResultId, stage, taskId));
+            @ParameterObject StageDetailQueryDto query) {
+        return R.ok(stageContentQueryService.stageContent(fileResultId, stage, query.getTaskId()));
     }
 }

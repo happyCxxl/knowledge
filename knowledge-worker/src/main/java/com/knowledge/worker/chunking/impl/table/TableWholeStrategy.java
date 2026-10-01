@@ -1,14 +1,10 @@
 package com.knowledge.worker.chunking.impl.table;
 
-import cn.hutool.core.util.ObjectUtil;
 import com.knowledge.common.domain.chunk.Chunk;
 import com.knowledge.common.domain.preprocess.ViewElement;
-import com.knowledge.worker.chunking.SliceContext;
-import com.knowledge.worker.chunking.slice.SliceStrategy;
 import com.knowledge.common.enums.chunk.ChunkAlgorithm;
+import com.knowledge.worker.chunking.SliceContext;
 import com.knowledge.worker.chunking.strategy.ChunkParamKeys;
-import com.knowledge.worker.chunking.strategy.ChunkRouteConfig;
-import com.knowledge.common.enums.chunk.ChunkRoute;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -20,7 +16,7 @@ import java.util.List;
  * @author cxxl
  */
 @Component
-public class TableWholeStrategy implements SliceStrategy {
+public class TableWholeStrategy extends AbstractTableSliceStrategy {
 
     /** 超长降级行级的短行阈值（字符，回退口径） */
     private static final int FALLBACK_GROUP_THRESHOLD = 30;
@@ -34,13 +30,9 @@ public class TableWholeStrategy implements SliceStrategy {
     }
 
     @Override
-    public List<Chunk> slice(ViewElement element, SliceContext context) {
-        TableMarkdownSupport.TablePrep prep = TableMarkdownSupport.prepare(element, context);
-        if (ObjectUtil.isNull(prep)) {
-            return List.of();
-        }
-        ChunkRouteConfig tableConfig = context.getStrategy().route(ChunkRoute.TABLE);
-        int maxLen = tableConfig.intParam(ChunkParamKeys.MAX_LEN, 2000);
+    protected List<Chunk> slicePrepared(TableMarkdownSupport.TablePrep prep, ViewElement element,
+                                        SliceContext context) {
+        int maxLen = tableRoute(context).intParam(ChunkParamKeys.MAX_LEN, 2000);
         String content = TableMarkdownSupport.markdownContent(prep.rows().rows, prep.headerByCol());
         if (content.length() <= maxLen) {
             return List.of(TableMarkdownSupport.buildChunk(content, element, prep.table(), context, prep.rows().ids));

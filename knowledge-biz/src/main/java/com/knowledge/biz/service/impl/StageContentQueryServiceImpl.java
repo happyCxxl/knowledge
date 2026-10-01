@@ -39,7 +39,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * 产物内容查询实现：
@@ -52,11 +51,6 @@ import java.util.Set;
 @Service
 @RequiredArgsConstructor
 public class StageContentQueryServiceImpl implements StageContentQueryService {
-
-    /** 内容接口环节白名单 */
-    private static final Set<String> CONTENT_STAGES = Set.of(
-            PipelineStage.PARSE.name(), PipelineStage.STRUCTURE.name(), PipelineStage.PREPROCESS.name(),
-            PipelineStage.CHUNK.name(), PipelineStage.EMBED.name());
 
     private final KbFileResultDbService fileResultDbService;
     private final KbPipelineProductDbService pipelineProductDbService;
@@ -71,7 +65,7 @@ public class StageContentQueryServiceImpl implements StageContentQueryService {
     public StageContentVO stageContent(Long fileResultId, String stage, Long taskId) {
         ThrowUtil.throwIf(ObjectUtil.isNull(fileResultDbService.getById(fileResultId)),
                 ErrorCode.FILE_RESULT_NOT_FOUND);
-        ThrowUtil.throwIf(StrUtil.isBlank(stage) || !CONTENT_STAGES.contains(stage),
+        ThrowUtil.throwIf(StrUtil.isBlank(stage) || !PipelineStage.FILE_CHAIN_STAGES.contains(stage),
                 ErrorCode.PARAM_INVALID, "未知环节: " + stage);
         KbPipelineTask task = detailSupport.resolveTask(fileResultId, stageOf(stage), taskId, stageLabel(stage));
 

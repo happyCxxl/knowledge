@@ -6,6 +6,7 @@ import com.knowledge.biz.service.db.KbEmbeddingRecordDbService;
 import com.knowledge.biz.service.db.KbEmbeddingSetDbService;
 import com.knowledge.biz.service.db.KbFileResultDbService;
 import com.knowledge.biz.service.db.KbPipelineProductDbService;
+import com.knowledge.biz.service.db.KbPipelineStepLogDbService;
 import com.knowledge.biz.service.db.KbPipelineTaskDbService;
 import com.knowledge.biz.service.support.TaskDetailSupport;
 import com.knowledge.common.domain.entity.KbChunk;
@@ -56,6 +57,8 @@ class StageContentQueryServiceImplTest {
     @Mock
     private KbPipelineProductDbService pipelineProductDbService;
     @Mock
+    private KbPipelineStepLogDbService stepLogDbService;
+    @Mock
     private KbChunkSetDbService chunkSetDbService;
     @Mock
     private KbChunkDbService chunkDbService;
@@ -74,7 +77,7 @@ class StageContentQueryServiceImplTest {
     void setUp() {
         service = new StageContentQueryServiceImpl(fileResultDbService, pipelineProductDbService,
                 chunkSetDbService, chunkDbService, embeddingSetDbService, embeddingRecordDbService,
-                fileStorage, new TaskDetailSupport(pipelineTaskDbService));
+                fileStorage, new TaskDetailSupport(pipelineTaskDbService, stepLogDbService, pipelineProductDbService));
     }
 
     private KbPipelineTask latestTask(String stage) {

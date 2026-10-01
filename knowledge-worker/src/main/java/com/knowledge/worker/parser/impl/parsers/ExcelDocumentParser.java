@@ -40,17 +40,11 @@ public class ExcelDocumentParser extends AbstractPoiDocumentParser {
                 || FileFormat.XLSX.getMimeType().equals(mimeType);
     }
 
-    @Override
-    public ParseSource parse(ParseContext context) {
-        byte[] data = ParserStreamSupport.readAll(context);
-        ParseSource source = ParseSource.nativeSource(capabilityName() + "-" + capabilityVersion());
-        String fileId = context.getFileRef().getFileId();
-        parseExcel(source, data, fileId, FileFormat.XLSX.getMimeType().equals(context.getFileRef().getMimeType()));
-        return source;
-    }
-
     /** Excel 主流程：逐 sheet 产出 TABLE 元素（定位 = sheet + 行列，无页码概念）。 */
-    private void parseExcel(ParseSource source, byte[] data, String fileId, boolean xlsx) {
+    @Override
+    protected void parseNative(ParseSource source, byte[] data, ParseContext context) {
+        String fileId = context.getFileRef().getFileId();
+        boolean xlsx = FileFormat.XLSX.getMimeType().equals(context.getFileRef().getMimeType());
         try (Workbook workbook = xlsx ? new XSSFWorkbook(new ByteArrayInputStream(data))
                 : new HSSFWorkbook(new ByteArrayInputStream(data))) {
             DataFormatter formatter = new DataFormatter();
@@ -122,10 +116,7 @@ public class ExcelDocumentParser extends AbstractPoiDocumentParser {
                 }
                 cellElement.setProvenance(new Provenance(fileId,
                         "office#sheet[" + sheetName + "]/cell[" + r + "," + c + "]"));
-                if (tableElement.getCells() == null) {
-                    tableElement.setCells(new java.util.ArrayList<>());
-                }
-                tableElement.getCells().add(cellElement);
+                appendCell(tableElement, cellElement);
             }
         }
         tableElement.setRows(hasData ? lastRow - firstRow + 1 : 0);

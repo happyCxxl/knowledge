@@ -195,28 +195,28 @@ public class StructureAssemblerImpl implements StructureAssembler {
                     stackLevels.removeLast();
                     stack.removeLast();
                 }
-                if (!stack.isEmpty()) {
-                    relations.add(new DocumentRelation(RelationType.PARENT_CHILD.name(),
-                            stack.getLast(), element.getId(), null));
-                }
+                addParentChild(relations, stack, element, null);
                 stack.add(element.getId());
                 stackLevels.add(level);
             } else if (UnifiedElementType.SECTION.name().equals(type)) {
-                if (!stack.isEmpty()) {
-                    relations.add(new DocumentRelation(RelationType.PARENT_CHILD.name(),
-                            stack.getLast(), element.getId(), "sheet 章节"));
-                }
+                addParentChild(relations, stack, element, "sheet 章节");
                 stack.add(element.getId());
                 stackLevels.add(0);
             } else if (!UnifiedElementType.HEADER.name().equals(type)
                     && !UnifiedElementType.FOOTER.name().equals(type)) {
-                if (!stack.isEmpty()) {
-                    relations.add(new DocumentRelation(RelationType.PARENT_CHILD.name(),
-                            stack.getLast(), element.getId(), null));
-                }
+                addParentChild(relations, stack, element, null);
             }
         }
         return relations;
+    }
+
+    /** 挂到栈顶章节（栈空即顶级，无父关系）；note 为关系说明（无则空） */
+    private void addParentChild(List<DocumentRelation> relations, List<String> stack, UnifiedElement element,
+                                String note) {
+        if (!stack.isEmpty()) {
+            relations.add(new DocumentRelation(RelationType.PARENT_CHILD.name(),
+                    stack.getLast(), element.getId(), note));
+        }
     }
 
     private List<DocumentRelation> buildOrderRelations(List<UnifiedElement> elements) {

@@ -219,6 +219,27 @@ public class PdfBoxDocumentParser implements DocumentParserPort {
     }
 
     /**
+     * 页眉/页脚元素：文本 + 页码 + 包围盒 + 区域溯源（页首/页底装配口径一致，只差区域与元素类型）。
+     *
+     * @param id     元素 ID
+     * @param type   HEADER / FOOTER
+     * @param text   元素文本
+     * @param area   区域溯源（pdf#top-area / pdf#bottom-area）
+     * @param pageNo 页码
+     * @param line   来源行（取包围盒）
+     * @param fileId 文件 ID
+     */
+    private static ParseElement bandElement(String id, ElementType type, String text, String area,
+                                            int pageNo, PageLine line, String fileId) {
+        ParseElement element = ParseElement.of(id, type);
+        element.setText(text);
+        element.setPage(pageNo);
+        element.setBbox(new BBox(line.x(), line.y(), line.width(), line.height()));
+        element.setProvenance(new Provenance(fileId, area));
+        return element;
+    }
+
+    /**
      * 单页元素组装：页眉/页脚元素 → 正文按 y 顺序推进（表格候选块与段落互斥结算）。
      */
     private void assemblePageElements(PageContent page, Map<String, HeaderFooterDetector.HeaderLine> headers,
@@ -230,13 +251,9 @@ public class PdfBoxDocumentParser implements DocumentParserPort {
             String key = line.text().trim();
             if (headers.containsKey(key) && headers.get(key).pending()) {
                 HeaderFooterDetector.HeaderLine header = headers.get(key);
-                ParseElement element = ParseElement.of("h" + page.pageNo() + "_" + Integer.toHexString(key.hashCode()),
-                        ElementType.HEADER);
-                element.setText(key);
-                element.setPage(page.pageNo());
-                element.setBbox(new BBox(line.x(), line.y(), line.width(), line.height()));
-                element.setProvenance(new Provenance(fileId, "pdf#top-area"));
-                elements.add(element);
+                elements.add(bandElement(
+                        "h" + page.pageNo() + "_" + Integer.toHexString(key.hashCode()),
+                        ElementType.HEADER, key, "pdf#top-area", page.pageNo(), line, fileId));
                 header.markEmitted();
             }
         }
@@ -247,14 +264,11 @@ public class PdfBoxDocumentParser implements DocumentParserPort {
             String footerKey = HeaderFooterDetector.footerBase(key);
             HeaderFooterDetector.HeaderLine footer = footers.get(footerKey);
             if (footer != null && footer.pending()) {
-                ParseElement element = ParseElement.of(
+                elements.add(bandElement(
                         "f" + page.pageNo() + "_" + Integer.toHexString(footerKey.hashCode()),
-                        ElementType.FOOTER);
-                element.setText(HeaderFooterDetector.PAGE_NUMBER_KEY.equals(footerKey) ? key : footerKey);
-                element.setPage(page.pageNo());
-                element.setBbox(new BBox(line.x(), line.y(), line.width(), line.height()));
-                element.setProvenance(new Provenance(fileId, "pdf#bottom-area"));
-                elements.add(element);
+                        ElementType.FOOTER,
+                        HeaderFooterDetector.PAGE_NUMBER_KEY.equals(footerKey) ? key : footerKey,
+                        "pdf#bottom-area", page.pageNo(), line, fileId));
                 footer.markEmitted();
             }
         }

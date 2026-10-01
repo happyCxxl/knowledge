@@ -2,7 +2,6 @@ package com.knowledge.worker.preprocessing.impl.rule;
 import com.knowledge.common.enums.structure.ElementMark;
 import com.knowledge.common.enums.preprocess.ViewElementStatus;
 
-import com.knowledge.common.domain.preprocess.TraceEntry;
 import com.knowledge.common.domain.preprocess.ViewElement;
 import com.knowledge.common.enums.preprocess.PreprocessAction;
 import com.knowledge.common.enums.preprocess.PreprocessParam;
@@ -65,22 +64,11 @@ public class TocRule implements CleanRule {
             return RuleOutcome.none();
         }
         String opt = context.getStrategy().action(PreprocessRule.TOC, PreprocessAction.MARK.name());
-        TraceEntry trace;
-        int changed = 0;
-        if (PreprocessAction.EXCLUDE.name().equalsIgnoreCase(opt)) {
-            element.setStatus(ViewElementStatus.EXCLUDED_TOC.name());
-            element.setNormalizedText(null);
-            trace = TraceEntry.of(name(), null, TraceEntry.ACTION_EXCLUDE, null, null,
-                    "策略 toc=EXCLUDE，剔除出检索文本；" + evidence);
-            changed = 1;
-        } else if (PreprocessAction.KEEP.name().equalsIgnoreCase(opt)) {
-            element.setStatus(ViewElementStatus.NORMAL.name());
-            trace = TraceEntry.of(name(), null, TraceEntry.ACTION_KEEP, null, null,
-                    "策略 toc=KEEP，保留原样；" + evidence);
-        } else {
-            element.setStatus(ViewElementStatus.MARKED_TOC.name());
-            trace = TraceEntry.of(name(), null, TraceEntry.ACTION_MARK, null, null, evidence);
-        }
-        return RuleOutcome.hit(trace, changed);
+        return MarkDisposeSupport.dispose(element, opt,
+                ViewElementStatus.EXCLUDED_TOC.name(), ViewElementStatus.MARKED_TOC.name(), name(),
+                new MarkDisposeSupport.TraceTexts(
+                        "策略 toc=EXCLUDE，剔除出检索文本；" + evidence,
+                        "策略 toc=KEEP，保留原样；" + evidence,
+                        evidence));
     }
 }

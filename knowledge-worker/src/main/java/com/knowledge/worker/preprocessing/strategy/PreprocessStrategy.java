@@ -3,6 +3,7 @@ package com.knowledge.worker.preprocessing.strategy;
 import cn.hutool.core.util.StrUtil;
 import com.knowledge.common.enums.preprocess.PreprocessParam;
 import com.knowledge.common.enums.preprocess.PreprocessRule;
+import com.knowledge.worker.StageStrategy;
 import com.knowledge.worker.preprocessing.PreprocessProperties;
 import lombok.Data;
 
@@ -18,7 +19,7 @@ import java.util.Map;
  * @author cxxl
  */
 @Data
-public class PreprocessStrategy {
+public class PreprocessStrategy implements StageStrategy {
 
     /** 策略类型 */
     public static final String TYPE = "PREPROCESS";

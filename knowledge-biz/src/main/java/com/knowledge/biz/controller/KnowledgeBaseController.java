@@ -9,6 +9,7 @@ import com.knowledge.common.dto.request.knowledge.KnowledgeBaseCreateDto;
 import com.knowledge.common.dto.request.knowledge.KnowledgeBaseUpdateDto;
 import com.knowledge.common.dto.request.knowledge.StrategyBindingUpdateDto;
 import com.knowledge.common.dto.request.knowledge.StrategyBindingsUpdateRequest;
+import com.knowledge.common.dto.request.page.PageQueryDto;
 import com.knowledge.common.dto.response.input.FileResultVO;
 import com.knowledge.common.dto.response.input.FileSubmitResponse;
 import com.knowledge.common.dto.response.input.SubmitLogVO;
@@ -22,6 +23,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -100,14 +102,14 @@ public class KnowledgeBaseController {
     @GetMapping("/page")
     @Operation(summary = "分页查询知识库", description = "分页列表，支持名称模糊查询、状态过滤与排序，不含已删除")
     public R<IPage<KnowledgeBaseVO>> page(
-            @Parameter(description = "当前页") @RequestParam(value = "current", defaultValue = "1") long current,
-            @Parameter(description = "每页条数") @RequestParam(value = "size", defaultValue = "10") long size,
+            @ParameterObject PageQueryDto pageQuery,
             @Parameter(description = "名称（模糊查询）") @RequestParam(value = "name", required = false) String name,
             @Parameter(description = "状态：1 启用 / 0 停用；不传不过滤")
             @RequestParam(value = "status", required = false) Integer status,
             @Parameter(description = "排序口径：DEFAULT 默认 / UPDATED 最近更新 / NAME 名称；未知值按默认")
             @RequestParam(value = "sort", required = false) String sort) {
-        return R.ok(knowledgeBaseService.page(current, size, name, status, KnowledgeBaseSort.of(sort)));
+        return R.ok(knowledgeBaseService.page(pageQuery.currentOrDefault(), pageQuery.sizeOrDefault(), name, status,
+                KnowledgeBaseSort.of(sort)));
     }
 
     @GetMapping("/stats")
@@ -179,11 +181,11 @@ public class KnowledgeBaseController {
     @Operation(summary = "提交记录列表", description = "分页查询提交日志（含失败原因），支持 status/文件名筛选")
     public R<IPage<SubmitLogVO>> submitLogs(
             @Parameter(description = "知识库ID", required = true) @PathVariable("id") Long id,
-            @Parameter(description = "当前页") @RequestParam(value = "current", defaultValue = "1") long current,
-            @Parameter(description = "每页条数") @RequestParam(value = "size", defaultValue = "10") long size,
+            @ParameterObject PageQueryDto pageQuery,
             @Parameter(description = "提交结果（PASS/FAIL）") @RequestParam(value = "status", required = false) String status,
             @Parameter(description = "文件名（模糊查询）") @RequestParam(value = "fileName", required = false) String fileName) {
-        return R.ok(fileSubmitService.pageSubmitLogs(current, size, id, status, fileName));
+        return R.ok(fileSubmitService.pageSubmitLogs(pageQuery.currentOrDefault(), pageQuery.sizeOrDefault(), id,
+                status, fileName));
     }
 
     /**
@@ -200,10 +202,10 @@ public class KnowledgeBaseController {
     @Operation(summary = "文件结果列表", description = "分页查询文件结果（含各环节最新任务状态）；stage 可选")
     public R<IPage<FileResultVO>> fileResults(
             @Parameter(description = "知识库ID", required = true) @PathVariable("id") Long id,
-            @Parameter(description = "当前页") @RequestParam(value = "current", defaultValue = "1") long current,
-            @Parameter(description = "每页条数") @RequestParam(value = "size", defaultValue = "10") long size,
+            @ParameterObject PageQueryDto pageQuery,
             @Parameter(description = "环节（可选）") @RequestParam(value = "stage", required = false) String stage) {
-        return R.ok(fileSubmitService.pageFileResults(current, size, id, stage));
+        return R.ok(fileSubmitService.pageFileResults(pageQuery.currentOrDefault(), pageQuery.sizeOrDefault(), id,
+                stage));
     }
 
     @GetMapping("/{id}/strategy-binding")

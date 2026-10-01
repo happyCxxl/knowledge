@@ -1,7 +1,6 @@
 package com.knowledge.biz.task;
 
 import cn.hutool.core.util.ObjectUtil;
-import cn.hutool.core.util.StrUtil;
 import com.knowledge.biz.service.db.KbFileResultDbService;
 import com.knowledge.biz.service.db.KbPipelineTaskDbService;
 import com.knowledge.biz.service.db.KbSourceFileDbService;
@@ -14,7 +13,6 @@ import com.knowledge.common.domain.parse.ParseOutcome;
 import com.knowledge.common.domain.parse.ParseResult;
 import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.enums.task.PipelineTaskErrorCode;
-import com.knowledge.common.enums.task.PipelineTaskStatus;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
 import com.knowledge.common.utils.JsonUtil;
@@ -54,13 +52,8 @@ public class ParseTaskRunner {
      * 执行单个解析任务（由消费循环提交，外层看门狗负责超时）。
      */
     public void run(Long taskId) {
-        KbPipelineTask task = pipelineTaskDbService.getById(taskId);
-        if (ObjectUtil.isNull(task)
-                || !PipelineTaskStatus.QUEUED.name().equals(task.getStatus())) {
-            return;
-        }
-        // 条件更新领任务：多实例防重复
-        if (pipelineTaskDbService.claim(taskId) != 1) {
+        KbPipelineTask task = TaskRunnerSupport.claim(pipelineTaskDbService, taskId);
+        if (ObjectUtil.isNull(task)) {
             return;
         }
         try {
@@ -102,7 +95,7 @@ public class ParseTaskRunner {
                     this::finishFailed);
         } catch (Exception e) {
             log.error("解析任务执行异常, taskId={}", taskId, e);
-            finishFailed(taskId, PipelineTaskErrorCode.PARSE_FAILED.name(), truncate(String.valueOf(e.getMessage())));
+            finishFailed(taskId, PipelineTaskErrorCode.PARSE_FAILED.name(), String.valueOf(e.getMessage()));
         }
     }
 
@@ -120,8 +113,7 @@ public class ParseTaskRunner {
     private void finishFailed(Long taskId, String errorCode, String errorMsg) {
         log.warn("===> ParseTaskRunner 解析任务失败, taskId={}, errorCode={}, errorMsg={}",
                 taskId, errorCode, errorMsg);
-        pipelineTaskDbService.finish(taskId, PipelineTaskStatus.FAILED.name(), errorCode,
-                StrUtil.isBlank(errorMsg) ? null : truncate(errorMsg));
+        TaskRunnerSupport.finishFailed(pipelineTaskDbService, taskId, errorCode, errorMsg);
     }
 
     private FileReference toFileRef(KbSourceFile sourceFile) {
@@ -131,9 +123,5 @@ public class ParseTaskRunner {
         fileRef.setSha256(sourceFile.getSha256());
         fileRef.setMimeType(sourceFile.getMimeType());
         return fileRef;
-    }
-
-    private String truncate(String message) {
-        return StrUtil.maxLength(message, 1000);
     }
 }

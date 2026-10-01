@@ -8,6 +8,7 @@ import com.knowledge.biz.service.db.KbPipelineTaskDbService;
 import com.knowledge.biz.service.db.KbStrategyBindingDbService;
 import com.knowledge.biz.service.db.KnowledgeBaseDbService;
 import com.knowledge.biz.service.support.PreprocessVoAssembler;
+import com.knowledge.biz.service.support.StageStrategySupport;
 import com.knowledge.biz.service.support.TaskDetailSupport;
 import com.knowledge.biz.task.TaskQueueSupport;
 import com.knowledge.biz.task.TaskTriggerSupport;
@@ -80,9 +81,9 @@ class PreprocessControlServiceImplTest {
     void setUp() {
         // 触发/详情助手为纯委托类、组装器为纯映射类，用真实实例（mock 会让 VO 组装返回 null，断言失真）
         service = new PreprocessControlServiceImpl(fileResultDbService, pipelineProductDbService,
-                stepLogDbService, strategyVersionDbService, strategyBindingDbService, knowledgeBaseDbService,
+                new StageStrategySupport(strategyVersionDbService, strategyBindingDbService, knowledgeBaseDbService),
                 new TaskTriggerSupport(pipelineTaskDbService, taskQueue),
-                new TaskDetailSupport(pipelineTaskDbService), fileStorage,
+                new TaskDetailSupport(pipelineTaskDbService, stepLogDbService, pipelineProductDbService), fileStorage,
                 new PreprocessStrategyParser(new PreprocessProperties()),
                 new PreprocessVoAssembler());
     }

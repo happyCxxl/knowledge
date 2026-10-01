@@ -3,6 +3,7 @@ package com.knowledge.worker.chunking.strategy;
 import com.knowledge.common.enums.chunk.ChunkAlgorithm;
 import com.knowledge.common.enums.chunk.ChunkRoute;
 import com.knowledge.common.enums.chunk.PipelineKey;
+import com.knowledge.worker.StageStrategy;
 
 import cn.hutool.core.util.StrUtil;
 import lombok.Data;
@@ -18,7 +19,7 @@ import java.util.Map;
  * @author cxxl
  */
 @Data
-public class ChunkStrategy {
+public class ChunkStrategy implements StageStrategy {
 
     /** 策略类型 */
     public static final String TYPE = "CHUNK";

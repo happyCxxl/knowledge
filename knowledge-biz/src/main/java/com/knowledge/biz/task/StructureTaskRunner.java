@@ -1,7 +1,6 @@
 package com.knowledge.biz.task;
 
 import cn.hutool.core.util.ObjectUtil;
-import cn.hutool.core.util.StrUtil;
 import com.knowledge.biz.service.db.KbPipelineProductDbService;
 import com.knowledge.biz.service.db.KbPipelineTaskDbService;
 import com.knowledge.common.domain.entity.KbPipelineProduct;
@@ -11,7 +10,6 @@ import com.knowledge.common.domain.structure.AssembleOutcome;
 import com.knowledge.common.domain.structure.UnifiedDocument;
 import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.enums.task.PipelineTaskErrorCode;
-import com.knowledge.common.enums.task.PipelineTaskStatus;
 import com.knowledge.common.utils.JsonUtil;
 import com.knowledge.filecenter.service.FileStorage;
 import com.knowledge.worker.structure.AssembleContext;
@@ -49,12 +47,8 @@ public class StructureTaskRunner {
      * 执行单个组装任务（由消费循环提交，外层看门狗负责超时）。
      */
     public void run(Long taskId) {
-        KbPipelineTask task = pipelineTaskDbService.getById(taskId);
-        if (ObjectUtil.isNull(task)
-                || !PipelineTaskStatus.QUEUED.name().equals(task.getStatus())) {
-            return;
-        }
-        if (pipelineTaskDbService.claim(taskId) != 1) {
+        KbPipelineTask task = TaskRunnerSupport.claim(pipelineTaskDbService, taskId);
+        if (ObjectUtil.isNull(task)) {
             return;
         }
         log.info("===> StructureTaskRunner 领取组装任务, taskId={}, fileResultId={}",
@@ -75,7 +69,7 @@ public class StructureTaskRunner {
             } catch (Exception e) {
                 log.warn("读取上游解析产物失败, taskId={}, artifactId={}", taskId, parseProduct.getArtifactId(), e);
                 finishFailed(taskId, PipelineTaskErrorCode.STRUCTURE_EMPTY.name(),
-                        "上游解析产物读取失败: " + truncate(String.valueOf(e.getMessage())));
+                        "上游解析产物读取失败: " + e.getMessage());
                 return;
             }
             if (ObjectUtil.isNull(parseResult)) {
@@ -96,17 +90,13 @@ public class StructureTaskRunner {
                     this::finishFailed);
         } catch (Exception e) {
             log.error("组装任务执行异常, taskId={}", taskId, e);
-            finishFailed(taskId, PipelineTaskErrorCode.STRUCTURE_FAILED.name(), truncate(String.valueOf(e.getMessage())));
+            finishFailed(taskId, PipelineTaskErrorCode.STRUCTURE_FAILED.name(), String.valueOf(e.getMessage()));
         }
     }
 
     /** 上游解析产物解析：任务指定 upstreamProductId 优先，查不到或缺省回退该环节最新产物。 */
     private KbPipelineProduct resolveParseProduct(KbPipelineTask task) {
-        KbPipelineProduct product = ObjectUtil.isNull(task.getUpstreamProductId()) ? null
-                : pipelineProductDbService.getById(task.getUpstreamProductId());
-        return ObjectUtil.isNull(product)
-                ? pipelineProductDbService.getByFileResultIdAndStage(task.getFileResultId(), PipelineStage.PARSE.name())
-                : product;
+        return TaskRunnerSupport.resolveUpstreamProduct(pipelineProductDbService, task, PipelineStage.PARSE);
     }
 
     private void persistProduct(KbPipelineTask task, KbPipelineProduct parseProduct, AssembleOutcome outcome) {
@@ -119,11 +109,6 @@ public class StructureTaskRunner {
     }
 
     private void finishFailed(Long taskId, String errorCode, String errorMsg) {
-        pipelineTaskDbService.finish(taskId, PipelineTaskStatus.FAILED.name(), errorCode,
-                StrUtil.isBlank(errorMsg) ? null : truncate(errorMsg));
-    }
-
-    private String truncate(String message) {
-        return StrUtil.maxLength(message, 1000);
+        TaskRunnerSupport.finishFailed(pipelineTaskDbService, taskId, errorCode, errorMsg);
     }
 }

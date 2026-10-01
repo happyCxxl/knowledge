@@ -6,6 +6,7 @@ import com.knowledge.biz.service.IndexSetService;
 import com.knowledge.biz.service.db.KbChunkSetDbService;
 import com.knowledge.biz.service.db.KbEmbeddingRecordDbService;
 import com.knowledge.biz.service.db.KbEmbeddingSetDbService;
+import com.knowledge.biz.service.support.EmbedRowSupport;
 import com.knowledge.biz.service.db.KbFileResultDbService;
 import com.knowledge.biz.service.db.KbPipelineProductDbService;
 import com.knowledge.biz.service.db.KbPipelineTaskDbService;
@@ -21,8 +22,6 @@ import com.knowledge.common.domain.entity.KbPipelineProduct;
 import com.knowledge.common.domain.entity.KbPipelineTask;
 import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.enums.task.PipelineTaskErrorCode;
-import com.knowledge.common.enums.task.PipelineTaskStatus;
-import com.knowledge.common.enums.task.RowStatus;
 import com.knowledge.common.utils.JsonUtil;
 import com.knowledge.filecenter.service.FileStorage;
 import com.knowledge.worker.chunking.ChunkProperties;
@@ -76,13 +75,8 @@ public class EmbedTaskRunner {
      * 执行单个向量化任务（由消费循环提交，外层看门狗负责超时）。
      */
     public void run(Long taskId) {
-        KbPipelineTask task = pipelineTaskDbService.getById(taskId);
-        if (ObjectUtil.isNull(task)
-                || !PipelineTaskStatus.QUEUED.name().equals(task.getStatus())) {
-            return;
-        }
-        // 条件更新领任务：多实例防重复
-        if (pipelineTaskDbService.claim(taskId) != 1) {
+        KbPipelineTask task = TaskRunnerSupport.claim(pipelineTaskDbService, taskId);
+        if (ObjectUtil.isNull(task)) {
             return;
         }
         log.info("===> EmbedTaskRunner 领取向量化任务, taskId={}, fileResultId={}",
@@ -109,7 +103,7 @@ public class EmbedTaskRunner {
             } catch (Exception e) {
                 log.warn("读取上游切片产物失败, taskId={}, artifactId={}", taskId, chunkProduct.getArtifactId(), e);
                 finishFailed(taskId, PipelineTaskErrorCode.EMBED_EMPTY.name(),
-                        "上游切片产物读取失败: " + truncate(String.valueOf(e.getMessage())));
+                        "上游切片产物读取失败: " + e.getMessage());
                 return;
             }
             if (ObjectUtil.isNull(chunkSet) || chunkSet.getChunks().isEmpty()) {
@@ -136,17 +130,13 @@ public class EmbedTaskRunner {
                     this::finishFailed);
         } catch (Exception e) {
             log.error("向量化任务执行异常, taskId={}", taskId, e);
-            finishFailed(taskId, PipelineTaskErrorCode.EMBED_FAILED.name(), truncate(String.valueOf(e.getMessage())));
+            finishFailed(taskId, PipelineTaskErrorCode.EMBED_FAILED.name(), String.valueOf(e.getMessage()));
         }
     }
 
     /** 上游切片产物解析：任务指定 upstreamProductId 优先，查不到或缺省回退该环节最新产物。 */
     private KbPipelineProduct resolveChunkProduct(KbPipelineTask task) {
-        KbPipelineProduct product = ObjectUtil.isNull(task.getUpstreamProductId()) ? null
-                : pipelineProductDbService.getById(task.getUpstreamProductId());
-        return ObjectUtil.isNull(product)
-                ? pipelineProductDbService.getByFileResultIdAndStage(task.getFileResultId(), PipelineStage.CHUNK.name())
-                : product;
+        return TaskRunnerSupport.resolveUpstreamProduct(pipelineProductDbService, task, PipelineStage.CHUNK);
     }
 
     /** 复用候选账本：同文件同策略成功集合（新→旧，回溯上限）；账本文件读取失败跳过继续（复用是优化） */
@@ -191,7 +181,8 @@ public class EmbedTaskRunner {
         KbPipelineProduct product = productPersistence.persist(task, PipelineStage.EMBED,
                 chunkProduct.getId(), JsonUtil.toJsonStr(strategy), embeddingSet);
 
-        KbEmbeddingSet setRow = buildSetRow(fileResult, embeddingSet, product.getArtifactId());
+        KbEmbeddingSet setRow = EmbedRowSupport.setRow(fileResult.getId(), embeddingSet,
+                embeddingSet.getStrategyVersion(), product.getArtifactId());
         embeddingSetDbService.save(setRow);
 
         List<KbEmbeddingRecord> recordRows = new ArrayList<>();
@@ -206,36 +197,8 @@ public class EmbedTaskRunner {
                 embeddingSet.getRecordCount(), embeddingSet.getCachedCount(), product.getArtifactId());
     }
 
-    /** 向量集合账本行（文件 + 集合 + 产物引用；状态 ACTIVE） */
-    private KbEmbeddingSet buildSetRow(KbFileResult fileResult, EmbeddingSet embeddingSet, String artifactId) {
-        KbEmbeddingSet setRow = new KbEmbeddingSet();
-        setRow.setFileResultId(fileResult.getId());
-        setRow.setChunkSetRef(embeddingSet.getChunkSetRef());
-        setRow.setEmbeddingSetId(embeddingSet.getEmbeddingSetId());
-        setRow.setStrategyVersion(embeddingSet.getStrategyVersion());
-        setRow.setModel(embeddingSet.getModel());
-        setRow.setDimension(embeddingSet.getDimension());
-        setRow.setMetric(embeddingSet.getMetric());
-        setRow.setNormalized(embeddingSet.isNormalized());
-        setRow.setRecordCount(embeddingSet.getRecordCount());
-        setRow.setCachedCount(embeddingSet.getCachedCount());
-        setRow.setStatus(RowStatus.ACTIVE.name());
-        setRow.setArtifactId(artifactId);
-        return setRow;
-    }
-
     private KbEmbeddingRecord toKbRecord(Long embeddingSetId, EmbeddingRecord record) {
-        KbEmbeddingRecord row = new KbEmbeddingRecord();
-        row.setEmbeddingSetId(embeddingSetId);
-        row.setEmbeddingId(record.getEmbeddingId());
-        row.setChunkId(record.getChunkId());
-        row.setContentType(record.getContentType());
-        row.setParentChunkId(record.getParentChunkId());
-        row.setInputText(record.getInputText());
-        row.setInputTextHash(record.getInputTextHash());
-        row.setTokenCount(record.getTokenCount());
-        row.setRequestId(record.getRequestId());
-        row.setStatus(record.getStatus());
+        KbEmbeddingRecord row = EmbedRowSupport.recordRow(embeddingSetId, record);
         row.setCacheHit(record.isCacheHit());
         return row;
     }
@@ -243,8 +206,7 @@ public class EmbedTaskRunner {
     private void finishFailed(Long taskId, String errorCode, String errorMsg) {
         log.warn("===> EmbedTaskRunner 向量化任务失败, taskId={}, errorCode={}, errorMsg={}",
                 taskId, errorCode, errorMsg);
-        pipelineTaskDbService.finish(taskId, PipelineTaskStatus.FAILED.name(), errorCode,
-                StrUtil.isBlank(errorMsg) ? null : truncate(errorMsg));
+        TaskRunnerSupport.finishFailed(pipelineTaskDbService, taskId, errorCode, errorMsg);
     }
 
     /** 文件产物就绪 → 索引自动构建判定（失败不阻断向量化任务终态） */
@@ -254,9 +216,5 @@ public class EmbedTaskRunner {
         } catch (Exception e) {
             log.warn("索引自动构建回调异常, fileResultId={}", fileResultId, e);
         }
-    }
-
-    private String truncate(String message) {
-        return StrUtil.maxLength(message, 1000);
     }
 }

@@ -10,6 +10,7 @@ import com.knowledge.biz.service.db.KbPipelineTaskDbService;
 import com.knowledge.biz.service.db.KbStrategyBindingDbService;
 import com.knowledge.biz.service.db.KnowledgeBaseDbService;
 import com.knowledge.biz.service.support.ChunkVoAssembler;
+import com.knowledge.biz.service.support.StageStrategySupport;
 import com.knowledge.biz.service.support.TaskDetailSupport;
 import com.knowledge.biz.task.TaskQueueSupport;
 import com.knowledge.biz.task.TaskTriggerSupport;
@@ -82,9 +83,9 @@ class ChunkControlServiceImplTest {
     void setUp() {
         // 触发/详情助手为纯委托类、组装器为纯映射类，用真实实例（mock 会让 VO 组装返回 null，断言失真）
         service = new ChunkControlServiceImpl(fileResultDbService, pipelineProductDbService,
-                stepLogDbService, strategyVersionDbService, strategyBindingDbService, knowledgeBaseDbService,
+                new StageStrategySupport(strategyVersionDbService, strategyBindingDbService, knowledgeBaseDbService),
                 new TaskTriggerSupport(pipelineTaskDbService, taskQueue),
-                new TaskDetailSupport(pipelineTaskDbService),
+                new TaskDetailSupport(pipelineTaskDbService, stepLogDbService, pipelineProductDbService),
                 chunkSetDbService, chunkDbService,
                 new ChunkStrategyParser(new ChunkProperties()),
                 new ChunkVoAssembler());

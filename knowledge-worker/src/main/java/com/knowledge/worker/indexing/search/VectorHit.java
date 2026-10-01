@@ -1,7 +1,9 @@
 package com.knowledge.worker.indexing.search;
 
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 /**
  * 向量检索命中：返回字段原样入索引，命中直取不回查库。
@@ -10,7 +12,9 @@ import lombok.Data;
  */
 @Data
 @Builder
-public class VectorHit {
+@NoArgsConstructor
+@AllArgsConstructor
+public class VectorHit implements IndexHit {
 
     /** 片 ID */
     private String chunkId;

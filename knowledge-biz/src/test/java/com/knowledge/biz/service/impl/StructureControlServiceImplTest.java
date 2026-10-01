@@ -64,8 +64,8 @@ class StructureControlServiceImplTest {
     void setUp() {
         // 触发/详情助手为纯委托类、组装器为纯映射类，用真实实例（mock 会让 VO 组装返回 null，断言失真）
         service = new StructureControlServiceImpl(fileResultDbService, pipelineProductDbService,
-                stepLogDbService, new TaskTriggerSupport(pipelineTaskDbService, taskQueue),
-                new TaskDetailSupport(pipelineTaskDbService), fileStorage,
+                new TaskTriggerSupport(pipelineTaskDbService, taskQueue),
+                new TaskDetailSupport(pipelineTaskDbService, stepLogDbService, pipelineProductDbService), fileStorage,
                 new StructureVoAssembler());
     }
 

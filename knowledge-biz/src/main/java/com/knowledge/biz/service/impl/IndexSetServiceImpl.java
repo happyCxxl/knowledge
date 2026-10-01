@@ -320,6 +320,20 @@ public class IndexSetServiceImpl implements IndexSetService {
         return combo;
     }
 
+    /** 按 id 取版本行（不存在 40441）：发布/回退/验证/回收共用入口校验 */
+    private KbIndexVersion requireVersion(Long versionId) {
+        KbIndexVersion version = indexVersionDbService.getById(versionId);
+        ThrowUtil.throwIf(ObjectUtil.isNull(version), ErrorCode.INDEX_VERSION_NOT_FOUND);
+        return version;
+    }
+
+    /** 版本行所属索引集合（缺失同样按 40441 处理，与版本不存在对外不可区分） */
+    private KbIndexSet requireSetOf(KbIndexVersion version) {
+        KbIndexSet set = indexSetDbService.getById(version.getIndexSetId());
+        ThrowUtil.throwIf(ObjectUtil.isNull(set), ErrorCode.INDEX_VERSION_NOT_FOUND);
+        return set;
+    }
+
     /** 规则三：产物组合 ≠ 在线组合 → 按在线组合全链补齐该文件（从缺失的最上游环节投递） */
     private void maybeBackfillToOnline(Long kbId, Long fileResultId, ComboSnapshot productCombo) {
         KbIndexVersion online = currentPublished(kbId);
@@ -466,12 +480,10 @@ public class IndexSetServiceImpl implements IndexSetService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void publish(Long versionId) {
-        KbIndexVersion version = indexVersionDbService.getById(versionId);
-        ThrowUtil.throwIf(ObjectUtil.isNull(version), ErrorCode.INDEX_VERSION_NOT_FOUND);
+        KbIndexVersion version = requireVersion(versionId);
         ComboSnapshot versionCombo = requireVersionCombo(version);
         ThrowUtil.throwIf(versionCombo.isListScope(), ErrorCode.INDEX_FROZEN_SCOPE_PUBLISH_FORBIDDEN);
-        KbIndexSet set = indexSetDbService.getById(version.getIndexSetId());
-        ThrowUtil.throwIf(ObjectUtil.isNull(set), ErrorCode.INDEX_VERSION_NOT_FOUND);
+        KbIndexSet set = requireSetOf(version);
         Long currentId = set.getCurrentPublishedVersionId();
         if (Objects.equals(currentId, versionId)) {
             log.info("===> IndexSetServiceImpl 版本已在线，发布幂等跳过, versionId={}", versionId);
@@ -546,10 +558,8 @@ public class IndexSetServiceImpl implements IndexSetService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void recycle(Long versionId) {
-        KbIndexVersion version = indexVersionDbService.getById(versionId);
-        ThrowUtil.throwIf(ObjectUtil.isNull(version), ErrorCode.INDEX_VERSION_NOT_FOUND);
-        KbIndexSet set = indexSetDbService.getById(version.getIndexSetId());
-        ThrowUtil.throwIf(ObjectUtil.isNull(set), ErrorCode.INDEX_VERSION_NOT_FOUND);
+        KbIndexVersion version = requireVersion(versionId);
+        KbIndexSet set = requireSetOf(version);
         ThrowUtil.throwIf(Objects.equals(versionId, set.getCurrentPublishedVersionId()),
                 ErrorCode.INDEX_ONLINE_DELETE_FORBIDDEN);
         ThrowUtil.throwIf(IndexVersionStatus.BUILDING.name().equals(version.getStatus()),
@@ -642,10 +652,8 @@ public class IndexSetServiceImpl implements IndexSetService {
 
     @Override
     public IndexValidateVO validate(Long versionId) {
-        KbIndexVersion version = indexVersionDbService.getById(versionId);
-        ThrowUtil.throwIf(ObjectUtil.isNull(version), ErrorCode.INDEX_VERSION_NOT_FOUND);
-        KbIndexSet set = indexSetDbService.getById(version.getIndexSetId());
-        ThrowUtil.throwIf(ObjectUtil.isNull(set), ErrorCode.INDEX_VERSION_NOT_FOUND);
+        KbIndexVersion version = requireVersion(versionId);
+        KbIndexSet set = requireSetOf(version);
         ThrowUtil.throwIf(!IndexVersionStatus.READY.name().equals(version.getStatus())
                         && !IndexVersionStatus.ONLINE.name().equals(version.getStatus())
                         && !IndexVersionStatus.RETIRED.name().equals(version.getStatus()),

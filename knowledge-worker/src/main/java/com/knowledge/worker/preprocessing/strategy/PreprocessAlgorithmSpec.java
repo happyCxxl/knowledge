@@ -157,8 +157,7 @@ public final class PreprocessAlgorithmSpec {
         Object enabledObj = ruleMap.get("enabled");
         if (enabledObj != null) {
             String enabled = String.valueOf(enabledObj);
-            if (!PreprocessStrategy.ON.equalsIgnoreCase(enabled)
-                    && !PreprocessStrategy.OFF.equalsIgnoreCase(enabled)) {
+            if (!isOnOff(enabled)) {
                 return "开关取值非法: " + rule.key() + "." + enabled;
             }
             if (rule.triState()) {
@@ -186,8 +185,7 @@ public final class PreprocessAlgorithmSpec {
                 } catch (NumberFormatException e) {
                     return "参数必须是整数: " + rule.key() + "." + param.key();
                 }
-            } else if (!PreprocessStrategy.ON.equalsIgnoreCase(value)
-                    && !PreprocessStrategy.OFF.equalsIgnoreCase(value)) {
+            } else if (!isOnOff(value)) {
                 return "参数取值非法: " + rule.key() + "." + param.key() + "（允许 ON/OFF）";
             }
         }
@@ -204,12 +202,8 @@ public final class PreprocessAlgorithmSpec {
         }
         Map<String, Object> custom = (Map<String, Object>) customObj;
         Object enabledObj = custom.get("enabled");
-        if (enabledObj != null) {
-            String enabled = String.valueOf(enabledObj);
-            if (!PreprocessStrategy.ON.equalsIgnoreCase(enabled)
-                    && !PreprocessStrategy.OFF.equalsIgnoreCase(enabled)) {
-                return "custom.enabled 取值非法（允许 ON/OFF）";
-            }
+        if (enabledObj != null && !isOnOff(String.valueOf(enabledObj))) {
+            return "custom.enabled 取值非法（允许 ON/OFF）";
         }
         Object rulesObj = custom.get("rules");
         if (rulesObj == null) {
@@ -261,5 +255,10 @@ public final class PreprocessAlgorithmSpec {
             }
         }
         return false;
+    }
+
+    /** 开关取值校验：ON / OFF（大小写不敏感），规则开关与自定义开关同口径 */
+    private static boolean isOnOff(String value) {
+        return PreprocessStrategy.ON.equalsIgnoreCase(value) || PreprocessStrategy.OFF.equalsIgnoreCase(value);
     }
 }

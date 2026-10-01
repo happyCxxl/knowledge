@@ -10,6 +10,7 @@ import com.knowledge.biz.service.db.KbPipelineStrategyVersionDbService;
 import com.knowledge.biz.service.db.KbPipelineTaskDbService;
 import com.knowledge.biz.service.db.KbStrategyBindingDbService;
 import com.knowledge.biz.service.support.EmbedVoAssembler;
+import com.knowledge.biz.service.support.StageStrategySupport;
 import com.knowledge.biz.service.support.TaskDetailSupport;
 import com.knowledge.biz.task.TaskQueueSupport;
 import com.knowledge.biz.task.TaskTriggerSupport;
@@ -84,14 +85,14 @@ class EmbedControlServiceImplTest {
     @BeforeEach
     void setUp() {
         // 触发/详情助手为纯委托类、组装器为纯映射类，用真实实例（mock 会让 VO 组装返回 null，断言失真）
-        service = new EmbedControlServiceImpl(fileResultDbService, knowledgeBaseDbService,
-                pipelineProductDbService, strategyVersionDbService, stepLogDbService,
+        service = new EmbedControlServiceImpl(fileResultDbService, pipelineProductDbService, stepLogDbService,
                 embeddingSetDbService, embeddingRecordDbService, new EmbedVoAssembler(),
                 new EmbedStrategyParser(new EmbedProperties(), new StaticModelCatalog()),
                 new ChunkStrategyParser(new ChunkProperties()),
-                new EmbedProperties(), new ChunkProperties(), strategyBindingDbService,
+                new EmbedProperties(), new ChunkProperties(),
+                new StageStrategySupport(strategyVersionDbService, strategyBindingDbService, knowledgeBaseDbService),
                 new TaskTriggerSupport(pipelineTaskDbService, taskQueue),
-                new TaskDetailSupport(pipelineTaskDbService));
+                new TaskDetailSupport(pipelineTaskDbService, stepLogDbService, pipelineProductDbService));
     }
 
     private KbFileResult fileResult() {

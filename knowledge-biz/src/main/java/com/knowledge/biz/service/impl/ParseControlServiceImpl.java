@@ -4,7 +4,6 @@ import cn.hutool.core.util.ObjectUtil;
 import com.knowledge.biz.service.ParseControlService;
 import com.knowledge.biz.service.db.KbFileResultDbService;
 import com.knowledge.biz.service.db.KbPipelineProductDbService;
-import com.knowledge.biz.service.db.KbPipelineStepLogDbService;
 import com.knowledge.biz.service.support.TaskDetailSupport;
 import com.knowledge.biz.task.TaskTriggerSupport;
 import com.knowledge.common.domain.entity.KbFileResult;
@@ -13,7 +12,6 @@ import com.knowledge.common.domain.entity.KbPipelineTask;
 import com.knowledge.common.domain.parse.ParseResult;
 import com.knowledge.common.dto.response.parse.ParseDetailVO;
 import com.knowledge.common.dto.response.task.StageTriggerVO;
-import com.knowledge.common.dto.response.task.StepLogVO;
 import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.ThrowUtil;
@@ -39,7 +37,6 @@ public class ParseControlServiceImpl implements ParseControlService {
 
     private final KbFileResultDbService fileResultDbService;
     private final KbPipelineProductDbService pipelineProductDbService;
-    private final KbPipelineStepLogDbService stepLogDbService;
     private final TaskTriggerSupport triggerSupport;
     private final TaskDetailSupport detailSupport;
     private final FileStorage fileStorage;
@@ -72,20 +69,13 @@ public class ParseControlServiceImpl implements ParseControlService {
         KbPipelineTask task = detailSupport.resolveTask(fileResultId, PipelineStage.PARSE, taskId, "解析");
 
         ParseDetailVO vo = new ParseDetailVO();
-        vo.setFileResultId(fileResultId);
-        if (ObjectUtil.isNotNull(task)) {
-            vo.applyFrom(task);
-            vo.setSteps(stepLogDbService.listByTaskId(task.getId()).stream().map(StepLogVO::of).toList());
-        }
+        detailSupport.withTask(vo, fileResultId, task);
 
         // 产物引用/告警：按 task.productId 精确取该次运行的产物（历史任务同样可展示自己的产物；无任务/无产物留空）
         vo.setWarnings(new ArrayList<>());
-        KbPipelineProduct product = ObjectUtil.isNull(task) || task.getProductId() == null ? null
-                : pipelineProductDbService.getById(task.getProductId());
+        KbPipelineProduct product = detailSupport.productOfTask(task);
         if (ObjectUtil.isNotNull(product)) {
-            vo.setArtifactId(product.getArtifactId());
-            vo.setContentHash(product.getContentHash());
-            vo.setCapabilitySnapshot(product.getCapabilitySnapshot());
+            detailSupport.withProductRef(vo, product);
             vo.setWarnings(readWarnings(product.getArtifactId()));
         }
         return vo;

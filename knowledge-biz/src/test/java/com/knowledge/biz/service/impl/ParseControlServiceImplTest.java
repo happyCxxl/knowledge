@@ -64,8 +64,8 @@ class ParseControlServiceImplTest {
     void setUp() {
         // 触发/详情助手为纯委托类，用真实实例（mock 会让返回失真）
         service = new ParseControlServiceImpl(fileResultDbService, pipelineProductDbService,
-                stepLogDbService, new TaskTriggerSupport(pipelineTaskDbService, taskQueue),
-                new TaskDetailSupport(pipelineTaskDbService), fileStorage);
+                new TaskTriggerSupport(pipelineTaskDbService, taskQueue),
+                new TaskDetailSupport(pipelineTaskDbService, stepLogDbService, pipelineProductDbService), fileStorage);
     }
 
     private KbFileResult fileResult() {
