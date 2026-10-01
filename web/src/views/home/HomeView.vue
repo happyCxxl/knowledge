@@ -254,16 +254,10 @@ onMounted(() => {
  * 本页只保留业务样式。
  */
 
-/* 面板标题（放进共用的 .page-toolbar，与右侧提示同排） */
+/* 面板标题（放进共用的 .page-toolbar） */
 .home-panel-title {
   font-size: 13px;
   font-weight: 650;
-}
-
-/* 区块口径提示：说明"这块数字到底数的是什么"，弱化以免抢标题 */
-.home-hint {
-  color: var(--kb-text-4);
-  font-size: 11px;
 }
 
 /*
