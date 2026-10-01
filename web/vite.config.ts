@@ -60,7 +60,7 @@ export default defineConfig({
       '/strategy-versions': { target: BACKEND, bypass: bypassNavigation },
       // 用户接口：只代理 /user/ 下的子路径，避免把 SPA 路由 /user 本身也转发到后端
       '^/user/': { target: BACKEND, bypass: bypassNavigation },
-      // 首页接口（/home/summary、/home/activities）：/home 同时是 SPA 路由，
+      // 首页接口（/home/summary、/home/recent-submits）：/home 同时是 SPA 路由，
       // 靠 bypass 按 Accept 头区分导航与接口 —— 漏配这条会让接口请求落到 SPA 回退上，
       // 表现为前端拿到一坨 HTML、页面数据全空（且控制台不报错，很难发现）
       '^/home/': { target: BACKEND, bypass: bypassNavigation },
