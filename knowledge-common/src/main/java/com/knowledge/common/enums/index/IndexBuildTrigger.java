@@ -17,6 +17,6 @@ public enum IndexBuildTrigger {
     /** 全量重建（策略/模型/维度变化） */
     REBUILD,
 
-    /** 回退补齐（旧口径重跑差异文件） */
+    /** 回退补齐（重跑差异文件） */
     COMPENSATE
 }

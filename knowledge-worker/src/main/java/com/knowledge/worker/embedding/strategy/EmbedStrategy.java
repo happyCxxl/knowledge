@@ -38,7 +38,7 @@ public class EmbedStrategy implements StageStrategy {
     /** 模型名（模型目录口径，必选） */
     private String model;
 
-    /** 文档侧模板（{content} 必含；一期行为原样编码） */
+    /** 文档侧模板（{content} 必含；当前行为原样编码） */
     private String docTemplate;
 
     /** 查询侧模板（{query} 必含；检索环节用） */

@@ -69,7 +69,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class FileSubmitServiceImpl implements FileSubmitService {
 
-    /** 用户归属默认值（检索强制过滤口径，一期统一 ADMIN） */
+    /** 用户归属默认值（检索强制过滤口径，当前统一 ADMIN） */
     private static final String DEFAULT_OWNER = "ADMIN";
 
     private final KnowledgeBaseDbService knowledgeBaseDbService;

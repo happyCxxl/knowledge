@@ -57,7 +57,7 @@ export async function updateKnowledgeBaseDisable(id: string): Promise<void> {
   await http.post<void>(`/knowledge-base/${id}/disable`);
 }
 
-/** 启用知识库（`POST /knowledge-base/{id}/enable`；仅停用状态可启用，否则 40402） */
+/** 启用知识库（`POST /knowledge-base/{id}/enable`；仅停用状态可启用，不满足时 40402） */
 export async function updateKnowledgeBaseEnable(id: string): Promise<void> {
   await http.post<void>(`/knowledge-base/${id}/enable`);
 }

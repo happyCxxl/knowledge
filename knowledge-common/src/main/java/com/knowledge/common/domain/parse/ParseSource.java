@@ -10,7 +10,7 @@ import java.util.List;
 
 /**
  * 按来源分组的一路解析结果。各路不预先合并——保真与证据保留，合并裁决归组装环节。
- * 一期只有 native 路；ocr/layout/table 路随能力接入新增。
+ * 当前只有 native 路；ocr/layout/table 路随能力接入新增。
  *
  * @author cxxl
  */

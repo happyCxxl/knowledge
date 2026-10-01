@@ -19,7 +19,7 @@ public class EmbeddingRequest {
     /** 本批输入文本（原样编码，顺序即请求顺序） */
     private List<String> texts;
 
-    /** 单批超时（毫秒，调用方显式指定；网关支持 1s~15min） */
+    /** 单批超时（毫秒，显式指定；网关支持 1s~15min） */
     private Integer timeoutMs;
 
     /** 期望批大小（网关默认 20；向量化侧按策略 batchSize 拆批） */

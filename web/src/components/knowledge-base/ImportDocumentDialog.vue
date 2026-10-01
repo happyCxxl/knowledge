@@ -111,7 +111,7 @@
           </div>
         </div>
 
-        <!-- 完成后：说明下一步去哪，否则用户不知道还要手动触发解析 -->
+        <!-- 完成后：说明下一步去哪（建档后需到执行链页手动触发解析） -->
         <div v-if="doneSummary" class="import-summary">
           {{ doneSummary }}
           <span class="import-summary-next">
@@ -145,7 +145,7 @@ import { KB_STATUS_ACTIVE } from '@/types/knowledge-base';
 import type { KnowledgeBase } from '@/types/knowledge-base';
 
 // 导入文档：上传到文件中心拿 fileId → 提交到知识库建档。
-// 只建档不建任务（手动逐环节口径），所以完成后要引导用户去执行链页触发解析
+// 只建档不建任务（手动逐环节口径）：完成后引导去执行链页触发解析
 const visible = defineModel<boolean>({ required: true });
 
 const props = defineProps<{
@@ -169,8 +169,7 @@ interface ImportItem {
    *
    * <p>加入列表时生成并挂在本项上——本项的重试沿用同一个值（超时重发不会重复建档），
    * 而"同一份文件再导入一次"是**新的一次提交**：移出列表再加回、或重开弹窗都会拿到新键，
-   * 照常新建档。**不能由文件名/大小/修改时间推导** —— 那样同一份文件永远撞同一个键，
-   * 后端按幂等直接回放首次记录，用户以为导入成功、实际一行都没建。
+   * 照常新建档。**不能由文件名/大小/修改时间推导** —— 那样同一份文件永远撞同一个键。
    */
   requestId: string;
   state: ItemState;
@@ -178,7 +177,7 @@ interface ImportItem {
   percent: number;
   /** 失败原因；预检不通过或后端 failReason */
   reason: string;
-  /** 前端预检就不通过：不再尝试上传，只展示原因 */
+  /** 前端预检就不通过：不发起上传，只展示原因 */
   precheckFailed: boolean;
 }
 
@@ -196,12 +195,12 @@ let keySeed = 0;
 /**
  * 一次拉取的知识库条数上限。
  *
- * <p>拉全量再在前端搜索：导入场景下用户要看到完整候选，分页反而会让人以为"库丢了"。
- * 100 条不足以覆盖真实使用（原先就是 100，库多了会静默漏掉），这里放到 500。
+ * <p>拉全量再在前端搜索（不翻页）：导入场景需要看到完整候选。
+ * 取 500 条：100 条不足以覆盖真实使用，库多了会静默漏掉。
  */
 const KB_FETCH_SIZE = 500;
 
-/** 左栏列出全部知识库（含停用）：停用的标灰禁选，比直接隐藏更能说明为什么不能选 */
+/** 左栏列出全部知识库（含停用）：停用的标灰禁选 */
 const filteredKbs = computed(() => {
   const keyword = kbKeyword.value.trim().toLowerCase();
   if (!keyword) {
@@ -243,7 +242,7 @@ function pickFiles(): void {
 function onInputChange(event: Event): void {
   const input = event.target as HTMLInputElement;
   addFiles(Array.from(input.files ?? []));
-  // 清空 value，否则连续选同一个文件不会触发 change
+  // 清空 value：连续选同一个文件也要触发 change
   input.value = '';
 }
 
@@ -280,11 +279,10 @@ function removeItem(key: string): void {
 /**
  * 逐个文件导入。
  *
- * <p>刻意串行而不是并发：一次导入几十个文件时并发上传会打满带宽，
- * 且后端要逐个做 sha256 与魔数识别，串行更容易看清进度。
+ * <p>逐个文件串行导入（不并发）。
  *
- * <p>提交接口对「文件校验不通过」**不抛异常**，而是返回 status=FAIL 的提交日志，
- * 所以这里必须检查 submitLog.status，否则会把失败当成功。
+ * <p>提交接口对「文件校验不通过」**不抛异常**，而是返回 status=FAIL 的提交日志；
+ * 这里必须检查 submitLog.status。
  */
 async function startImport(): Promise<void> {
   running.value = true;
@@ -293,7 +291,7 @@ async function startImport(): Promise<void> {
   let failed = 0;
 
   for (const item of items.value) {
-    // 已成功的跳过，方便失败后重试整批而不重复建档（幂等键也能兜住）
+    // 已成功的跳过：失败后重试整批不重复建档（幂等键兜住）
     if (item.state === 'passed') {
       passed += 1;
       continue;
@@ -340,7 +338,7 @@ async function startImport(): Promise<void> {
  *
  * <p>**每次提交一个唯一值**，与文件是否重复无关：同一份文件重新上传会拿到新的 fileId，
  * 对系统来说就是两份文件（`MinioFileStorage.store` 每次 `IdWorker.getIdStr()`），
- * 所以要新建档；幂等键只用来防"同一次请求被重复送达"（网络重试、并发重发）。
+ * 新建档；幂等键只用来防"同一次请求被重复送达"（网络重试、并发重发）。
  *
  * <p>用时间戳 + 随机后缀，不用 `crypto.randomUUID()`：后者只在安全上下文（https/localhost）
  * 暴露，内网 http 部署下是 undefined，会把上传直接打断；幂等键只要求唯一、不要求不可预测。
@@ -444,7 +442,7 @@ watch(visible, (open) => {
   cursor: pointer;
 }
 
-/* 停用库：列出但禁选，让用户明白为什么不能选。
+/* 停用库：列出但禁选。
    放在 hover 之前：:disabled 选择器优先级更低，顺序反了会触发 no-descending-specificity */
 .import-kb-item:disabled {
   cursor: not-allowed;

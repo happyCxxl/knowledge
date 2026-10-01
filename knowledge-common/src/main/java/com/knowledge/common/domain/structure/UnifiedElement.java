@@ -79,7 +79,7 @@ public class UnifiedElement {
     /** 是否表头单元格（TABLE_CELL 专用） */
     private Boolean isHeader;
 
-    /** 图注（IMAGE 专用，一期不专门识别） */
+    /** 图注（IMAGE 专用，暂不专门识别） */
     private String caption;
 
     /** 冲突状态（ConflictStatus 枚举名；无冲突为空） */

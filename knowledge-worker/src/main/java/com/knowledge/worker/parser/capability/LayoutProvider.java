@@ -5,7 +5,7 @@ import com.knowledge.common.domain.parse.capability.PageImage;
 import com.knowledge.common.domain.parse.capability.ProviderContext;
 
 /**
- * 版面分析能力接口（预留扩展，一期无实现）。
+ * 版面分析能力接口（预留，暂未接入实现）。
  * 值对象见 common.domain.parse（LayoutResult/PageImage/LayoutRegion）。
  *
  * @author cxxl

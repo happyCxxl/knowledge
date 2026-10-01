@@ -340,7 +340,7 @@ const registerRules: FormRules = {
   ],
 };
 
-// 回弹缓动：1-(1-t)^4，末段收得干净、不拖尾
+// 回弹缓动：1-(1-t)^4
 function easeFlip(t: number): number {
   return 1 - Math.pow(1 - t, 4);
 }
@@ -360,7 +360,7 @@ function paintFlip(value: number): void {
 }
 
 // 翻转期间两张脸都要可见且满不透明：正面/背面由 backface-visibility 负责，
-// 不看角度算透明度，就不会出现两张脸各半透明叠在一起的镜像重影。
+// 透明度不按角度计算，避免两张脸各半透明叠在一起产生镜像重影。
 // 同时关掉毛玻璃（transform 祖先上的 backdrop-filter 在 Chromium 里会让整卡不渲染）
 function showBothFaces(active: boolean): void {
   for (const el of [loginCard.value, registerCard.value]) {
@@ -414,12 +414,12 @@ function runFlip(target: 'login' | 'register'): void {
 }
 
 // 切换卡片：竖向翻转。正向（去注册）0 → 1，反向（回登录）1 → 0，
-// 方向必须跟着目标走，否则回到登录时会被推到 1 又落回注册卡
+// 方向必须跟着目标走：回到登录时对应第 1 屏
 function switchMode(next: 'login' | 'register'): void {
   if (flipping.value || next === mode.value) {
     return;
   }
-  // 清掉离开那张卡的校验残留，回来时是干净的
+  // 清掉离开那张卡的校验残留
   const leaving = next === 'login' ? registerFormRef.value : formRef.value;
   leaving?.clearValidate();
   mode.value = next;
@@ -680,7 +680,7 @@ onBeforeUnmount(() => {
   content: '';
 }
 
-/* 高光扫过：贴到 90° 侧棱时最亮，是「酷炫」的主要来源。
+/* 高光扫过：贴到 90° 侧棱时最亮。
    直接吃父级继承下来的 --edge，单类名即可，不需要祖先状态选择器 */
 .login-sheen {
   position: absolute;

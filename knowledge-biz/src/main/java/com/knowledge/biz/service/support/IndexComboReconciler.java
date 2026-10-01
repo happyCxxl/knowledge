@@ -56,7 +56,7 @@ public class IndexComboReconciler {
 
     /**
      * 单文件组合产物（单一取数口径）：该文件在组合下的最新成功切片/向量行；
-     * 缺口时 gap 非空（chunkRow/embedRow 为 null，调用方不得使用）。
+     * 缺口时 gap 非空（chunkRow/embedRow 为 null）。
      */
     public record ComboProducts(KbChunkSet chunkRow, KbEmbeddingSet embedRow, String gap) {
 
@@ -138,10 +138,10 @@ public class IndexComboReconciler {
 
     /** 计算组合对账期望（实时重算口径） */
     public ComboExpectation computeExpected(Long kbId, ComboSnapshot combo) {
-        // 对账不变量：组合必须携带三环节策略维度（缺失即坏数据；旧口径行已在快照读取处显式拒绝）
+        // 对账不变量：组合必须携带三环节策略维度（缺失即坏数据，已在快照读取处显式拒绝）
         if (ObjectUtil.isNull(combo) || !combo.hasCompleteStageStrategies()) {
             return new ComboExpectation(Set.of(), 0, 0, false,
-                    "组合缺失环节策略维度（疑似旧口径数据，需废弃重灌）", true, null, null, null);
+                    "组合缺失环节策略维度（需废弃重灌）", true, null, null, null);
         }
         Map<Long, KbFileResult> filesById = new LinkedHashMap<>();
         for (KbFileResult file : fileResultDbService.listByKb(kbId)) {

@@ -141,7 +141,7 @@ public class DocxDocumentParser extends AbstractPoiDocumentParser {
         return element;
     }
 
-    /** 段落内嵌图片：仅记引用 + needsOcr + OCR_IMAGE 事实（一期不识别文字）。 */
+    /** 段落内嵌图片：仅记引用 + needsOcr + OCR_IMAGE 事实（暂不识别文字）。 */
     private void appendDocxPictures(ParseSource source, XWPFParagraph paragraph, int index, String fileId) {
         int pictureIndex = 0;
         for (XWPFRun run : paragraph.getRuns()) {

@@ -8,8 +8,7 @@ import com.knowledge.worker.chunking.strategy.ChunkRouteConfig;
 import java.util.List;
 
 /**
- * 窗口类兜底切片器公共骨架：固定窗口与递归两路都从 fallback 路由读 len/overlap，空文本一律空片；
- * 子类只实现"给定 len/overlap 怎么切"。
+ * 窗口类兜底切片器骨架：空文本返回空片，其余从 fallback 路由读 len/overlap 交给 doSlice。
  *
  * @author cxxl
  */

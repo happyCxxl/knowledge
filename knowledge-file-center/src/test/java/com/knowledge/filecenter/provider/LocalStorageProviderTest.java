@@ -92,7 +92,7 @@ class LocalStorageProviderTest {
 
     @Test
     void shouldRejectPathEscapingRoot() {
-        // key 里的 .. 会被规范化后检出越界；提供者是通用层，不能假设调用方一定干净
+        // key 里的 .. 会被规范化后检出越界；提供者按通用层处理，不假设 key 一定干净
         assertThrows(IllegalArgumentException.class, () -> provider.exists("artifacts", "../../etc/passwd"));
         assertThrows(IllegalArgumentException.class, () -> provider.exists("artifacts", "a/../../../outside"));
     }

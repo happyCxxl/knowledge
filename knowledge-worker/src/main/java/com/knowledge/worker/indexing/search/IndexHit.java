@@ -3,9 +3,8 @@ package com.knowledge.worker.indexing.search;
 import com.knowledge.vector.CollectionRow;
 
 /**
- * 检索命中公共字段契约：向量命中（{@link VectorHit}）与全文命中（{@link FullTextHit}）字段口径一致
- * （片 ID / 文档 / 类型 / 父片 / 内容 / 标题路径 / 来源元素），差别只在向量路多一个相似度分数。
- * 公共字段的"索引行 → 命中"映射集中在这里，读取方（如检索结果转 VO）也能统一按本契约处理。
+ * 检索命中的公共字段契约：片 ID / 文档 / 类型 / 父片 / 内容 / 标题路径 / 来源元素，
+ * 以及"索引行 → 命中"的映射（{@link #fillFrom}）。
  *
  * @author cxxl
  */

@@ -57,7 +57,7 @@ public class KnowledgeBaseDbServiceImpl extends InfraDbServiceImpl<KnowledgeBase
     @Override
     public List<Long> listIdsByOwner(Long ownerId) {
         LambdaQueryWrapper<KnowledgeBase> queryWrapper = new LambdaQueryWrapper<>();
-        // 只取主键列：调用方要的就是 ID 集合，拉回整行没有意义
+        // 只取主键列：返回的就是 ID 集合，拉回整行没有意义
         queryWrapper.select(KnowledgeBase::getId)
                 .eq(ownerId != null, KnowledgeBase::getUserId, ownerId);
         List<Long> ids = new ArrayList<>();

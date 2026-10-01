@@ -20,17 +20,15 @@ import com.knowledge.common.enums.task.PipelineTaskStatus;
  */
 public final class TaskRunnerSupport {
 
-    /** 失败原因入库前的截断长度：超长原因入库无意义，还会把日志与表撑大 */
+    /** 失败原因入库前的截断长度（字符） */
     private static final int MAX_ERROR_MESSAGE_LENGTH = 1000;
 
     private TaskRunnerSupport() {
     }
 
     /**
-     * 领任务：不存在、非 QUEUED、或多实例并发下条件更新没抢到，一律返回 null（调用方直接 return）。
-     *
-     * <p>"先查状态再条件更新"两步是刻意的：查是为了快速跳过已完成/已取消的任务，
-     * 条件更新（{@code claim}）才是多实例下的真正互斥闸门。
+     * 领任务：不存在、非 QUEUED、或条件更新（{@code claim}）未抢到时返回 null；
+     * 条件更新是多实例下的互斥闸门。
      *
      * @param pipelineTaskDbService 任务数据访问
      * @param taskId                任务 ID
@@ -69,7 +67,7 @@ public final class TaskRunnerSupport {
      * @param pipelineTaskDbService 任务数据访问
      * @param taskId                任务 ID
      * @param errorCode             错误码（各环节自己的枚举码值）
-     * @param errorMsg              失败原因（可空；调用方不必自行截断）
+     * @param errorMsg              失败原因（可空；超长截断，空串按 null 落库）
      */
     public static void finishFailed(KbPipelineTaskDbService pipelineTaskDbService, Long taskId,
                                     String errorCode, String errorMsg) {

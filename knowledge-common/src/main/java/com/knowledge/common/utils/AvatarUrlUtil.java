@@ -24,7 +24,7 @@ public final class AvatarUrlUtil {
     }
 
     /**
-     * 读接口地址：未设置头像时返回 null（调用方据此回落姓名首字，不必发请求）。
+     * 读接口地址：未设置头像时返回 null。
      *
      * @param userId 用户主键
      * @param key    对象 key

@@ -13,7 +13,7 @@ public enum PipelineTaskErrorCode {
     /** 文件深层损坏（入口探测未发现，解析时暴露） */
     PARSE_CORRUPTED,
 
-    /** 扫描件暂不支持（OCR 预留，一期不接） */
+    /** 扫描件暂不支持（OCR 预留，暂未接入） */
     SCANNED_UNSUPPORTED,
 
     /** 成功单元占比低于门槛（90%） */

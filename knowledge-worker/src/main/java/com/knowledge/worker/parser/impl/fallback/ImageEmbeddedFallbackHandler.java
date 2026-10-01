@@ -26,7 +26,7 @@ public class ImageEmbeddedFallbackHandler implements SignalFallbackHandler {
     public int handle(Signal signal, QualityInfo quality) {
         String region = StrUtil.blankToDefault(signal.getRegion(), "");
         quality.getWarnings().add(QualityWarning.of(QualityWarningCode.IMAGE_TEXT_UNRECOGNIZED, null, "WARN",
-                region + " 嵌入图片文字未识别（OCR 预留，一期仅记录引用与图注）"));
+                region + " 嵌入图片文字未识别（OCR 暂未接入，仅记录引用与图注）"));
         return 0;
     }
 }

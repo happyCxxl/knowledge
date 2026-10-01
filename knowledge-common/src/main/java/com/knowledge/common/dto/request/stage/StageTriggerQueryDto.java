@@ -8,10 +8,8 @@ import java.io.Serializable;
 /**
  * 环节触发查询条件（切片 / 预处理 / 向量化三处触发入口共用）。
  *
- * <p>两项都是"可选覆盖"语义：不传时各环节按自己的策略解析档位与最新上游产物决定，
- * 摊在 Controller 签名上会与其它查询参数挤在一起，收成一个对象后签名只留路径参数。
- *
- * <p>{@code @ParameterObject} 让 Swagger 把字段展开成独立查询参数（与首页最近提交同一口径）。
+ * <p>两项都可选：不传时按该环节的策略解析档位与最新上游产物决定。
+ * {@code @ParameterObject} 让 Swagger 把字段展开成独立查询参数。
  *
  * @author cxxl
  */

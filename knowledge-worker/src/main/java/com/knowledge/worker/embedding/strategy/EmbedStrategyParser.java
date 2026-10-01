@@ -48,7 +48,7 @@ public class EmbedStrategyParser {
         }
     }
 
-    /** 配置 JSON（无 name/version）→ 补全默认后的策略对象（name/version 由调用方设置） */
+    /** 配置 JSON（无 name/version）→ 补全默认后的策略对象（name/version 由回填补全） */
     public EmbedStrategy parseConfig(String configSnapshot) {
         EmbedStrategy strategy = parse(configSnapshot);
         strategy.setName(null);

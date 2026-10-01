@@ -14,8 +14,7 @@
     </div>
 
     <!--
-      两栏工作台装进 .page-panel：与知识库的卡片区、用户管理的表格区是同一层容器，
-      不再是"全宽平铺 + 自造顶栏"（那种写法会让内容左缘比其它页多出 22px）。
+      两栏工作台装进 .page-panel：与知识库的卡片区、用户管理的表格区是同一层容器。
     -->
     <div class="page-panel">
       <div class="stg-body">
@@ -355,7 +354,7 @@ function toggleFamily(name: string): void {
   openFamilies.value = next;
 }
 
-/** 选中某策略族时自动展开它，否则用户点完看不到版本列表 */
+/** 选中某策略族时自动展开它 */
 function openFamilyOf(name: string): void {
   if (!openFamilies.value.has(name)) {
     openFamilies.value = new Set([...openFamilies.value, name]);
@@ -369,7 +368,7 @@ function openFamilyOf(name: string): void {
 /**
  * 版本血缘节点。
  *
- * <p>后端把「编辑」实现为复制新行，所以同族各版本之间**没有显式的父子指针**，
+ * <p>后端把「编辑」实现为复制新行，同族各版本之间**没有显式的父子指针**，
  * 血缘只能按版本号推导：当前查看的版本 → 复制后会生成的下一个版本号。
  */
 const lineageNodes = computed(() => {
@@ -436,7 +435,7 @@ const configBroken = computed(() => {
  *   <li>不能写成「每次都重新解析」的 computed——那样表单的就地修改会被立刻丢掉；</li>
  *   <li>也不能用 `ref().value = 新对象` 整体替换：表单用 `v-model:config` 绑的是
  *       **这个对象本身**，整体替换会让表单继续改旧对象，而父组件读的是新对象，
- *       两边脱钩（保存出来的配置会丢掉所有编辑）。所以这里只清空/填充同一个对象。</li>
+ *       两边脱钩（保存出来的配置会丢掉所有编辑）。这里只清空/填充同一个对象。</li>
  * </ol>
  */
 const configObject = reactive<Record<string, unknown>>({});
@@ -693,10 +692,7 @@ async function removeVersion(): Promise<void> {
 /**
  * 加载知识库绑定：**一次请求**取回该策略类型下所有已绑定的库。
  *
- * <p>此前是 N+1：绑定按知识库维度存储，而这里要回答的是反方向的问题
- * （"这个策略版本被哪些库绑了"），于是对每个知识库各发一次
- * `GET /knowledge-base/{id}/strategy-binding` —— 实测 3 个库切一次 tab 就是 3 次请求，
- * 且随知识库数量线性增长。改用批量接口 `GET /knowledge-base/strategy-bindings?strategyType=`，
+ * <p>用批量接口 `GET /knowledge-base/strategy-bindings?strategyType=`：
  * 后端一条 SQL 返回全部绑定行（每行带 knowledgeBaseId）。
  *
  * <p>`knowledgeBases` 仍要拉一次：右栏的绑定列表需要**所有**库（包括未绑定的，
@@ -773,12 +769,10 @@ onMounted(async () => {
  * 页面骨架（.page / .page-head / .page-title / .page-desc / .page-actions / .page-panel）
  * 来自全局 styles/page-shell.css。
  *
- * 原先本页自造了一套顶栏（.stg-topbar，14px 标题 + 自己再加 22px 内边距），
- * 导致内容左缘比其它页多出 51px（外层 28 + 顶栏 22），标题也比列表页小 8px；
- * 现在撤掉顶栏、改用 .page-head，两栏工作台装进 .page-panel。
+ * 顶部用 .page-head，两栏工作台装进 .page-panel。
  */
 
-/* 两栏：左栏定宽、右栏吃剩余；不再是"页面根直接两栏"，而是面板内部的两栏 */
+/* 两栏：左栏定宽、右栏吃剩余，面板内部的两栏 */
 .stg-body {
   display: grid;
   flex: 1;
@@ -795,9 +789,9 @@ onMounted(async () => {
    * overflow: hidden 不能省 —— 它是**网格项自动最小尺寸**的开关。
    *
    * 网格项的 min-height 默认是 auto，含义是"不小于内容高度"，于是内部的
-   * .stg-rail-body 会把它撑到内容那么高（实测 776px），超出面板（705px）被
-   * overflow:hidden 裁掉 —— 内部滚动条因此不可达，且切 tab 时高度会被重算纠正，
-   * 表现为"页面跳一下"。overflow 非 visible 会把自动最小尺寸重置为 0，网格项
+   * .stg-rail-body 会把它撑到内容那么高（776px），超出面板（705px）被
+   * overflow:hidden 裁掉 —— 内部滚动条不可达，且切 tab 时高度会被重算纠正。
+   * overflow 非 visible 会把自动最小尺寸重置为 0，网格项
    * 才真正遵守轨道高度。
    */
   overflow: hidden;

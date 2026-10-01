@@ -41,7 +41,7 @@ public enum EmbedMetric {
         return desc;
     }
 
-    /** 按键精确查找；未识别返回 null（调用方兜底） */
+    /** 按键精确查找；未识别返回 null */
     public static EmbedMetric of(String key) {
         if (StrUtil.isBlank(key)) {
             return null;

@@ -8,7 +8,7 @@ import com.knowledge.worker.chunking.ChunkProperties;
  * 切片策略最大片长推算（向量化环节前置校验用）：
  * 上界 = max(正文路 bound, 表格路 bound=整表 maxLen, 兜底路 bound)；
  * 正文路按所选算法：段落/结构混合/句子聚合 → softMaxLen；标题边界 → maxLen；固定窗口 → len。
- * 兜底算法为 none（原样单片段输出）时上界不可推算 → 返回 {@link Integer#MAX_VALUE}（调用方跳过窗口校验并告警）。
+ * 兜底算法为 none（原样单片段输出）时上界不可推算 → 返回 {@link Integer#MAX_VALUE}。
  *
  * @author cxxl
  */

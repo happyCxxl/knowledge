@@ -6,7 +6,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * 解析阈值配置（knowledge.parse 前缀；Nacos 同名键可覆盖）。
- * 阈值为一期初值，待真实样本标定。
+ * 阈值为初值，待真实样本标定。
  *
  * @author cxxl
  */

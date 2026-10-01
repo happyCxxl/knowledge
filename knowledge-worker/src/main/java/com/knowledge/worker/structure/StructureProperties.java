@@ -51,6 +51,6 @@ public class StructureProperties {
     /** 噪声页判定：页文本乱码率阈值（草案值 0.4） */
     private double noiseGarbledRatio = 0.4;
 
-    /** 模型判断兜底开关（一期关闭） */
+    /** 模型判断兜底开关（默认关闭） */
     private boolean modelFallbackEnabled = false;
 }

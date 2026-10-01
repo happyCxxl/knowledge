@@ -37,12 +37,9 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 /**
- * 知识库管理接口。
- *
- * <p>**文档与知识库是同一个域**：文件提交（建档）、提交记录与文件结果查询三条接口也在这里
- * —— 原来是独立的 `KnowledgeFileInputController`，但它的路径本来就挂在 `/knowledge-base/{id}/**` 下，
- * 归属与生命周期都由知识库决定，拆成两个类只让"一个资源两处入口"。合并后**路径一字未改**
- * （前端无需改动）。业务编排仍在 `FileSubmitService`，本类只做薄转发。
+ * 知识库管理接口：知识库读写 + 文件提交（建档）、提交记录、文件结果查询
+ * （三者归属与生命周期都由知识库决定，路径挂在 `/knowledge-base/{id}/**` 下）。
+ * 业务编排在 `FileSubmitService`，本类只做薄转发。
  *
  * <p>**可见范围**：普通用户只读写自己创建的知识库，管理员不限归属。分页与统计按当前用户
  * 的归属过滤（不接受"创建人"参数 —— 前端传谁就查谁等于没做隔离）；所有按 ID 的接口

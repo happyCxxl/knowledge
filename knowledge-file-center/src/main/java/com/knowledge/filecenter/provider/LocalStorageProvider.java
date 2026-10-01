@@ -15,19 +15,17 @@ import java.util.Objects;
 /**
  * 本地磁盘存储提供者：把 {@code bucket} 当子目录、{@code key} 当文件名落到本地目录。
  *
- * <p>**为什么 bucket 能直接复用为目录名**：{@code kb_file_object.bucket} 本来就把桶名记在档
- * 案里（MinIO 实现写的是 {@code properties.getFileBucket()}），读取时也从档案里取。
- * 所以换成磁盘目录后 **DB 契约一个字都不用改**，只是"桶"变成了目录层级。
+ * <p>**bucket 直接复用为目录名**：{@code kb_file_object.bucket} 已把桶名记在档案里
+ * （MinIO 实现写的是 {@code properties.getFileBucket()}），读取时也从档案取，
+ * 因此 DB 契约不变，只是"桶"变成目录层级。
  *
- * <p>**目录布局**：{@code {local-root}/{bucket}/{key}}，与对象存储的两级结构一一对应，
- * 便于人工比对与迁移。
+ * <p>**目录布局**：{@code {local-root}/{bucket}/{key}}，与对象存储的两级结构一一对应。
  *
- * <p>**路径逃逸防护**：{@code key} 来自调用方（fileId 或 sha256），虽然当前调用方不会传
- * {@code ..}，但提供者是通用层，一旦上游有拼接缺陷就会写到仓库外。这里统一做规范化后
- * 校验前缀，把风险挡在存储层。
+ * <p>**路径逃逸防护**：{@code key}（fileId 或 sha256）统一做路径规范化 + 前缀校验，
+ * 含 {@code ..} 等越界串一律拒绝。
  *
- * <p>**不是原子的**：写入用临时文件 + 移动实现"内容不半截"，但不做 fsync、不加锁。
- * 本实现定位是**开发/演示用的本地替代**，并发与断电语义不承诺强于对象存储。
+ * <p>**不是原子的**：写入用临时文件 + 移动实现"内容不半截"，不做 fsync、不加锁；
+ * 并发与断电语义不承诺强于对象存储。
  *
  * @author cxxl
  */
@@ -88,13 +86,12 @@ public class LocalStorageProvider implements StorageProvider {
     /**
      * 解析对象路径并校验没有逃出根目录。
      *
-     * <p>**前置校验而不是事后校验**：{@code ..} 与绝对路径在拼进 root 之前就拒掉，
-     * 这样"两者都能进入拼接"时的最坏情况（例如平台相关的路径语义差异）根本不会发生。
-     * 事后再用 {@code startsWith} 兜一道。
+     * <p>**前置校验 + 事后兜底**：{@code ..} 与绝对路径在拼进 root 之前先拒，
+     * 拼接后再用 {@code startsWith} 校验一次。
      *
      * @param bucket 桶名（本地实现里是根目录下的一级子目录）
      * @param key    对象名（fileId 或 sha256）
-     * @return 规范化后的绝对路径（**必然含有父目录**，因为它至少包含 bucket 与 key 两段）
+     * @return 规范化后的绝对路径（必然含有父目录：至少包含 bucket 与 key 两段）
      * @throws IllegalArgumentException 路径为空、含越级片段或绝对路径
      */
     private Path resolve(String bucket, String key) {
@@ -125,10 +122,7 @@ public class LocalStorageProvider implements StorageProvider {
     }
 
     /**
-     * 取对象路径的父目录，并显式处理 null。
-     *
-     * <p>{@link #resolve} 保证路径至少有 bucket 与 key 两段，所以父目录必然存在；
-     * 这里显式判空是为了让静态分析看得懂，同时把"万一为空"变成明确的错误而不是 NPE。
+     * 取对象路径的父目录：无父目录时抛明确错误，不返回 null。
      */
     private Path parentOf(Path target) {
         Path parent = target.getParent();

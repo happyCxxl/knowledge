@@ -12,7 +12,7 @@ import java.util.stream.Collectors;
 
 /**
  * 检索能力开关（能力分层解锁）：
- * 已启用能力来自 Nacos 配置 `retrieval.capabilities.enabled`（逗号分隔 RetrievalCapability 枚举名，一期空=全关）。
+ * 已启用能力来自 Nacos 配置 `retrieval.capabilities.enabled`（逗号分隔 RetrievalCapability 枚举名，默认空=全关）。
  * 注册校验（RetrievalRuleResolver）与执行引擎共用本注册表——解锁只改配置，结构与快照零迁移。
  *
  * @author cxxl

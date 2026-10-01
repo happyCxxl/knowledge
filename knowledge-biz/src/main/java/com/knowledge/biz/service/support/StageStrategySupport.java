@@ -28,7 +28,7 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class StageStrategySupport {
 
-    /** KB 绑定策略失效（行缺失或已停用）时回退下一档，并留告警便于按 KB 排查 */
+    /** KB 绑定策略失效（行缺失或已停用）时回退下一档，并写告警（含环节名、文件结果 ID、绑定行 ID） */
     private static final String BINDING_INVALID_LOG =
             "===> {} KB 绑定策略失效，回退全局最新启用, fileResultId={}, bindingId={}";
 
@@ -38,7 +38,7 @@ public class StageStrategySupport {
 
     /**
      * 解析生效策略版本行（前三档）：显式指定 → KB 绑定 → 启用中最新。
-     * 全不命中返回 null，由调用侧回退该环节的内置默认策略。
+     * 全不命中返回 null。
      *
      * @param fileResult       文件结果（取所属知识库判定绑定开关）
      * @param strategyVersionId 显式指定的策略版本行 ID（可空）
@@ -72,7 +72,7 @@ public class StageStrategySupport {
 
     /**
      * KB 绑定档：绑定开关开启且绑定行有效（存在且启用）则用之；
-     * 未绑定、绑定行缺失或已停用一律返回 null（由调用侧回退下一档），失效时留告警。
+     * 未绑定、绑定行缺失或已停用一律返回 null，失效时写告警。
      *
      * @param fileResult 文件结果（取所属知识库）
      * @param type       策略类型
@@ -102,7 +102,7 @@ public class StageStrategySupport {
      *
      * @param strategy 环节策略实例（解析器已按快照构造）
      * @param row      策略版本行
-     * @return 同一个策略实例，便于链式书写
+     * @return 传入的策略实例（type/name/version 已回填）
      */
     public <T extends StageStrategy> T bindMeta(T strategy, KbPipelineStrategyVersion row) {
         strategy.setType(row.getType());

@@ -27,7 +27,7 @@ public enum StrategyBindingSwitch {
     }
 
     /**
-     * 按码值转枚举；null 与未知码值都返回 null（调用方按"视为开启"兜底）。
+     * 按码值转枚举；null 与未知码值都返回 null。
      *
      * <p>与 {@link KnowledgeBaseStatus#of(Integer)} 不同，这里**不抛异常**：
      * 开关是可选列，脏数据不该把读路径打挂。

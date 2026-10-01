@@ -58,7 +58,7 @@ public enum ChunkAlgorithm {
     FALLBACK_FIXED_WINDOW(ChunkRoute.FALLBACK, "fixed-window", true, false),
     /** 语义断点降级（预留）：按语义断点切分超长文本，依赖 embedding 能力，暂未上线 */
     FALLBACK_SEMANTIC(ChunkRoute.FALLBACK, "semantic-boundary", false, false),
-    /** 不兜底：超长文本原样单片段输出（便于评测识别超长片） */
+    /** 不兜底：超长文本原样输出单片 */
     FALLBACK_NONE(ChunkRoute.FALLBACK, "none", true, false);
 
     private final ChunkRoute route;
@@ -94,7 +94,7 @@ public enum ChunkAlgorithm {
         return flushOnContentBoundary;
     }
 
-    /** 按 (路由, 算法键) 精确查找；未识别返回 null（调用方兜底） */
+    /** 按 (路由, 算法键) 精确查找；未识别返回 null */
     public static ChunkAlgorithm of(ChunkRoute route, String key) {
         if (route == null || StrUtil.isBlank(key)) {
             return null;

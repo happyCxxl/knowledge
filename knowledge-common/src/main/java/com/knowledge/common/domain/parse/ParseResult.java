@@ -24,7 +24,7 @@ public class ParseResult {
     /** 本次解析实际使用的能力快照（可复现） */
     private CapabilitySnapshot capabilitySnapshot;
 
-    /** 按来源分组的结果（一期 native 为主；ocr 路留空 note 占位） */
+    /** 按来源分组的结果（当前 native 为主；ocr 路留空 note 占位） */
     private List<ParseSource> sources = new ArrayList<>();
 
     /** 质量信息（告警只标记不阻断） */

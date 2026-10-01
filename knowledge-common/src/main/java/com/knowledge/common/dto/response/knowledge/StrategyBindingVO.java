@@ -8,10 +8,8 @@ import java.io.Serializable;
 /**
  * 知识库-策略绑定视图：未绑定时仅返回 strategyType。
  *
- * <p>既能表达"**某个库**绑了什么"（单体查询），也能表达"**一批库**各绑了什么"
- * （批量查询，见 {@code GET /knowledge-base/strategy-bindings}）——
- * 后者靠 {@link #knowledgeBaseId} 区分每一行。批量接口一次返回该策略类型下所有
- * 已绑定的库，让前端不必按库逐个请求（原先切一次策略 tab 要发 N 次请求）。
+ * <p>单体查询返回一个库的绑定；批量查询（见 {@code GET /knowledge-base/strategy-bindings}）
+ * 一次返回该策略类型下所有已绑定的库，每行靠 {@link #knowledgeBaseId} 区分。
  *
  * @author cxxl
  */

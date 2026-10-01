@@ -54,6 +54,6 @@ public class KnowledgeBase extends BaseInfo {
     /** 当前发布索引 */
     private Long publishedIndexSetId;
 
-    /** 创建用户ID（一期内部管理员，占位 NULL；TODO 接认证后取登录用户） */
+    /** 创建用户ID（占位 NULL；TODO 接认证后取登录用户） */
     private Long userId;
 }

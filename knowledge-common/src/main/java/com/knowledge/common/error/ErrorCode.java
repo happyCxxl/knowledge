@@ -102,8 +102,8 @@ public enum ErrorCode {
     /** 索引集合 schema 与声明不一致（回读校验失败） */
     INDEX_COLLECTION_SCHEMA_MISMATCH(40447, "索引集合结构与声明不一致，请重建集合"),
 
-    /** 索引组合快照缺失环节策略维度（旧口径数据） */
-    INDEX_COMBO_SNAPSHOT_LEGACY(40448, "索引组合快照缺失环节策略维度，疑似旧口径数据，请废弃重灌后重试"),
+    /** 索引组合快照缺失环节策略维度 */
+    INDEX_COMBO_SNAPSHOT_LEGACY(40448, "索引组合快照缺失环节策略维度，请废弃重灌后重试"),
 
     /** 评测冻结集禁止发布/回退 */
     INDEX_FROZEN_SCOPE_PUBLISH_FORBIDDEN(40449, "指定文件范围的评测冻结集禁止发布/回退"),

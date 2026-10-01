@@ -11,8 +11,8 @@ import com.knowledge.worker.chunking.strategy.ChunkRouteConfig;
 import java.util.List;
 
 /**
- * 表格切片器公共骨架：表格路四个算法（行级 / 行组 / 整表 / 表+引导段）都先取"结构表 + 表头映射 + 数据行"，
- * 取不到（元素或单元格缺失）一律空片；子类只实现按已备好表格的切分。
+ * 表格切片器骨架：先取"结构表 + 表头映射 + 数据行"，取不到（元素或单元格缺失）返回空片，
+ * 再交给子类按已备好的表格切分。
  *
  * @author cxxl
  */

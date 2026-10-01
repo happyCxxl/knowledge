@@ -19,7 +19,7 @@ public class EmbedProperties {
     /** 批量大小默认（向量化侧默认 32） */
     private int batchSize = 32;
 
-    /** 单批超时默认（毫秒；调用方显式指定） */
+    /** 单批超时默认（毫秒；策略未指定时取本值） */
     private int timeoutMs = 30000;
 
     /** 最大重试默认（指数退避 1s/3s/9s…，失败批次隔离） */

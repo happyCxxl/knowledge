@@ -897,7 +897,7 @@ class IndexSetServiceImplTest {
 
     @Test
     void onFileProductsReadyWhenOnlineComboIsLegacyShouldFailWithExplicitError() {
-        // 冒烟缺陷回归：在线版本为旧口径快照（无 stageStrategies）→ 快照边界断言显式拒绝（40448），不 NPE、不静默跳过
+        // 在线版本为缺少 stageStrategies 的快照 → 快照边界断言拒绝（40448），不 NPE、不静默跳过
         KbFileResult file = file(10L);
         when(fileResultDbService.getById(10L)).thenReturn(file);
         KnowledgeBase kb = new KnowledgeBase();
@@ -928,7 +928,7 @@ class IndexSetServiceImplTest {
             return true;
         });
         when(milvusIndexPort.listChunkIds("kb_1_v2", 10L)).thenReturn(List.of("chunk-1"));
-        // 在线版本 = 旧口径快照（无 stageStrategies）
+        // 在线版本 = 缺少 stageStrategies 的快照
         KbIndexSet onlineSet = indexSet();
         onlineSet.setCurrentPublishedVersionId(50L);
         when(indexSetDbService.getByKb(1L)).thenReturn(onlineSet);

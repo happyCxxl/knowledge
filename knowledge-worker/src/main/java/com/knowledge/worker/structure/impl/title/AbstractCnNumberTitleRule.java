@@ -7,8 +7,8 @@ import com.knowledge.worker.structure.title.TitleRuleContext;
 import java.util.regex.Pattern;
 
 /**
- * 中文序号标题规则公共骨架：一、与（一）两路都是"短文本 + 序号前缀命中"才成立，
- * 有字号佐证定三级、否则只计候选；子类只给优先级、正则与佐证样本。
+ * 中文序号标题规则骨架：短文本且序号前缀命中才成立；有字号佐证定三级，否则计候选。
+ * 优先级、正则与佐证样本由子类提供。
  *
  * @author cxxl
  */

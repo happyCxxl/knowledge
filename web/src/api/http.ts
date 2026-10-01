@@ -56,8 +56,7 @@ http.interceptors.response.use(
   },
   (error) => {
     const status = error?.response?.status;
-    // 令牌缺失/失效/被吊销时后端若直接返回 401/403，这里兜底回登录页；
-    // 否则页面会停在拿不到数据的裸错误页，且因守卫认为"已登录"而无法回到登录页
+    // 令牌缺失/失效/被吊销时后端若直接返回 401/403，这里兜底回登录页
     if (status === HTTP_UNAUTHORIZED || status === HTTP_FORBIDDEN) {
       redirectToLogin();
       return Promise.reject(error);

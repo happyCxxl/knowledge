@@ -31,7 +31,7 @@ public class KbIndexVersionDbServiceImpl extends ServiceImpl<KbIndexVersionMappe
     @Override
     public String nextVersionNo(Long indexSetId) {
         // 取现有最大数字后缀 + 1：回收会物理删行，行数+1 在删行后会重号；
-        // 并发冲突仍由 uk_set_version 兜底（调用方捕获后重取，此时 MAX 已读到赢家新值）
+        // 并发冲突仍由 uk_set_version 兜底（重取时 MAX 已读到赢家新值）
         QueryWrapper<KbIndexVersion> queryWrapper = new QueryWrapper<>();
         queryWrapper.select("IFNULL(MAX(CAST(SUBSTRING(version_no, 2) AS UNSIGNED)), 0)")
                 .eq("index_set_id", indexSetId);

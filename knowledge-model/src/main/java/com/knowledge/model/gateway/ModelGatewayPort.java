@@ -5,7 +5,7 @@ import com.knowledge.common.domain.embed.EmbeddingResult;
 
 /**
  * 模型能力网关端口：向量编码能力入口，供应商可替换（阿里云 DashScope 先行接入）。
- * 失败抛异常（调用方按批次重试）。
+ * 失败抛异常。
  *
  * @author cxxl
  */

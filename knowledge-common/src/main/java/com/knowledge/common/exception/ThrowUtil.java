@@ -42,8 +42,7 @@ public final class ThrowUtil {
     /**
      * 条件成立时先执行补充动作，再按错误码抛出（使用默认消息）。
      *
-     * <p>补充动作在抛出之前执行；它自身抛出的异常不会替换业务异常，而是作为 suppressed 挂在业务异常上，
-     * 否则调用方会拿到一个与本次判断无关的错误。
+     * <p>补充动作在抛出之前执行；它自身抛出的异常不替换业务异常，而是作为 suppressed 挂在业务异常上。
      *
      * @param condition   为 true 时抛出
      * @param errorCode   错误码

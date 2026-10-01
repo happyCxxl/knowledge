@@ -23,8 +23,8 @@ public interface KnowledgeBaseDbService extends InfraDbService<KnowledgeBase> {
      * @param status  状态：1 启用 / 0 停用；null 不过滤
      * @param sort    排序口径；null 按默认口径
      * @param ownerId 归属过滤：传用户 ID 只查该用户创建的库；**null 表示不过滤（管理员视角）**。
-     *                调用方必须用 {@code KnowledgeBaseRules.visibleOwnerId} 取值，
-     *                不要自己拼 null —— 那是"看不到自己的库"与"看到所有人的库"的分界
+     *                取值口径见 {@code KnowledgeBaseRules.visibleOwnerId} —— 它就是
+     *                "看不到自己的库"与"看到所有人的库"的分界
      * @return 知识库分页
      */
     IPage<KnowledgeBase> pageByCondition(long current, long size, String name, Integer status,
@@ -53,7 +53,7 @@ public interface KnowledgeBaseDbService extends InfraDbService<KnowledgeBase> {
     List<Long> listIdsByOwner(Long ownerId);
 
     /**
-     * 获取存在且未删除的知识库（对象级获取语义，调用方免判空）。
+     * 获取存在且未删除的知识库（对象级获取语义）。
      *
      * @param id 知识库 ID
      * @return 知识库实体

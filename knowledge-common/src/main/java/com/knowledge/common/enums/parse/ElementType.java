@@ -2,7 +2,7 @@ package com.knowledge.common.enums.parse;
 
 /**
  * 元素类型。解析环节只产"解析事实"，标题层级推定（TITLE 类）归组装环节。
- * 一期实际产出：PARAGRAPH / TABLE / TABLE_CELL / IMAGE / HEADER / FOOTER；
+ * 当前实际产出：PARAGRAPH / TABLE / TABLE_CELL / IMAGE / HEADER / FOOTER；
  * FIGURE_CAPTION / LIST 枚举保留不产出。
  *
  * @author cxxl
@@ -21,7 +21,7 @@ public enum ElementType {
     /** 图片（仅引用+图注，needsOcr 标记） */
     IMAGE,
 
-    /** 图注（保留枚举，一期不专门识别，关联归组装环节） */
+    /** 图注（保留枚举，暂不专门识别，关联归组装环节） */
     FIGURE_CAPTION,
 
     /** 页眉（PDF 多页同位置重复 + DOCX 页眉部件；处置归预处理环节） */
@@ -30,6 +30,6 @@ public enum ElementType {
     /** 页脚（PDF 页底多页同位置重复 + 页码模式 + DOCX 页脚部件；处置归预处理环节） */
     FOOTER,
 
-    /** 列表（保留枚举，一期按段落输出） */
+    /** 列表（保留枚举，按段落输出） */
     LIST
 }

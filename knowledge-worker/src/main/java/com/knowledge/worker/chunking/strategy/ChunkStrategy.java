@@ -47,12 +47,12 @@ public class ChunkStrategy implements StageStrategy {
     /** 流程层设置（键 = PipelineKey.key()） */
     private Map<String, String> pipeline = new HashMap<>();
 
-    /** 取某一路配置（缺失返回 null，调用方兜底） */
+    /** 取某一路配置（缺失返回 null） */
     public ChunkRouteConfig route(ChunkRoute route) {
         return routes == null || route == null ? null : routes.get(route.key());
     }
 
-    /** 某一路算法（解析后通常存在；键未识别返回 null，调用方兜底） */
+    /** 某一路算法（解析后通常存在；键未识别返回 null） */
     public ChunkAlgorithm routeAlgorithm(ChunkRoute route) {
         ChunkRouteConfig config = route(route);
         return config == null || StrUtil.isBlank(config.getAlgorithm())

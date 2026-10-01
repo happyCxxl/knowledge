@@ -32,7 +32,7 @@ import java.util.Map;
  * 多页同位置重复文本标记 HEADER、页码 + bbox 溯源。
  * 页眉页脚识别与表格候选检测已拆至 {@link HeaderFooterDetector}/{@link TableCandidateDetector} 助手。
  *
- * <p>一期简化：表格检测用"列对齐聚类"启发式（规则线图形扫描随表格模型能力评估）；
+ * <p>当前简化：表格检测用"列对齐聚类"启发式（规则线图形扫描随表格模型能力评估）；
  * 无边框/复杂表格聚类失败时出 TABLE 事实，由管线降级为段落 + 告警。
  *
  * @author cxxl

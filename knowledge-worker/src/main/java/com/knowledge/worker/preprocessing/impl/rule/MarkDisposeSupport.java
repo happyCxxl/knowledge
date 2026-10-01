@@ -7,8 +7,8 @@ import com.knowledge.common.enums.preprocess.ViewElementStatus;
 import com.knowledge.worker.preprocessing.rule.RuleOutcome;
 
 /**
- * 标记类规则处置档公共支撑（package-private）：页眉页脚与目录都按"剔除 / 保留 / 标记（默认）"三档处置，
- * 三档的状态、追踪动作与 changed 口径完全一致，各规则只给自己的状态名与追踪文案。
+ * 标记类规则的三档处置（package-private）：剔除 / 保留 / 标记（默认）。
+ * 状态名与追踪文案由各规则传入。
  *
  * @author cxxl
  */

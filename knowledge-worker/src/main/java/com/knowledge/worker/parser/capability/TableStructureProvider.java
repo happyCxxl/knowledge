@@ -5,7 +5,7 @@ import com.knowledge.common.domain.parse.capability.TableRegion;
 import com.knowledge.common.domain.parse.capability.TableResult;
 
 /**
- * 表格结构识别能力接口（预留扩展，一期无实现）。
+ * 表格结构识别能力接口（预留，暂未接入实现）。
  * 值对象见 common.domain.parse（TableResult/TableRegion/TableCell）。
  *
  * @author cxxl

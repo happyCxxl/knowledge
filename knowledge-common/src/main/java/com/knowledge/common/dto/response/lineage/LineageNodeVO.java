@@ -33,15 +33,13 @@ public class LineageNodeVO {
     /**
      * 能力快照（无策略环节展示用：PARSE/STRUCTURE 有，其余环节为空）。
      *
-     * <p>**已解析成对象**：此前这里直接透传 product.capabilitySnapshot 的 JSON 原文，
-     * 前端拿到的是 {@code {"parserName":"pdfbox","parserVersion":"3.0.4"}} 这样的字符串，
-     * 只能"截断显示"或自己解析 JSON —— 那是接口设计错误。现在由服务层解析后返回
-     * {@link LineageCapabilityVO}。JSON 无法解析时本字段为 null（不回落原文，
+     * <p>由服务层把 {@code product.capabilitySnapshot} 的 JSON 文本解析成
+     * {@link LineageCapabilityVO} 后返回；JSON 无法解析时本字段为 null（不回落原文，
      * 避免把脏数据继续往上层传）。
      */
     private LineageCapabilityVO capability;
 
-    /** 产物 ID（成功任务对应产物；无产物为空）。前端「以此产物触发下游」传此值（非任务 ID） */
+    /** 产物 ID（成功任务对应产物；无产物为空）。触发下游环节时传此值（非任务 ID） */
     private Long productId;
 
     /** 产物引用（成功有产物时非空） */
@@ -50,7 +48,7 @@ public class LineageNodeVO {
     /** 产物内容指纹 */
     private String contentHash;
 
-    /** 统计摘要（前端透传展示）：CHUNK=chunkCount；EMBED=recordCount/cachedCount；PREPROCESS=matched/changed（step_log 聚合）；PARSE/STRUCTURE 为空 */
+    /** 统计摘要（展示用）：CHUNK=chunkCount；EMBED=recordCount/cachedCount；PREPROCESS=matched/changed（step_log 聚合）；PARSE/STRUCTURE 为空 */
     private Map<String, String> stats;
 
     /** 任务时间 */

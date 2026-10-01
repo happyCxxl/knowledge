@@ -26,6 +26,6 @@ public enum FileValidationFailReason {
     /** 元数据与实际不符 */
     METADATA_MISMATCH,
 
-    /** 图片文件（JPG/PNG/TIFF/BMP）可识别但 OCR 未开放（二期预留） */
+    /** 图片文件（JPG/PNG/TIFF/BMP）可识别但 OCR 未开放（预留未开放） */
     IMAGE_OCR_RESERVED
 }

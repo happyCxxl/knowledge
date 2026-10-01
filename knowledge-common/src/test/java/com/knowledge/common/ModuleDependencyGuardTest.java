@@ -16,8 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * 依赖方向守卫：common 是最底层，不得依赖任何 knowledge-* 模块。
  *
- * <p>用测试而不是 maven-enforcer 是因为本工程的构建一律离线执行（{@code mvn -o}），
- * 而 maven-enforcer-plugin 不在本地仓库；本测试零新增依赖，且随 verify 一起被门禁覆盖。
+ * <p>随 {@code mvn verify} 一起执行，零新增依赖。
  *
  * @author cxxl
  */

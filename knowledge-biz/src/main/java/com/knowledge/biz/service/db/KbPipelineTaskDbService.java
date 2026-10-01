@@ -29,7 +29,7 @@ public interface KbPipelineTaskDbService extends InfraDbService<KbPipelineTask> 
 
     /**
      * 批量查指定环节任务（列表行环节状态用）：fileResultIds 内 + stage，id 倒序
-     * （调用方按 fileResultId 去重取第一条即最新任务）。
+     * （同一 fileResultId 的首条即最新任务）。
      *
      * @param fileResultIds 文件结果 ID 列表（为空返回空列表，不查库）
      * @param stage         环节（PipelineStage 枚举名）

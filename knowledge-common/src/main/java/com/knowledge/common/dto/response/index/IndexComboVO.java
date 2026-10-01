@@ -29,7 +29,7 @@ public class IndexComboVO {
     /** 向量策略 name-version */
     private String embedStrategy;
 
-    /** 索引形态（一期 FULL_VECTOR） */
+    /** 索引形态（当前仅 FULL_VECTOR） */
     private IndexShape shape;
 
     /** 环节策略映射（stage → 策略 name-version；口径） */

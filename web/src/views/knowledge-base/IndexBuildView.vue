@@ -196,7 +196,7 @@
                   >
                     校验
                   </button>
-                  <!-- 发布/回退一律展示：不可用时置灰，让用户显性感知"有这个能力但此刻不行"。
+                  <!-- 发布/回退一律展示：不可用时置灰，保留"有这个能力但此刻不行"的可见性。
                        说明用 title 而不是 data-tip —— 禁用的按钮不派发鼠标事件，
                        CSS :hover 气泡永远不会出现，只有浏览器原生 title 仍会显示 -->
                   <button
@@ -284,12 +284,11 @@
  * <p>构建面板的两条口径（都是后端定的）：
  *
  * <ul>
- *   <li>**以组合为第一层**：`GET /index-combos` 本来就返回「组合 × 成员文件」，
- *       成员 = 该组合下有完整成功产物链的文件。所以先选组合，再决定纳入哪些成员，
- *       不需要「先勾文件再枚举共有组合」；</li>
+ *   <li>**以组合为第一层**：`GET /index-combos` 返回「组合 × 成员文件」，
+ *       成员 = 该组合下有完整成功产物链的文件。先选组合，再决定纳入哪些成员；</li>
  *   <li>**范围由选择推导**：勾了全部产物齐全的文件 → ALL（全库，会接纳后续新文件）；
  *       少勾任何一个 → LIST（子集，只认这批 fileId）。两者都是索引，
- *       区别只在"新文件是否自动进来"，所以面板里不必让用户先理解"范围"这个概念。</li>
+ *       区别只在"新文件是否自动进来"，面板里不需要"范围"这个概念。</li>
  * </ul>
  *
  * <p>**能不能发布不在本页判定**：后端 `publish`/`rollback` 对子集拦截（40449），
@@ -414,7 +413,7 @@ function buildStageText(version: IndexVersionVO): string {
 /**
  * 发布按钮不可用的原因（仅解释为什么点不动，不替发布环节做判断）。
  *
- * <p>禁用的按钮不派发鼠标事件，浏览器原生 title 仍会显示，所以这里用 title
+ * <p>禁用的按钮不派发鼠标事件，浏览器原生 title 仍会显示，这里用 title
  * 而不是应用内的 data-tip 气泡。
  */
 function publishBlockReason(version: IndexVersionVO): string {
@@ -626,7 +625,7 @@ async function loadCombos(): Promise<void> {
       };
     });
     chosen.value = nextChosen;
-    // 只有一个组合时直接展开，省一次点击
+    // 只有一个组合时直接展开
     expandedCombos.value = new Set(combos.value.length === 1 ? [combos.value[0].key] : []);
   } catch {
     combos.value = [];
@@ -644,7 +643,7 @@ const canSubmit = computed(() => pendingCombos.value.length === 1);
 /**
  * 提交前的确认：讲清会建出什么（全库还是子集）。
  *
- * <p>按钮在 `canSubmit` 为假时是禁用的，所以这里必然有一个待提交的组合；
+ * <p>按钮在 `canSubmit` 为假时是禁用的，这里必然有一个待提交的组合；
  * 用 `.at(0)` 而不是 `[0]`，让"可能为空"这件事在类型上成立。
  */
 async function openBuildConfirm(): Promise<void> {
@@ -672,7 +671,7 @@ async function openBuildConfirm(): Promise<void> {
 async function submitBuild(combo: BuildCombo, ids: string[]): Promise<void> {
   // 勾满成员 = ALL（会接纳后续新文件）；少勾 = LIST（只认这批 id）。
   // ALL 时 fileResultIds 送 null：后端对非 LIST 会强制归一化置空（buildCandidate 第 442 行），
-  // 前端先送空语义更清楚，也避免"看着像子集"的误解
+  // 前端先送空，语义明确（非子集）
   const isAll = ids.length === combo.members.length;
   try {
     const result = await addIndexBuild(knowledgeBaseId.value, {
@@ -710,7 +709,7 @@ async function runValidate(versionId: string): Promise<void> {
 /**
  * 发布确认：说清「谁会被顶掉」。
  *
- * <p>发布只是原子切指针、可被回退纠正，所以用普通二次确认 ——
+ * <p>发布只是原子切指针、可被回退纠正，用普通二次确认 ——
  * 输入名称级的强确认只留给「删除」（唯一不可逆）。
  */
 async function confirmPublish(version: IndexVersionVO): Promise<void> {
@@ -759,10 +758,9 @@ async function confirmRollback(version: IndexVersionVO): Promise<void> {
 /**
  * 删除：唯一不可逆的操作（物理 drop 集合），用输入版本号的最强确认。
  *
- * <p>校验走**返回值自己判断**，而不是 `ElMessageBox.prompt` 的 `inputValidator` 选项。
- * 两者都能拦住（Element Plus 的 validate() 确实会调用 inputValidator），
- * 但 `inputValidator` 在 `ElMessageBoxOptions` 里是可选属性，静态检查会把它报成
- * "Unused property"，留着一个持续报警告的属性不划算；写在返回值上意图也更直白。
+ * <p>校验走**返回值自己判断**，而不是 `ElMessageBox.prompt` 的 `inputValidator` 选项：
+ * `inputValidator` 在 `ElMessageBoxOptions` 里是可选属性，静态检查会把它报成
+ * "Unused property"。
  */
 async function confirmDelete(version: IndexVersionVO): Promise<void> {
   let typed = '';

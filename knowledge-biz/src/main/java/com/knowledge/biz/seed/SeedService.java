@@ -86,7 +86,7 @@ public class SeedService {
     /** 父片类型：本库 EMBED 策略 includeParent=OFF，父片不向量化（与 EmbedPipeline 同口径） */
     private static final String SECTION_TYPE = "SECTION";
 
-    /** 新链路的固定 ID 基数（便于识别与清理；kb_index_* 无自增，必须显式传 id） */
+    /** 种子数据的固定 ID 基数（kb_index_* 无自增，必须显式传 id） */
     private static final long SEED_BASE = 2105000000000000100L;
 
     private final FileStorage fileStorage;

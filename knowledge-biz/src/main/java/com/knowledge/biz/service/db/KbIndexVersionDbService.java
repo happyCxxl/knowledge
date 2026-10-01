@@ -18,7 +18,7 @@ public interface KbIndexVersionDbService extends IService<KbIndexVersion> {
     List<KbIndexVersion> listByIndexSetId(Long indexSetId);
 
     /**
-     * 计算下一版本号（v1、v2…；并发下 uk_set_version 兜底，调用方捕获后重试）。
+     * 计算下一版本号（v1、v2…；并发下由 uk_set_version 兜底）。
      */
     String nextVersionNo(Long indexSetId);
 

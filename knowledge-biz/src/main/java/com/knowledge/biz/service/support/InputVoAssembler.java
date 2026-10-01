@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component;
  * 文档输入 VO 组装器。
  *
  * <p>职责：提交日志/文件结果实体 → 输入环节对外 VO/响应的纯映射（不查库、不做业务判断）；
- * 需合成来源文件信息时由调用方查好 {@link KbSourceFile} 传入，本类只做字段搬运。
+ * 需合成来源文件信息时 {@link KbSourceFile} 由外部传入，本类只做字段搬运。
  *
  * @author cxxl
  */
@@ -42,7 +42,7 @@ public class InputVoAssembler {
     }
 
     /**
-     * 提交日志实体 + 解析任务 ID → 提交响应（无任务传 null；纯映射不查库，任务 ID 由调用方求值）。
+     * 提交日志实体 + 解析任务 ID → 提交响应（无任务传 null；纯映射不查库）。
      *
      * @param log         提交日志实体
      * @param parseTaskId 解析任务 ID（kb_pipeline_task.id；无任务传 null）

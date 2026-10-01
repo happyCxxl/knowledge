@@ -6,7 +6,7 @@ import com.knowledge.common.domain.structure.TitleJudgeContext;
 import com.knowledge.common.domain.structure.TitleJudgeResult;
 
 /**
- * 结构判定模型能力接口（预留扩展，一期无实现）：
+ * 结构判定模型能力接口（预留，暂未接入实现）：
  * "拿不准"场景（标题候选/疑似续表）在固定规则之后、告警之前调用；
  * 实现一个类 + 注册 + 打开 knowledge.structure.model-fallback.enabled 即接入，主流程零改动。
  *

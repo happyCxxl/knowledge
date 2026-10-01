@@ -36,7 +36,7 @@ public class IndexRowAssembler {
     /**
      * 装配单文件索引行。
      *
-     * @return 产物读取失败 → null（调用方按失败处置）；无 SUCCESS/CACHED 记录 → 空列表（调用方跳过）
+     * @return 产物读取失败 → null；无 SUCCESS/CACHED 记录 → 空列表
      */
     public List<IndexRow> assemble(Long fileResultId, String owner, KbChunkSet chunkRow, KbEmbeddingSet embedRow) {
         EmbeddingSet embedSet = readEmbeddingSet(embedRow.getArtifactId());

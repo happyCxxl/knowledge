@@ -33,7 +33,7 @@ public enum EmbedRecordStatus {
         return desc;
     }
 
-    /** 按状态名精确查找；未识别返回 null（调用方兜底） */
+    /** 按状态名精确查找；未识别返回 null */
     public static EmbedRecordStatus of(String name) {
         if (StrUtil.isBlank(name)) {
             return null;

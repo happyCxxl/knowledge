@@ -100,8 +100,8 @@
           <el-table-column label="操作" width="140" fixed="right">
             <!--
               插槽里的 row 是 el-table 的 DefaultRow（不是 any，也不能给插槽 props 收窄类型 —— 那违反参数逆变），
-              所以交给 isSelf / openEdit / handleDelete 这几个强类型函数时逐个显式断言成 UserVO：
-              表格的 :data 本来就是 UserVO[]，断言在这里是安全的。
+              交给 isSelf / openEdit / handleDelete 这几个强类型函数时逐个显式断言成 UserVO
+              （表格的 :data 即 UserVO[]）。
             -->
             <template #default="{ row }">
               <el-button
@@ -466,8 +466,7 @@ onMounted(() => {
 
 /*
  * 筛选栏内容：搜索 + 角色 + 状态 + 查询/重置 + 刷新 + 计数，装在共用 .page-toolbar 里。
- * 按钮（.page-btn-primary / .page-btn-ghost）与刷新（.page-refresh）也在骨架层 ——
- * 它们此前在用户管理页与知识库页各写了一份，声明逐字相同。
+ * 按钮（.page-btn-primary / .page-btn-ghost）与刷新（.page-refresh）也在骨架层。
  */
 .user-search {
   width: 200px;

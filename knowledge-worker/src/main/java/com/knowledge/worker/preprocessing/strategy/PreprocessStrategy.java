@@ -57,7 +57,7 @@ public class PreprocessStrategy implements StageStrategy {
         return PreprocessAlgorithmSpec.normalize(strategy, new PreprocessProperties());
     }
 
-    /** 取某规则配置（解析后必存在；缺失返回 null，调用方兜底） */
+    /** 取某规则配置（解析后必存在；缺失返回 null） */
     public PreprocessRuleConfig rule(PreprocessRule rule) {
         return rules == null || rule == null ? null : rules.get(rule.key());
     }

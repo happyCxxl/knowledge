@@ -9,22 +9,18 @@ import java.util.List;
 /**
  * 模拟向量生成器：把一段文本确定性地映射成单位向量。
  *
- * <p><b>这是为"向量化模型未接入"准备的替身，不是真实语义向量。</b>
- * 它只保证三件事：
+ * <p><b>向量化模型未接入时的替身，不是真实语义向量。</b>只保证三件事：
  * <ol>
  *   <li>**确定性**：同一文本恒得同一向量（可复现，重跑种子结果一致）；</li>
- *   <li>**单位长度**：做 L2 归一化，因为 COSINE 度量要求归一化
- *       （见 {@code EmbeddingModel.normalized()}）；</li>
- *   <li>**同文本同向量**：与账本复用（cacheHit）语义自洽 —— 同内容天然命中。</li>
+ *   <li>**单位长度**：L2 归一化后的单位向量（对应 COSINE 度量，见 {@code EmbeddingModel.normalized()}）；</li>
+ *   <li>**同文本同向量**：同内容天然命中账本复用（cacheHit）语义。</li>
  * </ol>
  *
- * <p><b>它不保证语义相似性</b>：内容相近的两段文本不会得到相近的向量，
- * 所以用向量通道检索出来的排序**没有语义意义**。要让检索有语义，必须接入真实
- * 向量模型（{@code ModelGatewayPort}）。这一点在种子的产出说明里会明确标注。
+ * <p><b>不保证语义相似性</b>：内容相近的两段文本得不到相近的向量，向量通道的排序无语义意义；
+ * 语义检索须接入真实向量模型（{@code ModelGatewayPort}）。
  *
- * <p>实现方式：以文本 sha256 为种子驱动 {@link java.util.Random} 生成分量，
- * 再做 L2 归一化。用 sha256 而不是文本 hashCode，是为了让"换一个字符就完全不同"
- * 且不受 JVM 实现差异影响。
+ * <p>实现：以文本 sha256 为种子驱动 {@link java.util.Random} 生成分量后 L2 归一化；
+ * sha256 保证换一个字符即完全不同，且不受 JVM 实现差异影响。
  *
  * @author cxxl
  */
@@ -88,9 +84,8 @@ public final class FakeVectorGenerator {
     /**
      * 文本 → sha256 hex（小写）。
      *
-     * <p>与生产实现 {@code EmbedHashes.sha256Hex} **同算法**（sha256 over UTF-8，
-     * `%02x` 小写十六进制）。种子必须用同一个指纹，否则账本复用（cacheHit）永远命不中 ——
-     * 那一列本来就是复用键。
+     * <p>与生产实现 {@code EmbedHashes.sha256Hex} 同算法（sha256 over UTF-8，`%02x` 小写十六进制）：
+     * 指纹不一致时账本复用（cacheHit）命不中。
      *
      * @param text 输入文本
      * @return 64 位十六进制指纹

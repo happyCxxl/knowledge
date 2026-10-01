@@ -506,7 +506,7 @@ class KnowledgeBaseServiceImplTest {
         return item;
     }
 
-    /** 批量绑定请求（可变参数，便于构造缺项场景） */
+    /** 批量绑定请求（绑定项可变参数） */
     private StrategyBindingsUpdateRequest bindRequest(
             StrategyBindingsUpdateRequest.StrategyBindItem... items) {
         StrategyBindingsUpdateRequest request = new StrategyBindingsUpdateRequest();

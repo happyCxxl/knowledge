@@ -45,7 +45,7 @@ export function taskStatusLabel(status: string): string {
  * 任务终态：进入这些状态后不会再变化，轮询即可停止。
  *
  * <p>用白名单而非「是否 RUNNING」判断：任务可能长期处于 QUEUED，也可能直接进入
- * PARTIAL_SUCCESS / FAILED。只排除 RUNNING 会漏判，导致轮询永不停止。
+ * PARTIAL_SUCCESS / FAILED；只排除 RUNNING 会漏判（轮询永不停止）。
  */
 export const TERMINAL_TASK_STATUSES = new Set<string>([
   'SUCCESS',
@@ -106,7 +106,7 @@ export interface FileResult {
    * 各环节最新任务状态（无任务的环节不出现）。
    *
    * <p>**可空**：全新导入、尚未跑过任何环节的文件，后端返回 null 而不是空数组
-   * （实测 `stageStatuses: null`）。取值一律走 {@link stageStatusList}，直接当数组用会抛异常。
+   * （后端会给 `stageStatuses: null`）。取值一律走 {@link stageStatusList}，直接当数组用会抛异常。
    */
   stageStatuses: StageStatus[] | null;
 }
@@ -127,11 +127,11 @@ export interface LineageCapability {
   parserName: string | null;
   /** 原生解析器版本（如 3.0.4） */
   parserVersion: string | null;
-  /** OCR 能力（一期预留，未接入时为 null） */
+  /** OCR 能力（预留未开放，未接入时为 null） */
   ocr: CapabilityRef | null;
-  /** 版面分析能力（一期预留） */
+  /** 版面分析能力（预留未开放） */
   layout: CapabilityRef | null;
-  /** 表格识别能力（一期预留） */
+  /** 表格识别能力（预留未开放） */
   table: CapabilityRef | null;
 }
 
@@ -186,8 +186,8 @@ export function statEntry(key: string, value: string): { label: string; value: s
 /**
  * 能力快照 → 一行可读文案（如 `pdfbox 3.0.4`）。
  *
- * <p>接入 ocr/layout/table 后追加它们的名称，一期三者均为 null 所以不出现。
- * 全空时返回 null，让调用方决定显示什么兜底。
+ * <p>接入 ocr/layout/table 后追加它们的名称，当前三者均为 null，不出现。
+ * 全空时返回 null。
  */
 export function capabilityText(capability: LineageCapability | null): string | null {
   if (!capability) {
@@ -234,7 +234,7 @@ export interface StageTriggerResult {
 /**
  * 执行树节点的渲染数据（Vue Flow 自定义节点的 data 载荷）。
  *
- * <p>放在这里而不是组件内，是因为图组件与节点组件都要用到同一份定义。
+ * <p>图组件与节点组件共用同一份定义。
  */
 export interface ChainNodeData {
   /** 该节点对应的运行 */
@@ -250,10 +250,9 @@ export interface ChainNodeData {
   /**
    * 点击卡片上「触发下一环节」时的回调。
    *
-   * <p>**为什么用回调而不是 emits**：Vue Flow 的自定义节点是它内部渲染的，
+   * <p>**用回调而不是 emits**：Vue Flow 的自定义节点是它内部渲染的，
    * `emit` 到不了页面组件，得先经 `ChainGraph` 再转发一层；而回调由 `ChainGraph`
-   * 在组装 `data` 时注入，是它自己的方法（不需要 `getCurrentInstance`），
-   * 链路更短也更好追。
+   * 在组装 `data` 时注入，是它自己的方法（不需要 `getCurrentInstance`）。
    */
   onTrigger?: () => void;
 }

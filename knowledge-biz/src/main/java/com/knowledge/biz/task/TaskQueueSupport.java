@@ -23,7 +23,7 @@ public class TaskQueueSupport {
         redisQueueSupport.leftPush(properties.getQueueKey(), String.valueOf(taskId));
     }
 
-    /** 消费侧契约：阻塞弹出（消费循环随后续阶段落地，本阶段只定义不调用） */
+    /** 阻塞弹出（消费循环接入前只定义不调用） */
     public String blockingPop() {
         return redisQueueSupport.rightPop(properties.getQueueKey(), properties.getWakeupTimeout());
     }

@@ -28,7 +28,7 @@ public class ScannedFallbackHandler implements SignalFallbackHandler {
         String region = StrUtil.blankToDefault(signal.getRegion(), "");
         Integer page = FallbackSupport.parsePage(region);
         quality.getWarnings().add(QualityWarning.of(QualityWarningCode.SCANNED_PAGE, null, "WARN",
-                "第 " + region + " 无文本层（扫描页），OCR 预留一期不支持"));
+                "第 " + region + " 无文本层（扫描页），OCR 暂未支持"));
         FallbackSupport.addScannedPage(quality, page);
         FallbackSupport.addFailedPage(quality, page);
         return 1;

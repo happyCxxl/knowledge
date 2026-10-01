@@ -14,7 +14,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * 环节任务触发共用助手（手动逐环节触发接口族共用）：
- * 防重/补投唤醒 + 新建 QUEUED 任务入队，口径与各环节一致；环节特有预检由调用方完成。
+ * 防重/补投唤醒 + 新建 QUEUED 任务入队，口径与各环节一致。
  *
  * @author cxxl
  */

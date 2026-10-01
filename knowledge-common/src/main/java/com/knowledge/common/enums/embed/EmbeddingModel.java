@@ -8,9 +8,9 @@ import java.util.List;
 /**
  * 向量模型目录（静态注册）：模型名 · 维度 · 度量 · 归一化 · 上下文窗口 tokens · 单批上限 · 启用。
  * 单一事实源：前置校验（窗口兼容）/ 四关（维度/度量）/ 保存校验（存在且 enabled）/ 前端展示均以此为准。
- * 一期供应商 = 阿里云 DashScope（模型名即 DashScope 渠道名）。
+ * 当前供应商 = 阿里云 DashScope（模型名即 DashScope 渠道名）。
  *
- * <p>数值为占位/厂商口径值，联调实测后只改本枚举常量即可，调用方零改动。</p>
+ * <p>数值为占位/厂商口径值，联调实测后只改本枚举常量即可。</p>
  *
  * @author cxxl
  */
@@ -110,7 +110,7 @@ public enum EmbeddingModel {
         return desc;
     }
 
-    /** 按模型名精确查找；未识别返回 null（调用方兜底） */
+    /** 按模型名精确查找；未识别返回 null */
     public static EmbeddingModel of(String key) {
         if (StrUtil.isBlank(key)) {
             return null;

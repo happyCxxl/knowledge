@@ -2,7 +2,7 @@
  * 索引版本行的类型与状态口径（后端 `IndexVersionVO` 所在领域）。
  *
  * <p>发布与校验相关的类型在 `@/types/index-publish`：两者是不同领域
- * （版本记录 vs 发布运行态），分开更贴近后端契约的归属。
+ * （版本记录 vs 发布运行态）。
  */
 
 /**
@@ -59,7 +59,7 @@ export function indexStatusLabel(status: string): string {
 /** 文件范围模式：ALL 全库 / LIST 指定文件（子集） */
 export type IndexFileScopeMode = 'ALL' | 'LIST';
 
-/** 索引形态：一期只有「全文 + 向量」 */
+/** 索引形态：当前只有「全文 + 向量」 */
 export type IndexShape = 'FULL_VECTOR' | string;
 
 /**
@@ -162,7 +162,7 @@ export const COMBO_STAGE_LABELS: Record<string, string> = {
  * 组合标识：把 stageStrategies 拼成稳定的可比较字符串。
  *
  * <p>用于「同一条组合」的分组 —— 后端没有暴露组合 ID，
- * 血缘靠 stageStrategies 的映射表达，所以按它分组。
+ * 血缘靠 stageStrategies 的映射表达，按它分组。
  */
 export function comboKeyOf(stageStrategies: Record<string, string> | null): string {
   if (!stageStrategies) {

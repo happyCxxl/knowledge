@@ -1,12 +1,12 @@
 package com.knowledge.common.enums.index;
 
 /**
- * 索引形态：一期仅 FULL_VECTOR（全文 + 向量）。
+ * 索引形态：当前仅 FULL_VECTOR（全文 + 向量）。
  *
  * @author cxxl
  */
 public enum IndexShape {
 
-    /** 全文 + 向量（一期） */
+    /** 全文 + 向量（当前） */
     FULL_VECTOR
 }

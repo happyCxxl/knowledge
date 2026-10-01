@@ -62,7 +62,7 @@ export async function getRetrievalRuns(
 /**
  * 勾选对比回放：按运行记录 ID 并排返回**执行时刻的快照**。
  *
- * <p>**不重跑**（快照即证据）—— 索引集合是 append-only 的，重跑无法复现当时的候选集。
+ * <p>**不重跑**（快照即证据）—— 索引集合是 append-only 的，重跑得到的候选集与记录不一致。
  *
  * @param runIds 按此顺序并排
  */

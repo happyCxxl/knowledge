@@ -84,7 +84,7 @@ const tone = computed(() => EXT_TONES[props.ext.toUpperCase()] ?? 'generic');
   font-size: 10px;
   font-weight: 700;
 
-  /* 四字扩展名靠轻微收字距挤进 40px，不缩字号以免比别的徽标小一号 */
+  /* 四字扩展名靠轻微收字距挤进 40px，不缩字号 */
   letter-spacing: -0.03em;
 
   /*

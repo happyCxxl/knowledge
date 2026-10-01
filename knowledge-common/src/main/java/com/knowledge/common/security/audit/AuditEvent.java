@@ -10,9 +10,6 @@ import java.io.Serializable;
 /**
  * 审计事件：由业务模块发布，落库由持有 kb_audit_log 数据服务的模块监听处理。
  *
- * <p>这样拆分是为了避免模块反向依赖：发布方只需要 {@code AuditActionType} 与事件类型，
- * 不必引入审计表的数据访问层。
- *
  * @author cxxl
  */
 @Getter

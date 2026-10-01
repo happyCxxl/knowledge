@@ -3,8 +3,7 @@ package com.knowledge.common.dto.response.preprocess;
 import lombok.Data;
 
 /**
- * 处理轨迹条目 VO：TraceEntry 的对外视图（规则/字段/动作/前后摘要/判定证据），
- * 供前端按处置类型差异化展示"哪个规则改了什么、为什么"。
+ * 处理轨迹条目 VO：TraceEntry 的对外视图（规则 / 字段 / 动作 / 前后摘要 / 判定证据）。
  *
  * @author cxxl
  */

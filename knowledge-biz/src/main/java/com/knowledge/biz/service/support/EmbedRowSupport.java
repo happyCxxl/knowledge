@@ -7,10 +7,9 @@ import com.knowledge.common.domain.entity.KbEmbeddingSet;
 import com.knowledge.common.enums.task.RowStatus;
 
 /**
- * 向量化落库行装配（种子注入与向量化任务共用）：集合行与记录行的字段口径只有一处。
+ * 向量化落库行装配：集合行与记录行的字段口径集中在这里。
  *
- * <p>按场景不同的项（主键、缓存命中、创建时间）不在这里，由调用侧补：
- * 种子注入自己生成主键与时间戳、缓存命中固定 false；任务执行按向量化结果原样带入。
+ * <p>主键、缓存命中、创建时间不由本类设置（这三项随写入场景不同）。
  *
  * @author cxxl
  */

@@ -52,7 +52,7 @@ export const FILE_ACCEPT_ATTR = ACCEPTED_FILE_EXTENSIONS.join(',');
  * 前端预检文件是否可能被接受。
  *
  * <p>只做**提示性**拦截（少一次白跑的上传），最终判定仍在后端：
- * 后端按 Tika 魔数识别真实格式，不信任扩展名，所以扩展名合法也可能被拒。
+ * 后端按 Tika 魔数识别真实格式，不信任扩展名，扩展名合法也可能被拒。
  *
  * @returns 不通过时返回原因文案，通过返回 null
  */

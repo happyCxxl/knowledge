@@ -8,7 +8,7 @@ import java.util.List;
 /**
  * PDF 表格候选检测（package-private，PdfBoxDocumentParser 专用助手）：
  * 行级"宽列距"启发式判候选 → 列 x 聚类 → 覆盖度校验。
- * 一期简化：无边框/复杂表格聚类失败时出 TABLE 事实，由管线降级为段落 + 告警。
+ * 当前简化：无边框/复杂表格聚类失败时出 TABLE 事实，由管线降级为段落 + 告警。
  *
  * @author cxxl
  */

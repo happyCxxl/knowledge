@@ -48,7 +48,7 @@ public interface KbFileResultDbService extends InfraDbService<KbFileResult> {
      *
      * <p>**没有"全平台文档数"这个口径**：知识库可见范围收窄到"本人创建"之后，
      * 文档计数必须用同一范围，否则同一屏上「知识库 3」与「文档 1284」（别人的库）会自相矛盾。
-     * 管理员要看全平台，由调用方传全部库 ID 进来（`listIdsByOwner(null)`）。
+     * 全平台口径 = 传全部库 ID（`listIdsByOwner(null)`）。
      *
      * @param knowledgeBaseIds 知识库 ID 列表（空列表返回 0，不生成 {@code IN ()} 这种非法 SQL）
      * @return 文档总数

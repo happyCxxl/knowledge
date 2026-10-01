@@ -35,7 +35,7 @@ public class IndexVersionVO {
     /** 向量策略 name-version（如 embed-default-v1） */
     private String embedStrategy;
 
-    /** 索引形态（一期 FULL_VECTOR） */
+    /** 索引形态（当前仅 FULL_VECTOR） */
     private IndexShape shape;
 
     /** 环节策略映射（stage → 策略 name-version；口径，前端逐环节展示） */

@@ -14,7 +14,7 @@ import type { StrategyVersion } from '@/types/strategy';
  *
  * <p>**解析一律做成宽松的**：字段缺失或类型不对时回落默认值而不是抛错。
  * 后端对配置有归一化与校验（`ChunkAlgorithmSpec.validate` 等），前端只负责呈现与编辑，
- * 所以遇到不认识的键要**原样保留**、不要丢掉，避免保存时抹掉后端写入的字段。
+ * 遇到不认识的键要**原样保留**、不要丢掉，避免保存时抹掉后端写入的字段。
  */
 
 // ============================================================
@@ -151,7 +151,7 @@ export interface PreprocessConfig {
  * 切片算法选项。
  *
  * <p>`supported=false` 的是后端预留但未上线的算法（后端枚举里也是这样标的），
- * 下拉里**置灰可见**，避免用户以为不存在。
+ * 下拉里**置灰可见**。
  */
 export interface ChunkAlgorithmOption {
   key: string;
@@ -424,7 +424,7 @@ export interface RetrievalConfig {
  * <p>解析失败或不是对象时返回空对象而不是抛错：列表仍要能展示
  * （摘要退化为「配置无法解析」），不能让一条脏数据把整页打挂。
  *
- * <p>刻意**不做泛型**：`{} as T` 对 `T extends object` 而言等于 `{}`（断言没有意义，
+ * <p>**不做泛型**：`{} as T` 对 `T extends object` 而言等于 `{}`（断言没有意义，
  * 会让 lint 的 no-unnecessary-type-assertion 拦下）。类型由各类型的解析函数在边界处收口。
  */
 export function parseConfig(snapshot: string | null): Record<string, unknown> {
@@ -463,7 +463,7 @@ export function parseRetrievalConfig(snapshot: string | null): RetrievalConfig {
   return parseConfig(snapshot);
 }
 
-/** 按类型解析：四种配置结构不同，这里只负责分派，类型由调用方按类型收窄 */
+/** 按类型解析：四种配置结构不同，这里只负责分派，返回值按类型收窄 */
 export function parseConfigByType(type: string, snapshot: string | null): Record<string, unknown> {
   switch (type) {
     case 'PREPROCESS':
@@ -504,7 +504,7 @@ export function findAlgorithmOption(
   return CHUNK_ROUTE_ALGORITHMS[route].find((item) => item.key === key);
 }
 
-/** 算法键 → 中文名（未知算法回落键本身，便于发现新增算法） */
+/** 算法键 → 中文名（未知算法回落键本身） */
 export function algorithmLabel(route: ChunkRouteKey, key: string | undefined): string {
   if (!key) {
     return '未配置';

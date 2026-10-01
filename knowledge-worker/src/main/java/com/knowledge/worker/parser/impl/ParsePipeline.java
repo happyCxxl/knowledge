@@ -104,7 +104,7 @@ public class ParsePipeline {
 
         // ③ 信号判定 + 内置降级处置
         // 扩展点（预留）：接入 OCR/版面/表格能力后，在此按信号类型查 CapabilityRegistry，
-        // 把能力结果并入 result.sources 新增一路；一期无能力实现，全部信号走内置降级。
+        // 把能力结果并入 result.sources 新增一路；当前无能力实现，全部信号走内置降级。
         StepLogInfo qualityLog = StepLogHelper.begin(ParseStepName.QUALITY_CHECK.value());
         List<Signal> signals = signalDetector.detect(nativeSource, context);
         int failedUnits = 0;
@@ -122,7 +122,7 @@ public class ParsePipeline {
         ParseSource ocrPlaceholder = new ParseSource();
         ocrPlaceholder.setSource("ocr");
         ocrPlaceholder.setCandidateOrder(false);
-        ocrPlaceholder.setNote("预留，一期不接：接入后扫描/图片区域文字走本路，与 native 路重叠区域由组装环节裁决");
+        ocrPlaceholder.setNote("预留未开放：接入后扫描/图片区域文字走本路，与 native 路重叠区域由组装环节裁决");
         result.setSources(List.of(nativeSource, ocrPlaceholder));
 
         // ⑤ 成功占比门槛评估
@@ -190,7 +190,7 @@ public class ParsePipeline {
                     : PipelineTaskStatus.PARTIAL_SUCCESS.name());
             return;
         }
-        // 门槛不足：打印每页原始指标，便于定位信号误伤（扫描件/乱码口径/文字占比口径）
+        // 门槛不足：连每页原始指标一起打印（扫描件/乱码口径/文字占比口径）
         log.warn("解析成功占比不足, unitCount={}, failedUnits={}, ratio={}, threshold={}, pageMetrics={}",
                 unitCount, failedUnits, String.format("%.2f", ratio), properties.getSuccessUnitRatio(),
                 nativeSource.getPageMetrics().stream()

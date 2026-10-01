@@ -5,8 +5,8 @@ import com.knowledge.worker.embedding.template.InputTemplatePort;
 import org.springframework.stereotype.Component;
 
 /**
- * 原样模板（一期唯一实现）：inputText = chunk.content，零改动。
- * 红线①"不改内容"的执行者——模板结构本期定全但行为一期原样（2026-09-07 用户拍板）。
+ * 原样模板（唯一实现）：inputText = chunk.content，零改动。
+ * 红线①"不改内容"的执行者——模板结构定全但行为原样（2026-09-07 用户拍板）。
  *
  * @author cxxl
  */

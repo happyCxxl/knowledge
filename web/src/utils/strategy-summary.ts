@@ -73,7 +73,7 @@ function ruleParamsOf(
 /**
  * 预处理摘要：动作类规则说人话，开关类规则只说开着的。
  *
- * <p>开关全列出来会很长，且大部分是默认开的；只报「开了哪些」信息量更高。
+ * <p>开关类规则只报「开了哪些」（全列会很长，且大部分是默认开的）。
  */
 function summarizePreprocess(snapshot: string | null): ConfigSummary {
   const cfg = parsePreprocessConfig(snapshot);

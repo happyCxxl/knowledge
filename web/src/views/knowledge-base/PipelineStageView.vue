@@ -25,10 +25,7 @@
         <!--
           文件列表：**两种状态共用同一套 DOM**（收起时只把文字隐掉，不换结构）。
 
-          <p>此前收起态渲染的是另一套元素（`.stage-file-minis`），靠 `v-if` 整体销毁重建 ——
-          那是**结构性不连续**：Vue 会卸载旧节点、挂载新节点，CSS 过渡根本接不上，
-          位置再算得准也盖不住这一下"跳"。现在徽标元素全程存在，只有它的兄弟文字
-          块收窄，所以过渡是连续的。
+          <p>徽标元素全程存在，只有它的兄弟文字块收窄，过渡是连续的。
         -->
         <div
           v-if="files.length > 0"
@@ -37,7 +34,7 @@
         >
           <!--
             文件栏是**纯文件信息展示**：不反映处理进度与成败，那些在右侧链图看。
-            所以这里只帮用户"认出是哪个文件"：格式徽标 + 文件名 + 大小/提交时间。
+            这里只呈现"是哪个文件"：格式徽标 + 文件名 + 大小/提交时间。
             时间不可省 —— 同一文件重复导入时文件名与大小都一样，只有时间能区分。
           -->
           <div
@@ -81,8 +78,7 @@
       <section class="stage-panel stage-chain-wrap">
         <div class="stage-canvas">
           <!-- 加载态只在「还没有任何图」时占位。
-               若已有图就保留它、就地替换数据，否则切文件时图会整个卸载重建，
-               表现为「闪一下 + 位置全变」（实测过） -->
+               已有图就保留它、就地替换数据，切文件时图不整个卸载重建 -->
           <div v-if="lineageLoading && !hasNodes" class="stage-empty">加载中…</div>
           <div v-else-if="!selectedFileId" class="stage-empty">
             从左侧选择一个文件，查看它的处理链
@@ -100,7 +96,7 @@
           />
 
           <!-- 还没有任何运行：解析是链路起点、无上游产物，不需要「先选节点」，
-               这里直接给入口，否则用户的整条链路第一步就卡住 -->
+               这里直接给入口 -->
           <div v-else-if="lineage && !lineageLoading" class="stage-start">
             <span class="stage-start-title">该文件还没有任何环节运行过</span>
             <span class="stage-start-hint">从解析开始——它不需要上游产物</span>
@@ -222,7 +218,7 @@ const nextStage = computed<PipelineStage | null>(() => {
  * 1. 还有下一个环节（切片之后没有向量化之外的环节，向量化是末端）；
  * 2. 末端节点**产出了产物**——分叉点就是产物，失败的运行没有产物，
  *    此时若仍允许触发，后端会退化成「按绑定的最新成功产物」解析，
- *    用户以为自己指定了分叉点其实没有，属于静默走样，故直接禁用。
+ *    指定的分叉点被静默忽略，故直接禁用。
  */
 const canTrigger = computed(
   () => nextStage.value !== null && Boolean(pathEndNode.value?.productId),
@@ -349,8 +345,8 @@ function onPathSelect(node: LineageNode | null): void {
  *
  * <p>**带节点时直接以它为准**，不拿 `pathEndNode` 做对象比对：卡片能画出「触发下一环节」
  * 按钮，就说明 `ChainGraph` 侧的 `pathEndNode` 认它是末端（那个按钮的 `v-if="data.pathEnd"`
- * 同源）；而页面这份要经 `emit('select', …)` 转手，实测点击瞬间可能还没值，
- * 用它做守卫会把真实点击**误挡**（这条路径我就是这么踩出来的）。
+ * 同源）；而页面这份要经 `emit('select', …)` 转手，点击瞬间可能还没值，
+ * 用它做守卫会把真实点击**误挡**。
  *
  * <p>不带节点（右下角按钮）时仍走 {@link canTrigger} —— 与那个按钮的禁用条件一致。
  */
@@ -371,7 +367,7 @@ function openTrigger(source?: LineageNode): void {
 /**
  * 触发解析：链路的第一个环节。
  *
- * <p>解析没有上游产物，所以不需要「先选路径末端」——直接调接口即可。
+ * <p>解析没有上游产物，不需要「先选路径末端」——直接调接口即可。
  * 这是全新文件唯一的入口，缺了它整条链路无法从零启动。
  */
 async function onTriggerParse(): Promise<void> {
@@ -392,7 +388,7 @@ async function onTriggerParse(): Promise<void> {
 /**
  * 确认触发：以选中末端的产物为分叉点，调用该环节的触发接口。
  *
- * <p>接口是异步的（只返回任务 ID），所以触发后开始轮询执行树，直到新任务进入终态。
+ * <p>接口是异步的（只返回任务 ID），触发后开始轮询执行树，直到新任务进入终态。
  * 上游产物 ID 缺失时不传该参数，退回后端默认解析（知识库绑定策略 + 同策略最新成功运行）。
  */
 async function onTriggerConfirm(strategyVersionId: string | null): Promise<void> {
@@ -421,7 +417,7 @@ async function onTriggerConfirm(strategyVersionId: string | null): Promise<void>
  *
  * <p>停止条件用「是否还有未进入终态的任务」（类型层的 isTaskPending）：
  * 任务可能长期处于 QUEUED，也可能直接进入 PARTIAL_SUCCESS / FAILED，
- * 只盯 RUNNING 会漏判——实测踩过：PARTIAL_SUCCESS 被漏判，轮询永不停止。
+ * 只盯 RUNNING 会漏判（PARTIAL_SUCCESS 被漏判时轮询永不停止）。
  *
  * <p>未知状态按未完成处理，最多轮询 MAX_TICKS 次后放弃，避免无限打接口。
  */
@@ -489,7 +485,7 @@ onMounted(() => {
   void loadFiles();
 });
 
-// 离开页面要停掉轮询，否则定时器会继续打接口
+// 离开页面必须停掉轮询：定时器不得继续打接口
 onUnmounted(() => {
   stopPolling();
 });
@@ -580,7 +576,7 @@ onUnmounted(() => {
  *
  * <p>两种状态**同色系（青蓝）**，只靠三角方向区分：展开朝左、收起朝右。
  *
- * <p>发光靠 `box-shadow` 外溢，所以外层**不能有 `overflow: hidden`**
+ * <p>发光靠 `box-shadow` 外溢，外层**不能有 `overflow: hidden`**
  * —— `.stage-files` 是 `.stage-panel`（有 overflow: hidden）的自身，
  * 按钮定位在它内部、只探出 3px，不会被裁。
  */
@@ -683,10 +679,10 @@ onUnmounted(() => {
 /* 格式徽标见 FileExtBadge 组件（按格式家族配色） */
 
 /*
- * 行悬停时让徽标弹一下。徽标是独立 scoped 组件、内部类名选不中，所以父组件在模板里
+ * 行悬停时让徽标弹一下。徽标是独立 scoped 组件、内部类名选不中，父组件在模板里
  * 给它挂一个自己的类（stage-file-badge，落在子组件根元素上），选它即可；
  * 只置一个可继承的自定义属性，动画细节仍由徽标组件自己定义。
- * 好处是鼠标停在整行任意处都有反馈，不必精确停在 40px 的徽标上。
+ * 鼠标停在整行任意处都有反馈，不必精确停在 40px 的徽标上。
  */
 .stage-file:hover .stage-file-badge {
   --ext-lift: 1;
@@ -699,14 +695,12 @@ onUnmounted(() => {
  *
  * <p>**宽度全程恒定 210px、不参与折叠动画** —— 这是唯一能让行高稳定的做法。
  *
- * <p>试过两种更"自然"的方案，都不行：
- * ① 把宽度过渡到 0：中间任意一帧只要允许换行，文件名就折成多行把行高顶起来
- *    （实测 470px，是正常 72px 的 6.5 倍），整列像被重排；
- * ② 收起侧加 `white-space: nowrap`：只修好"收起"一个方向 —— 展开时 nowrap 在
- *    动画一开始就被移除，中间帧照样换行（实测 470 → 415 → 189 → 122 → 72）。
+ * <p>宽度过渡到 0 不行：中间任意一帧只要允许换行，文件名就折成多行把行高顶起来
+ * （正常一行 72px，折行后 470px），整列像被重排；只在收起侧加 `white-space: nowrap`
+ * 也只修好一个方向 —— 展开时 nowrap 在动画一开始就被移除，中间帧照样换行。
  *
- * <p>所以改成：宽度钉死 210px、只淡出，超出部分由 `.stage-file-list` 的
- * `overflow-x: hidden` 裁掉。视觉上就是"文字随栏变窄被裁掉"，行高从头到尾不变。
+ * <p>做法：宽度钉死 210px、只淡出，超出部分由 `.stage-file-list` 的
+ * `overflow-x: hidden` 裁掉，行高从头到尾不变。
  *
  * <p>不能加 `white-space: nowrap`：文件名要能折行才显示得完整（那是明确需求）。
  */
@@ -722,8 +716,7 @@ onUnmounted(() => {
 }
 
 .stage-file-name {
-  /* 完整显示文件名：允许折行，长串（无空格）也能断，不再截断省略号。
-     代价是行高随内容增长，但"看得全"比"每行等高"重要 */
+  /* 完整显示文件名：允许折行，长串（无空格）也能断，不截断省略号（行高随内容增长） */
   overflow-wrap: anywhere;
   font-size: 13px;
   font-weight: 600;
@@ -757,7 +750,7 @@ onUnmounted(() => {
   min-height: 0;
   flex-direction: column;
 
-  /* 画布自身不再滚动/留白：平移缩放交给 Vue Flow，工具按钮也在它内部右上角 */
+  /* 画布自身不滚动/不留白：平移缩放交给 Vue Flow，工具按钮也在它内部右上角 */
   padding: 0 0 8px;
 }
 
@@ -856,20 +849,20 @@ onUnmounted(() => {
  * ② 行的悬停底色与选中描边隐去（那里已经没有内容承载它们）
  *
  * <p>**列表的内边距全程不变**（展开态与收起态都是 6px）：徽标是行的第一个 flex 子项，
- * 行的 `padding-left` 也固定 11px，所以徽标左缘只由"面板左缘 + 面板边框 + 列表内边距
- * + 行内边距"决定 —— 四项在两态都相同，徽标就钉死在同一处，不再随栏宽左右挪。
+ * 行的 `padding-left` 也固定 11px，徽标左缘只由"面板左缘 + 面板边框 + 列表内边距
+ * + 行内边距"决定 —— 四项在两态都相同，徽标就钉死在同一处，不随栏宽左右挪。
  */
 .stage-file-list-icons {
   padding-left: 6px;
 }
 
-/* 收起时行不再需要悬停底色与选中描边：那里已经没有内容承载它们 */
+/* 收起时行不需要悬停底色与选中描边：那里没有内容承载它们 */
 .stage-file-list-icons .stage-file {
   background: none;
   border-color: transparent;
 }
 
-/* 选中态改用徽标自身的外圈描边表达（原来靠行的边框，收起后行边框已隐去） */
+/* 选中态用徽标自身的外圈描边表达 */
 .stage-file-list-icons .stage-file-on .stage-file-badge {
   box-shadow:
     0 0 0 2px rgb(52 211 153 / 55%),

@@ -81,7 +81,7 @@
  * <p>两处后端约束在这里体现：
  * <ol>
  *   <li>**未上线算法置灰**：后端枚举里 `supported=false` 的项在下拉里可见但不可选，
- *       并标注「未上线」——否则用户会以为算法不存在；</li>
+ *       并标注「未上线」；</li>
  *   <li>**互斥**：「表格并入正文流」与表格算法「表 + 引导段落」语义重复，
  *       同时启用时后端报 40001。这里给明确提示，而不是静默让保存失败。</li>
  * </ol>
@@ -122,7 +122,7 @@ function algorithmOf(route: ChunkRouteKey): string {
   return typeof routeConfig?.algorithm === 'string' ? routeConfig.algorithm : '';
 }
 
-/** 未知算法回落到键名本身，便于发现后端新增而前端未登记的算法 */
+/** 未知算法回落到键名本身 */
 function algorithmName(route: ChunkRouteKey): string {
   return algorithmLabel(route, algorithmOf(route));
 }
@@ -184,7 +184,7 @@ function setPipelineValue(key: string, value: string): void {
  * 互斥状态：表格并入正文流 与 表格算法「表 + 引导段落」同时成立。
  *
  * <p>不做联动禁用：两处都禁会死锁（开关开着时选不了算法、算法选中时关不了开关），
- * 改成明确提示让用户自己二选一。
+ * 只给明确提示，由用户二选一。
  */
 const mutuallyExclusive = computed(
   () =>

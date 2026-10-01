@@ -23,7 +23,7 @@ public class SearchHitVO {
     /** 源元素 ID（JSON 串） */
     private String sourceElementIds;
 
-    /** 文件结果 ID（雪花 ID，须字符串化以免前端丢精度） */
+    /** 文件结果 ID（雪花 ID，序列化为字符串下发） */
     private Long documentId;
 
     /** 片类型 */

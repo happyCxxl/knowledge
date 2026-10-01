@@ -25,7 +25,7 @@ public enum UserStatus {
     }
 
     /**
-     * 按码值转枚举；空值与未知码值返回 null，由调用方决定拒绝还是兜底。
+     * 按码值转枚举；空值与未知码值返回 null。
      *
      * @param code 状态码值（可空/非法）
      * @return 匹配的状态；无法识别返回 null

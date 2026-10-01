@@ -124,7 +124,7 @@ const ACTIONS: PreprocessAction[] = ['KEEP', 'MARK', 'EXCLUDE'];
 /** 取规则对象，缺失时就地补一个，保证后续赋值有落点 */
 function ruleOf(key: string): PreprocessRuleRaw {
   // 用「键是否存在」而不是「值是否真值」判断：后者在 TS 看来恒为真（索引签名非可选），
-  // 而且值本身可能是空对象（合法配置），用真值判断既会被 lint 拦下也不够准确
+  // 且值本身可能是空对象（合法配置），不能用真值判断（lint 也会拦）
   if (!Object.hasOwn(config.value.rules, key)) {
     config.value.rules[key] = {};
   }
@@ -147,7 +147,7 @@ function setToggle(key: string, value: string | number | boolean | undefined): v
   ruleOf(key).enabled = value === true ? 'ON' : 'OFF';
 }
 
-/** 规则对象里的 params，缺失时就地补。返回的一定是对象，调用方无需再判空 */
+/** 规则对象里的 params，缺失时就地补。返回的一定是对象，无需再判空 */
 function paramsOf(key: string): Record<string, string> {
   const rule = ruleOf(key);
   if (!rule.params) {

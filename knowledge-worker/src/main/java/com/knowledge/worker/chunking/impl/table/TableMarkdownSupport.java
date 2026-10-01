@@ -164,7 +164,7 @@ public final class TableMarkdownSupport {
         return value.replace("|", "\\|").replaceAll("[\\r\\n]+", " ").trim();
     }
 
-    /** 数据行遍历项：行数据 + 与行对齐的来源单元格 ID + 行字符长度（行级/行组共用同一趟遍历口径） */
+    /** 数据行遍历项：行数据 + 与行对齐的来源单元格 ID + 行字符长度 */
     public record RowEntry(Map<Integer, String> cells, List<String> ids, int length) {
     }
 
@@ -221,7 +221,7 @@ public final class TableMarkdownSupport {
         return chunks;
     }
 
-    /** 行组缓冲（行级/行组共用）：数据行 + 与行对齐的来源 ID + 组内字符累计，settle 结算成片并清空 */
+    /** 行组缓冲：数据行 + 与行对齐的来源 ID + 组内字符累计；settle 结算成片并清空 */
     private static final class RowGroupBuffer {
 
         private final List<Map<Integer, String>> rows = new ArrayList<>();

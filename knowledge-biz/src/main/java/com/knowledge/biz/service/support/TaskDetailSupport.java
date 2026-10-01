@@ -52,7 +52,7 @@ public class TaskDetailSupport {
      * @param vo           环节详情 VO（各环节自己的子类）
      * @param fileResultId 文件结果 ID
      * @param task         该次运行任务（可为空）
-     * @return 同一个 vo，便于链式书写
+     * @return 传入的 vo（状态与子步骤已回填）
      */
     public <T extends StageDetailVO> T withTask(T vo, Long fileResultId, KbPipelineTask task) {
         vo.setFileResultId(fileResultId);
@@ -64,8 +64,7 @@ public class TaskDetailSupport {
     }
 
     /**
-     * 该次运行的产物：按 {@code task.productId} 精确取 —— 历史任务同样能展示自己那次运行的产物；
-     * 无任务或无产物时返回 null（各环节据此留空）。
+     * 该次运行的产物：按 {@code task.productId} 取；无任务或无产物时返回 null（各环节据此留空）。
      */
     public KbPipelineProduct productOfTask(KbPipelineTask task) {
         return ObjectUtil.isNull(task) || task.getProductId() == null ? null
@@ -77,7 +76,7 @@ public class TaskDetailSupport {
      *
      * @param vo      环节详情 VO
      * @param product 该次运行的产物（非空）
-     * @return 同一个 vo，便于链式书写
+     * @return 传入的 vo（产物三字段已回填）
      */
     public <T extends StageDetailVO> T withProductRef(T vo, KbPipelineProduct product) {
         vo.setArtifactId(product.getArtifactId());

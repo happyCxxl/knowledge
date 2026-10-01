@@ -5,7 +5,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
 /**
- * 模型能力开关（knowledge.parse.capability 前缀；一期全部默认 false）。
+ * 模型能力开关（knowledge.parse.capability 前缀；全部默认 false）。
  * 开关只控制"已注册实现是否启用"；无实现时恒走内置降级。
  *
  * @author cxxl

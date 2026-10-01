@@ -8,7 +8,7 @@
         </p>
       </div>
       <div class="page-actions">
-        <span class="rt-lock">重排 / 预处理 / 后处理 一期锁定</span>
+        <span class="rt-lock">重排 / 预处理 / 后处理 暂未开放</span>
       </div>
     </div>
 
@@ -216,12 +216,12 @@
  * 测试台只多一层显式的 (versionId, ruleId) —— 这样才能做"同一 query 下不同规则"的对比。
  *
  * <p>**评测 = 横向对比，不是打分**：`kb_retrieval_run` 只存「四元组 + 执行时刻快照」，
- * **没有 ground truth**，所以算不出 recall / precision。页面的价值在于：
- * 把多次运行的结果**并排**呈现 + 标出命中差异（共有 / 独有 / 重合度），由人判断哪条规则更好，
+ * **没有 ground truth**，算不出 recall / precision。页面把多次运行的结果**并排**呈现 +
+ * 标出命中差异（共有 / 独有 / 重合度），由人判断哪条规则更好，
  * 再把胜出的规则发布为该索引版本的默认规则。
  *
- * <p>**对比回放不重跑**：索引集合是 append-only 的，重跑无法复现当时的候选集，
- * 所以对比只回放记录里的 `result_snapshot`（规格 D17-5「快照即证据」）。
+ * <p>**对比回放不重跑**：索引集合是 append-only 的，重跑得到的候选集与记录不一致，
+ * 对比只回放记录里的 `result_snapshot`（规格 D17-5「快照即证据」）。
  */
 import { computed, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
@@ -248,7 +248,7 @@ const RIGHT_TABS = [
   { key: 'compare' as const, label: '并排对比' },
 ];
 
-/** 一次最多并排几条：再多每列就挤不下内容了 */
+/** 一次最多并排几条：再多每列内容会被挤掉 */
 const MAX_COMPARE = 4;
 
 const route = useRoute();
@@ -407,7 +407,7 @@ async function runSearch(): Promise<void> {
 /**
  * 把**对比里选中的第一条规则**发布为该索引版本的默认规则。
  *
- * <p>刻意不做"自动挑胜出"：没有 ground truth，谁胜出只有人能判断。
+ * <p>不做"自动挑胜出"：没有 ground truth，谁胜出只有人能判断。
  * 这里只是把"当前正在对比的第一条"作为候选，并在确认框里把规则名写清楚。
  */
 async function publishWinning(): Promise<void> {
@@ -459,10 +459,10 @@ onMounted(async () => {
 
 <style scoped lang="css">
 /*
- * 布局要点（用户选定的「变体 1」）：
- * - 检索控件压成**一行**（版本 / 规则 / query / 执行），不再折行；
+ * 布局要点：
+ * - 检索控件压成**一行**（版本 / 规则 / query / 执行），不折行；
  * - 左右分栏：左=结果（1.45fr），右=记录 ⇄ 对比（分段切换）；
- * - 右栏的对比**占满整栏**（原来堆在页面底部，几乎看不到 —— 这是选此方案要解决的问题）。
+ * - 右栏的对比**占满整栏**。
  */
 .rt-panel {
   min-height: 520px;

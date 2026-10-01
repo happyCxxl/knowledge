@@ -46,7 +46,7 @@ public class ChunkStrategyParser {
         }
     }
 
-    /** 配置 JSON（仅 routes/pipeline，无 name/version）→ 补全默认后的策略对象（name/version 由调用方设置） */
+    /** 配置 JSON（仅 routes/pipeline，无 name/version）→ 补全默认后的策略对象（name/version 由回填补全） */
     public ChunkStrategy parseConfig(String configSnapshot) {
         ChunkStrategy strategy = parse(configSnapshot);
         strategy.setName(null);

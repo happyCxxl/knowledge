@@ -18,16 +18,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * VO 的 JSON 契约测试：**前端按这些字段名与类型消费，改动会静默破坏页面**。
  *
- * <p>本测试用**配置装配出来的** ObjectMapper（而不是裸 {@code new ObjectMapper()}），
- * 因为 ID 转字符串的行为现在由 {@link LongIdJsonConfig} 的全局口径决定 ——
- * 用裸 mapper 测等于绕开被测对象，测不出真实行为。
+ * <p>用**配置装配出来的** ObjectMapper（而不是裸 {@code new ObjectMapper()}）：
+ * ID 转字符串由 {@link LongIdJsonConfig} 的全局口径决定，裸 mapper 测不出真实行为。
  *
- * <p>本类原先在 knowledge-common 且用裸 mapper。注解方式被全局配置取代后，
- * 契约已由 knowledge-biz 的配置决定，故测试一并移到这里
- * （依赖方向 biz → common，访问 VO 没有问题）。
- *
- * <p>日期字段的**格式**不在本测试范围内（由 MVC 层 JavaTimeModule 决定，
- * 前端对时间做了容错处理）。
+ * <p>日期字段的**格式**不在本测试范围内（由 MVC 层 JavaTimeModule 决定）。
  *
  * @author cxxl
  */
@@ -66,13 +60,13 @@ class VoJsonContractTest {
     void shouldSerializeSnowflakeIdAsStringAndCountAsNumber() throws Exception {
         String json = objectMapper.writeValueAsString(fullVo());
 
-        // 精度防线：雪花 ID 必须是字符串，否则 JS 端丢精度
+        // 精度防线：雪花 ID 以字符串下发
         assertTrue(json.contains("\"id\":\"" + SNOWFLAKE_ID + "\""), "id 应为字符串，实际: " + json);
         assertTrue(json.contains("\"embedStrategyVersionId\":\"2104612193694224387\""),
                 "策略版本 ID 应为字符串，实际: " + json);
         assertFalse(json.contains("\"id\":" + SNOWFLAKE_ID), "id 不得为数字");
 
-        // 计数是小数值，必须保持数字（字符串化会让前端做比较时静默出错）
+        // 计数是小数值，保持数字
         assertTrue(json.contains("\"documentCount\":7"), "documentCount 应为数字，实际: " + json);
     }
 
@@ -103,7 +97,7 @@ class VoJsonContractTest {
     }
 
     @Test
-    @DisplayName("统计口径：计数字段保持数字（此前被注解盲目字符串化，已修正）")
+    @DisplayName("统计口径：计数字段保持数字")
     void statsCountsShouldStayNumbers() throws Exception {
         KnowledgeBaseStatsVO stats = new KnowledgeBaseStatsVO();
         stats.setKnowledgeBaseCount(12L);
@@ -131,8 +125,7 @@ class VoJsonContractTest {
 
         String json = objectMapper.writeValueAsString(vo);
 
-        // 这些字段此前全被 @JsonSerialize(ToStringSerializer) 标注 → 下发成 "6" 这样的字符串。
-        // 它们只是"有多少个"的计数，字符串化没有意义且会让前端比较出错。
+        // 计数字段一律下发数字（不是 "6" 这样的字符串）。
         for (String expect : List.of("\"knowledgeBaseCount\":6", "\"enabledKnowledgeBaseCount\":5",
                 "\"strategyVersionCount\":24", "\"retrievalVersionCount\":4", "\"documentCount\":9")) {
             assertTrue(json.contains(expect), "期望 " + expect + "，实际: " + json);

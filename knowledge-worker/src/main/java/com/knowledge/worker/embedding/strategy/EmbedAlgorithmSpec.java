@@ -196,7 +196,7 @@ public final class EmbedAlgorithmSpec {
 
     /**
      * 校验通过后回填目录冗余进快照（dimension/metric/normalized/contextWindowTokens/batchLimit），
-     * 返回新的配置 Map（不改入参）；校验失败返回 null 且调用方以 validate 错误信息提示。
+     * 返回新的配置 Map（不改入参）；校验失败返回 null（错误信息见 validate）。
      */
     public static Map<String, Object> enrich(Map<String, Object> config, ModelCatalogPort catalog) {
         if (validate(config, catalog) != null) {

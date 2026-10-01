@@ -28,7 +28,7 @@ public class IndexLineageResolver {
 
     /**
      * 由切片产物的上游预处理产物 ID 解析预处理策略 name-version。
-     * 产物缺失/快照为空/解析失败 → null（调用方按"血统不完整"降级，不参与组合枚举与构建）。
+     * 产物缺失/快照为空/解析失败 → null（血统不完整，不参与组合枚举与构建）。
      */
     public String resolvePreprocessStrategy(Long upstreamProductId) {
         if (ObjectUtil.isNull(upstreamProductId)) {

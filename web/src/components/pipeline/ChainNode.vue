@@ -21,7 +21,7 @@
 
     <span v-if="hit" class="chain-node-hit">命中策略</span>
 
-    <!-- 主行：环节名 + 状态。读图时先认环节、再看状态，所以放最上且字号最大 -->
+    <!-- 主行：环节名 + 状态，放最上且字号最大 -->
     <span class="chain-node-head">
       <i class="chain-dot" :class="toneClass"></i>
       <span class="chain-node-stage">{{ stageText }}</span>
@@ -42,10 +42,9 @@
 
     <!--
       选中且是路径末端时，才允许从这里触发下游。
-      这是个**真按钮**（不是装饰性文字）：触发动作就该长在它作用的节点上，
-      而不是跑到画布右下角 —— 后者要用户先选节点、再横跨整个画布去点。
-      `@pointerdown.stop` + `@click.stop` 阻止冒泡：否则点击会被 Vue Flow 当成
-      选中/拖拽节点，按住时还会把卡片拖走。
+      这是个**真按钮**（不是装饰性文字），长在它作用的节点上。
+      `@pointerdown.stop` + `@click.stop` 阻止冒泡：点击不被 Vue Flow 当成
+      选中/拖拽节点。
     -->
     <button
       v-if="data.pathEnd"
@@ -137,7 +136,7 @@ function handleTop(index: number): string {
  * 统计摘要：键名映射成中文标签，最多显示两项。
  *
  * <p>卡片宽度有限，统计项多的环节（如向量化有 recordCount + cachedCount）全列会换行，
- * 所以截断到两项 —— 这两项已经是各环节最有代表性的数字。
+ * 截断到两项。
  */
 const stats = computed(() =>
   Object.entries(props.data.node.stats ?? {})
@@ -172,13 +171,11 @@ defineOptions({ name: 'ChainNode' });
 
 <style scoped lang="css">
 /*
- * 卡片尺寸 168×150。
+ * 卡片尺寸 168×150：按"最长内容 + 余量"定，须容下 `chunk-window-v1` 这类标签
+ * 与"向量化"环节的多行子块。
  *
- * <p>**尺寸是算出来的，不是拍的**：实测旧卡片（120 宽 × min-height 132）里，
- * 内容最多的"向量化"环节子块高度合计 162px —— 超过盒子 132px，于是每样内容
- * 都被裁一点。宽度 120px 也放不下 `chunk-window-v1` 这类标签（横向被裁）。
- * 现在按"最长内容 + 余量"定为 168 宽、150 高，并与 ChainGraph 的
- * NODE_WIDTH / NODE_ROW_HEIGHT 保持一致（行距按固定高度算，不一致会互相压住）。
+ * <p>与 ChainGraph 的 NODE_WIDTH / NODE_ROW_HEIGHT 保持一致
+ * （行距按固定高度算，不一致会互相压住）。
  */
 .chain-node {
   position: relative;
@@ -236,7 +233,7 @@ defineOptions({ name: 'ChainNode' });
 /*
  * 主行：状态点 + 环节名（13px 粗）。
  * 环节名是读图时最先认的东西，给它最大的字号；状态靠左侧的圆点颜色表达，
- * 不再单独占一行写"部分成功/成功"这类文字（失败另有整卡红边，见 chain-graph.css）。
+ * 不单独占一行写"部分成功/成功"这类文字（失败另有整卡红边，见 chain-graph.css）。
  */
 .chain-node-head {
   display: flex;
@@ -255,8 +252,7 @@ defineOptions({ name: 'ChainNode' });
 
 /*
  * 副行：策略版本或能力快照（11px 等宽）。
- * 用等宽字体是因为内容多为 `chunk-window-v1` / `pdfbox 3.0.4` 这类标识符，
- * 等宽下更容易逐字符比对。
+ * 内容多为 `chunk-window-v1` / `pdfbox 3.0.4` 这类标识符，用等宽字体。
  */
 .chain-node-detail {
   overflow: hidden;
@@ -306,8 +302,8 @@ defineOptions({ name: 'ChainNode' });
 /*
  * 「触发下一环节」按钮：实心主色小按钮，而不是一行装饰性文字。
  *
- * <p>它是卡片上唯一的**动作**（其余都是信息），所以用整块主色让它跳出来；
- * 信息区一律是文字，两者不会混淆。
+ * <p>它是卡片上唯一的**动作**（其余都是信息），用整块主色；信息区一律是文字，
+ * 两者不会混淆。
  */
 .chain-node-more {
   display: block;

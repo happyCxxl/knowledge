@@ -15,7 +15,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 图片切片器：一期 content = 图注占位说明（图片内文字不识别，OCR 预留），
+ * 图片切片器：content = 图注占位说明（图片内文字不识别，OCR 预留），
  * 图片与图注保持关联（sourceElementIds 含图片元素，图注文本随片），不建多模态向量。
  *
  * @author cxxl
@@ -33,7 +33,7 @@ public class ImageCaptionSliceStrategy implements SliceStrategy {
         UnifiedElement unified = context.getById().get(element.getElementId());
         String caption = ObjectUtil.isNull(unified) ? null : unified.getCaption();
 
-        String content = "图片说明：[图片内文字未识别（OCR 预留，一期仅保留引用）]";
+        String content = "图片说明：[图片内文字未识别（OCR 暂未接入，仅保留引用）]";
         if (StrUtil.isNotBlank(caption)) {
             content += "｜图注：" + caption;
         }

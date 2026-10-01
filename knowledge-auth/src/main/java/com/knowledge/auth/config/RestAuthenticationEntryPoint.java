@@ -20,7 +20,7 @@ import java.io.IOException;
  * 裸响应直接当页面渲染成 HTTP ERROR 403，前端也拿不到任何 code 可判断。
  *
  * <p>这里与 {@link RestAccessDeniedHandler} 同款口径：统一成 R 响应体 + HTTP 200，
- * 让前端能按 {@code code=40101} 走「清理令牌并回登录页」的分支。
+ * 响应体带 {@code code=40101}（未认证）。
  * 两者区别：本类处理「没登录」，RestAccessDeniedHandler 处理「登录了但无权限」。
  *
  * @author cxxl

@@ -78,7 +78,7 @@ import { strategyDisplayName } from '@/types/strategy';
 import type { StrategyVersion } from '@/types/strategy';
 
 // 触发确认弹窗：明确「从哪个产物分叉」+「用哪个策略」，确认后才真正调接口。
-// 分叉是会产生真实产物的操作，所以必须让用户看清输入再执行
+// 产生真实产物的操作：必须先让用户看清输入再执行
 const visible = defineModel<boolean>({ required: true });
 
 const props = defineProps<{

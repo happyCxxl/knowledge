@@ -5,7 +5,7 @@ import com.knowledge.common.domain.parse.capability.ProviderContext;
 import com.knowledge.common.domain.parse.capability.StructuredOcrResult;
 
 /**
- * 结构化 OCR 能力接口（预留扩展，一期无实现）：
+ * 结构化 OCR 能力接口（预留，暂未接入实现）：
  * 实现一个类 + 注册 + 打开配置即接入，主流程零改动。
  * 输出结构经 llm-pool-gateway 返回（字段级契约冻结，值对象见 common.domain.parse）。
  *

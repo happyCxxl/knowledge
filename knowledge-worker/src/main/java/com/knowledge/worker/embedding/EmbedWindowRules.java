@@ -8,7 +8,7 @@ import com.knowledge.worker.embedding.strategy.EmbedStrategy;
 
 /**
  * 向量化窗口兼容规则：切片策略最大片长 ≤ 模型窗口的判定核心
- * （触发前置校验与运行期校验共用；各调用方按自身契约格式化消息）。
+ * （触发前置校验与运行期校验共用）。
  *
  * @author cxxl
  */

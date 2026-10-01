@@ -12,13 +12,13 @@
 
 /*
  * 全局**指令**类型：Element Plus 的 global.d.ts 里只声明了 GlobalComponents 与
- * ComponentCustomProperties，**没有 GlobalDirectives** —— 所以 `app.use(ElementPlus)`
- * 注册的 `v-loading`（本项目的知识库列表页、用户管理页在用）在类型层面根本不存在，
+ * ComponentCustomProperties，**没有 GlobalDirectives** —— `app.use(ElementPlus)`
+ * 注册的 `v-loading`（知识库列表页、用户管理页在用）在类型层面不存在，
  * IDE 会报 "Unrecognized Vue directive"。
  *
  * 这里补上同一套声明：Vue 的 `GlobalDirectives` 与 `GlobalComponents` 都是留给
  * 库作者做模块增强的空接口（EP 自己生成的 .d.ts 也引用它）。
- * 以后要用 EP 的其它全局指令（如 `v-infinite-scroll`），在这里加一行即可。
+ * 其它 EP 全局指令（如 `v-infinite-scroll`）在此加一行即可。
  *
  * 注意文件末尾的 `export {}`：**模块增强只有在模块里才生效**，
  * 少了它就只是声明了一个同名局部接口，不会并入 vue 的类型。

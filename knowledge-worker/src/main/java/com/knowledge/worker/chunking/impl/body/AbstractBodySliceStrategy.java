@@ -13,8 +13,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 正文聚合类切片器公共骨架：段落聚合与句子聚合都以 SliceContext.bodyBuffer 做跨元素缓冲，
- * "空文本空片 → 最长档先结算既有缓冲再走兜底降级 → 累计到上限结算"三段口径同构，只差聚合粒度。
+ * 正文聚合类切片器骨架：以 {@code SliceContext.bodyBuffer} 做跨元素缓冲。
+ * 空文本空片、超长降级、累计到上限结算由本类处理，聚合粒度由子类实现。
  *
  * @author cxxl
  */
@@ -51,12 +51,12 @@ public abstract class AbstractBodySliceStrategy implements SliceStrategy {
 
     /**
      * 超长降级：按策略所选兜底切片器切片，逐片标 FALLBACK 与降级原因。
-     * 调用方负责先结算既有缓冲（降级片不与聚合片混作一组）。
+     * 调用前须先结算既有缓冲（降级片不与聚合片混作一组）。
      *
      * @param text    超长文本（整元素或单句）
      * @param element 来源元素（取元素 ID 与页码）
      * @param context 切片上下文
-     * @param reason  降级原因（写 fallbackReason，评测识别用）
+     * @param reason  降级原因（写入 fallbackReason）
      */
     protected final List<Chunk> fallbackChunks(String text, ViewElement element, SliceContext context, String reason) {
         List<Chunk> chunks = new ArrayList<>();

@@ -36,7 +36,7 @@ public interface KbSubmitLogDbService extends InfraDbService<KbSubmitLog> {
      *
      * <p>不复用 {@link #pageByKb}：那条按 `knowledge_base_id = ?` 精确匹配，
      * 传 null 会生成 `= NULL` 恒不成立（不是"不过滤"），拿不到跨库结果。
-     * 同理 `user_id` **必须给值** —— 首页只展示本人提交，可见范围在服务端定，不由调用方传。
+     * 同理 `user_id` **必须给值** —— 首页只展示本人提交，可见范围在服务端定。
      *
      * @param current 当前页，从 1 开始
      * @param size    每页条数

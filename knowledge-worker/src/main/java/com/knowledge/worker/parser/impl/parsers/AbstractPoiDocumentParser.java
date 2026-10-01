@@ -10,9 +10,8 @@ import com.knowledge.worker.parser.ParseContext;
 import java.util.ArrayList;
 
 /**
- * POI 系解析器公共基类（package-private，非 Spring Bean）：
- * 统一能力标识（capabilityName/Version）、"读全输入 → 建 native 源 → 解析主流程"骨架与解析事实组装。
- * 输入流读取共用 {@link ParserStreamSupport}。
+ * POI 系解析器基类（package-private，非 Spring Bean）：能力标识、parse 骨架
+ * （读全输入 → 建 native 源 → parseNative）与解析事实组装；输入流读取见 {@link ParserStreamSupport}。
  *
  * @author cxxl
  */

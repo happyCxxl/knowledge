@@ -6,7 +6,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.InputStream;
 
 /**
- * 文件存储：文件对象的写入与读取（实现由调用方选定，提供者可替换）。
+ * 文件存储：文件对象的写入与读取（实现可替换）。
  *
  * <p>寻址方式两种：fileId 寻址（每次写入产生新对象，元数据入档案库）
  * 与 sha256 内容寻址（同内容幂等复用，无档案）。

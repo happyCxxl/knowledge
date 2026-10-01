@@ -75,7 +75,7 @@ export function canDelete(version: Pick<IndexVersionVO, 'online' | 'status'>): b
   return !version.online && !isBuilding(version);
 }
 
-/** 可校验：后端要求 READY / ONLINE / RETIRED（否则 40443） */
+/** 可校验：后端要求 READY / ONLINE / RETIRED（不满足时 40443） */
 export function canValidate(version: Pick<IndexVersionVO, 'status'>): boolean {
   return version.status === 'READY' || version.status === 'ONLINE' || version.status === 'RETIRED';
 }

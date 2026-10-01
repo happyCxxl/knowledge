@@ -48,7 +48,7 @@ import '@/styles/chain-graph.css';
  * 布局常量，与 ChainNode 的样式一一对应（改样式时同步这里）。
  *
  * <p>**注意量法**：节点在 Vue Flow 画布里会被缩放，`getBoundingClientRect()` 给的是
- * 屏幕像素，必须除以 viewport 缩放才是图坐标。之前按屏幕像素量成「宽 142」是错的。
+ * 屏幕像素，必须除以 viewport 缩放才是图坐标。
  *
  * <ul>
  *   <li>{@code width: 168} 对应 ChainNode 的 `width`（content-box，屏显含内边距更宽）</li>
@@ -56,18 +56,17 @@ import '@/styles/chain-graph.css';
  *   <li>{@code NODE_ROW_HEIGHT: 162} 对应节点的图坐标高度（min-height 150 + 上下内边距）</li>
  * </ul>
  *
- * <p>**卡片尺寸为什么是 168×150**：实测旧卡片（120×132）里内容最多的环节子块合计
- * 162px，超过盒子高度；宽度也放不下 `chunk-window-v1` 这类标签。新尺寸按
- * "最长内容 + 余量"定，改这两个常量时必须同步改 ChainNode.vue 的 CSS。
+ * <p>**卡片尺寸 168×150**：按"最长内容 + 余量"定 —— 须容下内容最多的环节子块
+ * 与 `chunk-window-v1` 这类标签；改这两个常量时必须同步改 ChainNode.vue 的 CSS。
  */
 const NODE_WIDTH = 168;
 const COLUMN_GAP = 40;
 const ROW_GAP = 24;
 const FIRST_COLUMN_X = 20;
 const FIRST_ROW_Y = 20;
-/** 行距用的固定节点高度，与 ChainNode 的实测高度一致。
+/** 行距用的固定节点高度，与 ChainNode 的高度一致。
  *  用运行时内容估高的话，节点从「运行中」变成「成功」时长出统计行，
- *  同列后续节点会整体跳位——实测的「位置老是重置」根因 */
+ *  同列后续节点会整体跳位。 */
 const NODE_ROW_HEIGHT = 162;
 /** 一个行槽的步长 */
 const SLOT = NODE_ROW_HEIGHT + ROW_GAP;
@@ -83,8 +82,8 @@ const props = defineProps<{
   /**
    * 当前选中路径末端**是否还能触发下一环节**（页面判定：有下一环节 + 有产物 ID）。
    *
-   * <p>图不知道自己处在流水线第几环 —— 环节顺序是页面的知识（`PIPELINE_STAGES`）。
-   * 所以「卡片上要不要画触发按钮」这个判断必须由页面给，图只负责画。
+   * <p>图不知道自己处在流水线第几环 —— 环节顺序是页面的知识（`PIPELINE_STAGES`），
+   * 「卡片上要不要画触发按钮」这个判断必须由页面给，图只负责画。
    */
   canTrigger: boolean;
 }>();
@@ -101,17 +100,16 @@ const nodeTypes = { chain: ChainNode };
 
 const { getNodes, dimensions, setViewport, onNodeDragStop, updateNodeInternals } = useVueFlow();
 
-/** 是否已自动适配过视口：只在首次建图时适配，之后不再抢占用户的视角 */
+/** 是否已自动适配过视口：只在首次建图时适配，之后不重置用户的视角 */
 const didFitView = ref(false);
 
 /**
  * 自适应视口的缩放下限。
  *
- * <p>**为什么是"按宽度适配"而不是把整图塞进画布**：执行链是"深而窄"的树
- * （实测一个 11 节点的图：横跨 3 列 640px，纵向却铺了 1131px）。若按高度约束，
- * 缩放会被压到 0.4 上下，卡片从 168px 缩成 68px、13px 正文变成 5px —— 完全读不了。
- * 按宽度适配时缩放只由"最宽一列是否放得下"决定（该图约 1.0），纵向超出就交给
- * 用户平移 —— 这是树形图查看器的常规做法：**可读优先，一屏看不完就滚**。
+ * <p>**按宽度适配**：执行链是"深而窄"的树（11 节点图横跨 3 列 640px，纵向可铺 1131px）。
+ * 按高度约束会把缩放压到 0.4 上下，卡片从 168px 缩成 68px、13px 正文变成 5px，读不了。
+ * 按宽度适配时缩放只由"最宽一列是否放得下"决定（该图约 1.0），纵向超出就交给用户平移：
+ * **可读优先，一屏看不完就滚**。
  */
 const MIN_READABLE_ZOOM = 0.5;
 
@@ -122,7 +120,7 @@ const FIT_PADDING = 24;
  * 图初始化完成后按宽度适配视口。
  *
  * <p>不用 `fit-view-on-init` 属性：它按默认参数把整图（含高度）塞进画布，
- * 正是上面说的"卡片被缩到读不了"的原因。
+ * 会把卡片缩到读不了。
  */
 function onInit(): void {
   fitViewOnce();
@@ -131,8 +129,8 @@ function onInit(): void {
 /**
  * 标记「需要重新适配视口」。
  *
- * <p>切文件时新旧节点毫无交集，视口与缩放都该按新图重算；否则沿用上个文件的视角，
- * 新节点可能落在画布外。这里只置个标记，真正适配由 hasNodes 的 watch 在渲染后触发。
+ * <p>切文件时新旧节点毫无交集，视口与缩放都按新图重算。
+ * 这里只置个标记，真正适配由 hasNodes 的 watch 在渲染后触发。
  */
 function requestFitView(): void {
   didFitView.value = false;
@@ -140,14 +138,12 @@ function requestFitView(): void {
 }
 
 /**
- * 按宽度适配一次；之后加入新节点不重置视角（否则用户正在看的位置会被抢走）。
+ * 按宽度适配一次；之后加入新节点不重置视角。
  *
  * <p>**缩放自己算，不用 `getTransformForBounds`**：那个函数按 width/height 双约束取较小值，
- * 传什么高度都绕不开"高度也是一等约束"这件事 —— 试过把高度传成"按该缩放算出的图高"，
- * 实测算出来的缩放仍比手算小一截（被下限截到 0.5）。按宽度适配的公式只有一行，
- * 自己算既准确又能把"为什么是这个数"写清楚。
+ * 传什么高度都绕不开"高度也是一等约束"这件事。按宽度适配的公式只有一行。
  *
- * <p>不放大（上限 1）：小图保持原尺寸，不会被撑开导致节点出画布。
+ * <p>不放大（上限 1）：小图保持原尺寸，不会被撑开到出画布。
  */
 function fitViewOnce(): void {
   if (didFitView.value) {
@@ -166,8 +162,7 @@ function fitViewOnce(): void {
   const zoom = Math.min(1, Math.max(MIN_READABLE_ZOOM, available / bounds.width));
 
   /*
-   * 纵向定位：图比视口**高**时贴顶（否则"从中间开始看"，顶部的解析环节跑到视口外）；
-   * 放得下时垂直居中。
+   * 纵向定位：图比视口**高**时贴顶；放得下时垂直居中。
    */
   const scaledHeight = bounds.height * zoom;
   const y =
@@ -229,8 +224,7 @@ function tracePath(taskId: string): string[] {
 /**
  * 默认选中「最深的一条已完成路径」。
  *
- * <p>用户进来第一眼最需要知道的是「现在能从哪里继续往下跑」，所以默认把最有进展的
- * 那条路径选上；用户点其它节点后再按用户的选择走。
+ * <p>默认选中最有进展的那条路径末端；用户点其它节点后按用户的选择走。
  */
 function findDeepestPath(): string[] {
   const nodes = props.lineage?.nodes ?? [];
@@ -286,10 +280,9 @@ const columnOf = computed(() => {
 });
 
 /**
- * 当前文件的坐标表：**直接引用页面持有的那一份**，不再内部另存。
+ * 当前文件的坐标表：**直接引用页面持有的那一份**，不内部另存。
  *
- * <p>这样坐标的归属由 `fileKey` 决定，不依赖"当前渲染到哪一步"，从根上避开
- * 「selectedFileId 立即变、lineage 延迟到」那个窗口期带来的错档问题。
+ * <p>坐标的归属由 `fileKey` 决定，不依赖"当前渲染到哪一步"。
  */
 const settledPositions = computed<Map<string, NodePosition>>(() => {
   let map = props.positionStore.get(props.fileKey);
@@ -308,10 +301,10 @@ const fittedFiles = new Set<string>();
  *
  * <p>三步，缺一不可：
  * <ol>
- *   <li>**叶子按列占位**：同列叶子从第 1 行开始找第一个不冲突的行——否则会重叠
- *       （实测过：切片列里「作为父节点的切片」与「叶子切片」挤在同一坐标）；</li>
- *   <li>**父节点取子节点跨度的中点**——分叉线条能散开的关键，父节点若固定占首行，
- *       同源多条边会从同一点出发、垂直段挤在同一个 x 上；</li>
+ *   <li>**叶子按列占位**：同列叶子从第 1 行开始找第一个不冲突的行
+ *       （同列不得出现相同坐标）；</li>
+ *   <li>**父节点取子节点跨度的中点**：分叉线条从中点散开，
+ *       同源多条边的垂直段分散在不同 x 上；</li>
  *   <li>**父节点也要避让**：中点落点若撞上本列其它节点，就近上下挪一个槽位。</li>
  * </ol>
  *
@@ -357,8 +350,8 @@ function layoutTree(allNodes: LineageNode[]): Map<string, { x: number; y: number
   /**
    * 父节点落点：取子节点跨度的中点，并保证**不与任何子节点同高**。
    *
-   * <p>同高会让边退化成一条穿过节点的直线——实测过：父节点被居中到中间那个子节点
-   * 的 y 上，两点之间没有任何垂直落差。这里强制错开半个行槽。
+   * <p>必须与所有子节点错开半个行槽：同高会让边退化成一条穿过节点的直线
+   * （父节点落在子节点 y 上，两点之间没有垂直落差）。
    */
   const fitY = (column: number, ideal: number, childYs: number[]): number => {
     let y = ideal;
@@ -407,7 +400,7 @@ function layoutTree(allNodes: LineageNode[]): Map<string, { x: number; y: number
     place(node.taskId, column, fitY(column, ideal, childYs));
   }
 
-  // ③ 兜底：血缘异常（环、缺边）导致没落位的节点
+  // ③ 兜底：血缘异常（环、缺边）而没落位的节点
   for (const node of allNodes) {
     if (!result.has(node.taskId)) {
       const column = depth.get(node.taskId) ?? 0;
@@ -432,7 +425,7 @@ function resolvePosition(
   }
   const computed = layout.get(node.taskId) ?? { x: FIRST_COLUMN_X, y: FIRST_ROW_Y };
   settledPositions.value.set(node.taskId, computed);
-  // 布局结果也落本地：否则刷新后新节点会拿到另一套坐标（取决于当次服务端返回顺序）
+  // 布局结果也落本地：刷新后沿用同一套坐标
   writePosition(props.fileKey, node.taskId, computed);
   return computed;
 }
@@ -488,13 +481,13 @@ const graphNodes = computed(() => {
        * 卡片上是否画「触发下一环节」按钮。
        *
        * <p>**不能只看"是不是路径末端"**：向量化是链路最后一环时它同样是末端，
-       * 但已经没有下一环节可触发 —— 画出按钮点了没反应就是误导。
+       * 但已经没有下一环节可触发。
        *
        * <p>**也不能用"出度为 0"来判断**：出度为 0 正是"叶子"的定义，而叶子就是路径末端，
-       * 两者等价 —— 实测这么改会让**所有**叶子的按钮都消失（11 个节点只剩 1 个有按钮）。
+       * 两者等价，这么改会让**所有**叶子的按钮都消失。
        *
-       * <p>所以判据得是**业务语义**（这个末端还有没有下一环节），而那要问页面：
-       * 环节顺序只有页面知道，图不该猜。用 canTrigger 属性传进来。
+       * <p>判据是**业务语义**（这个末端还有没有下一环节），由页面经 `canTrigger` 传进来：
+       * 环节顺序只有页面知道，图不猜。
        */
       pathEnd: pathEndNode.value?.taskId === node.taskId && props.canTrigger,
       hit: isHit(node),
@@ -509,8 +502,7 @@ const graphNodes = computed(() => {
 /**
  * 边的视觉语义。
  *
- * <p>**全部为流动虚线**（用户要求）：靠颜色与粗细区分状态，而不是靠"实线/虚线"——
- * 后者会让人误以为存在两套互不相干的线条样式。
+ * <p>**全部为流动虚线**：靠颜色与粗细区分状态，不靠"实线/虚线"。
  *
  * <ul>
  *   <li>`run`：下游还在跑 → 主色、最粗</li>
@@ -534,7 +526,7 @@ const graphEdges = computed(() =>
     } else if (sourceDone && !targetPending) {
       state = 'done';
     }
-    // 按该边在源节点出边中的次序选源桩：起点分散，多次触发不再叠在一起
+    // 按该边在源节点出边中的次序选源桩：起点分散，多次触发不叠在一起
     const outIndex = outIndexOf.value.get(`${edge.fromTaskId}-${edge.toTaskId}`) ?? 0;
     return {
       id: `${edge.fromTaskId}-${edge.toTaskId}`,
@@ -588,9 +580,8 @@ function onNodeClick(event: { node: { id: string } }): void {
  * 数据换了一批（切文件/轮询刷新）时的选中处理。
  *
  * <p>**只在首次、以及选中的节点确实消失时**才自动选「最深路径末端」。
- * 不要每次刷新都做兜底改选：轮询每 2 秒一次，用户点选后被改掉会表现为
- * 「高亮莫名其妙消失/跳走」（实测过）。用户的点选是明确意图（指定从哪触发下游），
- * 系统不该替他改。
+ * 不要每次刷新都做兜底改选：轮询每 2 秒一次，用户点选不能被改成别的节点
+ * （用户点选是明确意图：指定从哪触发下游）。
  */
 watch(
   () => props.lineage,
@@ -614,9 +605,9 @@ watch(
 /**
  * 出度变化必须通知 Vue Flow 重算连接桩位置。
  *
- * <p>**这是「再跑一次后线条起点又重叠」的根因**：Vue Flow 在节点挂载时缓存各连接桩的
- * 位置（handleBounds）。每新增一次下游运行，源桩数量 +1、且**所有旧桩按百分比重新均布**，
- * 缓存不失效的话边仍按旧坐标绘制，于是全挤在同一处。
+ * <p>**出度变化必须通知 Vue Flow 重算**：Vue Flow 在节点挂载时缓存各连接桩的位置
+ * （handleBounds）。每新增一次下游运行，源桩数量 +1、且**所有旧桩按百分比重新均布**，
+ * 缓存不失效时边仍按旧坐标绘制，全挤在同一处。
  *
  * <p>缓存在下一帧才可能过期，所以延到渲染后再触发重算。
  */
@@ -654,7 +645,7 @@ watch(hasNodes, (has) => {
  *
  * <p>**必须做这一步**：落位表里存的是布局算出的坐标，不是用户拖动后的坐标。
  * 不回收的话，下一次重算（点一下节点就会触发一次）会把那份陈旧的布局坐标
- * 经 Vue Flow 的 Object.assign 覆盖回节点上——实测的「点一下就全部重置」。
+ * 经 Vue Flow 的 Object.assign 覆盖回节点上。
  */
 onNodeDragStop(({ node }: { node: GraphNode }) => {
   const { x, y } = node.computedPosition;

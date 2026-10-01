@@ -9,8 +9,7 @@ import java.io.Serializable;
 /**
  * 分页查询条件（列表类接口共用）。
  *
- * <p>与首页最近提交同一口径：页码与页长都可空，取默认值时才兜底，避免分页拿到 null/0。
- * 前端列表页总是显式传值，这里只兜底异常输入。
+ * <p>页码与页长都可空，取值小于 1 或未传时按默认值兜底。
  *
  * @author cxxl
  */
@@ -32,12 +31,12 @@ public class PageQueryDto implements Serializable {
     /** 每页条数（可空，按默认 10） */
     private Long size;
 
-    /** 页码兜底：不传或非法值按默认，避免分页拿到 null/0 */
+    /** 页码兜底：未传或小于 1 时取默认值 */
     public long currentOrDefault() {
         return ObjectUtil.isNull(current) || current < 1 ? DEFAULT_CURRENT : current;
     }
 
-    /** 每页条数兜底 */
+    /** 每页条数兜底：未传或小于 1 时取默认值 */
     public long sizeOrDefault() {
         return ObjectUtil.isNull(size) || size < 1 ? DEFAULT_SIZE : size;
     }

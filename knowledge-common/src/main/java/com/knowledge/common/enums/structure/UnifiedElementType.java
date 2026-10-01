@@ -23,22 +23,22 @@ public enum UnifiedElementType {
     /** 段落 */
     PARAGRAPH,
 
-    /** 列表项（一期不专门识别） */
+    /** 列表项（暂不专门识别） */
     LIST,
 
     /** 表格（含 cells 子元素） */
     TABLE,
 
-    /** 表格行（一期以 TABLE_CELL 直挂 TABLE 表达，不产出行元素） */
+    /** 表格行（当前以 TABLE_CELL 直挂 TABLE 表达，不产出行元素） */
     TABLE_ROW,
 
     /** 表格单元格（TABLE 的子元素） */
     TABLE_CELL,
 
-    /** 图片（仅引用 + needsOcr，一期不识别文字） */
+    /** 图片（仅引用 + needsOcr，暂不识别文字） */
     IMAGE,
 
-    /** 图注（一期不专门识别） */
+    /** 图注（暂不专门识别） */
     FIGURE_CAPTION,
 
     /** 页眉 */
@@ -47,6 +47,6 @@ public enum UnifiedElementType {
     /** 页脚 */
     FOOTER,
 
-    /** 公式（一期不专门识别） */
+    /** 公式（暂不专门识别） */
     EQUATION
 }

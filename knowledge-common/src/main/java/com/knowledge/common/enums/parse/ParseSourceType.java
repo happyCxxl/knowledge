@@ -8,7 +8,7 @@ package com.knowledge.common.enums.parse;
  */
 public enum ParseSourceType {
 
-    /** 原生解析路（一期唯一产出路） */
+    /** 原生解析路（唯一产出路） */
     NATIVE("native"),
 
     /** 结构化 OCR 路（能力接入后新增） */
@@ -31,7 +31,7 @@ public enum ParseSourceType {
         return value;
     }
 
-    /** 按落库值反查（未知值返回 null，调用方按跨来源判定跳过） */
+    /** 按落库值反查（未知值返回 null） */
     public static ParseSourceType ofValue(String value) {
         for (ParseSourceType type : values()) {
             if (type.value.equals(value)) {

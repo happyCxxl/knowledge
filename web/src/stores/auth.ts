@@ -67,9 +67,7 @@ function readUser(): AuthUser | null {
 
 /** 令牌是否可用：仅当存在、可解析、且未过期时才算已登录。
  *
- * <p>此前只判断"是否存在"，导致一个过期令牌会让守卫认为已登录：
- * 访问 /login 被踢回工作台，接口再因令牌失效而拒绝，用户被卡在错误页再也回不到登录页。
- * 这里对过期令牌直接清除，从根上断掉这个循环。
+ * <p>过期令牌直接清除。
  *
  * <p>过期时刻只能从令牌本身取：刷新页面后除令牌外没有别的凭据可用。
  */
@@ -92,7 +90,7 @@ function dropUnusableToken(): string | null {
   return null;
 }
 
-// 登录态：令牌与用户快照持久化（记住我 → localStorage；否则 sessionStorage）
+// 登录态：令牌与用户快照持久化（记住我 → localStorage，未记住我 → sessionStorage）
 export const useAuthStore = defineStore('auth', () => {
   const initialToken = dropUnusableToken();
   const token = ref<string | null>(initialToken);

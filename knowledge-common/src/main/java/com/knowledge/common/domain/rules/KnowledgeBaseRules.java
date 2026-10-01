@@ -81,13 +81,11 @@ public final class KnowledgeBaseRules {
     /**
      * 归属校验：当前用户能否读写该知识库。
      *
-     * <p>管理员放行全部，普通用户仅限自己创建的（`kb_knowledge_base.user_id` 与本人一致）。
-     * 因此存量 `user_id = NULL` 的早期数据对普通用户不可见 —— 这是刻意的：
-     * 平台口径是"知识库归属创建者"，没有归属的行不该被当成公共资产。
+     * <p>管理员放行全部，普通用户仅限自己创建的（`kb_knowledge_base.user_id` 与本人一致）；
+     * 存量 `user_id = NULL` 的数据对普通用户不可见（知识库归属创建者，无归属的行不视为公共资产）。
      *
-     * <p>不可访问时抛 {@link ErrorCode#KB_NOT_FOUND} 而不是 FORBIDDEN：后者等于确认
-     * "这个库存在，只是不是你的"，会把别人的库 ID 变成可枚举、可探测的信息；
-     * 按"不存在"处理时，越权访问与库真不存在在响应上完全一致。
+     * <p>不可访问时抛 {@link ErrorCode#KB_NOT_FOUND}：越权访问与库不存在在响应上完全一致，
+     * 不把别人的库 ID 变成可探测的信息。
      *
      * @param kb   知识库实体
      * @param user 当前登录用户

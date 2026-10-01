@@ -17,20 +17,18 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 首页 Controller：资产速览 + 最近提交。
  *
- * <p>独立于各业务 Controller：首页只读、跨模块聚合，接业务 Controller 会把
- * "单页职责"搅浑。数据来源是各资产表计数与 `kb_submit_log`（最近提交）。
+ * <p>独立于各业务 Controller：首页只读、跨模块聚合。数据来源是各资产表计数与
+ * `kb_submit_log`（最近提交）。
  *
- * <p>**最近提交只返回当前登录用户的记录**：接口不接受"提交人"参数，
- * 提交人由服务端从安全上下文取，避免前端传谁就查谁。
+ * <p>**最近提交只返回当前登录用户的记录**：接口不接受"提交人"参数，提交人由服务端
+ * 从安全上下文取。
  *
- * <p>刻意**不提供**环节分布、待处理清单与审计动作：前者在各业务页有更准的口径，
- * 后者属于管理视角，不在首页展示。
+ * <p>不含环节分布、待处理清单与审计动作（那些在各业务页与管理视角）。
  *
- * <p>查询对象收参（{@link HomeRecentSubmitQueryDto}）：条件会随筛选需求增长，
- * 摊在签名上会越滚越长。`@ParameterObject` 让 Swagger 把对象字段展开成独立查询参数。
+ * <p>查询对象收参（{@link HomeRecentSubmitQueryDto}）+ `@ParameterObject`：
+ * Swagger 把对象字段展开成独立查询参数。
  *
- * <p>分页条件不加 `@Valid`：DTO 没有约束注解，非法值由 DTO 自己按默认兜底
- * （见 `currentOrDefault` / `sizeOrDefault`），加了只会给出"这里已校验"的错误暗示。
+ * <p>分页条件不加 `@Valid`：DTO 没有约束注解，取值由 `currentOrDefault` / `sizeOrDefault` 兜底。
  *
  * @author cxxl
  */

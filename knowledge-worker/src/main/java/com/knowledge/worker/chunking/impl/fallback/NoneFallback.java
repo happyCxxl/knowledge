@@ -9,7 +9,7 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 
 /**
- * 不兜底切片：超长文本原样单片返回（配合长上下文模型场景；切片方标 FALLBACK + fallbackReason 便于评测识别）。
+ * 不兜底切片：超长文本原样单片返回（切片标 FALLBACK + fallbackReason）。
  *
  * @author cxxl
  */

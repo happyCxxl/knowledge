@@ -16,7 +16,7 @@ import java.util.List;
  */
 public interface MilvusIndexPort {
 
-    /** 集合命名：kb_{kbId}_{versionNo}（versionNo = 组合注册序号；调用方统一经此构造集合名） */
+    /** 集合命名：kb_{kbId}_{versionNo}（versionNo = 组合注册序号） */
     static String collectionName(Long knowledgeBaseId, String versionNo) {
         return "kb_" + knowledgeBaseId + "_" + versionNo;
     }

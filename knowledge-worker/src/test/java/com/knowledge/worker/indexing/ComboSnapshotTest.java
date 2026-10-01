@@ -16,8 +16,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * 组合快照格式断言单测：
- * stageStrategies 三环节策略维度是组合的身份与血缘载体——旧口径快照（无该维度）
- * 由唯一断言点 requireStageStrategies 显式拒绝（40448），业务路径不再散点防御。
+ * stageStrategies 三环节策略维度是组合的身份与血缘载体，缺少该维度的快照
+ * 由唯一断言点 requireStageStrategies 拒绝（40448）。
  *
  * @author cxxl
  */

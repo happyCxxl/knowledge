@@ -30,7 +30,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * 索引组合对账器单测（单一取数口径）：
- * 对账不变量——组合必须携带三环节策略维度（旧口径快照由快照边界断言显式拒绝，
+ * 对账不变量——组合必须携带三环节策略维度（缺少该维度的快照由快照边界断言拒绝，
  * 对账器按同一维度判定不完整，两者口径一致）；
  * 单一取数口径——selectComboProducts（血统匹配/缺口/血统不符）、latestChunkMap（同策略取 id 最大）、
  * computeExpected 尊重 LIST 范围（范围外文件不参与）。
@@ -83,7 +83,7 @@ class IndexComboReconcilerTest {
         IndexComboReconciler.ComboExpectation expectation = reconciler.computeExpected(1L, legacy);
 
         assertFalse(expectation.complete());
-        assertEquals("组合缺失环节策略维度（疑似旧口径数据，需废弃重灌）", expectation.gap());
+        assertEquals("组合缺失环节策略维度（需废弃重灌）", expectation.gap());
         verifyNoInteractions(fileResultDbService);
     }
 
@@ -94,7 +94,7 @@ class IndexComboReconcilerTest {
         IndexComboReconciler.ComboExpectation expectation = reconciler.computeExpected(1L, partial);
 
         assertFalse(expectation.complete());
-        assertEquals("组合缺失环节策略维度（疑似旧口径数据，需废弃重灌）", expectation.gap());
+        assertEquals("组合缺失环节策略维度（需废弃重灌）", expectation.gap());
         verifyNoInteractions(fileResultDbService);
     }
 

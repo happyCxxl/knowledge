@@ -9,7 +9,7 @@ import java.util.stream.Collectors;
 /**
  * 策略类型（kb_pipeline_strategy_version.type）。
  *
- * <p>四类策略的**码值**集中在这里，调用方不再散写 `"RETRIEVAL"` 这类字面量。
+ * <p>四类策略的**码值**集中在这里。
  *
  * <p>与 {@link com.knowledge.common.enums.task.PipelineStage} 的关系：环节枚举含
  * PARSE / STRUCTURE（不挂策略）与 BUILD_INDEX（索引构建），所以不能直接用环节枚举当策略类型。
@@ -65,7 +65,7 @@ public enum StrategyType {
                 .map(StrategyType::key).collect(Collectors.toSet());
     }
 
-    /** 按码值查找；未识别返回 null（调用方兜底） */
+    /** 按码值查找；未识别返回 null */
     public static StrategyType of(String key) {
         if (StrUtil.isBlank(key)) {
             return null;

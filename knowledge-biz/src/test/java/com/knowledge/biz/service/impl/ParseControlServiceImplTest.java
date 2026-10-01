@@ -204,7 +204,7 @@ class ParseControlServiceImplTest {
         product.setContentHash("9f2c".repeat(16));
         when(pipelineProductDbService.getById(50L)).thenReturn(product);
         String json = "{\"quality\":{\"warnings\":[{\"code\":\"SCANNED_PAGE\",\"level\":\"WARN\","
-                + "\"message\":\"第 page 2 无文本层（扫描页），OCR 预留一期不支持\"}]}}";
+                + "\"message\":\"第 page 2 无文本层（扫描页），OCR 暂未支持\"}]}}";
         when(fileStorage.getObject("9f2c".repeat(16))).thenReturn(json.getBytes(StandardCharsets.UTF_8));
 
         ParseDetailVO detail = service.parseDetail(10L, null);

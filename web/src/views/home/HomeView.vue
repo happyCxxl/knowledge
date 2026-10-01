@@ -21,7 +21,7 @@
       <div class="page-asset">
         <span class="page-asset-k">文档</span>
         <span class="page-asset-v">{{ summaryText.documentCount }}</span>
-        <!-- 副文案刻意不写"提交总数"：校验失败的提交不建结果，两个数不是一回事 -->
+        <!-- 副文案不写"提交总数"：校验失败的提交不建结果，两个数不是一回事 -->
         <span class="page-asset-sub">已建档文档</span>
       </div>
       <div class="page-asset">
@@ -37,7 +37,7 @@
 
     <!--
       最近提交：**只含本人**的记录（后端按登录用户过滤，前端不传提交人），
-      所以不再需要"提交人"列。面板走共用骨架：标题在 .page-toolbar，计数与翻页在 .page-panel-foot。
+      没有"提交人"列。面板走共用骨架：标题在 .page-toolbar，计数与翻页在 .page-panel-foot。
     -->
     <div class="page-panel">
       <div class="page-toolbar">
@@ -102,7 +102,7 @@
 
       <div class="page-panel-foot">
         <span>共 {{ submitTotal }} 条</span>
-        <!-- 页码固定显示：首页是唯一的提交历史入口，精确跳页有实际价值 -->
+        <!-- 页码固定显示：首页是唯一的提交历史入口，需要精确跳页 -->
         <el-pagination
           v-model:current-page="submitQuery.current"
           class="home-pager"
@@ -124,12 +124,12 @@
  * <p>两块内容，回答两个问题：
  *
  * <ul>
- *   <li>**资产速览**（最上面）—— "现在有什么、能用什么"。细分区刻意给"启用数 / 四类可用策略"，
+ *   <li>**资产速览**（最上面）—— "现在有什么、能用什么"。细分区给"启用数 / 四类可用策略"，
  *       而不是库存总数：索引版本那种数字在没用起来时恒为 0，列出来等于没信息，
  *       而且知识库卡片上已经有「索引版本」一格，首页再列是重复；</li>
  *   <li>**最近提交**（`kb_submit_log`）—— **当前登录用户**的文件提交。`status` 是
- *       **提交校验结果**（PASS/FAIL），**不是处理链进度**，所以工具栏里写明了这句。
- *       可见范围由后端按登录用户过滤，前端不传提交人，因此没有"提交人"列。</li>
+ *       **提交校验结果**（PASS/FAIL），**不是处理链进度**，工具栏里写明了这句。
+ *       可见范围由后端按登录用户过滤，前端不传提交人，没有"提交人"列。</li>
  * </ul>
  *
  * <p>每页固定 {@link PAGE_SIZE} 条：列表容器高度由面板决定、与本页记录数无关，
@@ -159,19 +159,19 @@ const PAGE_SIZE = 10;
  *       知识库名与结果（徽标 + 失败原因）按"刚好放得下"给最小值。</li>
  * </ul>
  *
- * <p>**表头对齐方式跟随单元格，不单独设 `header-align`**：Element Plus 不传时继承 `align`（左对齐），
- * 正是我们要的；单独写 `center` 会让列头浮在内容上方的中间，看起来"歪"。
+ * <p>**表头对齐方式跟随单元格，不单独设 `header-align`**：Element Plus 不传时继承 `align`（左对齐）；
+ * 单独写 `center` 会让列头浮在内容上方的中间。
  */
 const COL = {
   /** 文件名：不可控，吃富余宽度，超长截断 */
   fileName: 260,
   /** 文件类型：`PDF` / `DOCX` / `XLSX` 等 3~4 字符，定宽 */
   fileType: 100,
-  /** 知识库名：短且稳定（实测最长 65px + 内边距） */
+  /** 知识库名：短且稳定（最长 65px + 内边距） */
   kbName: 140,
-  /** 结果：通过/未通过徽标 + 失败原因（实测最长 147px + 内边距） */
+  /** 结果：通过/未通过徽标 + 失败原因（最长 147px + 内边距） */
   result: 200,
-  /** 提交时间：`yyyy-MM-dd HH:mm` 定长（实测 68px→16 字符约 110px + 内边距） */
+  /** 提交时间：`yyyy-MM-dd HH:mm` 定长（16 字符约 110px + 内边距） */
   createTime: 150,
 } as const;
 
@@ -187,8 +187,8 @@ const submitQuery = reactive({ current: 1, size: PAGE_SIZE });
 /**
  * 数字按千分位展示；未加载完显示占位符，避免闪 0。
  *
- * <p>只映射界面上真实展示的字段：后端就不再下发索引版本那两个计数了
- * （知识库卡片上已有「索引版本」一格，首页重复列出等于没信息）。
+ * <p>只映射界面上真实展示的字段：后端不下发索引版本那两个计数
+ * （知识库卡片上已有「索引版本」一格）。
  */
 const summaryText = computed(() => {
   const pick = (value: string | number | undefined): string => formatCount(value);
@@ -209,7 +209,7 @@ function formatCount(value: string | number | undefined): string {
     return '—';
   }
   // 计数在小数值区间（后端全局口径：只有超过 JS 安全整数的雪花 ID 才下发字符串），
-  // 所以这里拿到的是 number；但保留对字符串的兼容（旧数据/未来口径变化都不至于显示成 —）
+  // 这里拿到的是 number；仍兼容字符串入参，避免显示成 —
   const num = Number(value);
   return Number.isNaN(num) ? '—' : num.toLocaleString('en-US');
 }
@@ -279,7 +279,7 @@ onMounted(() => {
   --el-pagination-hover-color: var(--kb-primary);
 }
 
-/* el-table 主题化：与用户管理页同一套变量覆盖，保证两处表格观感一致 */
+/* el-table 主题化：与用户管理页同一套变量覆盖 */
 .home-table {
   --el-table-bg-color: transparent;
   --el-table-tr-bg-color: transparent;
@@ -313,7 +313,7 @@ onMounted(() => {
 }
 
 /*
- * 单行截断：表格行高必须恒定，否则最后一行会被容器切掉。
+ * 单行截断：表格行高必须恒定。
  * 完整内容用 title 属性承载（见模板）。
  */
 .home-ellipsis {
@@ -327,7 +327,7 @@ onMounted(() => {
   color: var(--kb-text-1);
 }
 
-/* 失败原因：跟在结果徽标后面，弱化以免抢视觉 */
+/* 失败原因：跟在结果徽标后面，弱化显示 */
 .home-reason {
   margin-left: 7px;
   color: var(--kb-text-4);

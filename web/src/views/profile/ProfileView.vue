@@ -278,7 +278,7 @@ const passwordRules: FormRules = {
   ],
 };
 
-// 进页面取一次服务端资料：换设备登录或管理员改过之后，本地快照可能不是最新的
+// 进页面取一次服务端资料：本地快照可能不是最新的
 async function loadProfile(): Promise<void> {
   infoFormRef.value?.clearValidate();
   try {
@@ -332,7 +332,7 @@ async function handleSavePassword(): Promise<void> {
       oldPassword: passwordForm.oldPassword,
       newPassword: passwordForm.newPassword,
     });
-    // 服务端已递增令牌版本，本地令牌必须换成响应里补签的那张，否则下一次请求就失效
+    // 服务端已递增令牌版本，本地令牌必须换成响应里补签的那张
     authStore.replaceToken(token);
     passwordForm.oldPassword = '';
     passwordForm.newPassword = '';

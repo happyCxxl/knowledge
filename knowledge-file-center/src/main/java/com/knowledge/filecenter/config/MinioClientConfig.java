@@ -10,9 +10,9 @@ import org.springframework.context.annotation.Configuration;
 /**
  * MinIO 客户端装配：构建客户端并确保所需桶存在。
  *
- * <p>与 {@link com.knowledge.filecenter.provider.MinioStorageProvider} 同一条装配条件：
- * 本 Bean 在创建时就会连 MinIO 并建桶，连不上直接抛异常。若不做条件化，
- * 切到 local 后端时仍会因为连不上 MinIO 而起不来 —— 本地存储的意义就没了。
+ * <p>与 {@link com.knowledge.filecenter.provider.MinioStorageProvider} 同一条装配条件
+ * （{@code file-center.storage-type=minio}，缺省即 minio）：Bean 创建时会连 MinIO 并建桶，
+ * 连不上直接抛异常。
  *
  * @author cxxl
  */

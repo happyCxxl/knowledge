@@ -75,7 +75,7 @@ export async function updateStrategyVersionDisable(id: string): Promise<Strategy
 /**
  * 删除策略版本（物理删）。
  *
- * <p>被知识库绑定时后端报 `40452`，调用方应捕获并提示改用停用。
+ * <p>被知识库绑定时后端报 `40452`（应提示改用停用）。
  */
 export async function deleteStrategyVersion(id: string): Promise<boolean> {
   const response = await http.delete<boolean>(`/strategy-versions/${id}`);
@@ -85,8 +85,8 @@ export async function deleteStrategyVersion(id: string): Promise<boolean> {
 /**
  * 查询某知识库在某类型的策略绑定；未绑定时只有 strategyType、其余字段为 null。
  *
- * <p>**只在"确实只关心一个库"时用它。** 若要回答「这个版本被哪些库绑了」，
- * 用 {@link getStrategyBindings}（批量）—— 否则要对每个库发一次请求（N+1）。
+ * <p>**只在"确实只关心一个库"时用它。** 要回答「这个版本被哪些库绑了」，
+ * 用 {@link getStrategyBindings}（批量）。
  */
 export async function getStrategyBinding(
   knowledgeBaseId: string,
@@ -102,9 +102,8 @@ export async function getStrategyBinding(
 /**
  * 批量查询某策略类型下**所有已绑定的知识库**（一次请求）。
  *
- * <p>解决的问题：绑定按知识库维度存储，而"某策略版本被哪些库绑了"是反方向的问题 ——
- * 只提供按库查的接口时，前端只能对每个库发一次请求（实测 3 个库切一次策略 tab 就是 3 次，
- * 且随知识库数量线性增长）。后端用一条 SQL 取回该类型下的全部绑定行。
+ * <p>绑定按知识库维度存储，"某策略版本被哪些库绑了"是反方向的问题；
+ * 后端用一条 SQL 取回该类型下的全部绑定行。
  *
  * <p>返回的每一项都带 `knowledgeBaseId`，可直接与策略版本 ID 比对得出"哪些库绑了它"。
  */
@@ -136,7 +135,7 @@ export async function updateStrategyBinding(
  * 一次设置知识库的整套策略绑定（对应后端「发布 = 知识库策略集合」口径）。
  *
  * <p>**必须给全可绑定类型且每项都有版本** —— 后端会校验，少一项直接 40001。
- * 这是刻意的：本接口表达"确定了一套策略组合"，不是"逐类型增量改"；
+ * 本接口表达"确定了一套策略组合"，不是"逐类型增量改"；
  * 增量改走 {@link updateStrategyBinding}。
  *
  * @param bindings 三件套（预处理 / 切片 / 向量化）的类型与版本

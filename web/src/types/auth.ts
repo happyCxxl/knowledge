@@ -10,7 +10,7 @@ export interface LoginRequest {
   remember: boolean;
 }
 
-/** 登录结果：用户信息由后端显式下发，前端不再解析令牌载荷 */
+/** 登录结果：用户信息由后端显式下发 */
 export interface LoginVO {
   /** 主键（雪花 ID，后端按字符串下发） */
   id: string;

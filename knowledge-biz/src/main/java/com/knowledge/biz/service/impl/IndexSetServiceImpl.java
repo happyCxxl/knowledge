@@ -310,7 +310,7 @@ public class IndexSetServiceImpl implements IndexSetService {
     }
 
     /** 版本行组合快照读取唯一入口（业务路径）：反序列化 + 格式断言。
-     * 旧口径快照（无 stageStrategies 维度）在此显式拒绝（40448 需废弃重灌），下游不再散点防御；
+     * 缺少 stageStrategies 维度的快照在此拒绝（40448 需废弃重灌），下游不再散点防御；
      * 展示路径（toVersionVO）不走此处，保持宽松可读。
      */
     private ComboSnapshot requireVersionCombo(KbIndexVersion version) {
@@ -497,7 +497,7 @@ public class IndexSetServiceImpl implements IndexSetService {
         indexSetDbService.updatePublishedVersion(set.getId(), versionId);
         version.setStatus(IndexVersionStatus.ONLINE.name());
         version.setPublishedAt(now);
-        // publishedBy 一期占位 null（TODO 接认证后取登录用户）
+        // publishedBy 占位 null（TODO 接认证后取登录用户）
         indexVersionDbService.updateById(version);
 
         KnowledgeBase kb = knowledgeBaseDbService.getById(set.getKnowledgeBaseId());
@@ -747,7 +747,7 @@ public class IndexSetServiceImpl implements IndexSetService {
         indexVersionDbService.updateById(version);
     }
 
-    /** 退役在线版本（已退役跳过）；返回该版本行（无 → null；retiredBy 一期占位 null） */
+    /** 退役在线版本（已退役跳过）；返回该版本行（无 → null；retiredBy 占位 null） */
     private KbIndexVersion retireVersion(Long versionId, LocalDateTime now) {
         KbIndexVersion version = ObjectUtil.isNull(versionId) ? null : indexVersionDbService.getById(versionId);
         if (ObjectUtil.isNotNull(version) && !IndexVersionStatus.RETIRED.name().equals(version.getStatus())) {

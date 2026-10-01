@@ -109,7 +109,7 @@ public class ParseTaskRunner {
                 task.getId(), fileResult.getId(), outcome.getSuggestedStatus(), product.getArtifactId());
     }
 
-    /** 失败终态回写：统一留痕（带 taskId + 错误码，便于按任务关联排查）。 */
+    /** 失败终态回写：统一留痕（带 taskId + 错误码）。 */
     private void finishFailed(Long taskId, String errorCode, String errorMsg) {
         log.warn("===> ParseTaskRunner 解析任务失败, taskId={}, errorCode={}, errorMsg={}",
                 taskId, errorCode, errorMsg);

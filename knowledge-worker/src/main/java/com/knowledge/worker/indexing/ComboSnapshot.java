@@ -22,7 +22,7 @@ import java.util.Map;
  * 集合名 = kb_{kbId}_{versionNo}（versionNo = 组合注册序号），同组合复用同集合。
  * <p>
  * 格式断言：stageStrategies 三环节维度是组合的身份与血缘载体，{@link #requireStageStrategies()}
- * 是旧口径快照（重构前无该维度）的唯一拒绝点——业务路径按需显式断言，不再散点防御；
+ * 是缺少该维度的快照的唯一拒绝点；业务路径按需显式断言，不再散点防御。
  * 候选构建"待绑定补齐"场景用非抛断言 {@link #hasCompleteStageStrategies()} 判断后再补齐。
  *
  * @author cxxl
@@ -39,7 +39,7 @@ public class ComboSnapshot implements Serializable {
     /** LIST 模式下的文件结果 ID 列表（ALL 模式为 null） */
     private List<Long> fileResultIds;
 
-    /** 索引形态（一期 FULL_VECTOR） */
+    /** 索引形态（当前仅 FULL_VECTOR） */
     private IndexShape shape = IndexShape.FULL_VECTOR;
 
     /** 环节策略映射：stage（PipelineStage 名）→ 策略 name-version（环节白名单：PREPROCESS/CHUNK/EMBED，构建入口校验） */
@@ -73,7 +73,7 @@ public class ComboSnapshot implements Serializable {
                 && StrUtil.isNotBlank(strategyOf(PipelineStage.EMBED.name()));
     }
 
-    /** 格式断言（抛）：三环节策略维度不完整 → 40448（旧口径数据需废弃重灌，不静默降级） */
+    /** 格式断言（抛）：三环节策略维度不完整 → 40448（需废弃重灌，不静默降级） */
     public void requireStageStrategies() {
         if (!hasCompleteStageStrategies()) {
             throw new KnowledgeException(ErrorCode.INDEX_COMBO_SNAPSHOT_LEGACY);
@@ -85,7 +85,7 @@ public class ComboSnapshot implements Serializable {
         return "LIST".equals(fileScopeMode);
     }
 
-    /** 一期三环节组合工厂（保持调用点简洁；插入序 = 预处理/切片/向量化） */
+    /** 三环节组合工厂（插入序 = 预处理/切片/向量化） */
     public static ComboSnapshot of(String preprocess, String chunk, String embed) {
         ComboSnapshot combo = new ComboSnapshot();
         combo.getStageStrategies().put(PipelineStage.PREPROCESS.name(), preprocess);

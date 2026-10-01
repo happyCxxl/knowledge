@@ -16,7 +16,7 @@ public interface ElementNormalizer {
     /**
      * 标准化。
      *
-     * @param sources 多路解析结果（一期 native 单路）
+     * @param sources 多路解析结果（当前 native 单路）
      * @param context 组装上下文
      * @return 统一元素雏形列表（保留来源标记于 extension）
      */
