@@ -63,13 +63,21 @@ fi
 changed_count=$(printf '%s\n' "$changed" | sed '/^$/d' | wc -l | tr -d ' ')
 
 # ---------- 2. 指纹缓存 ----------
+changed_hash=$(printf '%s' "$changed" | git hash-object --stdin)
+hook_hash=$(git hash-object .husky/pre-push 2>/dev/null || echo nohook)
+script_hash=$(git hash-object tools/pre-push-gate.sh 2>/dev/null || echo noscript)
+checker_hash=$(git hash-object tools/check-comments.mjs 2>/dev/null || echo nochecker)
+pom_hash=$(git hash-object pom.xml 2>/dev/null || echo nopom)
 fingerprint=$(printf '%s\n%s\n%s\n%s\n%s\n%s' \
-  "$ranges" \
-  "$(printf '%s' "$changed" | git hash-object --stdin)" \
-  "$(git hash-object .husky/pre-push 2>/dev/null || echo nohook)" \
-  "$(git hash-object tools/pre-push-gate.sh 2>/dev/null || echo noscript)" \
-  "$(git hash-object tools/check-comments.mjs 2>/dev/null || echo nochecker)" \
-  "$(git hash-object pom.xml 2>/dev/null || echo nopom)" | git hash-object --stdin)
+  "$ranges" "$changed_hash" "$hook_hash" "$script_hash" "$checker_hash" "$pom_hash" | git hash-object --stdin)
+
+# 排查用：GATE_DEBUG=1 打印指纹组成（缓存命中/未命中时都能看出是哪一项变了）
+if [ "${GATE_DEBUG:-0}" = "1" ]; then
+  echo "指纹组成：ranges=$ranges"
+  echo "          changed=$changed_hash（$changed_count 个文件）"
+  echo "          hook=$hook_hash script=$script_hash checker=$checker_hash pom=$pom_hash"
+  echo "          合计=$fingerprint"
+fi
 
 if [ "${FORCE_GATE:-0}" != "1" ] && [ -f "$cache_file" ]; then
   cached=$(sed -n '1p' "$cache_file")
