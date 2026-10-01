@@ -4,11 +4,13 @@ import cn.hutool.core.util.ObjectUtil;
 import com.knowledge.common.domain.entity.KnowledgeBase;
 import com.knowledge.common.enums.knowledge.KnowledgeBaseStatus;
 import com.knowledge.common.enums.knowledge.StrategyBindingSwitch;
+import com.knowledge.common.enums.user.UserRole;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
+import com.knowledge.common.security.KnowledgeUser;
 
 /**
- * 知识库状态规则：status 两态（启用/停用）迁移校验 + 默认库保护。
+ * 知识库规则：状态两态（启用/停用）迁移校验 + 默认库保护 + 可见范围（归属）。
  *
  * @author cxxl
  */
@@ -58,6 +60,60 @@ public final class KnowledgeBaseRules {
      */
     public static void checkCanSubmit(KnowledgeBase kb) {
         requireStatus(kb, KnowledgeBaseStatus.ACTIVE, ErrorCode.KB_NOT_ACTIVE, null);
+    }
+
+    /**
+     * 可见范围：当前登录用户查询时要加的"归属 ID"。
+     *
+     * <p>管理员不限归属（返回 null，表示查询不加归属条件）；普通用户只能看到自己创建的库。
+     * 返回值 null 与"当前用户为 null"是两件事 —— **无登录上下文一律拒绝**，
+     * 不允许把"没登录"退化成"不过滤"，那样一个缺失的认证上下文就等于全量可见。
+     *
+     * @param user 当前登录用户
+     * @return 普通用户返回其用户 ID；管理员返回 null（不过滤）
+     * @throws KnowledgeException 无登录上下文（UNAUTHORIZED 40101）
+     */
+    public static Long visibleOwnerId(KnowledgeUser user) {
+        requireLogin(user);
+        return isAdmin(user) ? null : user.getId();
+    }
+
+    /**
+     * 归属校验：当前用户能否读写该知识库。
+     *
+     * <p>管理员放行全部，普通用户仅限自己创建的（`kb_knowledge_base.user_id` 与本人一致）。
+     * 因此存量 `user_id = NULL` 的早期数据对普通用户不可见 —— 这是刻意的：
+     * 平台口径是"知识库归属创建者"，没有归属的行不该被当成公共资产。
+     *
+     * <p>不可访问时抛 {@link ErrorCode#KB_NOT_FOUND} 而不是 FORBIDDEN：后者等于确认
+     * "这个库存在，只是不是你的"，会把别人的库 ID 变成可枚举、可探测的信息；
+     * 按"不存在"处理时，越权访问与库真不存在在响应上完全一致。
+     *
+     * @param kb   知识库实体
+     * @param user 当前登录用户
+     * @throws KnowledgeException 无登录上下文（UNAUTHORIZED 40101）或不可访问（KB_NOT_FOUND 40401）
+     */
+    public static void checkAccessible(KnowledgeBase kb, KnowledgeUser user) {
+        requireLogin(user);
+        if (isAdmin(user)) {
+            return;
+        }
+        if (ObjectUtil.isNull(kb) || ObjectUtil.isNull(kb.getUserId())
+                || !ObjectUtil.equal(kb.getUserId(), user.getId())) {
+            throw new KnowledgeException(ErrorCode.KB_NOT_FOUND);
+        }
+    }
+
+    /** 登录上下文校验：缺失（含用户 ID 为空）即拒绝，避免退化成"不过滤" */
+    private static void requireLogin(KnowledgeUser user) {
+        if (ObjectUtil.isNull(user) || ObjectUtil.isNull(user.getId())) {
+            throw new KnowledgeException(ErrorCode.UNAUTHORIZED);
+        }
+    }
+
+    /** 是否管理员（角色缺失时按普通用户处理，取最保守语义） */
+    private static boolean isAdmin(KnowledgeUser user) {
+        return ObjectUtil.isNotNull(user) && UserRole.ADMIN == user.getRole();
     }
 
     /** 状态闸门公共实现：状态缺失或非预期即抛对应错误码 */

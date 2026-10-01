@@ -88,7 +88,7 @@ public class FileSubmitServiceImpl implements FileSubmitService {
      * <p>五步时序：
      * <ol>
      *   <li>幂等：requestId 已存在直接回放已有记录；</li>
-     *   <li>归属校验：知识库存在/启用/未删除；</li>
+     *   <li>归属校验：知识库未删除 → **当前用户可访问**（非本人/非管理员按不存在处理）→ 启用；</li>
      *   <li>文件校验：单次取流内完成 sha256 + Tika 魔数识别 + 大小双源比对 + 加密探测；</li>
      *   <li>建档三写：sourceFile 按 fileId 复用，fileResult 每次提交新建，submitLog 记录流水；</li>
      *   <li>组装响应返回。</li>
@@ -113,8 +113,10 @@ public class FileSubmitServiceImpl implements FileSubmitService {
             return inputVoAssembler.toSubmitResponse(existing, findParseTaskId(existing.getFileResultId()));
         }
 
-        // ② 归属校验：存在/启用/未删除
+        // ② 校验：存在/未删除 → 归属（非本人可访问的库按"不存在"处理，且先于状态校验，
+        //    避免用错误码差异反推出别人某个库是启用还是停用）→ 启用
         KnowledgeBase kb = knowledgeBaseDbService.getActiveById(knowledgeBaseId);
+        KnowledgeBaseRules.checkAccessible(kb, SecurityUtil.getUser());
         KnowledgeBaseRules.checkCanSubmit(kb);
 
         // ③ 文件校验：失败只记 FAIL 日志，不建结果、不建任务

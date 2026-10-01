@@ -27,11 +27,16 @@ import com.knowledge.common.dto.response.knowledge.KnowledgeBaseVO;
 import com.knowledge.common.dto.response.knowledge.StrategyBindingVO;
 import com.knowledge.common.enums.knowledge.AuditActionType;
 import com.knowledge.common.enums.knowledge.KnowledgeBaseStatus;
+import com.knowledge.common.enums.user.UserRole;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
+import com.knowledge.common.security.KnowledgeUser;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.util.List;
 import java.util.Map;
@@ -52,11 +57,17 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 知识库管理应用服务单测（含策略绑定）。
+ * 知识库管理应用服务单测（含策略绑定与归属可见范围）。
  *
  * @author cxxl
  */
 class KnowledgeBaseServiceImplTest {
+
+    /** 当前登录用户（普通用户）：夹具知识库默认都归它，正向用例才能过归属校验 */
+    private static final long ME = 1001L;
+
+    /** 另一个用户：用于「看不到别人的库」的反向用例 */
+    private static final long OTHER = 2002L;
 
     private KnowledgeBaseDbService knowledgeBaseDbService;
 
@@ -86,6 +97,24 @@ class KnowledgeBaseServiceImplTest {
         service = new KnowledgeBaseServiceImpl(knowledgeBaseDbService, kbAuditLogDbService,
                 strategyBindingDbService, strategyVersionDbService, kbFileResultDbService,
                 indexSetDbService, indexVersionDbService);
+        // 默认以普通用户登录：可见范围 = 自己的库。管理员视角的用例单独 login(ADMIN)
+        login(ME, UserRole.USER);
+    }
+
+    @AfterEach
+    void tearDown() {
+        // 安全上下文是线程级静态，不清理会串到下一个用例
+        SecurityContextHolder.clearContext();
+    }
+
+    /** 设置登录上下文（服务层归属校验直接读 Spring Security 上下文） */
+    private void login(long userId, UserRole role) {
+        KnowledgeUser user = new KnowledgeUser();
+        user.setId(userId);
+        user.setUsername("u" + userId);
+        user.setRole(role);
+        SecurityContextHolder.getContext()
+                .setAuthentication(new UsernamePasswordAuthenticationToken(user, null, List.of()));
     }
 
     private KnowledgeBase kb(long id, int status) {
@@ -93,6 +122,8 @@ class KnowledgeBaseServiceImplTest {
         k.setId(id);
         k.setName("库" + id);
         k.setStatus(status);
+        // 归属：本夹具统一归当前登录用户，反向用例另行 setUserId(OTHER)
+        k.setUserId(ME);
         return k;
     }
 
@@ -274,10 +305,14 @@ class KnowledgeBaseServiceImplTest {
         LambdaQueryWrapper<KnowledgeBase> wrapper = new LambdaQueryWrapper<>();
         wrapper.like(false, KnowledgeBase::getName, null)
                 .eq(false, KnowledgeBase::getStatus, null)
+                // 归属条件必须落在 user_id 上：Lambda 引用写错（例如误用 create_by）不报错，
+                // 只是静默变成"按别的列过滤"，那等于归属隔离失效
+                .eq(true, KnowledgeBase::getUserId, ME)
                 .orderByDesc(KnowledgeBase::getDefaultFlag)
                 .orderByDesc(KnowledgeBase::getId);
         String sql = wrapper.getSqlSegment();
 
+        assertTrue(sql.contains("user_id ="), "归属过滤应落在 user_id 列，实际: " + sql);
         assertTrue(sql.contains("default_flag DESC"), "默认库应排最前，实际: " + sql);
         assertTrue(sql.contains("id DESC"), "其余应按 id 倒序，实际: " + sql);
         assertTrue(sql.indexOf("default_flag DESC") < sql.indexOf("id DESC"),
@@ -292,7 +327,7 @@ class KnowledgeBaseServiceImplTest {
         Page<KnowledgeBase> page = new Page<>(1, 10);
         page.setTotal(2);
         page.setRecords(List.of(withIndex, withoutIndex));
-        when(knowledgeBaseDbService.pageByCondition(1L, 10L, null, null, null)).thenReturn(page);
+        when(knowledgeBaseDbService.pageByCondition(1L, 10L, null, null, null, ME)).thenReturn(page);
         when(strategyBindingDbService.listActiveByTypeAndKbIds(any(), any())).thenReturn(List.of());
         when(kbFileResultDbService.countGroupByKb(any())).thenReturn(Map.of());
 
@@ -320,7 +355,7 @@ class KnowledgeBaseServiceImplTest {
         Page<KnowledgeBase> page = new Page<>(1, 10);
         page.setTotal(1);
         page.setRecords(List.of(kb(7L, 1)));
-        when(knowledgeBaseDbService.pageByCondition(1L, 10L, null, null, null)).thenReturn(page);
+        when(knowledgeBaseDbService.pageByCondition(1L, 10L, null, null, null, ME)).thenReturn(page);
         when(strategyBindingDbService.listActiveByTypeAndKbIds(any(), any())).thenReturn(List.of());
         when(kbFileResultDbService.countGroupByKb(any())).thenReturn(Map.of());
 
@@ -337,7 +372,7 @@ class KnowledgeBaseServiceImplTest {
         Page<KnowledgeBase> page = new Page<>(1, 10);
         page.setTotal(1);
         page.setRecords(List.of(kb(7L, 1)));
-        when(knowledgeBaseDbService.pageByCondition(1L, 10L, "库7", null, null)).thenReturn(page);
+        when(knowledgeBaseDbService.pageByCondition(1L, 10L, "库7", null, null, ME)).thenReturn(page);
         when(strategyBindingDbService.listActiveByTypeAndKbIds(any(), any())).thenReturn(List.of());
         when(kbFileResultDbService.countGroupByKb(any())).thenReturn(Map.of(7L, 3L));
 
@@ -355,7 +390,7 @@ class KnowledgeBaseServiceImplTest {
         Page<KnowledgeBase> page = new Page<>(1, 10);
         page.setTotal(1);
         page.setRecords(List.of(kb(8L, 0)));
-        when(knowledgeBaseDbService.pageByCondition(1L, 10L, null, 0, null)).thenReturn(page);
+        when(knowledgeBaseDbService.pageByCondition(1L, 10L, null, 0, null, ME)).thenReturn(page);
         when(strategyBindingDbService.listActiveByTypeAndKbIds(any(), any())).thenReturn(List.of());
         when(kbFileResultDbService.countGroupByKb(any())).thenReturn(Map.of());
 
@@ -366,9 +401,10 @@ class KnowledgeBaseServiceImplTest {
 
     @Test
     void statsShouldAggregateCounts() {
-        when(knowledgeBaseDbService.countByStatus(null)).thenReturn(5L);
-        when(knowledgeBaseDbService.countByStatus(1)).thenReturn(3L);
-        when(kbFileResultDbService.countAll()).thenReturn(42L);
+        when(knowledgeBaseDbService.countByStatus(null, ME)).thenReturn(5L);
+        when(knowledgeBaseDbService.countByStatus(1, ME)).thenReturn(3L);
+        when(knowledgeBaseDbService.listIdsByOwner(ME)).thenReturn(List.of(1L, 2L));
+        when(kbFileResultDbService.countByKbIds(List.of(1L, 2L))).thenReturn(42L);
 
         KnowledgeBaseStatsVO stats = service.stats();
 
@@ -627,5 +663,161 @@ class KnowledgeBaseServiceImplTest {
         assertEquals(77L, vo.getPreprocessStrategyVersionId());
         assertEquals("preproc-strict-v2", vo.getPreprocessStrategyVersion());
         assertNull(vo.getChunkStrategyVersionId());
+    }
+
+    // ---------------- 归属可见范围 ----------------
+    //
+    // 口径（见 KnowledgeBaseRules）：管理员不限归属，普通用户只能读写自己创建的库。
+    // 越权一律按「不存在」（KB_NOT_FOUND 40401）处理 —— 不泄露"这个库存在，只是不是你的"。
+
+    @Test
+    void createShouldStampOwnerAndRejectWithoutLogin() {
+        KnowledgeBaseCreateDto dto = new KnowledgeBaseCreateDto();
+        dto.setName("我的库");
+        doAnswer(inv -> {
+            inv.getArgument(0, KnowledgeBase.class).setId(1L);
+            return true;
+        }).when(knowledgeBaseDbService).save(any(KnowledgeBase.class));
+
+        service.create(dto);
+
+        ArgumentCaptor<KnowledgeBase> cap = ArgumentCaptor.forClass(KnowledgeBase.class);
+        verify(knowledgeBaseDbService).save(cap.capture());
+        assertEquals(Long.valueOf(ME), cap.getValue().getUserId(),
+                "知识库必须带归属：user_id 为空的行普通用户谁也看不见");
+
+        // 无登录上下文：拒绝，而不是静默落一条 user_id = NULL 的孤儿数据
+        SecurityContextHolder.clearContext();
+        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.create(dto));
+        assertEquals(ErrorCode.UNAUTHORIZED, e.getErrorCode());
+    }
+
+    @Test
+    void detailWithoutLoginShouldReject() {
+        when(knowledgeBaseDbService.getActiveById(2L)).thenReturn(kb(2L, 1));
+        SecurityContextHolder.clearContext();
+
+        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.detail(2L));
+
+        assertEquals(ErrorCode.UNAUTHORIZED, e.getErrorCode());
+    }
+
+    @Test
+    void detailOnOthersKbShouldBehaveAsNotFound() {
+        KnowledgeBase others = kb(9L, 1);
+        others.setUserId(OTHER);
+        when(knowledgeBaseDbService.getActiveById(9L)).thenReturn(others);
+
+        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.detail(9L));
+
+        assertEquals(ErrorCode.KB_NOT_FOUND, e.getErrorCode());
+    }
+
+    @Test
+    void detailOnLegacyKbWithoutOwnerShouldBeInvisibleToNormalUser() {
+        // 存量 user_id = NULL 的早期数据：普通用户不可见（不是公共资产）
+        KnowledgeBase legacy = kb(9L, 1);
+        legacy.setUserId(null);
+        when(knowledgeBaseDbService.getActiveById(9L)).thenReturn(legacy);
+
+        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.detail(9L));
+
+        assertEquals(ErrorCode.KB_NOT_FOUND, e.getErrorCode());
+    }
+
+    @Test
+    void updateOnOthersKbShouldThrowAndNotUpdate() {
+        KnowledgeBase others = kb(3L, 1);
+        others.setUserId(OTHER);
+        when(knowledgeBaseDbService.getActiveById(3L)).thenReturn(others);
+        KnowledgeBaseUpdateDto dto = new KnowledgeBaseUpdateDto();
+        dto.setId(3L);
+        dto.setName("改别人的库");
+
+        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.update(dto));
+
+        assertEquals(ErrorCode.KB_NOT_FOUND, e.getErrorCode());
+        verify(knowledgeBaseDbService, never()).updateById(any());
+    }
+
+    @Test
+    void disableOnOthersKbShouldThrowAndNotUpdate() {
+        KnowledgeBase others = kb(4L, 1);
+        others.setUserId(OTHER);
+        when(knowledgeBaseDbService.getActiveById(4L)).thenReturn(others);
+
+        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.disable(4L));
+
+        assertEquals(ErrorCode.KB_NOT_FOUND, e.getErrorCode());
+        verify(knowledgeBaseDbService, never()).updateById(any());
+    }
+
+    @Test
+    void deleteOnOthersKbShouldThrowAndNotRemove() {
+        KnowledgeBase others = kb(6L, 1);
+        others.setUserId(OTHER);
+        when(knowledgeBaseDbService.getActiveById(6L)).thenReturn(others);
+
+        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.delete(6L));
+
+        assertEquals(ErrorCode.KB_NOT_FOUND, e.getErrorCode());
+        verify(knowledgeBaseDbService, never()).removeById(any());
+    }
+
+    @Test
+    void bindStrategiesOnOthersKbShouldThrowAndNotSave() {
+        KnowledgeBase others = kb(2L, 1);
+        others.setUserId(OTHER);
+        when(knowledgeBaseDbService.getActiveById(2L)).thenReturn(others);
+        StrategyBindingsUpdateRequest request = bindRequest(
+                bindItem("PREPROCESS", 11L), bindItem("CHUNK", 22L), bindItem("EMBED", 33L));
+
+        KnowledgeException e =
+                assertThrows(KnowledgeException.class, () -> service.bindStrategies(2L, request));
+
+        assertEquals(ErrorCode.KB_NOT_FOUND, e.getErrorCode());
+        verify(strategyBindingDbService, never()).save(any());
+    }
+
+    @Test
+    void adminShouldAccessOthersKbAndSkipOwnerFilter() {
+        login(ME, UserRole.ADMIN);
+        KnowledgeBase others = kb(9L, 1);
+        others.setUserId(OTHER);
+        when(knowledgeBaseDbService.getActiveById(9L)).thenReturn(others);
+        Page<KnowledgeBase> page = new Page<>(1, 10);
+        page.setTotal(1);
+        page.setRecords(List.of(kb(7L, 1)));
+        // 管理员：归属条件为 null（不加 user_id 过滤）
+        when(knowledgeBaseDbService.pageByCondition(1L, 10L, null, null, null, null)).thenReturn(page);
+        when(strategyBindingDbService.listActiveByTypeAndKbIds(any(), any())).thenReturn(List.of());
+        when(kbFileResultDbService.countGroupByKb(any())).thenReturn(Map.of());
+
+        assertEquals(9L, service.detail(9L).getId(), "管理员可读别人的库");
+
+        service.page(1, 10, null, null, null);
+
+        verify(knowledgeBaseDbService).pageByCondition(1L, 10L, null, null, null, null);
+    }
+
+    @Test
+    void pageAndStatsShouldScopeToCurrentUser() {
+        Page<KnowledgeBase> page = new Page<>(1, 10);
+        page.setTotal(0);
+        page.setRecords(List.of());
+        when(knowledgeBaseDbService.pageByCondition(1L, 10L, null, null, null, ME)).thenReturn(page);
+        when(knowledgeBaseDbService.countByStatus(null, ME)).thenReturn(2L);
+        when(knowledgeBaseDbService.countByStatus(1, ME)).thenReturn(1L);
+        when(knowledgeBaseDbService.listIdsByOwner(ME)).thenReturn(List.of(7L, 8L));
+        when(kbFileResultDbService.countByKbIds(List.of(7L, 8L))).thenReturn(9L);
+
+        service.page(1, 10, null, null, null);
+        KnowledgeBaseStatsVO stats = service.stats();
+
+        // 列表与计数都按当前用户归属收口；文档数也取同一范围（不是全平台 countAll）
+        verify(knowledgeBaseDbService).pageByCondition(1L, 10L, null, null, null, ME);
+        assertEquals(2L, stats.getKnowledgeBaseCount());
+        assertEquals(1L, stats.getEnabledCount());
+        assertEquals(9L, stats.getDocumentCount());
     }
 }

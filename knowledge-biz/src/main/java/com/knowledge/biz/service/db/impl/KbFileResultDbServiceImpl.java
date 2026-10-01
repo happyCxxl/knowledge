@@ -41,11 +41,6 @@ public class KbFileResultDbServiceImpl extends InfraDbServiceImpl<KbFileResultMa
     }
 
     @Override
-    public long countAll() {
-        return count(new LambdaQueryWrapper<>());
-    }
-
-    @Override
     public long countByKb(Long knowledgeBaseId) {
         LambdaQueryWrapper<KbFileResult> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(KbFileResult::getKnowledgeBaseId, knowledgeBaseId);
@@ -71,5 +66,15 @@ public class KbFileResultDbServiceImpl extends InfraDbServiceImpl<KbFileResultMa
             }
         }
         return result;
+    }
+
+    @Override
+    public long countByKbIds(List<Long> knowledgeBaseIds) {
+        if (CollUtil.isEmpty(knowledgeBaseIds)) {
+            return 0L;
+        }
+        LambdaQueryWrapper<KbFileResult> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.in(KbFileResult::getKnowledgeBaseId, knowledgeBaseIds);
+        return count(queryWrapper);
     }
 }

@@ -28,13 +28,6 @@ public interface KbFileResultDbService extends InfraDbService<KbFileResult> {
     IPage<KbFileResult> pageByKb(long current, long size, Long knowledgeBaseId);
 
     /**
-     * 统计全库文档总数（一次提交 = 一个任务 = 一行；逻辑删除自动排除）。
-     *
-     * @return 文档总数
-     */
-    long countAll();
-
-    /**
      * 统计单库文档数（一次提交 = 一个任务 = 一行；逻辑删除自动排除）。
      *
      * @param knowledgeBaseId 知识库 ID
@@ -49,4 +42,16 @@ public interface KbFileResultDbService extends InfraDbService<KbFileResult> {
      * @return 知识库 ID → 文档数；无文档的知识库不出现在结果中
      */
     Map<Long, Long> countGroupByKb(List<Long> knowledgeBaseIds);
+
+    /**
+     * 统计指定知识库集合下的文档总数（逻辑删除自动排除）。
+     *
+     * <p>**没有"全平台文档数"这个口径**：知识库可见范围收窄到"本人创建"之后，
+     * 文档计数必须用同一范围，否则同一屏上「知识库 3」与「文档 1284」（别人的库）会自相矛盾。
+     * 管理员要看全平台，由调用方传全部库 ID 进来（`listIdsByOwner(null)`）。
+     *
+     * @param knowledgeBaseIds 知识库 ID 列表（空列表返回 0，不生成 {@code IN ()} 这种非法 SQL）
+     * @return 文档总数
+     */
+    long countByKbIds(List<Long> knowledgeBaseIds);
 }

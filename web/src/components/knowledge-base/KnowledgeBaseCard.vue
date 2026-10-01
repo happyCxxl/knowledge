@@ -5,7 +5,7 @@
     class="kb-card"
     role="link"
     tabindex="0"
-    :title="`查看「${kb.name}」的文件处理链`"
+    title="查看该知识库的文件处理链"
     @click="openStages"
     @keydown.enter.prevent="openStages"
     @keydown.space.prevent="openStages"
@@ -25,7 +25,15 @@
         </svg>
       </span>
       <span class="kb-name">{{ kb.name }}</span>
-      <span v-if="kb.defaultFlag === 1" class="kb-default-tag">默认</span>
+      <!-- 默认库的「为什么不能停用/删除」写在标记上：卡片操作区里那两个入口是直接不渲染的，
+           没有任何说明时用户只会以为功能缺失 -->
+      <span
+        v-if="kb.defaultFlag === 1"
+        class="kb-default-tag"
+        title="默认知识库：不可停用，也不可删除"
+      >
+        默认
+      </span>
       <span
         class="kb-tag"
         :class="{
@@ -37,7 +45,7 @@
         {{ statusText }}
       </span>
     </div>
-    <p class="kb-desc">{{ kb.description }}</p>
+    <p class="kb-desc">{{ kb.description || '暂无业务场景说明' }}</p>
     <div class="kb-meta">
       <div class="kb-meta-item">
         <span class="kb-meta-value">{{ kb.documentCount ?? 0 }}</span>
@@ -77,6 +85,19 @@
       <button class="kb-op" type="button" @click.stop="emit('update', kb)">编辑</button>
       <button class="kb-op" type="button" @click.stop="openIndex">索引与发布</button>
       <button class="kb-op" type="button" @click.stop="openRetrieval">评测</button>
+      <!--
+        停用/启用：默认库不渲染 —— 后端 KnowledgeBaseRules.checkNotDefault 会拒绝停用默认库，
+        渲染出来只会是"点了报错"。启用入口则在默认库上保留（允许把异常置停的默认库修回启用态）。
+      -->
+      <button
+        v-if="kb.defaultFlag !== 1 || kb.status === KB_STATUS_DISABLED"
+        class="kb-op"
+        :class="{ 'kb-op-warn': kb.status === KB_STATUS_ACTIVE }"
+        type="button"
+        @click.stop="emit('toggle', kb)"
+      >
+        {{ kb.status === KB_STATUS_ACTIVE ? '停用' : '启用' }}
+      </button>
       <!-- 默认库不可删除：直接不渲染入口，避免点了才被后端拒绝 -->
       <button
         v-if="kb.defaultFlag !== 1"
@@ -111,6 +132,8 @@ const emit = defineEmits<{
   update: [kb: KnowledgeBase];
   /** 导入文档：预选该知识库打开导入弹窗 */
   import: [kb: KnowledgeBase];
+  /** 停用/启用：默认库不渲染停用入口；二次确认与接口调用由页面负责 */
+  toggle: [kb: KnowledgeBase];
   /** 删除：默认库不渲染该入口，因此不会触发 */
   delete: [kb: KnowledgeBase];
 }>();
@@ -212,12 +235,20 @@ const fallbackStrategyText = computed(() =>
   color: var(--kb-primary);
 }
 
+/*
+ * 库名：标题行里**唯一可缩**的一项。
+ *
+ * **不做省略号截断**（用户口径：不要"显示一半 + 悬停看全"，从名称长度上解决）：
+ * 名称上限（KB_NAME_MAX = 14）就是按这里的可用宽度倒推的 —— 380px 卡片下约 216px ÷ 15px/汉字
+ * = 14 字，所以合法名称必然整行显示完整，正常情况下既不会缩也不会换行。
+ * 真的超出时（字体渲染比估算宽、或窗口窄于列宽下限）兜底是**换行成两行**，而不是截断：
+ * `overflow-wrap: anywhere` 让超长英文串也能断行，且它参与 min-content 计算、不会撑破行。
+ */
 .kb-name {
-  overflow: hidden;
+  min-width: 0;
+  overflow-wrap: anywhere;
   font-size: 15px;
   font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 /* 默认库标记：该库恒排最前且不可停用/删除，需与普通库一眼区分 */
@@ -232,14 +263,24 @@ const fallbackStrategyText = computed(() =>
   line-height: 1.5;
 }
 
+/*
+ * 状态标签：**不许收缩、不许折行**。
+ *
+ * flex 的收缩量是按各子项宽度比例分摊的：库名很长时，状态标签也会被扣掉几十像素，
+ * 「已启用」于是折成"已启 / 用"两行、把标题行撑高（用户实测提出）。
+ * 同行的「默认」标记本来就有 flex: none，这里漏了 —— 一行里两个标签不该有两种行为。
+ * 让库名那侧独自承担收缩（它有省略号），状态必须完整可读。
+ */
 .kb-tag {
   display: inline-flex;
+  flex: none;
   gap: 6px;
   align-items: center;
   margin-left: auto;
   padding: 3px 10px;
   border: 1px solid;
   border-radius: 99px;
+  white-space: nowrap;
   font-size: 12px;
 }
 
@@ -280,9 +321,20 @@ const fallbackStrategyText = computed(() =>
   background: rgb(0 0 0 / 18%);
 }
 
+/*
+ * 三个等宽格子（flex: 1 即 basis 0，天然三等分）。
+ *
+ * `min-width: 0` 不可省：flex 项的自动最小宽度是 min-content，而值是 `nowrap` 文本
+ * （min-content = 整串宽度），格子的自动最小宽度会等于这个宽度 —— 于是值一旦超过格宽，
+ * 撑破的不是省略号，而是整行（`.kb-meta-value` 上的 `text-overflow: ellipsis` 平时是摆设）。
+ * 归零之后格子按三等分收缩，值才真正走省略号。
+ *
+ * 现值都很短（`v3` / `未发布` / `17:32`），所以这是防回归而不是修现状。
+ */
 .kb-meta-item {
   position: relative;
   flex: 1;
+  min-width: 0;
   text-align: center;
 }
 
@@ -378,8 +430,15 @@ const fallbackStrategyText = computed(() =>
   border-top: 1px solid var(--kb-line);
 
   /*
-   * 不换行：五个操作按钮在 320px 卡片里会被折成两行（实测），
-   * 那种"挤成两行"比字小一点更难看。窄窗口下宁可让按钮挨得近一点。
+   * 钉在卡片底部：网格行高有下限（340px），内容比它矮时余量堆在策略块与操作行之间，
+   * 而不是在操作行下方留一段空白 —— 那样看起来像内容没渲染完。
+   */
+  margin-top: auto;
+
+  /*
+   * 不换行：六个操作按钮（导入/编辑/索引与发布/评测/停用/删除）在 380px 卡片下
+   * 实测约 260px，加右侧日期仍放得下；折成两行比字小一点更难看，窄窗口下宁可挤一点。
+   * 网格的列宽下限是 380px（见页面 .kb-grid），所以这里不会真的溢出。
    */
   flex-wrap: nowrap;
   white-space: nowrap;
@@ -402,6 +461,12 @@ const fallbackStrategyText = computed(() =>
 
 .kb-op:hover {
   color: var(--kb-primary);
+}
+
+/* 停用：与删除同属"会改变可用性"的操作，但不能用 danger（那是不可恢复的删除），
+   所以用警示色；启用走普通色（恢复性操作，不需要拦一下） */
+.kb-op-warn:hover {
+  color: var(--kb-warn);
 }
 
 .kb-op-danger:hover {

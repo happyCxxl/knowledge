@@ -95,6 +95,17 @@ export default [
       'vue/html-indent': 'off',
       // §5.12：元素 attribute 顺序（【应该】级告警）
       'vue/attributes-order': 'warn',
+      /*
+       * 指令名拼错（v-loadin 之类）在别处都查不出来：`v-loading` 由
+       * `app.use(ElementPlus)` 在运行时全局注册，类型层面靠 src/env.d.ts 的
+       * `GlobalDirectives` 声明，而 vue-tsc 不解析指令（strictTemplates 默认关闭）——
+       * 所以这条规则是**唯一能在门禁里拦住它的地方**。
+       *
+       * ignore 里登记的是「运行时全局注册、源码里查不到定义」的指令：
+       * - loading：Element Plus 的 ElLoadingDirective（首页表格、知识库网格、用户表格在用）。
+       * 以后引入别的全局指令（如 v-infinite-scroll），在这里补一项，而不是把规则关掉。
+       */
+      'vue/no-undef-directives': ['error', { ignore: ['loading'] }],
     },
   },
   {

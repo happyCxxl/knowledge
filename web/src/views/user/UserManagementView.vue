@@ -1,18 +1,19 @@
 <template>
   <div class="page">
     <div class="page-head">
-      <div class="user-page-title-wrap">
+      <!-- 标题与说明要包一层：.page-head 是 flex 行，不包会与右侧按钮并排 -->
+      <div>
         <h1 class="page-title">用户管理</h1>
         <p class="page-desc">维护平台账号与角色，支持按用户名、角色、状态筛选</p>
       </div>
       <div class="page-actions">
-        <el-button class="user-btn-primary" @click="openCreate">新增用户</el-button>
+        <el-button class="page-btn-primary" @click="openCreate">新增用户</el-button>
       </div>
     </div>
 
     <div class="page-panel">
-      <!-- 筛选栏：搜索与筛选集中一处，与表体、分页同属一个面板 -->
-      <div class="user-filter-bar">
+      <!-- 筛选栏：搜索与筛选集中一处，与表体、分页同属一个面板（工具栏样式来自 .page-toolbar） -->
+      <div class="page-toolbar">
         <el-input
           v-model="keyword"
           class="user-search"
@@ -31,11 +32,17 @@
           <el-option label="启用" :value="USER_STATUS.ENABLED" />
           <el-option label="停用" :value="USER_STATUS.DISABLED" />
         </el-select>
-        <el-button class="user-btn-primary" @click="handleSearch">查询</el-button>
-        <el-button class="user-btn-ghost" @click="handleReset">重置</el-button>
-        <button class="user-refresh" type="button" title="刷新" @click="loadUsers">
+        <el-button class="page-btn-primary" @click="handleSearch">查询</el-button>
+        <el-button class="page-btn-ghost" @click="handleReset">重置</el-button>
+        <button
+          class="page-refresh"
+          type="button"
+          title="刷新"
+          :disabled="loading"
+          @click="loadUsers"
+        >
           <svg
-            class="user-refresh-icon"
+            :class="{ 'page-refresh-spin': loading }"
             width="14"
             height="14"
             viewBox="0 0 16 16"
@@ -205,8 +212,8 @@
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button class="user-btn-ghost" @click="dialogVisible = false">取消</el-button>
-        <el-button class="user-btn-primary" :loading="submitting" @click="handleSubmit">
+        <el-button class="page-btn-ghost" @click="dialogVisible = false">取消</el-button>
+        <el-button class="page-btn-primary" :loading="submitting" @click="handleSubmit">
           保存
         </el-button>
       </template>
@@ -457,16 +464,11 @@ onMounted(() => {
  * 本页只保留业务样式。
  */
 
-/* 筛选栏：搜索 + 角色 + 状态 + 查询/重置 + 刷新 + 计数，同属面板顶部一行 */
-.user-filter-bar {
-  display: flex;
-  flex: none;
-  gap: 10px;
-  align-items: center;
-  padding: 14px 18px;
-  border-bottom: 1px solid var(--kb-line);
-}
-
+/*
+ * 筛选栏内容：搜索 + 角色 + 状态 + 查询/重置 + 刷新 + 计数，装在共用 .page-toolbar 里。
+ * 按钮（.page-btn-primary / .page-btn-ghost）与刷新（.page-refresh）也在骨架层 ——
+ * 它们此前在用户管理页与知识库页各写了一份，声明逐字相同。
+ */
 .user-search {
   width: 200px;
 }
@@ -479,47 +481,6 @@ onMounted(() => {
   margin-left: auto;
   color: var(--kb-text-3);
   font-size: 12px;
-}
-
-.user-btn-ghost {
-  border-color: var(--kb-line-strong);
-  background: rgb(255 255 255 / 4%);
-  color: var(--kb-text-1);
-}
-
-.user-btn-primary {
-  border: none;
-  background: linear-gradient(135deg, var(--kb-primary), var(--kb-primary-2));
-  box-shadow: 0 6px 22px rgb(52 211 153 / 25%);
-  color: var(--kb-btn-text);
-}
-
-.user-btn-primary:hover,
-.user-btn-primary:focus {
-  background: linear-gradient(135deg, var(--kb-primary), var(--kb-primary-2));
-  box-shadow: 0 8px 28px var(--kb-glow);
-  color: var(--kb-btn-text);
-  filter: brightness(1.08);
-}
-
-.user-refresh {
-  display: grid;
-  width: 30px;
-  height: 30px;
-  place-items: center;
-  border: 1px solid var(--kb-line);
-  border-radius: 10px;
-  background: rgb(255 255 255 / 3%);
-  color: var(--kb-text-2);
-  cursor: pointer;
-  transition:
-    border-color 0.2s,
-    color 0.2s;
-}
-
-.user-refresh:hover {
-  border-color: var(--kb-primary);
-  color: var(--kb-primary);
 }
 
 /* 表体滚动区：flex:1 + min-height:0 拿到确定高度，el-table 据此固定表头并内部滚动 */

@@ -13,6 +13,7 @@ import com.knowledge.biz.service.db.KnowledgeBaseDbService;
 import com.knowledge.common.domain.entity.KbSourceFile;
 import com.knowledge.common.domain.entity.KbSubmitLog;
 import com.knowledge.common.domain.entity.KnowledgeBase;
+import com.knowledge.common.domain.rules.KnowledgeBaseRules;
 import com.knowledge.common.dto.request.home.HomeRecentSubmitQueryDto;
 import com.knowledge.common.dto.response.home.HomeRecentSubmitVO;
 import com.knowledge.common.dto.response.home.HomeSummaryVO;
@@ -64,9 +65,12 @@ public class KnowledgeHomeServiceImpl implements KnowledgeHomeService {
     @Override
     public HomeSummaryVO summary() {
         HomeSummaryVO vo = new HomeSummaryVO();
-        vo.setKnowledgeBaseCount(knowledgeBaseDbService.countByStatus(null));
+        // 可见范围与知识库列表页同一口径：普通用户只统计自己创建的库，管理员统计全部。
+        // 不这样做的话，新账号会看到「知识库 0 / 文档 1284」——数字来自别人的库。
+        Long ownerId = KnowledgeBaseRules.visibleOwnerId(SecurityUtil.getUser());
+        vo.setKnowledgeBaseCount(knowledgeBaseDbService.countByStatus(null, ownerId));
         vo.setEnabledKnowledgeBaseCount(
-                knowledgeBaseDbService.countByStatus(KnowledgeBaseStatus.ACTIVE.getCode()));
+                knowledgeBaseDbService.countByStatus(KnowledgeBaseStatus.ACTIVE.getCode(), ownerId));
         // 可用策略 = 四类启用中的策略版本计数（type + status = ACTIVE）
         long preprocess = strategyVersionDbService.countEnabledByType(StrategyType.PREPROCESS);
         long chunk = strategyVersionDbService.countEnabledByType(StrategyType.CHUNK);
@@ -77,8 +81,9 @@ public class KnowledgeHomeServiceImpl implements KnowledgeHomeService {
         vo.setEmbedVersionCount(embed);
         vo.setRetrievalVersionCount(retrieval);
         vo.setStrategyVersionCount(preprocess + chunk + embed + retrieval);
-        // 文档数 = kb_file_result 行数：**文件校验失败的提交不建结果**（只记 kb_submit_log(FAIL)）
-        vo.setDocumentCount(fileResultDbService.countAll());
+        // 文档数 = 可见库下的 kb_file_result 行数：**文件校验失败的提交不建结果**（只记 kb_submit_log(FAIL)）
+        vo.setDocumentCount(
+                fileResultDbService.countByKbIds(knowledgeBaseDbService.listIdsByOwner(ownerId)));
         return vo;
     }
 

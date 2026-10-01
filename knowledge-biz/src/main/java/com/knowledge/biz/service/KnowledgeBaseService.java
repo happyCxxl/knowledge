@@ -15,6 +15,18 @@ import java.util.List;
 /**
  * 知识库管理应用服务（创建/更新/详情/分页/启停/逻辑删除 + 同事务审计）。
  *
+ * <p>**可见范围**：普通用户只操作自己创建的知识库，管理员不限于归属（见
+ * {@link com.knowledge.common.domain.rules.KnowledgeBaseRules#visibleOwnerId} 与
+ * {@link com.knowledge.common.domain.rules.KnowledgeBaseRules#checkAccessible}）。
+ * 因此：
+ *
+ * <ul>
+ *   <li>分页与统计按当前用户的归属过滤 —— 接口**不接受**"创建人"参数，由前端传参决定查谁等于没做隔离；</li>
+ *   <li>所有按 ID 的读写都会校验归属，**不可访问时按"不存在"处理（40401）**，
+ *       不用 40104：抛"无权限"等于确认该库存在，会把别人的库 ID 变成可探测的信息；</li>
+ *   <li>`create` 必须取得到当前用户（无认证上下文直接 40101），不落 `user_id` 为空的孤儿行。</li>
+ * </ul>
+ *
  * @author cxxl
  */
 public interface KnowledgeBaseService {
@@ -36,7 +48,7 @@ public interface KnowledgeBaseService {
     KnowledgeBaseVO detail(Long id);
 
     /**
-     * 分页列表（名称模糊，不含已删），并回填每库文档数与已发布索引版本。
+     * 分页列表（**仅当前用户可见的库**；名称模糊，不含已删），并回填每库文档数与已发布索引版本。
      *
      * @param current 当前页，从 1 开始
      * @param size    每页条数
@@ -49,7 +61,10 @@ public interface KnowledgeBaseService {
                                 KnowledgeBaseSort sort);
 
     /**
-     * 统计概览（仅未删除数据）：知识库总数、启用数、文档总数。
+     * 统计概览（仅未删除数据）：知识库总数、启用数、文档数。
+     *
+     * <p>三个数与 {@link #page} **同一可见范围**：文档数先取可见库 ID 再按集合计数
+     * （`kb_file_result` 没有归属列），否则新账号会看到「知识库 0 / 文档 1284」。
      */
     KnowledgeBaseStatsVO stats();
 

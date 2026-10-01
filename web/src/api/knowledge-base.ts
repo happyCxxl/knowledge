@@ -44,6 +44,24 @@ export async function updateKnowledgeBase(
   await http.put<void>(`/knowledge-base/${id}`, request);
 }
 
+/**
+ * 停用知识库（`POST /knowledge-base/{id}/disable`）。
+ *
+ * <p>停用是「中止服务」：该库随后拒绝新文件接入与检索（后端 `checkCanSubmit` → 40421）。
+ * 默认库后端会拒（`checkNotDefault`），卡片上不渲染该入口。
+ *
+ * <p>命名沿用策略版本那两个的写法（`updateStrategyVersionDisable`）：动词只能取
+ * 规范 §3.2 词表里的 add/update/delete/get/detail，enable/disable 归一到 update。
+ */
+export async function updateKnowledgeBaseDisable(id: string): Promise<void> {
+  await http.post<void>(`/knowledge-base/${id}/disable`);
+}
+
+/** 启用知识库（`POST /knowledge-base/{id}/enable`；仅停用状态可启用，否则 40402） */
+export async function updateKnowledgeBaseEnable(id: string): Promise<void> {
+  await http.post<void>(`/knowledge-base/${id}/enable`);
+}
+
 /** 删除知识库（逻辑删除，无恢复接口；默认库后端拒绝，按钮已隐藏） */
 export async function deleteKnowledgeBase(id: string): Promise<void> {
   await http.delete<void>(`/knowledge-base/${id}`);

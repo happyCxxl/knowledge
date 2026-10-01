@@ -26,10 +26,13 @@ import com.knowledge.common.enums.input.SubmitStatus;
 import com.knowledge.common.enums.knowledge.KnowledgeBaseStatus;
 import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.enums.task.PipelineTaskStatus;
+import com.knowledge.common.enums.user.UserRole;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
+import com.knowledge.common.security.KnowledgeUser;
 import com.knowledge.filecenter.service.FileStorage;
 import com.knowledge.worker.input.FileValidatorPort;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -37,6 +40,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.util.List;
 
@@ -76,12 +81,26 @@ class FileSubmitServiceImplTest {
 
     private FileSubmitServiceImpl service;
 
+    /** 当前登录用户：夹具知识库默认归它，正向用例才能过归属校验 */
+    private static final long ME = 1001L;
+
     @BeforeEach
     void setUp() {
         // 组装器为纯映射无状态类，用真实实例（mock 会让 VO 组装返回 null，无法验证响应内容）
         service = new FileSubmitServiceImpl(knowledgeBaseDbService, sourceFileDbService, fileResultDbService,
                 submitLogDbService, pipelineTaskDbService, fileValidator, fileStorage,
                 new InputVoAssembler(), new TaskVoAssembler());
+        // 提交链路会做知识库归属校验，用例必须有登录上下文
+        KnowledgeUser user = new KnowledgeUser();
+        user.setId(ME);
+        user.setRole(UserRole.USER);
+        SecurityContextHolder.getContext()
+                .setAuthentication(new UsernamePasswordAuthenticationToken(user, null, List.of()));
+    }
+
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
     }
 
     private FileSubmitRequest request() {
@@ -95,6 +114,7 @@ class FileSubmitServiceImplTest {
         KnowledgeBase kb = new KnowledgeBase();
         kb.setId(1L);
         kb.setStatus(KnowledgeBaseStatus.ACTIVE.getCode());
+        kb.setUserId(ME);
         return kb;
     }
 
@@ -268,10 +288,25 @@ class FileSubmitServiceImplTest {
         KnowledgeBase disabled = new KnowledgeBase();
         disabled.setId(1L);
         disabled.setStatus(KnowledgeBaseStatus.DISABLED.getCode());
+        disabled.setUserId(ME);
         when(knowledgeBaseDbService.getActiveById(1L)).thenReturn(disabled);
 
         KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.submit(1L, request()));
         assertEquals(ErrorCode.KB_NOT_ACTIVE, e.getErrorCode());
+    }
+
+    @Test
+    void submitToOthersKbShouldBehaveAsNotFound() {
+        // 看不到的库也不能往里塞文档：否则"只看到自己创建的"只是列表少了几行，数据仍可被写入
+        when(submitLogDbService.getByRequestId("req-1")).thenReturn(null);
+        KnowledgeBase others = activeKb();
+        others.setUserId(ME + 1);
+        when(knowledgeBaseDbService.getActiveById(1L)).thenReturn(others);
+
+        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.submit(1L, request()));
+
+        assertEquals(ErrorCode.KB_NOT_FOUND, e.getErrorCode());
+        verify(sourceFileDbService, never()).save(any(KbSourceFile.class));
     }
 
     @Test

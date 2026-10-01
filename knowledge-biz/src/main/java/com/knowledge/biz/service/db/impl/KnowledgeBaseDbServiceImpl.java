@@ -14,6 +14,9 @@ import com.knowledge.common.exception.ThrowUtil;
 import com.knowledge.infra.persistence.InfraDbServiceImpl;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * 知识库数据访问服务实现。
  *
@@ -25,10 +28,12 @@ public class KnowledgeBaseDbServiceImpl extends InfraDbServiceImpl<KnowledgeBase
 
     @Override
     public IPage<KnowledgeBase> pageByCondition(long current, long size, String name, Integer status,
-                                                KnowledgeBaseSort sort) {
+                                                KnowledgeBaseSort sort, Long ownerId) {
         LambdaQueryWrapper<KnowledgeBase> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.like(StrUtil.isNotBlank(name), KnowledgeBase::getName, name)
                 .eq(status != null, KnowledgeBase::getStatus, status)
+                // 归属过滤：ownerId 为 null 时不加条件（管理员视角）
+                .eq(ownerId != null, KnowledgeBase::getUserId, ownerId)
                 // 默认库（default_flag=1）在任何排序口径下都恒排最前
                 .orderByDesc(KnowledgeBase::getDefaultFlag);
         switch (sort == null ? KnowledgeBaseSort.DEFAULT : sort) {
@@ -42,10 +47,26 @@ public class KnowledgeBaseDbServiceImpl extends InfraDbServiceImpl<KnowledgeBase
     }
 
     @Override
-    public long countByStatus(Integer status) {
+    public long countByStatus(Integer status, Long ownerId) {
         LambdaQueryWrapper<KnowledgeBase> queryWrapper = new LambdaQueryWrapper<>();
-        queryWrapper.eq(status != null, KnowledgeBase::getStatus, status);
+        queryWrapper.eq(status != null, KnowledgeBase::getStatus, status)
+                .eq(ownerId != null, KnowledgeBase::getUserId, ownerId);
         return count(queryWrapper);
+    }
+
+    @Override
+    public List<Long> listIdsByOwner(Long ownerId) {
+        LambdaQueryWrapper<KnowledgeBase> queryWrapper = new LambdaQueryWrapper<>();
+        // 只取主键列：调用方要的就是 ID 集合，拉回整行没有意义
+        queryWrapper.select(KnowledgeBase::getId)
+                .eq(ownerId != null, KnowledgeBase::getUserId, ownerId);
+        List<Long> ids = new ArrayList<>();
+        for (Object value : baseMapper.selectObjs(queryWrapper)) {
+            if (value != null) {
+                ids.add(((Number) value).longValue());
+            }
+        }
+        return ids;
     }
 
     /**

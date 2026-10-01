@@ -103,7 +103,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         kb.setStrategyBindingEnabled(resolveBindingEnabled(dto.getStrategyBindingEnabled()));
         // 默认库唯一产生途径是 seed；创建接口一律落普通库，default_flag 不接受入参
         kb.setDefaultFlag(0);
-        kb.setUserId(currentUserId());
+        kb.setUserId(requireCurrentUserId());
         knowledgeBaseDbService.save(kb);
         kbAuditLogDbService.saveAudit(AuditActionType.CREATE, AUDIT_OBJECT_TYPE, kb.getId(), null,
                 JsonUtil.toJsonStr(kb));
@@ -114,7 +114,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean update(KnowledgeBaseUpdateDto dto) {
-        KnowledgeBase kb = knowledgeBaseDbService.getActiveById(dto.getId());
+        KnowledgeBase kb = getAccessibleById(dto.getId());
         String beforeJson = JsonUtil.toJsonStr(kb);
         kb.setName(dto.getName());
         kb.setDescription(dto.getDescription());
@@ -128,7 +128,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
 
     @Override
     public KnowledgeBaseVO detail(Long id) {
-        KnowledgeBaseVO vo = toVO(knowledgeBaseDbService.getActiveById(id));
+        KnowledgeBaseVO vo = toVO(getAccessibleById(id));
         fillStrategyBindings(vo);
         vo.setDocumentCount(kbFileResultDbService.countByKb(id));
         return vo;
@@ -137,7 +137,9 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     @Override
     public IPage<KnowledgeBaseVO> page(long current, long size, String name, Integer status,
                                        KnowledgeBaseSort sort) {
-        IPage<KnowledgeBase> page = knowledgeBaseDbService.pageByCondition(current, size, name, status, sort);
+        // 可见范围在服务端定：普通用户只查自己创建的，管理员不限（见 KnowledgeBaseRules.visibleOwnerId）
+        IPage<KnowledgeBase> page =
+                knowledgeBaseDbService.pageByCondition(current, size, name, status, sort, visibleOwnerId());
         Page<KnowledgeBaseVO> voPage = new Page<>(page.getCurrent(), page.getSize(), page.getTotal());
         List<KnowledgeBaseVO> records = page.getRecords().stream()
                 .map(this::toVO)
@@ -152,9 +154,14 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     @Override
     public KnowledgeBaseStatsVO stats() {
         KnowledgeBaseStatsVO vo = new KnowledgeBaseStatsVO();
-        vo.setKnowledgeBaseCount(knowledgeBaseDbService.countByStatus(null));
-        vo.setEnabledCount(knowledgeBaseDbService.countByStatus(KnowledgeBaseStatus.ACTIVE.getCode()));
-        vo.setDocumentCount(kbFileResultDbService.countAll());
+        // 口径与列表页一致：普通用户只数自己创建的库，管理员数全部（否则顶部计数与列表总数会对不上）
+        Long ownerId = visibleOwnerId();
+        vo.setKnowledgeBaseCount(knowledgeBaseDbService.countByStatus(null, ownerId));
+        vo.setEnabledCount(knowledgeBaseDbService.countByStatus(KnowledgeBaseStatus.ACTIVE.getCode(), ownerId));
+        // 文档数与「知识库」必须同一范围：文档表只有 knowledge_base_id，没有归属列，
+        // 所以先取可见库 ID 再按集合计数（沿用全平台口径会出现「知识库 3 / 文档 1284」这种自相矛盾的同一屏）
+        vo.setDocumentCount(
+                kbFileResultDbService.countByKbIds(knowledgeBaseDbService.listIdsByOwner(ownerId)));
         return vo;
     }
 
@@ -213,7 +220,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean disable(Long id) {
-        KnowledgeBase kb = knowledgeBaseDbService.getActiveById(id);
+        KnowledgeBase kb = getAccessibleById(id);
         KnowledgeBaseRules.checkCanDisable(kb);
         KnowledgeBaseRules.checkNotDefault(kb);
         String beforeJson = JsonUtil.toJsonStr(kb);
@@ -228,7 +235,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean enable(Long id) {
-        KnowledgeBase kb = knowledgeBaseDbService.getActiveById(id);
+        KnowledgeBase kb = getAccessibleById(id);
         KnowledgeBaseRules.checkCanEnable(kb);
         String beforeJson = JsonUtil.toJsonStr(kb);
         kb.setStatus(KnowledgeBaseStatus.ACTIVE.getCode());
@@ -242,7 +249,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean delete(Long id) {
-        KnowledgeBase kb = knowledgeBaseDbService.getActiveById(id);
+        KnowledgeBase kb = getAccessibleById(id);
         KnowledgeBaseRules.checkNotDefault(kb);
         knowledgeBaseDbService.removeById(id);
         kbAuditLogDbService.saveAudit(AuditActionType.DELETE, AUDIT_OBJECT_TYPE, id, JsonUtil.toJsonStr(kb), null);
@@ -252,13 +259,13 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
 
     @Override
     public StrategyBindingVO strategyBinding(Long id, String strategyType) {
-        knowledgeBaseDbService.getActiveById(id);
+        KnowledgeBase kb = getAccessibleById(id);
         ThrowUtil.throwIf(StrUtil.isBlank(strategyType)
                         || !StrategyVersionService.BINDABLE_TYPES.contains(strategyType),
                 ErrorCode.PARAM_INVALID, "未知策略类型: " + strategyType);
         StrategyBindingVO vo = new StrategyBindingVO();
         vo.setStrategyType(strategyType);
-        KbStrategyBinding binding = strategyBindingDbService.getByKbAndType(id, strategyType);
+        KbStrategyBinding binding = strategyBindingDbService.getByKbAndType(kb.getId(), strategyType);
         if (binding != null) {
             KbPipelineStrategyVersion version = strategyVersionDbService.getById(binding.getStrategyVersionId());
             if (version != null) {
@@ -313,7 +320,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean bindStrategy(Long id, StrategyBindingUpdateDto dto) {
-        KnowledgeBase kb = knowledgeBaseDbService.getActiveById(id);
+        KnowledgeBase kb = getAccessibleById(id);
         ThrowUtil.throwIf(isBindingDisabled(kb),
                 ErrorCode.PARAM_INVALID, "该知识库已关闭策略绑定（评测模式），禁止绑定策略");
         String type = dto.getStrategyType();
@@ -365,7 +372,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean bindStrategies(Long id, StrategyBindingsUpdateRequest request) {
-        KnowledgeBase kb = knowledgeBaseDbService.getActiveById(id);
+        KnowledgeBase kb = getAccessibleById(id);
         ThrowUtil.throwIf(isBindingDisabled(kb),
                 ErrorCode.PARAM_INVALID, "该知识库已关闭策略绑定（评测模式），禁止绑定策略");
         List<StrategyBindingsUpdateRequest.StrategyBindItem> bindings = request.getBindings();
@@ -505,9 +512,46 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         return StrategyBindingSwitch.isOn(value) ? StrategyBindingSwitch.ON.getCode() : StrategyBindingSwitch.OFF.getCode();
     }
 
-    /** 当前登录用户 ID（无认证上下文为 null） */
-    private Long currentUserId() {
+    /**
+     * 当前登录用户 ID（**必须有值**）。
+     *
+     * <p>知识库必须带归属：可见范围就是按 `user_id` 划分的（见
+     * {@link KnowledgeBaseRules#visibleOwnerId}），落一条没有归属的库等于建了一条
+     * 普通用户谁也看不见、只有管理员能碰的孤儿数据。所以这里无认证上下文直接拒绝，
+     * 不静默落 NULL —— 存量 NULL 数据是早期占位，不该再新增。
+     *
+     * @return 当前用户 ID
+     * @throws com.knowledge.common.exception.KnowledgeException 未认证（UNAUTHORIZED 40101）
+     */
+    private Long requireCurrentUserId() {
         KnowledgeUser user = SecurityUtil.getUser();
-        return user == null ? null : user.getId();
+        ThrowUtil.throwIf(user == null || user.getId() == null, ErrorCode.UNAUTHORIZED);
+        return user.getId();
+    }
+
+    /**
+     * 按 ID 取「当前用户可访问的」知识库：存在性校验 + 归属校验一次完成。
+     *
+     * <p>本类**所有按 ID 的读写都必须走这里**。漏一处就是一个越权口子：
+     * detail 漏了等于全部可读，update/disable/delete 漏了等于全部可改，
+     * 而且漏了不会有任何报错，只会静默放行。
+     *
+     * @param id 知识库 ID
+     * @return 知识库实体
+     * @throws com.knowledge.common.exception.KnowledgeException 不存在/已删除（40401）或非本人可访问（40401）
+     */
+    private KnowledgeBase getAccessibleById(Long id) {
+        KnowledgeBase kb = knowledgeBaseDbService.getActiveById(id);
+        KnowledgeBaseRules.checkAccessible(kb, SecurityUtil.getUser());
+        return kb;
+    }
+
+    /**
+     * 当前用户的知识库可见范围（查询条件用）。
+     *
+     * @return 普通用户返回自己的用户 ID；管理员返回 null（不过滤）
+     */
+    private Long visibleOwnerId() {
+        return KnowledgeBaseRules.visibleOwnerId(SecurityUtil.getUser());
     }
 }

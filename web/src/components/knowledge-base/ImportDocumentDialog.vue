@@ -163,6 +163,16 @@ type ItemState = 'pending' | 'uploading' | 'submitting' | 'passed' | 'failed';
 interface ImportItem {
   key: string;
   file: File;
+  /**
+   * 幂等键：**一次提交一个**（后端契约见 `FileSubmitRequest.requestId`：提交端生成、通常 UUID、
+   * 网络重试沿用同一值）。
+   *
+   * <p>加入列表时生成并挂在本项上——本项的重试沿用同一个值（超时重发不会重复建档），
+   * 而"同一份文件再导入一次"是**新的一次提交**：移出列表再加回、或重开弹窗都会拿到新键，
+   * 照常新建档。**不能由文件名/大小/修改时间推导** —— 那样同一份文件永远撞同一个键，
+   * 后端按幂等直接回放首次记录，用户以为导入成功、实际一行都没建。
+   */
+  requestId: string;
   state: ItemState;
   /** 上传进度百分比 */
   percent: number;
@@ -253,6 +263,8 @@ function addFiles(files: File[]): void {
     items.value.push({
       key: `f${keySeed}`,
       file,
+      // 每次"加入待导入列表"就是一次新的提交意图，键在这里生成一次
+      requestId: newRequestId(),
       state: reason ? 'failed' : 'pending',
       percent: 0,
       reason: reason ?? '',
@@ -299,9 +311,8 @@ async function startImport(): Promise<void> {
       });
 
       item.state = 'submitting';
-      // 幂等键：同一文件重试要沿用同一个值，避免重复建档
-      const requestId = buildRequestId(item.file);
-      const result = await addFileSubmit(pickedKbId.value, fileId, requestId);
+      // 幂等键取自本项（生成于加入列表时）：本项重试沿用同一个值，不会重复建档
+      const result = await addFileSubmit(pickedKbId.value, fileId, item.requestId);
 
       if (result.submitLog.status === 'FAIL') {
         item.state = 'failed';
@@ -324,9 +335,18 @@ async function startImport(): Promise<void> {
   emit('finished');
 }
 
-/** 幂等键：文件名 + 大小 + 修改时间，同一文件重复提交沿用同一个键 */
-function buildRequestId(file: File): string {
-  return `web-${file.name}-${file.size}-${file.lastModified}`;
+/**
+ * 生成一次提交的幂等键。
+ *
+ * <p>**每次提交一个唯一值**，与文件是否重复无关：同一份文件重新上传会拿到新的 fileId，
+ * 对系统来说就是两份文件（`MinioFileStorage.store` 每次 `IdWorker.getIdStr()`），
+ * 所以要新建档；幂等键只用来防"同一次请求被重复送达"（网络重试、并发重发）。
+ *
+ * <p>用时间戳 + 随机后缀，不用 `crypto.randomUUID()`：后者只在安全上下文（https/localhost）
+ * 暴露，内网 http 部署下是 undefined，会把上传直接打断；幂等键只要求唯一、不要求不可预测。
+ */
+function newRequestId(): string {
+  return `web-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 async function loadKnowledgeBases(): Promise<void> {

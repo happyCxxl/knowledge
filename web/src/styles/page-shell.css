@@ -12,9 +12,10 @@
  *
  *   .page
  *     .page-head          → .page-title / .page-desc + .page-actions
+ *                           （主操作按钮用 .page-btn-primary、次要操作用 .page-btn-ghost）
  *     .page-stats         → .page-stat ×N（数字 + 标签）
  *     .page-panel
- *       .page-toolbar     （原各页的 filter-bar，等价物）
+ *       .page-toolbar     （原各页的 filter-bar，等价物；刷新按钮用 .page-refresh）
  *       内容区            （.page-body 或页面自有滚动区）
  *       .page-panel-foot  （分页/计数行）
  *
@@ -167,6 +168,92 @@
 /* noinspection CssUnusedSymbol */
 .page-spacer {
   flex: 1;
+}
+
+/*
+ * ==================== 按钮与刷新 ====================
+ *
+ * 这两类控件此前在知识库页（`.kb-btn-*` / `.kb-refresh`）与用户管理页
+ * （`.user-btn-*` / `.user-refresh`）**各写了一份，声明逐字相同** ——
+ * 第三页出现就是第三份，改一处不会同步到另一处。
+ *
+ * 提炼到骨架层后两页共用：按钮加类名即用（`.page-btn-primary` 主操作、
+ * `.page-btn-ghost` 次要操作），刷新用原生 `button.page-refresh` 内嵌那个固定 svg。
+ *
+ * **刷新按钮的加载态也在这里**（`:disabled` 降透明度 + `.page-refresh-spin` 旋转）：
+ * 它属于这个共用控件的行为，而不是某一页的私有样式 —— 否则两页的刷新按钮
+ * 一个会转一个不会转，用户会以为其中一个卡住了。
+ */
+
+/* noinspection CssUnusedSymbol */
+.page-btn-ghost {
+  border-color: var(--kb-line-strong);
+  background: rgb(255 255 255 / 4%);
+  color: var(--kb-text-1);
+}
+
+/* noinspection CssUnusedSymbol */
+.page-btn-primary {
+  border: none;
+  background: linear-gradient(135deg, var(--kb-primary), var(--kb-primary-2));
+  box-shadow: 0 6px 22px rgb(52 211 153 / 25%);
+  color: var(--kb-btn-text);
+}
+
+/* noinspection CssUnusedSymbol */
+.page-btn-primary:hover,
+.page-btn-primary:focus {
+  background: linear-gradient(135deg, var(--kb-primary), var(--kb-primary-2));
+  box-shadow: 0 8px 28px var(--kb-glow);
+  color: var(--kb-btn-text);
+  filter: brightness(1.08);
+}
+
+/* noinspection CssUnusedSymbol */
+.page-refresh {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 1px solid var(--kb-line);
+  border-radius: 10px;
+  background: rgb(255 255 255 / 3%);
+  color: var(--kb-text-2);
+  cursor: pointer;
+  transition:
+    border-color 0.2s,
+    color 0.2s;
+}
+
+/* noinspection CssUnusedSymbol */
+.page-refresh:hover {
+  border-color: var(--kb-primary);
+  color: var(--kb-primary);
+}
+
+/* 刷新中：禁用并旋转图标，让「点了没反应」变成可见反馈 */
+
+/* noinspection CssUnusedSymbol */
+.page-refresh:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* noinspection CssUnusedSymbol */
+.page-refresh:disabled:hover {
+  border-color: var(--kb-line);
+  color: var(--kb-text-2);
+}
+
+/* noinspection CssUnusedSymbol */
+.page-refresh-spin {
+  animation: page-refresh-rotate 0.9s linear infinite;
+}
+
+@keyframes page-refresh-rotate {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /*

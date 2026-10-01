@@ -22,7 +22,8 @@ export async function addFile(file: File, onProgress?: (percent: number) => void
  *
  * <p>只建档，不创建处理任务——解析由环节页手动触发（手动逐环节口径）。
  *
- * @param requestId 幂等键，同一文件的重试要沿用同一个值，避免重复建档
+ * @param requestId 幂等键：**一次提交一个**（与文件是否重复无关，通常 UUID）；网络重试要沿用同一个值，
+ *                  否则"响应丢了再重发"会重复建档。后端 `FileSubmitRequest.requestId` 同此口径
  */
 export async function addFileSubmit(
   knowledgeBaseId: string,

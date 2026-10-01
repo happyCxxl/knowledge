@@ -1,12 +1,13 @@
 <template>
   <div class="page">
     <div class="page-head">
-      <div class="kb-page-title-wrap">
+      <!-- 标题与说明要包一层：.page-head 是 flex 行，不包会与右侧按钮并排 -->
+      <div>
         <h1 class="page-title">知识库</h1>
         <p class="page-desc">管理你的知识库与文档资产，查看构建与运行状态</p>
       </div>
       <div class="page-actions">
-        <el-button class="kb-btn-ghost" plain @click="openImport()">导入文档</el-button>
+        <el-button class="page-btn-ghost" plain @click="openImport()">导入文档</el-button>
       </div>
     </div>
     <div class="page-stats">
@@ -16,7 +17,7 @@
       </div>
     </div>
     <div class="page-panel">
-      <div class="kb-filter-bar">
+      <div class="page-toolbar">
         <el-input
           v-model="keyword"
           class="kb-search"
@@ -43,12 +44,17 @@
           <el-option label="最近更新" value="UPDATED" />
           <el-option label="名称" value="NAME" />
         </el-select>
-        <el-button class="kb-btn-ghost" @click="handleSearch">查询</el-button>
-        <el-button class="kb-btn-ghost" @click="handleClearFilter">清除筛选</el-button>
-        <button class="kb-refresh" type="button" title="刷新" :disabled="loading" @click="refresh">
+        <!-- 计数只在页脚说一次：同屏重复两遍没有信息量，却要占掉工具条右端 -->
+        <div class="page-spacer"></div>
+        <button
+          class="page-refresh"
+          type="button"
+          title="刷新"
+          :disabled="loading"
+          @click="refresh"
+        >
           <svg
-            class="kb-refresh-icon"
-            :class="{ 'kb-refresh-spin': loading }"
+            :class="{ 'page-refresh-spin': loading }"
             width="14"
             height="14"
             viewBox="0 0 16 16"
@@ -59,55 +65,50 @@
             <path d="M13.4 8a5.4 5.4 0 1 1-1.6-3.8M13.4 1.9v2.4H11" />
           </svg>
         </button>
-        <span class="kb-filter-count">共 {{ total }} 个</span>
       </div>
       <!--
-        新建入口只保留这里的虚线卡（头部那个已去掉，避免同一页两个「新建知识库」）。
-        网格用 v-if="!loading" 而非 v-if="kbList.length > 0"：虚线卡必须在列表为空时也在，
-        否则空库时整页没有新建入口。空态提示另起一段，与虚线卡并存。
+        虚线卡放**首位**（原在列表末尾）：满页时它在滚动区底部，用户得先滚到底才看得见
+        「新建」——一个页面唯一的入口不该藏在列表后面。
+
+        网格**不再按 loading 卸载**（原来 v-if="!loading" + v-else「加载中…」）：
+        刷新/筛选时整块被替换会让卡片与虚线卡一起消失、滚动位置丢失、容器内容跳动。
+        改用 v-loading 覆盖层，加载期间列表照旧在原地。
       -->
-      <div v-if="!loading" class="kb-grid">
+      <div v-loading="loading" class="kb-grid">
+        <button class="kb-new" type="button" @click="openCreate">
+          <span class="kb-new-plus">+</span>
+          新建知识库
+        </button>
         <KnowledgeBaseCard
           v-for="item in kbList"
           :key="item.id"
           :kb="item"
           @update="openEdit"
           @import="openImport(item.id)"
+          @toggle="handleToggleStatus"
           @delete="handleDelete"
         />
-        <button class="kb-new" type="button" @click="openCreate">
-          <span class="kb-new-plus">+</span>
-          新建知识库
-        </button>
       </div>
-      <div v-else class="kb-empty">加载中…</div>
       <div v-if="!loading && kbList.length === 0" class="kb-empty">
-        <p v-if="hasFilter" class="kb-empty-text">没有符合当前筛选条件的知识库</p>
+        <p v-if="isFiltered" class="kb-empty-text">没有符合当前筛选条件的知识库</p>
         <template v-else>
-          <p class="kb-empty-text">还没有知识库，先创建一个吧</p>
-          <p class="kb-empty-hint">也可以点上方虚线卡新建</p>
+          <p class="kb-empty-text">还没有启用的知识库</p>
+          <p class="kb-empty-hint">点左上角虚线卡即可新建；已停用的库切到「已停用」查看</p>
         </template>
-        <el-button v-if="hasFilter" class="kb-btn-ghost" @click="handleClearFilter">
+        <el-button v-if="isFiltered" class="page-btn-ghost" @click="handleClearFilter">
           清除筛选
         </el-button>
       </div>
       <div class="page-panel-foot">
         <span>共 {{ total }} 个知识库</span>
-        <div class="kb-panel-foot-right">
-          <el-select v-model="query.size" class="kb-size-select" @change="handleSizeChange">
-            <el-option :value="12" label="12 条/页" />
-            <el-option :value="24" label="24 条/页" />
-            <el-option :value="48" label="48 条/页" />
-          </el-select>
-          <el-pagination
-            v-model:current-page="query.current"
-            class="kb-pager"
-            layout="prev, pager, next"
-            :total="total"
-            :page-size="query.size"
-            @current-change="loadList"
-          />
-        </div>
+        <el-pagination
+          v-model:current-page="query.current"
+          class="kb-pager"
+          layout="prev, pager, next"
+          :total="total"
+          :page-size="PAGE_SIZE"
+          @current-change="loadList"
+        />
       </div>
     </div>
 
@@ -127,14 +128,21 @@
         :hide-required-asterisk="true"
       >
         <el-form-item prop="name" label="知识库名称" class="kb-dialog-item">
-          <el-input v-model="dialogForm.name" placeholder="如：金融研报库（≤128 字符）" />
+          <el-input
+            v-model="dialogForm.name"
+            :maxlength="KB_NAME_MAX"
+            show-word-limit
+            :placeholder="`如：金融研报库（≤${KB_NAME_MAX} 字符）`"
+          />
         </el-form-item>
         <el-form-item prop="description" label="业务场景说明" class="kb-dialog-item">
           <el-input
             v-model="dialogForm.description"
             type="textarea"
             :rows="3"
-            placeholder="如：金融行业 · 研究报告与公告（≤512 字符）"
+            :maxlength="KB_DESCRIPTION_MAX"
+            show-word-limit
+            :placeholder="`如：金融行业 · 研究报告与公告（≤${KB_DESCRIPTION_MAX} 字符）`"
           />
         </el-form-item>
         <el-form-item prop="strategyBindingEnabled" label="策略绑定" class="kb-dialog-item">
@@ -177,8 +185,8 @@
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button class="kb-btn-ghost" @click="dialogVisible = false">取消</el-button>
-        <el-button class="kb-btn-primary" :loading="submitting" @click="handleSubmit">
+        <el-button class="page-btn-ghost" @click="dialogVisible = false">取消</el-button>
+        <el-button class="page-btn-primary" :loading="submitting" @click="handleSubmit">
           保存
         </el-button>
       </template>
@@ -205,18 +213,24 @@ import {
   getKnowledgeBasePage,
   getKnowledgeBaseStats,
   updateKnowledgeBase,
+  updateKnowledgeBaseDisable,
+  updateKnowledgeBaseEnable,
 } from '@/api/knowledge-base';
 import { getStrategyVersions, updateStrategyBindings } from '@/api/strategy';
 import KnowledgeBaseCard from '@/components/knowledge-base/KnowledgeBaseCard.vue';
 import ImportDocumentDialog from '@/components/knowledge-base/ImportDocumentDialog.vue';
-import { KB_STATUS_ACTIVE, KB_STATUS_DISABLED } from '@/types/knowledge-base';
+import {
+  KB_DESCRIPTION_MAX,
+  KB_NAME_MAX,
+  KB_STATUS_ACTIVE,
+  KB_STATUS_DISABLED,
+} from '@/types/knowledge-base';
 import type { KnowledgeBase, KnowledgeBaseSort } from '@/types/knowledge-base';
 import { STRATEGY_BINDING_TYPES } from '@/types/pipeline';
 import { strategyTypeLabel } from '@/types/strategy-config';
 import type { StrategyVersion } from '@/types/strategy';
 
 // 知识库页：统计概览与知识库卡片列表
-type StatusFilter = number | 'all';
 
 /** 可绑定到知识库的策略类型（三件套；检索不绑 KB，走索引版本的默认检索规则） */
 const BINDABLE_STRATEGY_TYPES = STRATEGY_BINDING_TYPES;
@@ -239,28 +253,53 @@ function handleImported(): void {
   void loadStats();
 }
 
-const statusFilters: { value: StatusFilter; label: string }[] = [
-  { value: 'all', label: '全部' },
+/*
+ * 状态过滤只有两态：**已启用（默认）/ 已停用**。
+ *
+ * <p>没有「全部」这一档：列表页是日常管理入口，而停用的库不参与接入与检索，
+ * 混在默认视图里只会让常用的一屏被不再服务的库占满。要看停用的切一下即可，
+ * 且必须选一态（芯片是"二选一"而不是"可取消的筛选"，避免又回到"等于全部"的第四种含义）。
+ */
+const statusFilters: { value: number; label: string }[] = [
   { value: KB_STATUS_ACTIVE, label: '已启用' },
   { value: KB_STATUS_DISABLED, label: '已停用' },
 ];
 
+/**
+ * 每页条数：**固定 12，不给选择器**。
+ *
+ * <p>12 是网格的整除值：2 列 → 6 行、3 列 → 4 行、4 列 → 3 行，末行都不会剩半排空位
+ * （10 在这三种列数下都会留空）。面板高度固定、卡片网格内部滚动，条数多少并不改变可见区域，
+ * 所以"每页条数"这个选择器没有信息量 —— 与首页「每页固定 10 条」同一口径。
+ */
+const PAGE_SIZE = 12;
+
 const kbList = ref<KnowledgeBase[]>([]);
 const total = ref(0);
 const loading = ref(false);
-const selectedStatus = ref<StatusFilter>('all');
+const selectedStatus = ref<number>(KB_STATUS_ACTIVE);
 const keyword = ref('');
 const sortBy = ref<KnowledgeBaseSort>('DEFAULT');
-const query = ref({ current: 1, size: 12 });
+const query = ref({ current: 1, size: PAGE_SIZE });
 
-/** 是否存在生效中的筛选条件：用于区分「筛选无匹配」与「确实还没有知识库」 */
-const hasFilter = computed(() => keyword.value.trim() !== '' || selectedStatus.value !== 'all');
+/** 是否偏离了默认视图（默认 = 已启用 + 无关键字）：用于区分「筛选无匹配」与「确实没有启用的库」 */
+const isFiltered = computed(
+  () => keyword.value.trim() !== '' || selectedStatus.value !== KB_STATUS_ACTIVE,
+);
 
-// 统计条：知识库总数与文档总数（文档数按 kb_file_result 记录数，即提交任务数）
-// 计数是 number：后端全局口径只把「超过 JS 安全整数的雪花 ID」转字符串，计数保持数字
-const stats = ref({ knowledgeBaseCount: 0, documentCount: 0 });
+/*
+ * 统计条：知识库总数 / 启用中 / 文档总数。
+ *
+ * <p>三个数**同一可见范围**（后端按当前用户归属过滤）：普通用户只统计自己创建的库，
+ * 管理员统计全部。文档数按 kb_file_result 记录数（= 已建档文档数，校验失败的提交不建结果）。
+ * 「启用中」此前后端下发、前端定义了类型却从不展示，属白算的一种。
+ *
+ * 计数是 number：后端全局口径只把「超过 JS 安全整数的雪花 ID」转字符串，计数保持数字
+ */
+const stats = ref({ knowledgeBaseCount: 0, enabledCount: 0, documentCount: 0 });
 const statItems = computed(() => [
   { value: stats.value.knowledgeBaseCount, label: '知识库' },
+  { value: stats.value.enabledCount, label: '已启用' },
   { value: stats.value.documentCount, label: '文档数' },
 ]);
 
@@ -271,7 +310,8 @@ async function loadList(): Promise<void> {
       current: query.value.current,
       size: query.value.size,
       name: keyword.value.trim() || undefined,
-      status: selectedStatus.value === 'all' ? undefined : selectedStatus.value,
+      // 状态总是带值：界面只有启用/停用两态，不存在"不过滤"
+      status: selectedStatus.value,
       sort: sortBy.value,
     });
     kbList.value = page.records;
@@ -297,8 +337,8 @@ function handleSearch(): void {
   void loadList();
 }
 
-/** 切换状态过滤后重新查询 */
-function handleFilter(value: StatusFilter): void {
+/** 切换状态过滤后重新查询（只有启用/停用两态，不存在取消选择） */
+function handleFilter(value: number): void {
   selectedStatus.value = value;
   handleSearch();
 }
@@ -308,15 +348,10 @@ function handleSort(): void {
   handleSearch();
 }
 
-/** 每页条数变化后回到第一页 */
-function handleSizeChange(): void {
-  handleSearch();
-}
-
-/** 清空全部筛选条件并重新查询 */
+/** 清空筛选：关键字清空、状态回到默认的「已启用」、排序回默认，再查一次 */
 function handleClearFilter(): void {
   keyword.value = '';
-  selectedStatus.value = 'all';
+  selectedStatus.value = KB_STATUS_ACTIVE;
   sortBy.value = 'DEFAULT';
   handleSearch();
 }
@@ -366,12 +401,23 @@ const isEdit = computed(() => editingId.value !== null);
  */
 const bindingEnabled = computed(() => dialogForm.strategyBindingEnabled === 1);
 
+/*
+ * 表单校验：长度上限取自 types/knowledge-base.ts 的常量（与后端 DTO 的 @Size 同源口径），
+ * 不在模板、规则、提示文案里各写一遍数字 —— 改上限只该改一个地方。
+ * 输入框另有 maxlength 硬拦（含字数计数器），规则是兜底（粘贴等路径）。
+ */
 const dialogRules: FormRules = {
   name: [
     { required: true, message: '请输入知识库名称', trigger: 'blur' },
-    { max: 128, message: '名称最长 128 字符', trigger: 'blur' },
+    { max: KB_NAME_MAX, message: `名称最长 ${KB_NAME_MAX} 字符`, trigger: 'blur' },
   ],
-  description: [{ max: 512, message: '业务场景说明最长 512 字符', trigger: 'blur' }],
+  description: [
+    {
+      max: KB_DESCRIPTION_MAX,
+      message: `业务场景说明最长 ${KB_DESCRIPTION_MAX} 字符`,
+      trigger: 'blur',
+    },
+  ],
 };
 
 /** 某类型下可选的启用中版本 */
@@ -535,6 +581,53 @@ async function handleDelete(kb: KnowledgeBase): Promise<void> {
   }
 }
 
+/**
+ * 启用/停用知识库：二次确认 → 调接口 → 刷新列表与统计。
+ *
+ * <p>停用是「中止服务」而不是「隐藏」：停用后该库拒绝新文件接入与检索
+ * （后端 `KnowledgeBaseRules.checkCanSubmit` → KB_NOT_ACTIVE），已发布索引不受影响。
+ * 所以确认文案要把后果说清，不能只说「停用」两个字。
+ *
+ * <p>默认库卡片不渲染停用入口（后端 `checkNotDefault` 会拒），这里因此不做默认库判断。
+ */
+async function handleToggleStatus(kb: KnowledgeBase): Promise<void> {
+  const disabling = kb.status === KB_STATUS_ACTIVE;
+  const confirmed = await ElMessageBox.confirm(
+    disabling
+      ? `确认停用知识库「${kb.name}」？停用后将拒绝新文件接入与检索，可随时重新启用`
+      : `确认启用知识库「${kb.name}」？启用后可继续提交文档与检索`,
+    disabling ? '停用确认' : '启用确认',
+    {
+      type: 'warning',
+      confirmButtonText: disabling ? '停用' : '启用',
+      cancelButtonText: '取消',
+    },
+  ).catch(() => false);
+  if (!confirmed) {
+    return;
+  }
+  try {
+    if (disabling) {
+      await updateKnowledgeBaseDisable(kb.id);
+    } else {
+      await updateKnowledgeBaseEnable(kb.id);
+    }
+    /*
+     * 提示里点明"已移出当前列表"：状态芯片是二选一的，停用后卡片会立刻从「已启用」视图消失，
+     * 不说一句会让人以为库被删了。
+     */
+    ElMessage.success(disabling ? '已停用，已移出「已启用」列表' : '已启用，已移出「已停用」列表');
+    // 该库已不属于当前状态视图：若它是本页最后一条，回退一页再拉，避免停在空列表（与删除同一处理）
+    if (kbList.value.length === 1 && query.value.current > 1) {
+      query.value.current -= 1;
+    }
+    void loadList();
+    void loadStats();
+  } catch {
+    // 失败提示已由接口层统一拦截处理
+  }
+}
+
 function handleDialogClosed(): void {
   dialogFormRef.value?.clearValidate();
   editingId.value = null;
@@ -571,38 +664,12 @@ function applyEntryAction(): void {
  * 页面骨架全部来自全局 styles/page-shell.css（根元素直接用 .page，含 gap/高度约束，
  * 不在这里重写 —— 重写会出现"外层高度不定 + 内层面板要 flex:1"的矛盾，
  * 面板内部的滚动区就拿不到确定高度）。本页只保留业务样式。
+ *
+ * 按钮（.page-btn-primary / .page-btn-ghost）、刷新（.page-refresh）、工具条（.page-toolbar）
+ * 都在骨架层：它们此前在知识库页与用户管理页各写了一份，声明逐字相同。
  */
-.kb-btn-ghost {
-  border-color: var(--kb-line-strong);
-  background: rgb(255 255 255 / 4%);
-  color: var(--kb-text-1);
-}
 
-.kb-btn-primary {
-  border: none;
-  background: linear-gradient(135deg, var(--kb-primary), var(--kb-primary-2));
-  box-shadow: 0 6px 22px rgb(52 211 153 / 25%);
-  color: var(--kb-btn-text);
-}
-
-.kb-btn-primary:hover,
-.kb-btn-primary:focus {
-  background: linear-gradient(135deg, var(--kb-primary), var(--kb-primary-2));
-  box-shadow: 0 8px 28px var(--kb-glow);
-  color: var(--kb-btn-text);
-  filter: brightness(1.08);
-}
-
-/* 筛选栏：搜索 + 状态芯片 + 排序 + 查询/清除 + 刷新 + 计数，同属面板顶部一行 */
-.kb-filter-bar {
-  display: flex;
-  flex: none;
-  gap: 10px;
-  align-items: center;
-  padding: 14px 18px;
-  border-bottom: 1px solid var(--kb-line);
-}
-
+/* 筛选栏内容：搜索 + 状态芯片 + 排序 + 查询/清除 + 刷新，装在共用 .page-toolbar 里 */
 .kb-search {
   width: 200px;
 }
@@ -620,16 +687,6 @@ function applyEntryAction(): void {
 
 .kb-sort-select {
   width: 170px;
-}
-
-.kb-size-select {
-  width: 104px;
-}
-
-.kb-filter-count {
-  margin-left: auto;
-  color: var(--kb-text-3);
-  font-size: 12px;
 }
 
 .kb-chip {
@@ -657,53 +714,19 @@ function applyEntryAction(): void {
   color: var(--kb-primary);
 }
 
-.kb-refresh {
-  display: grid;
-  width: 30px;
-  height: 30px;
-  place-items: center;
-  border: 1px solid var(--kb-line);
-  border-radius: 10px;
-  background: rgb(255 255 255 / 3%);
-  color: var(--kb-text-2);
-  cursor: pointer;
-  transition:
-    border-color 0.2s,
-    color 0.2s;
-}
-
-.kb-refresh:hover {
-  border-color: var(--kb-primary);
-  color: var(--kb-primary);
-}
-
-/* 刷新中：禁用并旋转图标，让「点了没反应」变成可见反馈 */
-.kb-refresh:disabled {
-  cursor: not-allowed;
-  opacity: 0.6;
-}
-
-.kb-refresh:disabled:hover {
-  border-color: var(--kb-line);
-  color: var(--kb-text-2);
-}
-
-.kb-refresh-spin {
-  animation: kb-spin 0.9s linear infinite;
-}
-
-@keyframes kb-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
 /*
  * 卡片滚动区：flex:1 + min-height:0 拿到确定高度，卡片多时在面板内部滚动。
  *
- * 列宽下限 380px（原 320px）：320 时卡片的操作行放不下五个按钮，被折成两行；
+ * 列宽下限 380px（原 320px）：320 时卡片的操作行放不下（被折成两行），
  * 而策略串是标识符（最长 30 字符），也需要更宽才不截断。
  * 上界仍是 1fr —— 窗口宽时卡片跟着变宽，不会留出无用的空白列。
+ *
+ * **行高必须给下限（minmax(340px, auto)）**：网格项默认 stretch，同一行的虚线卡与
+ * 知识库卡会互相拉平 —— 但"列表为空"时那一行**只有虚线卡**，没有参照物，
+ * 它就塌回自身高度（原来写死的 min-height:180px），于是同一张卡出现两种高度：
+ * 有数据 324px、无数据 182px（用户实测提出）。给行高一个定值下限后两种情况都是 340px。
+ * 卡片内容比 340px 高时（业务场景说明写得长）行照旧长高，同一行的虚线卡跟着一起长，
+ * 不会脱节 —— 所以用 minmax 而不是写死行高。
  */
 .kb-grid {
   display: grid;
@@ -713,16 +736,20 @@ function applyEntryAction(): void {
   min-height: 0;
   overflow-y: auto;
   grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+  grid-auto-rows: minmax(340px, auto);
   padding: 18px;
 }
 
+/*
+ * 虚线卡：高度**不在这里定**，由上面的网格行高决定（作为网格项 stretch 撑满整行）。
+ * 曾经写过 min-height: 180px，它在"只有自己一行"时生效，正是两种高度的来源。
+ */
 .kb-new {
   display: flex;
   flex-direction: column;
   gap: 10px;
   align-items: center;
   justify-content: center;
-  min-height: 180px;
   border: 1px dashed var(--kb-line-strong);
   border-radius: var(--kb-radius);
   background: transparent;
@@ -751,14 +778,21 @@ function applyEntryAction(): void {
   font-size: 19px;
 }
 
+/*
+ * 空态：**不再与网格抢高度**（flex: none + 只占自身高度）。
+ *
+ * 网格的行高下限是 340px，若空态还按 flex:1 去平分面板高度，两边都不够：
+ * 网格被压到 250px 上下就装不下那一行，虚线卡会被裁掉并出现滚动条。
+ * 现在让网格先拿走剩余空间，空态作为底部一条提示带 —— 高度由内容决定。
+ */
 .kb-empty {
   display: flex;
-  flex: 1;
+  flex: none;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
   align-items: center;
   justify-content: center;
-  padding: 60px 0;
+  padding: 20px 0 24px;
   color: var(--kb-text-3);
   font-size: 13px;
   text-align: center;
@@ -773,12 +807,6 @@ function applyEntryAction(): void {
   margin: -6px 0 0;
   color: var(--kb-text-4);
   font-size: 12px;
-}
-
-.kb-panel-foot-right {
-  display: flex;
-  gap: 12px;
-  align-items: center;
 }
 
 /* ==================== 对话框：策略绑定三件套 ==================== */
