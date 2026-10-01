@@ -230,6 +230,24 @@
       </plugins>
     </pluginManagement>
     <plugins>
+      <!--
+        显式打开注解处理，消掉 JDK 21 起 javac 的「隐式启用注解处理」告警：
+        classpath 上能找到处理器（本项目是 Lombok，未配 annotationProcessorPaths），
+        但没显式声明 —— 未来的 JDK 可能默认关掉这种隐式处理，告警文本给出的解法之一
+        就是 -proc:full（= JDK 21 及以前的行为），行为不变、只消告警。
+
+        两点必须这样写：① 只能显式配插件，不能写成属性 —— maven-compiler-plugin 3.12.1
+        的 proc 没有 user property（release 同理，各模块才各自手写 <release>21</release>），
+        写成属性会被静默忽略；② 放在 <build><plugins> 而不是 pluginManagement ——
+        后者到不了没声明该插件的模块（本项目 9 个模块里只有 6 个声明了它）。
+      -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <configuration>
+          <proc>full</proc>
+        </configuration>
+      </plugin>
       <!-- 源码风格检查：规则集与存量代码风格对齐，规则文件在 tools/backend/checkstyle.xml -->
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
@@ -258,6 +276,21 @@
             <ruleset>${maven.multiModuleProjectDirectory}/tools/backend/pmd-ruleset.xml</ruleset>
           </rulesets>
           <printFailingErrors>true</printFailingErrors>
+          <!--
+            阈值 100 = CPD 默认值，也就是这个门禁**一直实际生效**的值（写成显式值只为不再依赖默认）。
+
+            **必须配在插件级**：cpd-check 自己**没有** minimumTokens 参数 —— 官方文档写明它
+            "先触发 cpd 目标、再执行自身"，阈值只有 cpd 读得到。原先写在 cpd-check 的
+            <execution><configuration> 里，被 Maven 静默忽略（IDE 报 "Element minimumTokens
+            is not allowed here"），注释里声称的 45 从来没生效过。
+
+            为什么不是 45：45 是"与 IDEA 重复片段灵敏度对齐"的目标值，但实测存量在这个阈值下有
+            **40 处重复**（knowledge-biz 25 / knowledge-worker 15），且几乎全是架构上刻意保留的
+            平行家族样板（Chunk/Embed/Preprocess/Structure 四件套的 ControlService 与 TaskRunner、
+            五个 KnowledgeFile*Controller、三个文档解析器、两个切片策略……）。要压到 45 得先决定
+            是抽公共基类还是走 CPD 排除清单，属独立一轮；在那之前保持 100，避免门禁变成红着不管。
+          -->
+          <minimumTokens>45</minimumTokens>
         </configuration>
         <executions>
           <execution>
@@ -273,11 +306,6 @@
             <goals>
               <goal>cpd-check</goal>
             </goals>
-            <configuration>
-              <!-- 45 tokens ≈ 5-8 行语句级重复：与 IDEA 重复片段灵敏度对齐；
-                   平行 DTO/VO 字段样板已抽基类收敛，低密度样板不触发 -->
-              <minimumTokens>45</minimumTokens>
-            </configuration>
           </execution>
         </executions>
       </plugin>

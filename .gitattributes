@@ -7,3 +7,8 @@
 #
 # 因此把钩子目录钉死为 LF：git 检出与入库都按 LF 处理，不再随 autocrlf 漂移。
 .husky/** text eol=lf
+
+# .mvn/jvm.config 同样必须 LF：它是"一行一个 JVM 参数"被逐行读进 java 命令行的
+# （Git Bash 版 mvn 用 `while read`、mvn.cmd 用 `for /F`），行尾带 CR 会把参数污染成
+# `-Dstdout.encoding=UTF-8\r` → JVM 直接 `Unrecognized option`。钩子里调用的正是 shell 版 mvn。
+.mvn/jvm.config text eol=lf

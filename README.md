@@ -55,6 +55,17 @@
 > 改动跑同一套门禁，**并逐步打印进度**（`[i/N]` 横幅 + 每步耗时 + 失败定位与复跑命令，子命令输出
 > 照旧实时透传），免得推送时只能干等；提交前钩子只做就地格式化（`tools/frontend/README.md`）。
 
+构建环境的两处约定都在仓库里，不用每人配环境变量：
+
+- **`.mvn/jvm.config`** 把 Maven 所用的 JVM 的 `stdout.encoding` / `stderr.encoding` 固定为 UTF-8。
+  Windows 中文环境（`native.encoding` = GBK）下 JDK 默认按 GBK 写标准输出，而 javac 的中文告警会
+  走进这个通道 —— 在 UTF-8 的终端里（Git Bash、IDE 终端、钩子）就显示成乱码。该文件**不支持注释**，
+  所以说明写在这里。
+- **父 pom 的 `maven-compiler-plugin` 配了 `<proc>full</proc>`**，显式打开注解处理，消掉 JDK 21 起
+  「隐式启用注解处理」的告警（项目靠 classpath 发现 Lombok、没有显式声明处理器）。**只能显式配插件**：
+  该插件的 `proc` 参数没有 user property（`release` 同理，各模块才各自手写 `<release>21</release>`），
+  写成属性会被静默忽略；放在 `<build><plugins>` 而不是 `pluginManagement` —— 后者到不了没声明该插件的模块。
+
 ## 文档
 
 | 文档                             | 内容                           |
