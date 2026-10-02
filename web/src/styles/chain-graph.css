@@ -104,7 +104,7 @@
 
 /* 副行是"能力快照缺失"的兜底 `—` 时弱化，不让它冒充真实值。
    只保留两级祖先限定（0,3,0）—— `.is-fallback` 本身就只挂在执行链卡片上 */
-.chain-graph .is-fallback .chain-node-detail {
+.chain-graph .is-fallback .chain-node-ident {
   color: var(--kb-text-3);
 }
 
@@ -122,6 +122,10 @@
   background: var(--kb-ok);
 }
 
+.chain-graph .chain-dot.tone-partial {
+  background: var(--kb-warn);
+}
+
 .chain-graph .chain-dot.tone-run {
   background: var(--kb-primary);
 }
@@ -132,4 +136,88 @@
 
 .chain-graph .chain-dot.tone-fail {
   background: var(--kb-danger);
+}
+
+/*
+ * 状态文字与摘要行文字的颜色：`.tone-*` 由计算属性给出，故与 `.chain-dot` 一样放全局。
+ * 基础色（弱化灰）在卡片自己的样式里，这里只覆盖随状态变化的那一档。
+ */
+.chain-graph .chain-node-status.tone-ok {
+  color: var(--kb-ok);
+}
+
+.chain-graph .chain-node-status.tone-partial {
+  color: var(--kb-warn);
+}
+
+.chain-graph .chain-node-status.tone-run {
+  color: var(--kb-primary);
+}
+
+.chain-graph .chain-node-status.tone-wait {
+  color: var(--kb-warn);
+}
+
+.chain-graph .chain-node-status.tone-fail {
+  color: var(--kb-danger);
+}
+
+.chain-graph .chain-node-summary.tone-ok {
+  color: var(--kb-ok);
+}
+
+.chain-graph .chain-node-summary.tone-partial {
+  color: var(--kb-warn);
+}
+
+.chain-graph .chain-node-summary.tone-run {
+  color: var(--kb-primary);
+}
+
+.chain-graph .chain-node-summary.tone-wait {
+  color: var(--kb-warn);
+}
+
+.chain-graph .chain-node-summary.tone-fail {
+  color: var(--kb-danger);
+}
+
+/* 命中知识库策略的金色标记：角标与卡片按同一色系 */
+.chain-graph .tone-hit {
+  position: absolute;
+  top: -8px;
+  right: 7px;
+  padding: 1px 6px;
+  border: 1px solid rgb(251 191 36 / 35%);
+  border-radius: 99px;
+  background: rgb(251 191 36 / 16%);
+  color: var(--kb-warn);
+  font-size: 9px;
+}
+
+/*
+ * 构成图轨道底色：给出"满量程"参照，占比小的那几行也能看出条落在量程的哪个位置。
+ *
+ * <p>取 6% 一档：比卡片底（--kb-bg-2）亮一档、远弱于任何状态色，既看得见轨道，
+ * 又不会被误读成一条数据条；再亮就会与「页眉页脚」那档 28% 的条撞车。
+ */
+.chain-graph .chain-node-bar-track {
+  background: rgb(255 255 255 / 6%);
+}
+
+/* 构成图条色：正文主色 / 表格成功色 / 图片警示色 / 页眉页脚白 */
+.chain-graph .chain-node-bar-body {
+  background: var(--kb-primary);
+}
+
+.chain-graph .chain-node-bar-table {
+  background: var(--kb-ok);
+}
+
+.chain-graph .chain-node-bar-image {
+  background: var(--kb-warn);
+}
+
+.chain-graph .chain-node-bar-head {
+  background: rgb(255 255 255 / 28%);
 }

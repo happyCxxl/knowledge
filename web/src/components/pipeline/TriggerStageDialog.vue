@@ -18,6 +18,7 @@
             class="trigger-dot"
             :class="{
               'tone-ok': upstreamTone === 'ok',
+              'tone-partial': upstreamTone === 'partial',
               'tone-run': upstreamTone === 'run',
               'tone-wait': upstreamTone === 'wait',
               'tone-fail': upstreamTone === 'fail',
@@ -231,6 +232,10 @@ watch(
 
 .tone-ok {
   background: var(--kb-ok);
+}
+
+.tone-partial {
+  background: var(--kb-warn);
 }
 
 .tone-run {

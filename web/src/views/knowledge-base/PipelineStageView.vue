@@ -99,7 +99,6 @@
             :file-key="selectedFileId"
             :position-store="nodePositions"
             :bound-versions="boundVersions"
-            :can-trigger="canTrigger"
             :class="{ 'is-refreshing': lineageLoading }"
             @select="onPathSelect"
             @trigger="openTrigger"
@@ -123,6 +122,7 @@
 
         <div class="stage-legend">
           <span class="stage-legend-item"><i class="stage-nd tone-ok"></i>成功</span>
+          <span class="stage-legend-item"><i class="stage-nd tone-partial"></i>部分成功</span>
           <span class="stage-legend-item"><i class="stage-nd tone-run"></i>运行中</span>
           <span class="stage-legend-item"><i class="stage-nd tone-fail"></i>失败</span>
           <span class="stage-legend-hit"
@@ -134,8 +134,8 @@
 
     <TriggerStageDialog
       v-model="triggerVisible"
-      :stage="nextStage"
-      :upstream="pathEndNode"
+      :stage="triggerStage"
+      :upstream="triggerSource"
       :submitting="triggering"
       @confirm="onTriggerConfirm"
     />
@@ -221,6 +221,14 @@ function cancelLoaderHint(): void {
 const pathEndNode = ref<LineageNode | null>(null);
 
 /**
+ * 本次触发的分叉点：点按钮那一刻记下的**被点那张卡**，弹窗展示与确认都用它。
+ *
+ * <p>与 {@link pathEndNode} 分开：选中值会随轮询刷新与用户改选变化，
+ * 而一次触发的分叉点必须在点下的瞬间固定下来。
+ */
+const triggerSource = ref<LineageNode | null>(null);
+
+/**
  * 各文件的节点坐标记忆：由页面持有，切文件再切回来能恢复用户摆好的布局。
  *
  * <p>放在页面而不是图组件里：切文件时 `selectedFileId` 立即变、`lineage` 要等接口返回，
@@ -252,9 +260,13 @@ const boundVersions = ref<Set<string>>(new Set());
 /** 轮询句柄：触发后要等任务跑完，定时刷新执行树直到进入终态 */
 let pollTimer: number | null = null;
 
-/** 下一个待触发环节：选中路径末端之后的那个环节；已到末端则为 null */
-const nextStage = computed<PipelineStage | null>(() => {
-  const current = pathEndNode.value?.stage;
+/**
+ * 某个节点之后的下一环节：已在链路末端的环节返回 null。
+ *
+ * <p>环节顺序是本页面的知识（`PIPELINE_STAGES`），链图不猜。
+ */
+function stageAfter(node: LineageNode | null): PipelineStage | null {
+  const current = node?.stage;
   if (!current) {
     return null;
   }
@@ -263,20 +275,10 @@ const nextStage = computed<PipelineStage | null>(() => {
     return null;
   }
   return PIPELINE_STAGES[index + 1];
-});
+}
 
-/**
- * 能否从当前末端触发下游。
- *
- * <p>必须同时满足两点：
- * 1. 还有下一个环节（切片之后没有向量化之外的环节，向量化是末端）；
- * 2. 末端节点**产出了产物**——分叉点就是产物，失败的运行没有产物，
- *    此时若仍允许触发，后端会退化成「按绑定的最新成功产物」解析，
- *    指定的分叉点被静默忽略，故直接禁用。
- */
-const canTrigger = computed(
-  () => nextStage.value !== null && Boolean(pathEndNode.value?.productId),
-);
+/** 本次触发要跑的环节：**被点那张卡**的下一环节（与分叉点同源） */
+const triggerStage = computed(() => stageAfter(triggerSource.value));
 
 async function loadStrategyBindings(): Promise<void> {
   const results = await Promise.all(
@@ -416,25 +418,19 @@ function onPathSelect(node: LineageNode | null): void {
  * @param source 卡片上点按钮的那个节点（来自图组件的 trigger 事件）。
  *   **可选**：画布右下角的按钮不带节点参数，沿用当前选中的路径末端。
  *
- * <p>**带节点时直接以它为准**，不拿 `pathEndNode` 做对象比对：卡片能画出「触发下一环节」
- * 按钮，就说明 `ChainGraph` 侧的 `pathEndNode` 认它是末端（那个按钮的 `v-if="data.pathEnd"`
- * 同源）；而页面这份要经 `emit('select', …)` 转手，点击瞬间可能还没值，
- * 用它做守卫会把真实点击**误挡**。
+ * <p>**带节点时以它为准**：分叉点就是**被点那张卡的产物**，同环节多个产物各自成链。
+ * 点击瞬间页面这份选中值可能还没更新完，故直接记下传进来的节点，
+ * 后续确认与弹窗展示都用它，不回头读选中值。
  *
- * <p>不带节点（右下角按钮）时仍走 {@link canTrigger} —— 与那个按钮的禁用条件一致。
+ * <p>不带节点（右下角按钮）时用当前选中的路径末端，没有产物就不打开。
  */
 function openTrigger(source?: LineageNode): void {
-  if (source) {
-    if (!source.stage || !source.productId) {
-      return;
-    }
-    pathEndNode.value = source;
-    triggerVisible.value = true;
+  const node = source ?? pathEndNode.value;
+  if (!node?.productId) {
     return;
   }
-  if (canTrigger.value) {
-    triggerVisible.value = true;
-  }
+  triggerSource.value = node;
+  triggerVisible.value = true;
 }
 
 /**
@@ -459,14 +455,15 @@ async function onTriggerParse(): Promise<void> {
 }
 
 /**
- * 确认触发：以选中末端的产物为分叉点，调用该环节的触发接口。
+ * 确认触发：以**被点那张卡的产物**为分叉点，调用该环节的触发接口。
  *
  * <p>接口是异步的（只返回任务 ID），触发后开始轮询执行树，直到新任务进入终态。
- * 上游产物 ID 缺失时不传该参数，退回后端默认解析（知识库绑定策略 + 同策略最新成功运行）。
+ * 分叉点取 {@link triggerSource}（点按钮那一刻记下的节点），不读选中值 ——
+ * 轮询刷新或用户改选都不该把分叉点换掉。
  */
 async function onTriggerConfirm(strategyVersionId: string | null): Promise<void> {
-  const stage = nextStage.value;
-  const upstream = pathEndNode.value;
+  const stage = triggerStage.value;
+  const upstream = triggerSource.value;
   if (!stage || !upstream) {
     return;
   }
@@ -488,6 +485,10 @@ async function onTriggerConfirm(strategyVersionId: string | null): Promise<void>
 /**
  * 轮询执行树：任务在跑时节点状态会变，跑完自动停。
  *
+ * <p>**先立刻拉一次，再定时拉**：触发接口只登记任务、不同步执行，节点的出现完全依赖
+ * 这次查询。等下第一个 tick 的话，任务在窗口内跑完时用户会看到"点了没反应，然后直接
+ * 蹦出一个已完成的节点"——排队与进行中的过程整个被跳过。
+ *
  * <p>停止条件用「是否还有未进入终态的任务」（类型层的 isTaskPending）：
  * 任务可能长期处于 QUEUED，也可能直接进入 PARTIAL_SUCCESS / FAILED，
  * 只盯 RUNNING 会漏判（PARTIAL_SUCCESS 被漏判时轮询永不停止）。
@@ -498,17 +499,22 @@ function startPolling(): void {
   stopPolling();
   let ticks = 0;
   const MAX_TICKS = 150;
+  /** 拉一次并判断是否可以收工 */
+  const refresh = (): void => {
+    void loadLineage().then(() => {
+      if (!hasPendingTask()) {
+        stopPolling();
+      }
+    });
+  };
+  refresh();
   pollTimer = window.setInterval(() => {
     ticks += 1;
     if (ticks > MAX_TICKS) {
       stopPolling();
       return;
     }
-    void loadLineage().then(() => {
-      if (!hasPendingTask()) {
-        stopPolling();
-      }
-    });
+    refresh();
   }, 2000);
 }
 
@@ -839,12 +845,20 @@ onUnmounted(() => {
   background: var(--kb-ok);
 }
 
+.tone-partial {
+  background: var(--kb-warn);
+}
+
 .tone-run {
   background: var(--kb-primary);
 }
 
 .tone-fail {
   background: var(--kb-danger);
+}
+
+.tone-hit {
+  background: var(--kb-warn);
 }
 
 .stage-legend {

@@ -63,17 +63,17 @@ export function isTaskPending(status: string | null | undefined): boolean {
   return !TERMINAL_TASK_STATUSES.has(status);
 }
 
-/** 状态视觉归类：ok 成功 / run 进行中 / wait 排队 / fail 失败 */
-export type StatusTone = 'ok' | 'run' | 'wait' | 'fail';
+/** 状态视觉归类：ok 成功 / partial 部分成功 / run 进行中 / wait 排队 / fail 失败 */
+export type StatusTone = 'ok' | 'partial' | 'run' | 'wait' | 'fail';
 
 export function statusTone(status: string | null | undefined): StatusTone {
   switch (status) {
     case 'SUCCESS':
       return 'ok';
+    case 'PARTIAL_SUCCESS':
+      return 'partial';
     case 'RUNNING':
       return 'run';
-    case 'PARTIAL_SUCCESS':
-      return 'wait';
     case 'FAILED':
     case 'CANCELLED':
       return 'fail';
@@ -141,6 +141,35 @@ export interface CapabilityRef {
   version: string | null;
 }
 
+/**
+ * 解析环节运行统计（后端 LineageParseStatsVO）：由解析产物本体汇总。
+ *
+ * <p>每项都可能为 null（产物里取不到），取值一律走 {@link statNumber} 之类的兜底，
+ * 不直接参与运算。
+ */
+export interface LineageParseStats {
+  /** 页数（解析器回填的判定单元数；取不到时回落文件引用的页数，仍取不到为 null） */
+  pageCount: number | null;
+  /** 元素总数 */
+  elementCount: number | null;
+  /** 正文类元素数 */
+  bodyCount: number | null;
+  /** 表格数 */
+  tableCount: number | null;
+  /** 图片数 */
+  imageCount: number | null;
+  /** 页眉页脚数 */
+  headerFooterCount: number | null;
+  /** 未解析出内容的单元数（无问题时为 null） */
+  failedUnitCount: number | null;
+  /** 未解析出内容的起始单元号 */
+  failedFrom: number | null;
+  /** 未解析出内容的结束单元号 */
+  failedTo: number | null;
+  /** 本次运行耗时（毫秒） */
+  durationMs: number | null;
+}
+
 /** 执行链节点（后端 LineageNodeVO）：一个环节的一次任务运行 */
 export interface LineageNode {
   taskId: string;
@@ -159,6 +188,10 @@ export interface LineageNode {
   contentHash: string | null;
   /** 统计摘要（原样透传展示）：CHUNK=chunkCount、EMBED=recordCount/cachedCount 等 */
   stats: Record<string, string> | null;
+  /** 解析环节运行统计（仅 PARSE 且该次运行有产物时非空） */
+  parseStats: LineageParseStats | null;
+  /** 解析环节摘要行文案（后端按状态与问题单元生成；解析进行中为空） */
+  parseSummary: string | null;
   startedAt: string | null;
   finishedAt: string | null;
 }
@@ -181,6 +214,29 @@ const STAT_LABELS: Record<string, string> = {
 /** 统计项：中文标签 + 值。键名未映射时标签回落原键名 */
 export function statEntry(key: string, value: string): { label: string; value: string } {
   return { label: STAT_LABELS[key] ?? key, value };
+}
+
+/** 数值兜底：可用的数原样返回，缺失或非有限值返回 null */
+export function statNumber(value: number | null | undefined): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+/** 计数展示：千分位；缺失显示 `—`（不回落 0，让"没有"和"是零"分得开） */
+export function formatCount(value: number | null | undefined): string {
+  const num = statNumber(value);
+  return num === null ? '—' : num.toLocaleString('en-US');
+}
+
+/** 耗时展示：秒保留一位小数，一分钟以上进位到分；缺失或非正数显示 `—` */
+export function formatDuration(value: number | null | undefined): string {
+  const ms = statNumber(value);
+  if (ms === null || ms <= 0) {
+    return '—';
+  }
+  if (ms < 60_000) {
+    return `${(ms / 1000).toFixed(1)}s`;
+  }
+  return `${Math.floor(ms / 60_000)}m${Math.round((ms % 60_000) / 1000)}s`;
 }
 
 /**

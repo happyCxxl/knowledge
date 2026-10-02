@@ -1,7 +1,7 @@
 <template>
   <div
     class="chain-node"
-    :class="[nodeClass, { 'is-fallback': detailIsFallback }]"
+    :class="[nodeClass, { 'is-fallback': detailIsFallback, 'is-failed': isFailed }]"
     :title="hoverTitle"
   >
     <!-- 连接桩：仅供后端血缘边路由用；用户不能拖拽连线（外层已禁用 connectable） -->
@@ -19,42 +19,76 @@
     />
     <Handle v-if="outCount === 0" type="source" :position="Position.Right" class="chain-handle" />
 
-    <span v-if="hit" class="chain-node-hit">命中策略</span>
+    <span v-if="hit" class="tone-hit">命中策略</span>
 
-    <!-- 主行：环节名 + 状态，放最上且字号最大 -->
+    <!-- ① 状态行：状态色点 + 环节名 + 状态文字 -->
     <span class="chain-node-head">
       <i class="chain-dot" :class="toneClass"></i>
       <span class="chain-node-stage">{{ stageText }}</span>
+      <span class="chain-node-status" :class="toneClass">{{ statusText }}</span>
     </span>
 
-    <!-- 副行：有策略显策略版本，无策略环节显能力快照（后端已解析成对象，这里拼成可读文案） -->
-    <span v-if="detailText" class="chain-node-detail">{{ detailText }}</span>
+    <!-- ② 身份行：解析器版本 · 策略版本 -->
+    <span class="chain-node-ident">{{ identText }}</span>
 
-    <!-- 数据行：统计摘要（键名映射成中文，最多两项） -->
-    <span v-if="stats.length > 0" class="chain-node-stats">
-      <span v-for="item in stats" :key="item.key" class="chain-node-stat">
-        <span class="chain-node-stat-label">{{ item.label }}</span>
-        <span class="chain-node-stat-value">{{ item.value }}</span>
+    <!-- ③ 指标行：页数 / 元素数 / 耗时（缺项显示 —） -->
+    <span class="chain-node-metrics">
+      <span v-for="item in metrics" :key="item.key" class="chain-node-metric">
+        <span class="chain-node-metric-value">{{ item.value }}</span>
+        {{ item.unit }}
       </span>
     </span>
 
-    <span class="chain-node-time">{{ timeText }}</span>
+    <!--
+      ④ 构成图：一个类型一条（类型标签 + 浅槽 + 彩色条 + 右侧数字），条长 = 该类占全部元素的比例。
+      标签与数字都是定宽右对齐列，四条才能对齐成一张表。
+    -->
+    <span class="chain-node-compose">
+      <span v-for="bar in composeBars" :key="bar.type" class="chain-node-bar" :title="bar.title">
+        <span class="chain-node-bar-label">{{ bar.title }}</span>
+        <span class="chain-node-bar-track">
+          <span
+            class="chain-node-bar-fill"
+            :class="{
+              'chain-node-bar-body': bar.type === 'body',
+              'chain-node-bar-table': bar.type === 'table',
+              'chain-node-bar-image': bar.type === 'image',
+              'chain-node-bar-head': bar.type === 'head',
+            }"
+            :style="{ width: bar.width }"
+          ></span>
+        </span>
+        <span class="chain-node-bar-value">{{ bar.value }}</span>
+      </span>
+    </span>
 
     <!--
-      选中且是路径末端时，才允许从这里触发下游。
-      这是个**真按钮**（不是装饰性文字），长在它作用的节点上。
-      `@pointerdown.stop` + `@click.stop` 阻止冒泡：点击不被 Vue Flow 当成
-      选中/拖拽节点。
+      ⑤ 警告行：与构成图用分隔线隔开，独立成一块。
+      `⚠` 与文本是**并排的两个子项**：图标不进截断盒，截断盒里只有纯文本。
     -->
-    <button
-      v-if="data.pathEnd"
-      class="chain-node-more"
-      type="button"
-      @pointerdown.stop
-      @click.stop="data.onTrigger?.()"
-    >
-      触发下一环节
-    </button>
+    <span class="chain-node-summary" :class="toneClass" :title="summaryTitle">
+      <span v-if="isWarning" class="chain-node-warn">⚠</span>
+      <span class="chain-node-summary-text">{{ summaryText }}</span>
+    </span>
+
+    <!-- ⑥ 操作行：时间 + 详情 + 触发下一环节（按钮常驻，只有可点与不可用两态） -->
+    <span class="chain-node-foot">
+      <span class="chain-node-time" :title="timeTitle">{{ timeText }}</span>
+      <span class="chain-node-actions">
+        <button class="chain-node-detail" type="button" disabled @pointerdown.stop>详情</button>
+        <button
+          v-if="nextStage !== null"
+          class="chain-node-more"
+          type="button"
+          :disabled="!triggerEnabled"
+          :title="triggerDisabledReason"
+          @pointerdown.stop
+          @click.stop="data.onTrigger?.()"
+        >
+          触发{{ nextStageText }}
+        </button>
+      </span>
+    </span>
   </div>
 </template>
 
@@ -64,13 +98,16 @@ import { Handle, Position } from '@vue-flow/core';
 import type { NodeProps } from '@vue-flow/core';
 
 import {
+  PIPELINE_STAGES,
   capabilityText,
+  formatCount,
+  formatDuration,
+  isTaskPending,
+  statNumber,
   stageLabel,
-  statEntry,
   statusTone,
-  taskStatusLabel,
 } from '@/types/pipeline';
-import type { ChainNodeData } from '@/types/pipeline';
+import type { ChainNodeData, PipelineStage } from '@/types/pipeline';
 
 // 执行树节点 = 一次运行。这里只负责「长什么样」，位置与选中由外层图组件控制。
 // 注意：Vue Flow 要求自定义节点接收 NodeProps，自定义载荷放在 data 里
@@ -80,7 +117,6 @@ const props = defineProps<NodeProps<ChainNodeData>>();
 const stageText = computed(() => stageLabel(props.data.node.stage));
 
 const tone = computed(() => statusTone(props.data.node.status));
-const statusText = computed(() => taskStatusLabel(props.data.node.status));
 
 /**
  * 状态色调类名。
@@ -90,6 +126,7 @@ const statusText = computed(() => taskStatusLabel(props.data.node.status));
  */
 const TONE_CLASSES: Record<string, string> = {
   ok: 'tone-ok',
+  partial: 'tone-partial',
   run: 'tone-run',
   wait: 'tone-wait',
   fail: 'tone-fail',
@@ -97,24 +134,156 @@ const TONE_CLASSES: Record<string, string> = {
 
 const toneClass = computed(() => TONE_CLASSES[tone.value] ?? 'tone-wait');
 
-/**
- * 副行文案：有策略的环节显示策略版本，无策略环节（解析/组装）显示能力快照。
- *
- * <p>能力快照是**对象**（后端已解析），这里拼成 `pdfbox 3.0.4` 这样的可读文案；
- * 两者都没有时显示 `—`，让"这一格没有内容"和"内容为空"能区分开。
- */
-const detailText = computed(() => {
-  const strategy = props.data.node.strategyVersion;
-  if (strategy) {
-    return strategy;
-  }
-  return capabilityText(props.data.node.capability) ?? '—';
+const isFailed = computed(() => tone.value === 'fail');
+const isRunning = computed(() => tone.value === 'run');
+
+/** 状态文字：解析环节的进行态读作"解析中" */
+const STATUS_LABELS: Record<string, string> = {
+  SUCCESS: '成功',
+  PARTIAL_SUCCESS: '部分成功',
+  RUNNING: '解析中',
+  FAILED: '失败',
+  CANCELLED: '已取消',
+  QUEUED: '排队中',
+};
+
+const statusText = computed(() => STATUS_LABELS[props.data.node.status] ?? props.data.node.status);
+
+/** 解析统计（仅解析环节且该次运行产出产物时非空） */
+const parseStats = computed(() => props.data.node.parseStats);
+
+/** 身份行：解析器版本与策略版本各取各的，两段都取不到时显示 `—` */
+const identText = computed(() => {
+  const node = props.data.node;
+  const parser = capabilityText(node.capability);
+  const parts = [parser ?? '—', node.strategyVersion ?? '—'];
+  return parts.join(' · ');
 });
 
-/** 是否为"能力快照缺失"的兜底文案：样式上弱化，不冒充真实值 */
+/** 身份行是否是"两段都缺失"的兜底文案：样式上弱化，不冒充真实值 */
 const detailIsFallback = computed(
   () => !props.data.node.strategyVersion && capabilityText(props.data.node.capability) === null,
 );
+
+/**
+ * 指标行三项：页数 / 元素数 / 耗时。
+ *
+ * <p>固定三项三格：缺失项显示 `—`，行高与列位不变。
+ */
+const metrics = computed(() => {
+  const stats = parseStats.value;
+  return [
+    { key: 'pages', value: formatCount(stats?.pageCount), unit: '页' },
+    { key: 'elements', value: formatCount(stats?.elementCount), unit: '元素' },
+    { key: 'duration', value: formatDuration(stats?.durationMs), unit: '' },
+  ];
+});
+
+/** 构成图的一段：类型、数值、条长、悬停提示；四段固定且顺序固定 */
+interface ComposeBar {
+  type: string;
+  title: string;
+  value: string;
+  width: string;
+}
+
+/** 四类元素构成（类型名只在 title 里给出） */
+const COMPOSE_TYPES = [
+  { type: 'body', label: '正文' },
+  { type: 'table', label: '表格' },
+  { type: 'image', label: '图片' },
+  { type: 'head', label: '页眉页脚' },
+];
+
+const composeBars = computed<ComposeBar[]>(() => {
+  const stats = parseStats.value;
+  const counts = [
+    statNumber(stats?.bodyCount),
+    statNumber(stats?.tableCount),
+    statNumber(stats?.imageCount),
+    statNumber(stats?.headerFooterCount),
+  ];
+  // 条长以元素总数为分母；总数缺失时用四类之和，四类全缺则该行没有可表达的构成
+  const sum = counts.reduce<number>((acc, count) => acc + (count ?? 0), 0);
+  const total = statNumber(stats?.elementCount) ?? sum;
+
+  return COMPOSE_TYPES.map((item, index) => {
+    const count = counts[index];
+    // 条长按同一比例尺；有值但占比极小时抬到 3px 下限，值 0 或统计缺失时不画条
+    const ratio = isFailed.value || count === null || total <= 0 ? 0 : (count / total) * 100;
+    const width = count !== null && count > 0 ? `max(3px, ${ratio.toFixed(1)}%)` : '0';
+    return {
+      type: item.type,
+      title: item.label,
+      value: isFailed.value ? '—' : formatCount(count),
+      width,
+    };
+  });
+});
+
+/**
+ * 警告行。
+ *
+ * <p>进行态只陈述正在做什么（页面上没有可用的进度计数，不编造页码）；
+ * 其余状态一律用后端给的事实文案，失败态在后端文案缺失时回落 `errorMsg`。
+ *
+ * <p>**文案为空就留空**（行高固定，不给 `—` 之类的占位）：统计没到手时不编造结论，
+ * "没有可陈述的内容"本身就是要如实显示的信息。
+ */
+const summaryText = computed(() => {
+  const node = props.data.node;
+  if (isRunning.value) {
+    return '正在解析…';
+  }
+  if (isFailed.value) {
+    return node.parseSummary ?? node.errorMsg ?? '';
+  }
+  return node.parseSummary ?? '';
+});
+
+/** 该行是否是"有内容要处置"的告警：加 `⚠` 图标与告警色；「无异常」与进行态不加 */
+const isWarning = computed(() => {
+  const text = summaryText.value;
+  return text !== '' && text !== '无异常';
+});
+
+/** 悬停提示：告警被截断时把完整文案给出来 */
+const summaryTitle = computed(() => (isWarning.value ? summaryText.value : ''));
+
+/**
+ * 下游环节：解析之后是组装；已在链路末端的环节没有下一环。
+ *
+ * <p>「触发下一环节」按钮**常驻**（该环节确有下游就渲染），能不能点由
+ * {@link triggerEnabled} 决定 —— 按钮不隐藏，卡片也不会因它出现或消失而变高变矮。
+ */
+const nextStage = computed<PipelineStage | null>(() => {
+  const index = PIPELINE_STAGES.indexOf(props.data.node.stage as PipelineStage);
+  if (index < 0 || index >= PIPELINE_STAGES.length - 1) {
+    return null;
+  }
+  return PIPELINE_STAGES[index + 1];
+});
+
+const nextStageText = computed(() => (nextStage.value === null ? '' : stageLabel(nextStage.value)));
+
+/** 本节点是否已产出产物：产物即分叉点，没有它就不能从这个环节往下走 */
+const hasProduct = computed(() => Boolean(props.data.node.productId));
+
+/**
+ * 触发下一环节是否可点：**本节点有产物**即可。
+ *
+ * <p>不要求本节点是选中路径末端：点击用的是**这张卡自己的产物**作上游
+ * （`onTrigger` 把本节点交出去），同环节多个产物各自成链，就是接口的分叉语义。
+ */
+const triggerEnabled = computed(() => hasProduct.value);
+
+/** 不可用原因（简短，挂在按钮 title 上）：按"用户下一步能做什么"分档 */
+const triggerDisabledReason = computed(() => {
+  if (triggerEnabled.value) {
+    return '';
+  }
+  return isTaskPending(props.data.node.status) ? '任务完成后可用' : '本次运行没有产物';
+});
 
 const hit = computed(() => props.data.hit);
 
@@ -132,24 +301,44 @@ function handleTop(index: number): string {
   return `${Math.round(ratio * 100)}%`;
 }
 
-/**
- * 统计摘要：键名映射成中文标签，最多显示两项。
- *
- * <p>卡片宽度有限，统计项多的环节（如向量化有 recordCount + cachedCount）全列会换行，
- * 截断到两项。
- */
-const stats = computed(() =>
-  Object.entries(props.data.node.stats ?? {})
-    .slice(0, 2)
-    .map(([key, value]) => ({ key, ...statEntry(key, value) })),
-);
+/** 时间戳取到分钟（YYYY-MM-DD HH:mm，带年份） */
+function formatClock(value: string | null): string {
+  return value ? value.replace('T', ' ').slice(0, 16) : '';
+}
 
+/** 时间戳取到秒（YYYY-MM-DD HH:mm:ss）：悬停提示里用精度换"能核对" */
+function formatClockSeconds(value: string | null): string {
+  return value ? value.replace('T', ' ').slice(0, 19) : '';
+}
+
+/**
+ * 操作行时间：完整年月日 + 时分。
+ *
+ * <p>**只显示一个时刻**：跑完的环节看结束时刻，进行中的环节看开始时刻（"从几点开始等的"）。
+ * 两端都写要占到 250px 以上，操作行放不下「时间 + 详情 + 触发下一环节」三个元素。
+ *
+ * <p>完整起止（带秒）放悬停提示，需要核对时能拿到。
+ */
 const timeText = computed(() => {
-  const value = props.data.node.startedAt;
-  return value ? value.replace('T', ' ').slice(5, 16) : '';
+  const node = props.data.node;
+  if (isRunning.value) {
+    return formatClock(node.startedAt) || '—';
+  }
+  return formatClock(node.finishedAt) || formatClock(node.startedAt) || '—';
 });
 
-/** 悬停提示：卡片不展示错误原因，但排查时需要一个入口（完整的节点详情面板后续再做） */
+/** 悬停提示：完整起止时间（带年月日与秒） */
+const timeTitle = computed(() => {
+  const node = props.data.node;
+  const started = formatClockSeconds(node.startedAt);
+  const finished = formatClockSeconds(node.finishedAt);
+  if (started && finished) {
+    return `${started} → ${finished}`;
+  }
+  return started || finished || '';
+});
+
+/** 悬停提示：构成图的类型名之外，把失败原因也放进整卡提示 */
 const hoverTitle = computed(() => {
   const node = props.data.node;
   const parts = [stageText.value, statusText.value];
@@ -171,8 +360,18 @@ defineOptions({ name: 'ChainNode' });
 
 <style scoped lang="css">
 /*
- * 卡片尺寸 168×150：按"最长内容 + 余量"定，须容下 `chunk-window-v1` 这类标签
- * 与"向量化"环节的多行子块。
+ * 卡片尺寸 320×214：所有状态**恒等**——行数固定、缺项用 `—` 占位、
+ * 「触发下一环节」不可用时置灰而不隐藏，内容再多也只裁剪不换行。
+ *
+ * <p>**宽度按构成图与操作行定**：构成图一行是「44px 类型标签 + 条 + 36px 数字」，
+ * 操作行是「完整年月日时分 + 详情 + 触发向量化」，两处合计约需 276px，取 320px 留出余量
+ * （时间文本与条都可省略，按钮与标签列永不收缩）。
+ *
+ * <p>**高度按六行各自钉死的行高之和定**：head 18 + ident 15 + metrics 16 + 构成图 46
+ * + 警告行 42 + 操作行 28 = 165，加警告行 margin 11、行间距 2×5、上下内边距 10×2
+ * 与上下边框 1×2 共 214px，余量 12px：中文回退字体（Microsoft YaHei）的行高比拉丁字体高，
+ * 余量用于吸收跨浏览器的行盒差异。每一行都必须显式给行高 —— 放任默认值会让行盒随字体度量
+ * 变高，多行累加后把操作行顶出卡片。
  *
  * <p>与 ChainGraph 的 NODE_WIDTH / NODE_ROW_HEIGHT 保持一致
  * （行距按固定高度算，不一致会互相压住）。
@@ -180,11 +379,13 @@ defineOptions({ name: 'ChainNode' });
 .chain-node {
   position: relative;
   display: flex;
+  box-sizing: border-box;
+  width: 320px;
+  height: 214px;
   flex-direction: column;
-  gap: 5px;
-  width: 168px;
-  min-height: 150px;
-  padding: 9px 11px;
+  gap: 2px;
+  padding: 10px 11px;
+  overflow: hidden;
   border: 1px solid var(--kb-line-strong);
   border-radius: 11px;
   background: var(--kb-bg-2);
@@ -198,8 +399,8 @@ defineOptions({ name: 'ChainNode' });
   cursor: grabbing;
 }
 
-/* 节点状态样式（选中 / 路径末端 / 失败 / 运行中 / 兜底文案）以及状态点的 tone-* 色
-   都定义在全局 styles/chain-graph.css：这些类名由计算属性动态给出，
+/* 节点状态样式（选中 / 路径末端 / 失败 / 运行中 / 兜底文案）、状态点的 tone-* 色
+   与构成图的条色都定义在全局 styles/chain-graph.css：这些类名由计算属性动态给出，
    scoped 样式里的声明会被「未使用」检查判为死代码 */
 
 .chain-handle {
@@ -216,33 +417,22 @@ defineOptions({ name: 'ChainNode' });
   transform: translateY(-50%);
 }
 
-.chain-node-hit {
-  position: absolute;
-  top: -8px;
-  right: 7px;
-  padding: 1px 6px;
-  border: 1px solid rgb(251 191 36 / 35%);
-  border-radius: 99px;
-  background: rgb(251 191 36 / 16%);
-  color: var(--kb-warn);
-  font-size: 9px;
-}
+/* ==================== 卡片内容：六行 ==================== */
 
-/* ==================== 卡片内容：三档层级 ==================== */
-
-/*
- * 主行：状态点 + 环节名（13px 粗）。
- * 环节名是读图时最先认的东西，给它最大的字号；状态靠左侧的圆点颜色表达，
- * 不单独占一行写"部分成功/成功"这类文字（失败另有整卡红边，见 chain-graph.css）。
- */
+/* ① 状态行：状态点 + 环节名 + 状态文字（18px 行高：容下 13px 中文与 7px 状态点） */
 .chain-node-head {
   display: flex;
+  flex: none;
   gap: 7px;
   align-items: center;
+  line-height: 18px;
 }
 
+/* 环节名是读图时最先认的东西，给最大字号；状态文字紧跟其后、同色系 */
 .chain-node-stage {
   overflow: hidden;
+  min-width: 0;
+  flex: 1;
   color: var(--kb-text-1);
   font-size: 13px;
   font-weight: 600;
@@ -250,74 +440,237 @@ defineOptions({ name: 'ChainNode' });
   white-space: nowrap;
 }
 
-/*
- * 副行：策略版本或能力快照（11px 等宽）。
- * 内容多为 `chunk-window-v1` / `pdfbox 3.0.4` 这类标识符，用等宽字体。
- */
-.chain-node-detail {
-  overflow: hidden;
-  color: var(--kb-text-2);
-  font-family: ui-monospace, 'JetBrains Mono', Consolas, monospace;
+/* 状态文字：颜色随状态（tone-* 见全局 chain-graph.css） */
+.chain-node-status {
+  flex: none;
   font-size: 11px;
+  font-weight: 600;
+}
+
+/* ② 身份行：解析器版本 · 策略版本（单行省略） */
+.chain-node-ident {
+  display: block;
+  overflow: hidden;
+  flex: none;
+  color: var(--kb-text-2);
+  font-size: 11px;
+  line-height: 15px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 /* 兜底的 `—`：弱化，不冒充真实值 */
-.chain-node.is-fallback .chain-node-detail {
+.chain-node.is-fallback .chain-node-ident {
   color: var(--kb-text-3);
 }
 
-/* 数据行：统计（10px，最弱色） */
-.chain-node-stats {
+/* ③ 指标行：页数 / 元素数 / 耗时 */
+.chain-node-metrics {
   display: flex;
-  gap: 10px;
-  color: var(--kb-text-3);
-  font-size: 10px;
+  flex: none;
+  gap: 12px;
+  align-items: baseline;
+  color: var(--kb-text-2);
+  font-size: 11px;
+  line-height: 15px;
 }
 
-.chain-node-stat {
+.chain-node-metric {
   display: flex;
-  gap: 4px;
+  gap: 3px;
   align-items: baseline;
   white-space: nowrap;
 }
 
-/* 统计的数值用等宽 + 略亮的色，让"标签"和"数字"分得开 */
-.chain-node-stat-value {
-  color: var(--kb-text-2);
+/* 数值用等宽 + 略亮色：位数变化不抖动，"标签"与"数字"分得开 */
+.chain-node-metric-value {
+  color: var(--kb-text-1);
   font-family: ui-monospace, 'JetBrains Mono', Consolas, monospace;
+  font-size: 11px;
+  font-weight: 600;
 }
 
-.chain-node-stat-label {
-  color: var(--kb-text-3);
+/* ④ 构成图：四条固定高度，等分占满 46px 区间 —— 条数恒定，高度不随数据变 */
+.chain-node-compose {
+  display: flex;
+  height: 46px;
+  flex: none;
+  flex-direction: column;
+  justify-content: space-evenly;
 }
 
-.chain-node-time {
-  margin-top: auto;
+.chain-node-bar {
+  display: flex;
+  flex: none;
+  gap: 6px;
+  align-items: center;
+}
+
+/* 条左侧的类型标签：定宽右对齐，"正文/表格/图片/页眉页脚"四行对齐成一列 */
+.chain-node-bar-label {
+  width: 44px;
+  flex: none;
+  overflow: hidden;
   color: var(--kb-text-3);
   font-size: 10px;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /*
- * 「触发下一环节」按钮：实心主色小按钮，而不是一行装饰性文字。
+ * 条位（轨道）：定高 + 浅色底，给出"满量程"参照，底色由全局 `.chain-graph` 规则给。
  *
- * <p>它是卡片上唯一的**动作**（其余都是信息），用整块主色；信息区一律是文字，
- * 两者不会混淆。
+ * <p>数据只由 `.chain-node-bar-fill` 表达：底色比它弱一档，占比小的行既能看出落在量程哪里，
+ * 又不会把轨道本身读成一条数据条。
  */
-.chain-node-more {
+.chain-node-bar-track {
   display: block;
-  width: 100%;
-  padding: 5px 0;
+  height: 4px;
+  min-width: 0;
+  flex: 1;
+  border-radius: 2px;
+}
+
+.chain-node-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+}
+
+/* 条右侧的数字：定宽右对齐，位数变化不推挤条长 */
+.chain-node-bar-value {
+  width: 36px;
+  flex: none;
+  color: var(--kb-text-3);
+  font-family: ui-monospace, 'JetBrains Mono', Consolas, monospace;
+  font-size: 10px;
+  text-align: right;
+}
+
+/*
+ * ⑤ 警告行：与构成图用一条淡分隔线隔开，成为独立一块。
+ *
+ * <p>**上下都要留白，且取值的依据是"视觉"距离**：
+ * <ul>
+ *   <li>`margin-top: 11px` —— 构成图最后一行的**条只有 4px 高、居中在 14px 行盒里**，
+ *       行盒看似到分隔线 8px，条到线其实只有 5px。补到 11px 后条到线约 8px；</li>
+ *   <li>`padding-top: 6px` —— `padding` 落在边框内侧，专门管"线到文字"的呼吸，
+ *       与 `margin`（管"线到构成图"）分工不同，两个都给才有上下留白。</li>
+ * </ul>
+ *
+ * <p>高度 42px = border 1 + padding 6 + 两行 27，另有 margin 11 在盒外；
+ * 两行封顶、超出省略，完整文案在 `title` 里。无告警时该行显示「无异常」，进行态与统计缺失时留空。
+ */
+.chain-node-summary {
+  display: flex;
+  box-sizing: border-box;
+  height: 42px;
+  flex: none;
+  gap: 3px;
+  overflow: hidden;
+  margin-top: 11px;
+  padding-top: 6px;
+  border-top: 1px solid var(--kb-line);
+  color: var(--kb-text-3);
+  font-size: 11px;
+  line-height: 13px;
+}
+
+/* 告警图标与文案同色（颜色由状态 tone 给出，见全局 chain-graph.css），不参与收缩 */
+.chain-node-warn {
+  flex: none;
+}
+
+/*
+ * 文案两行封顶：`-webkit-box` + `line-clamp` 双写，Chromium 走前者、新标准走后者。
+ *
+ * <p>**盒里只放纯文本**：再塞一个行内子项（如告警图标）会让 Chromium 不画省略号，
+ * 长文案被静默截断、看不出还有内容。
+ */
+.chain-node-summary-text {
+  display: -webkit-box;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+/*
+ * ⑥ 操作行：时间在左，两个按钮在右（上边框与内容分开）。
+ *
+ * <p>行高钉在 14px：容器默认行高比按钮还高，不钉就把整卡白顶高一段。
+ */
+.chain-node-foot {
+  display: flex;
+  flex: none;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: auto;
+  padding-top: 5px;
+  border-top: 1px solid var(--kb-line);
+  line-height: 14px;
+}
+
+/*
+ * 操作行时间：可收缩并可省略（`min-width: 0` + `flex: 0 1 auto`）。
+ *
+ * <p>显式声明收缩：行内是"时间 + 两个按钮"，右侧两个按钮 `flex: none` 固定占位，
+ * 宽度不够时只压缩时间文本 —— 默认的 `min-width: auto` 一旦被浏览器按最小内容尺寸处理，
+ * 被挤掉的就是按钮（卡片 `overflow: hidden` 会直接裁掉右边那个）。
+ */
+.chain-node-time {
+  overflow: hidden;
+  min-width: 0;
+  flex: 0 1 auto;
+  color: var(--kb-text-3);
+  font-family: ui-monospace, 'JetBrains Mono', Consolas, monospace;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chain-node-actions {
+  display: flex;
+  flex: none;
+  gap: 6px;
+}
+
+/* 详情：次要动作，描边小按钮（`white-space` 防窄处折行把操作行顶高） */
+.chain-node-detail {
+  padding: 3px 8px;
+  border: 1px solid var(--kb-line-2);
+  border-radius: 6px;
+  background: none;
+  color: var(--kb-text-2);
+
+  /* 显式写完整字体栈而不是 `font-family: inherit`：项目规范要求字体声明以通用族结尾 */
+  font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+  font-size: 10px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.chain-node-detail:disabled {
+  border-color: var(--kb-line);
+  color: var(--kb-text-4);
+  cursor: not-allowed;
+}
+
+/* 触发下一环节：卡片上唯一的动作，用整块主色（同样防折行） */
+.chain-node-more {
+  padding: 3px 9px;
   border: none;
   border-radius: 6px;
   background: var(--kb-primary);
   color: var(--kb-btn-text);
-
-  /* 显式写完整字体栈而不是 `font-family: inherit`：项目规范要求字体声明以通用族结尾 */
   font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
+  white-space: nowrap;
   cursor: pointer;
   transition:
     background 0.15s,
@@ -328,9 +681,17 @@ defineOptions({ name: 'ChainNode' });
   box-shadow: 0 0 12px rgb(52 211 153 / 45%);
 }
 
-/* 键盘可达：卡片本身不聚焦，按钮是唯一焦点目标 */
+/* 键盘可达：卡片本身不聚焦，按钮是焦点目标 */
 .chain-node-more:focus-visible {
   outline: 2px solid var(--kb-primary-2);
   outline-offset: 2px;
+}
+
+/* 不可用态：占位但不着色，行动点不落在无效操作上 */
+.chain-node-more:disabled {
+  background: var(--kb-surface);
+  color: var(--kb-text-4);
+  cursor: not-allowed;
+  box-shadow: none;
 }
 </style>

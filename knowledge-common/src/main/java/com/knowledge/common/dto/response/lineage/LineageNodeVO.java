@@ -51,6 +51,20 @@ public class LineageNodeVO {
     /** 统计摘要（展示用）：CHUNK=chunkCount；EMBED=recordCount/cachedCount；PREPROCESS=matched/changed（step_log 聚合）；PARSE/STRUCTURE 为空 */
     private Map<String, String> stats;
 
+    /**
+     * 解析环节运行统计（元素构成/问题单元/耗时）：仅 PARSE 且该次运行产出产物时非空。
+     *
+     * <p>页面按单元号表达问题页范围，故直接下发始末单元号而不是区间列表。
+     */
+    private LineageParseStatsVO parseStats;
+
+    /**
+     * 解析环节摘要行文案：成功=无异常、部分成功=问题单元数与范围、失败=失败原因。
+     *
+     * <p>非解析环节、解析进行中、以及**产物不可读导致统计缺失**时均为空 —— 统计没到手就不陈述结论。
+     */
+    private String parseSummary;
+
     /** 任务时间 */
     private LocalDateTime startedAt;
 

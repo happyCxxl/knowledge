@@ -51,23 +51,21 @@ import '@/styles/chain-graph.css';
  * 屏幕像素，必须除以 viewport 缩放才是图坐标。
  *
  * <ul>
- *   <li>{@code width: 168} 对应 ChainNode 的 `width`（content-box，屏显含内边距更宽）</li>
- *   <li>列距 40 → 相邻列间距 208，够放下卡片与连接桩</li>
- *   <li>{@code NODE_ROW_HEIGHT: 162} 对应节点的图坐标高度（min-height 150 + 上下内边距）</li>
+ *   <li>{@code width: 320} 对应 ChainNode 的 `width`</li>
+ *   <li>列距 36 → 相邻列间距 356，够放下卡片与连接桩</li>
+ *   <li>{@code NODE_ROW_HEIGHT: 228} = 卡片 214 + 上下留白 14，够放下连接桩与发光外圈</li>
  * </ul>
  *
- * <p>**卡片尺寸 168×150**：按"最长内容 + 余量"定 —— 须容下内容最多的环节子块
- * 与 `chunk-window-v1` 这类标签；改这两个常量时必须同步改 ChainNode.vue 的 CSS。
+ * <p>**卡片尺寸 320×214**：所有状态恒等 —— 改这两个常量时必须同步改 ChainNode.vue 的 CSS。
  */
-const NODE_WIDTH = 168;
-const COLUMN_GAP = 40;
+const NODE_WIDTH = 320;
+const COLUMN_GAP = 36;
 const ROW_GAP = 24;
 const FIRST_COLUMN_X = 20;
 const FIRST_ROW_Y = 20;
-/** 行距用的固定节点高度，与 ChainNode 的高度一致。
- *  用运行时内容估高的话，节点从「运行中」变成「成功」时长出统计行，
- *  同列后续节点会整体跳位。 */
-const NODE_ROW_HEIGHT = 162;
+/** 行距用的固定节点高度，与 ChainNode 的高度一致（214 + 14px 留白）。
+ *  卡片各状态尺寸恒定，同列后续节点不会因内容多少跳位。 */
+const NODE_ROW_HEIGHT = 228;
 /** 一个行槽的步长 */
 const SLOT = NODE_ROW_HEIGHT + ROW_GAP;
 
@@ -79,13 +77,6 @@ const props = defineProps<{
   positionStore: NodePositionStore;
   /** 命中知识库绑定策略的版本串集合（name-version） */
   boundVersions: Set<string>;
-  /**
-   * 当前选中路径末端**是否还能触发下一环节**（页面判定：有下一环节 + 有产物 ID）。
-   *
-   * <p>图不知道自己处在流水线第几环 —— 环节顺序是页面的知识（`PIPELINE_STAGES`），
-   * 「卡片上要不要画触发按钮」这个判断必须由页面给，图只负责画。
-   */
-  canTrigger: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -244,14 +235,6 @@ function findDeepestPath(): string[] {
 
 /** 选中路径上的任务 ID 集合 */
 const pathTaskIds = computed(() => new Set(tracePath(selectedTaskId.value)));
-
-/** 路径末端节点：从这里触发下游 */
-const pathEndNode = computed<LineageNode | null>(() => {
-  if (!selectedTaskId.value) {
-    return null;
-  }
-  return nodeById.value.get(selectedTaskId.value) ?? null;
-});
 
 /** 节点深度（列号）：按血缘取最长路径，保证子节点永远落在父节点右侧 */
 const columnOf = computed(() => {
@@ -480,22 +463,10 @@ const graphNodes = computed(() => {
     data: {
       node,
       onPath: pathTaskIds.value.has(node.taskId),
-      /*
-       * 卡片上是否画「触发下一环节」按钮。
-       *
-       * <p>**不能只看"是不是路径末端"**：向量化是链路最后一环时它同样是末端，
-       * 但已经没有下一环节可触发。
-       *
-       * <p>**也不能用"出度为 0"来判断**：出度为 0 正是"叶子"的定义，而叶子就是路径末端，
-       * 两者等价，这么改会让**所有**叶子的按钮都消失。
-       *
-       * <p>判据是**业务语义**（这个末端还有没有下一环节），由页面经 `canTrigger` 传进来：
-       * 环节顺序只有页面知道，图不猜。
-       */
-      pathEnd: pathEndNode.value?.taskId === node.taskId && props.canTrigger,
       hit: isHit(node),
       outCount: (childrenMap.value.get(node.taskId) ?? []).length,
-      // 卡片上「触发下一环节」的回调：由本组件注入并转成 trigger 事件上抛。
+      // 卡片上「触发下一环节」的回调：由本组件注入并转成 trigger 事件上抛，
+      // 并把**被点的那张卡的节点**一起交出去（下游按它的产物分叉）。
       // 这样自定义节点不必自己想办法 emit（Vue Flow 的节点是它内部渲染的）
       onTrigger: () => emit('trigger', node),
     },

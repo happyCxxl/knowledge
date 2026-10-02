@@ -12,19 +12,33 @@ import com.knowledge.common.domain.entity.KbFileResult;
 import com.knowledge.common.domain.entity.KbPipelineProduct;
 import com.knowledge.common.domain.entity.KbPipelineStepLog;
 import com.knowledge.common.domain.entity.KbPipelineTask;
+import com.knowledge.common.domain.input.FileReference;
+import com.knowledge.common.domain.parse.ParseElement;
+import com.knowledge.common.domain.parse.ParseResult;
+import com.knowledge.common.domain.parse.ParseSource;
+import com.knowledge.common.domain.parse.QualityInfo;
+import com.knowledge.common.dto.response.lineage.LineageNodeVO;
 import com.knowledge.common.dto.response.lineage.LineageVO;
+import com.knowledge.common.enums.parse.ElementType;
 import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.enums.task.PipelineTaskStatus;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
+import com.knowledge.common.utils.JsonUtil;
+import com.knowledge.filecenter.service.FileStorage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -32,7 +46,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.when;
 
 /**
- * 执行树聚合单测：多分支节点/血缘边/统计摘要/孤立节点/空文件/40432。
+ * 执行树聚合单测：多分支节点/血缘边/统计摘要/解析环节统计/产物不可读/未完成任务的节点可见性/孤立节点/空文件/40432。
  *
  * @author cxxl
  */
@@ -51,13 +65,16 @@ class LineageQueryServiceImplTest {
     private KbChunkSetDbService chunkSetDbService;
     @Mock
     private KbEmbeddingSetDbService embeddingSetDbService;
+    @Mock
+    private FileStorage fileStorage;
 
     private LineageQueryServiceImpl service;
 
     @BeforeEach
     void setUp() {
         service = new LineageQueryServiceImpl(fileResultDbService, pipelineTaskDbService,
-                pipelineProductDbService, stepLogDbService, chunkSetDbService, embeddingSetDbService);
+                pipelineProductDbService, stepLogDbService, chunkSetDbService, embeddingSetDbService,
+                fileStorage);
     }
 
     private KbPipelineTask task(Long id, String stage, Long upstreamProductId, Long productId, String snapshot) {
@@ -206,5 +223,145 @@ class LineageQueryServiceImplTest {
 
         KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.lineage(10L));
         assertEquals(ErrorCode.FILE_RESULT_NOT_FOUND, e.getErrorCode());
+    }
+
+    @Test
+    void parseNodeShouldCarryProductStats() {
+        KbPipelineTask parseTask = task(20L, PipelineStage.PARSE.name(), null, 10L, null);
+        parseTask.setStatus(PipelineTaskStatus.SUCCESS.name());
+        parseTask.setStartedAt(LocalDateTime.of(2024, 5, 1, 10, 0, 0));
+        parseTask.setFinishedAt(LocalDateTime.of(2024, 5, 1, 10, 0, 8));
+        when(fileResultDbService.getById(10L)).thenReturn(new KbFileResult());
+        when(pipelineTaskDbService.listByFileResultId(10L)).thenReturn(List.of(parseTask));
+        when(pipelineProductDbService.listByFileResultId(10L)).thenReturn(List.of(
+                product(10L, PipelineStage.PARSE.name(), "art-p",
+                        "{\"parserName\":\"pdfbox\",\"parserVersion\":\"3.0.4\"}")));
+        when(chunkSetDbService.listByFileResultId(10L)).thenReturn(List.of());
+        when(embeddingSetDbService.listByFileResultId(10L)).thenReturn(List.of());
+        // 产物本体：2 段落 + 1 表格 + 2 图片 + 1 页眉 + 1 页脚 = 7 个元素；第 2 页未解析出内容
+        ParseSource source = new ParseSource();
+        source.setUnitCount(5);
+        source.setElements(List.of(
+                element(ElementType.PARAGRAPH), element(ElementType.PARAGRAPH),
+                element(ElementType.TABLE), element(ElementType.IMAGE),
+                element(ElementType.IMAGE), element(ElementType.HEADER),
+                element(ElementType.FOOTER)));
+        QualityInfo quality = new QualityInfo();
+        quality.setFailedPages(List.of(2));
+        ParseResult parseResult = new ParseResult();
+        parseResult.setSources(List.of(source));
+        parseResult.setQuality(quality);
+        when(fileStorage.getObject("art-p"))
+                .thenReturn(JsonUtil.toJsonStr(parseResult).getBytes(StandardCharsets.UTF_8));
+
+        LineageVO vo = service.lineage(10L);
+
+        LineageNodeVO node = vo.getNodes().get(0);
+        assertEquals(5, node.getParseStats().getPageCount());
+        assertEquals(7, node.getParseStats().getElementCount());
+        assertEquals(2, node.getParseStats().getBodyCount());
+        assertEquals(1, node.getParseStats().getTableCount());
+        assertEquals(2, node.getParseStats().getImageCount());
+        assertEquals(2, node.getParseStats().getHeaderFooterCount());
+        assertEquals(1, node.getParseStats().getFailedUnitCount());
+        assertEquals(2, node.getParseStats().getFailedFrom());
+        assertEquals(2, node.getParseStats().getFailedTo());
+        assertEquals(8000L, node.getParseStats().getDurationMs());
+        assertEquals("1 单元未解析出内容（第 2–2）", node.getParseSummary());
+    }
+
+    @Test
+    void parseNodeWithoutArtifactShouldFallBackToPageCount() {
+        KbPipelineTask parseTask = task(20L, PipelineStage.PARSE.name(), null, 10L, null);
+        parseTask.setStatus(PipelineTaskStatus.SUCCESS.name());
+        parseTask.setStartedAt(LocalDateTime.of(2024, 5, 1, 10, 0, 0));
+        parseTask.setFinishedAt(LocalDateTime.of(2024, 5, 1, 10, 0, 8));
+        when(fileResultDbService.getById(10L)).thenReturn(new KbFileResult());
+        when(pipelineTaskDbService.listByFileResultId(10L)).thenReturn(List.of(parseTask));
+        when(pipelineProductDbService.listByFileResultId(10L)).thenReturn(List.of(
+                product(10L, PipelineStage.PARSE.name(), "art-p",
+                        "{\"parserName\":\"pdfbox\",\"parserVersion\":\"3.0.4\"}")));
+        when(chunkSetDbService.listByFileResultId(10L)).thenReturn(List.of());
+        when(embeddingSetDbService.listByFileResultId(10L)).thenReturn(List.of());
+        // 产物本体：无判定单元数，页数取文件引用；无问题单元 → 成功态摘要为"无异常"
+        ParseSource source = new ParseSource();
+        source.setElements(List.of(element(ElementType.PARAGRAPH)));
+        ParseResult parseResult = new ParseResult();
+        parseResult.setSources(List.of(source));
+        parseResult.setQuality(new QualityInfo());
+        parseResult.setFile(new FileReference("f-1", "a.pdf", "sha", "application/pdf", 128));
+        when(fileStorage.getObject("art-p"))
+                .thenReturn(JsonUtil.toJsonStr(parseResult).getBytes(StandardCharsets.UTF_8));
+
+        LineageVO vo = service.lineage(10L);
+
+        LineageNodeVO node = vo.getNodes().get(0);
+        assertEquals(128, node.getParseStats().getPageCount());
+        assertEquals(1, node.getParseStats().getElementCount());
+        assertNull(node.getParseStats().getFailedUnitCount());
+        assertNull(node.getParseStats().getFailedFrom());
+        assertNull(node.getParseStats().getFailedTo());
+        assertEquals("无异常", node.getParseSummary());
+    }
+
+    /**
+     * 产物不可读：统计与摘要都不下发 —— 统计没到手时不得断言"无异常"。
+     *
+     * <p>成功与部分成功两种终态都覆盖：两者的摘要判据同源（统计里的问题单元）。
+     */
+    @ParameterizedTest
+    @EnumSource(value = PipelineTaskStatus.class, names = { "SUCCESS", "PARTIAL_SUCCESS" })
+    void unreadableArtifactShouldLeaveParseStatsAndSummaryEmpty(PipelineTaskStatus status) {
+        KbPipelineTask parseTask = task(20L, PipelineStage.PARSE.name(), null, 10L, null);
+        parseTask.setStatus(status.name());
+        parseTask.setStartedAt(LocalDateTime.of(2024, 5, 1, 10, 0, 0));
+        parseTask.setFinishedAt(LocalDateTime.of(2024, 5, 1, 10, 0, 8));
+        when(fileResultDbService.getById(10L)).thenReturn(new KbFileResult());
+        when(pipelineTaskDbService.listByFileResultId(10L)).thenReturn(List.of(parseTask));
+        when(pipelineProductDbService.listByFileResultId(10L)).thenReturn(List.of(
+                product(10L, PipelineStage.PARSE.name(), "art-p",
+                        "{\"parserName\":\"pdfbox\",\"parserVersion\":\"3.0.4\"}")));
+        when(chunkSetDbService.listByFileResultId(10L)).thenReturn(List.of());
+        when(embeddingSetDbService.listByFileResultId(10L)).thenReturn(List.of());
+        when(fileStorage.getObject("art-p"))
+                .thenThrow(new KnowledgeException(ErrorCode.FILE_NOT_FOUND, "对象读取失败"));
+
+        LineageVO vo = service.lineage(10L);
+
+        LineageNodeVO node = vo.getNodes().get(0);
+        assertAll(
+                () -> assertNull(node.getParseStats(), status + ": 产物不可读时不下发统计"),
+                () -> assertNull(node.getParseSummary(), status + ": 产物不可读时不下发摘要"));
+    }
+
+    /**
+     * 未完成（QUEUED / RUNNING）且尚无产物的任务同样是可见节点：节点=一次运行，
+     * 卡片按状态显示"排队中/解析中"，统计与摘要留空。
+     */
+    @ParameterizedTest
+    @EnumSource(value = PipelineTaskStatus.class, names = { "QUEUED", "RUNNING" })
+    void pendingParseTaskWithoutProductShouldBeVisible(PipelineTaskStatus status) {
+        KbPipelineTask parseTask = task(20L, PipelineStage.PARSE.name(), null, null, null);
+        parseTask.setStatus(status.name());
+        when(fileResultDbService.getById(10L)).thenReturn(new KbFileResult());
+        when(pipelineTaskDbService.listByFileResultId(10L)).thenReturn(List.of(parseTask));
+        when(pipelineProductDbService.listByFileResultId(10L)).thenReturn(List.of());
+        when(chunkSetDbService.listByFileResultId(10L)).thenReturn(List.of());
+        when(embeddingSetDbService.listByFileResultId(10L)).thenReturn(List.of());
+
+        LineageVO vo = service.lineage(10L);
+
+        assertEquals(1, vo.getNodes().size(), status + ": 未完成任务必须在血缘里可见");
+        LineageNodeVO node = vo.getNodes().get(0);
+        assertEquals(status.name(), node.getStatus());
+        assertEquals(PipelineStage.PARSE.name(), node.getStage());
+        assertNull(node.getProductId());
+        assertNull(node.getParseStats());
+        assertNull(node.getParseSummary());
+    }
+
+    /** 产物里的一个元素（只有类型参与汇总） */
+    private ParseElement element(ElementType type) {
+        return ParseElement.of("e-" + type.name(), type);
     }
 }
