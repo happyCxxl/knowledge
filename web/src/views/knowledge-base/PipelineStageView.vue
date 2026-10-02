@@ -19,7 +19,6 @@
 
         <div class="stage-panel-head">
           <span class="stage-panel-title">文件</span>
-          <span class="stage-panel-count">{{ total }}</span>
         </div>
 
         <!--
@@ -62,7 +61,7 @@
         </div>
         <div v-else-if="filesLoading" class="stage-empty">加载中…</div>
         <div v-else class="stage-empty">该知识库还没有文件</div>
-        <div v-show="!filesCollapsed" class="stage-pager">
+        <div class="stage-pager">
           <el-pagination
             v-model:current-page="fileQuery.current"
             layout="prev, pager, next"
@@ -77,14 +76,25 @@
       <!-- 右：执行链（占满剩余宽度）。链图是一棵树：同一环节可以按不同策略反复分叉 -->
       <section class="stage-panel stage-chain-wrap">
         <div class="stage-canvas">
-          <!-- 加载态只在「还没有任何图」时占位。
-               已有图就保留它、就地替换数据，切文件时图不整个卸载重建 -->
-          <div v-if="lineageLoading && !hasNodes" class="stage-empty">加载中…</div>
+          <!--
+            右侧是**一条 v-if 链**：同一时刻只有一个分支在场。
+            分两条链写会让「加载中」与「触发解析」卡同时挂上去（切到没有运行的文件时，
+            lineage 还是上一个文件的，卡片的判据看着是成立的）。
+
+            分支口径：
+            ① 等待超过提示延迟、且手上既没有图也没有当前文件的内容 → 占位；
+            ② 没选文件 → 提示去左侧选；
+            ③ 有图 → 链图（切文件时保留旧图并降透明度，不卸载重建）；
+            ④ 当前文件确实没有运行 → 触发解析入口。
+          -->
+          <div v-if="showLoaderHint && !hasNodes && !lineageIsCurrent" class="stage-empty">
+            加载中…
+          </div>
           <div v-else-if="!selectedFileId" class="stage-empty">
             从左侧选择一个文件，查看它的处理链
           </div>
           <ChainGraph
-            v-if="hasNodes"
+            v-else-if="hasNodes"
             :lineage="lineage"
             :file-key="selectedFileId"
             :position-store="nodePositions"
@@ -97,7 +107,7 @@
 
           <!-- 还没有任何运行：解析是链路起点、无上游产物，不需要「先选节点」，
                这里直接给入口 -->
-          <div v-else-if="lineage && !lineageLoading" class="stage-start">
+          <div v-else-if="lineageIsCurrent" class="stage-start">
             <span class="stage-start-title">该文件还没有任何环节运行过</span>
             <span class="stage-start-hint">从解析开始——它不需要上游产物</span>
             <el-button
@@ -106,7 +116,7 @@
               :loading="triggering"
               @click="onTriggerParse"
             >
-              触发解析
+              解析
             </el-button>
           </div>
         </div>
@@ -176,6 +186,37 @@ const selectedFileId = ref<string>('');
 const lineage = ref<Lineage | null>(null);
 const lineageLoading = ref(false);
 
+/**
+ * 血缘请求序号：只接受最后一次请求的响应。
+ *
+ * <p>连点两个文件时，先发的响应可能后到；直接赋值会把上一个文件的血缘画在当前选中项下，
+ * 而坐标回填也是按当前选中项做的，两份数据都会错位。
+ */
+let lineageSeq = 0;
+
+/** 加载提示的延迟：接口在窗口内返回就不显示「加载中…」，避免占位文本一闪而过 */
+const LOADER_HINT_DELAY_MS = 150;
+const showLoaderHint = ref(false);
+let loaderHintTimer: number | null = null;
+
+/** 开始计时：到点仍未有结果才把提示亮出来 */
+function scheduleLoaderHint(): void {
+  cancelLoaderHint();
+  loaderHintTimer = window.setTimeout(() => {
+    loaderHintTimer = null;
+    showLoaderHint.value = true;
+  }, LOADER_HINT_DELAY_MS);
+}
+
+/** 取消计时并收起提示 */
+function cancelLoaderHint(): void {
+  if (loaderHintTimer !== null) {
+    window.clearTimeout(loaderHintTimer);
+    loaderHintTimer = null;
+  }
+  showLoaderHint.value = false;
+}
+
 /** 选中路径的末端节点：从这里触发下游，其 productId 即分叉点 */
 const pathEndNode = ref<LineageNode | null>(null);
 
@@ -188,6 +229,19 @@ const pathEndNode = ref<LineageNode | null>(null);
 const nodePositions: NodePositionStore = new Map();
 /** 执行树里是否已有运行节点：为空时要给「触发解析」入口 */
 const hasNodes = computed(() => (lineage.value?.nodes ?? []).length > 0);
+
+/**
+ * 手上的 `lineage` 属于哪个文件。
+ *
+ * <p>切文件时 `lineage` 不清空（用来保住旧图），所以它可能还是**上一个文件**的数据；
+ * 靠这个字段区分"当前文件的内容"与"上一个文件留下的画面"。
+ */
+const lineageFileId = ref('');
+
+/** 手上的血缘是否就是当前选中文件的：切文件窗口期里为 false */
+const lineageIsCurrent = computed(
+  () => lineage.value !== null && lineageFileId.value === selectedFileId.value,
+);
 
 const triggerVisible = ref(false);
 const triggering = ref(false);
@@ -276,19 +330,38 @@ async function selectFile(file: FileResult): Promise<void> {
 }
 
 async function loadLineage(): Promise<void> {
-  if (!selectedFileId.value) {
+  const fileId = selectedFileId.value;
+  if (!fileId) {
+    // 选中项被清空：作废在途请求，避免它们回来又写进 lineage
+    lineageSeq += 1;
     lineage.value = null;
+    lineageFileId.value = '';
+    lineageLoading.value = false;
+    cancelLoaderHint();
     return;
   }
+  const seq = (lineageSeq += 1);
   lineageLoading.value = true;
+  scheduleLoaderHint();
   try {
-    lineage.value = await getLineage(selectedFileId.value);
-    syncPositionsWithLineage(selectedFileId.value, lineage.value);
+    const data = await getLineage(fileId);
+    if (seq !== lineageSeq) {
+      return;
+    }
+    lineage.value = data;
+    lineageFileId.value = fileId;
+    syncPositionsWithLineage(fileId, data);
   } catch {
-    lineage.value = null;
-    // 失败提示已由接口层统一拦截处理
+    if (seq === lineageSeq) {
+      lineage.value = null;
+      lineageFileId.value = '';
+      // 失败提示已由接口层统一拦截处理
+    }
   } finally {
-    lineageLoading.value = false;
+    if (seq === lineageSeq) {
+      lineageLoading.value = false;
+      cancelLoaderHint();
+    }
   }
 }
 
@@ -488,6 +561,7 @@ onMounted(() => {
 // 离开页面必须停掉轮询：定时器不得继续打接口
 onUnmounted(() => {
   stopPolling();
+  cancelLoaderHint();
 });
 </script>
 
@@ -539,14 +613,6 @@ onUnmounted(() => {
   flex: none;
   font-size: 13px;
   font-weight: 600;
-}
-
-.stage-panel-count {
-  /* 不参与收缩：不然窄栏下计数会被压扁 */
-  flex: none;
-  margin-left: auto;
-  color: var(--kb-text-3);
-  font-size: 12px;
 }
 
 /* 左：文件列表 */
@@ -658,6 +724,7 @@ onUnmounted(() => {
 }
 
 .stage-file {
+  position: relative;
   display: flex;
   gap: 9px;
   align-items: center;
@@ -685,7 +752,7 @@ onUnmounted(() => {
  * 鼠标停在整行任意处都有反馈，不必精确停在 40px 的徽标上。
  */
 .stage-file:hover .stage-file-badge {
-  --ext-lift: 1;
+  --ext-hover: 1;
 }
 
 /* 主内容两行：文件名在上、大小与时间在下 */
@@ -756,8 +823,8 @@ onUnmounted(() => {
 
 /* 刷新中：轻微降透明度而不是卸载重建，切文件时不会"闪一下" */
 .stage-canvas > .is-refreshing {
-  opacity: 0.55;
-  transition: opacity 0.15s;
+  opacity: 0.85;
+  transition: opacity 0.12s;
 }
 
 /* 状态色点：图例仍在使用（节点的状态色在 ChainNode 组件内） */
@@ -839,6 +906,21 @@ onUnmounted(() => {
   text-align: center;
 }
 
+/* 右栏画布内的空态居中；.stage-canvas 是右栏独有祖先，左栏文件区那两处不受影响 */
+.stage-canvas > .stage-empty {
+  display: flex;
+  align-items: center; /* 垂直居中 */
+  justify-content: center; /* 水平居中 */
+  padding: 0; /* 顶掉 .stage-empty 的 60px 上留白，否则会被顶偏 */
+}
+
+.stage-panel > .stage-empty {
+  display: flex;
+  align-items: center; /* 垂直居中 */
+  justify-content: center; /* 水平居中 */
+  padding: 0 0 78px; /* 顶掉 .stage-empty 的 60px 上留白，否则会被顶偏 */
+}
+
 /* ==================== 收起态（放最后：特异性高于上面的基础样式）==================== */
 
 /* ==================== 收起态：同一套 DOM，只把文字收掉 ==================== */
@@ -862,11 +944,19 @@ onUnmounted(() => {
   border-color: transparent;
 }
 
-/* 选中态用徽标自身的外圈描边表达 */
-.stage-file-list-icons .stage-file-on .stage-file-badge {
-  box-shadow:
-    0 0 0 2px rgb(52 211 153 / 55%),
-    0 3px 12px rgb(0 0 0 / 32%);
+/* 选中态：徽标周围一层淡青绿底，比徽标大一圈（不铺满整行） */
+.stage-file-list-icons .stage-file-on::before {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 60px;
+  height: 60px;
+  border-radius: 16px;
+  background: var(--kb-tint);
+
+  /* 双向回退半个尺寸：框与行同中心，徽标（行的内容盒正好 40px 宽）落在框正中 */
+  transform: translate(-50%, -50%);
+  content: '';
 }
 
 /*
@@ -878,4 +968,17 @@ onUnmounted(() => {
 .stage-file-list-icons .stage-file-main {
   opacity: 0;
 }
+
+/*
+ * 收起态的空态文字：与文件行同一套处理（淡出而不是收窄），
+ * 78px 宽放不下「该知识库还没有文件」，折行后会压到右边界外。
+ */
+.stage-files-collapsed > .stage-empty {
+  opacity: 0;
+}
+
+/*
+ * 收起态的分页只留两枚箭头：当前页那格占 24px + 左右各 4px 外边距 = 32px，
+ * 与两枚箭头合计 80px，超过栏内容宽（78px − 2px 边框 = 76px），会溢出到面板外。
+ */
 </style>

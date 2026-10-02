@@ -88,13 +88,14 @@ const tone = computed(() => EXT_TONES[props.ext.toUpperCase()] ?? 'generic');
   letter-spacing: -0.03em;
 
   /*
-   * 悬停：轻微放大 + 上浮，弹性缓动做出"q 弹"手感。
+   * 悬停：轻微放大，弹性缓动做出"q 弹"手感。**只缩放、不位移** ——
+   * 缩放围绕自身中心，徽标在选中底（父级行上那层淡青绿底）里始终居中。
    *
-   * <p>`--ext-lift` 由**父级行**在 hover 时置 1（父组件的 scoped 样式能选中徽标自身，
+   * <p>`--ext-hover` 由**父级行**在 hover 时置 1（父组件的 scoped 样式能选中徽标自身，
    * 自定义属性沿继承传下来）。这样鼠标停在整行任意处徽标都会弹，不必精确停在徽标上；
    * 也不必用 `:deep()`（项目全局禁用）。
    */
-  transform: translateY(calc(var(--ext-lift, 0) * -2px)) scale(calc(1 + var(--ext-lift, 0) * 0.06));
+  transform: scale(calc(1 + var(--ext-hover, 0) * 0.06));
   transition:
     transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1),
     box-shadow 0.18s ease;

@@ -453,15 +453,18 @@ function dropStalePositions(allNodes: LineageNode[]): void {
   }
 }
 
-/** 切文件：没摆过布局的文件才自动适配视口，摆过的不动用户视角 */
+/**
+ * 待适配视口的文件：切过去的那一刻手上还是上一个文件的节点，
+ * 这时算出来的缩放/平移对应的是旧图；记下文件 ID，等这个文件的血缘到手再适配。
+ */
+let pendingFitKey = '';
+
+/** 切文件：登记待适配的文件，并先按住适配（窗口期里别拿旧图算视口） */
 watch(
   () => props.fileKey,
   (key) => {
-    didFitView.value = fittedFiles.has(key) || settledPositions.value.size > 0;
-    fittedFiles.add(key);
-    if (!didFitView.value) {
-      requestFitView();
-    }
+    pendingFitKey = key;
+    didFitView.value = true;
   },
 );
 
@@ -639,6 +642,28 @@ watch(hasNodes, (has) => {
     void Promise.resolve().then(() => fitViewOnce());
   }
 });
+
+/**
+ * 新血缘到手：登记过待适配的文件到这一刻才适配，用的是**新图的节点**。
+ *
+ * <p>判据沿用"摆过布局的不动用户视角"：该文件坐标表非空（页面在数据到手时刚填好），
+ * 或本次会话已为它适配过，就保持当前视口。
+ */
+watch(
+  () => props.lineage,
+  () => {
+    const key = pendingFitKey;
+    if (key === '' || key !== props.fileKey || !hasNodes.value) {
+      return;
+    }
+    pendingFitKey = '';
+    if (fittedFiles.has(key) || (props.positionStore.get(key)?.size ?? 0) > 0) {
+      return;
+    }
+    fittedFiles.add(key);
+    requestFitView();
+  },
+);
 
 /**
  * 拖动结束：把**实际坐标**回写到落位表。

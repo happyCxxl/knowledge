@@ -13,8 +13,19 @@
   background: transparent;
 }
 
+/*
+ * 节点首帧就可见。
+ *
+ * <p>Vue Flow 量到节点尺寸前会给它打一行内联 `visibility: hidden`
+ * （内部判据 `!!dimensions.width && !!dimensions.height`，尺寸由 ResizeObserver 在下一帧给出），
+ * 切文件时节点 ID 全变、新节点先隐藏一帧，观感就是"闪一下空白"。
+ *
+ * <p>本项目的节点位置来自页面算好的绝对坐标，不依赖量出来的尺寸；连接桩与边在量到尺寸后
+ * 照常重算。内联样式只能用 `!important` 覆盖。
+ */
 .chain-graph .vue-flow__node {
   font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+  visibility: visible !important;
 }
 
 /* 选中态由节点组件自己表达，去掉 Vue Flow 默认的描边方框；
