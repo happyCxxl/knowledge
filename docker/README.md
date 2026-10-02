@@ -14,8 +14,8 @@ cd E:\workbuddy\knowledge\docker
 docker compose up -d
 ```
 
-首次启动会自动拉取镜像并按文件名序执行 `knowledge-biz/src/main/resources/sql/` 目录下的全部迁移脚本
-（`stage-00-建库.sql` ~ `stage-20-切片溯源去冗余.sql`，共 14 个，每个脚本对应一个实施环节，各自自包含 `USE knowledge`），
+首次启动会自动拉取镜像，并执行 `knowledge-biz/src/main/resources/sql/init.sql`（单文件初始化脚本：建库 +
+19 张表 + 必需初始数据，脚本自带 `DROP DATABASE` / `CREATE DATABASE` / `USE knowledge`），
 只会在**数据卷为空**时执行一次；改了脚本想重来需 `docker compose down -v` 后再 `up -d`。
 
 ## 组件与端口
