@@ -102,6 +102,7 @@
             :class="{ 'is-refreshing': lineageLoading }"
             @select="onPathSelect"
             @trigger="openTrigger"
+            @detail="openDetail"
           />
 
           <!-- 还没有任何运行：解析是链路起点、无上游产物，不需要「先选节点」，
@@ -139,6 +140,18 @@
       :submitting="triggering"
       @confirm="onTriggerConfirm"
     />
+
+    <!-- 解析详情抽屉：只看不改，打开与关闭都不影响链图的选中与轮询 -->
+    <ParseDetailDrawer
+      v-if="detailNode"
+      :visible="detailVisible"
+      :file-result-id="selectedFileId"
+      :task-id="detailNode.taskId"
+      :file-name="selectedFileName"
+      :source-file-id="selectedFileObjectId"
+      :run-ordinal="detailRunOrdinal"
+      @close="detailVisible = false"
+    />
   </div>
 </template>
 
@@ -149,6 +162,7 @@ import { useRoute } from 'vue-router';
 import { getKnowledgeBaseDetail } from '@/api/knowledge-base';
 import { getFileResults, getLineage, getStrategyBinding, addStageTrigger } from '@/api/pipeline';
 import ChainGraph from '@/components/pipeline/ChainGraph.vue';
+import ParseDetailDrawer from '@/components/pipeline/ParseDetailDrawer.vue';
 import TriggerStageDialog from '@/components/pipeline/TriggerStageDialog.vue';
 import FileExtBadge from '@/components/knowledge-base/FileExtBadge.vue';
 import { prunePositions, readPositions } from '@/utils/chain-layout-storage';
@@ -410,6 +424,37 @@ function syncPositionsWithLineage(fileKey: string, data: Lineage | null): void {
 /** 链图选中路径变化：末端节点决定「下一个可触发的环节」 */
 function onPathSelect(node: LineageNode | null): void {
   pathEndNode.value = node;
+}
+
+/** 详情抽屉：被查看的那次运行（null = 关闭） */
+const detailNode = ref<LineageNode | null>(null);
+const detailVisible = ref(false);
+
+/** 当前选中文件的名字（抽屉头部展示；找不到时回落 `—`） */
+const selectedFileName = computed(
+  () => files.value.find((file) => file.id === selectedFileId.value)?.fileName ?? '—',
+);
+
+/** 当前选中文件的**文件对象 ID**（原文件下载地址 `GET /files/{fileId}` 用；取不到时为空串） */
+const selectedFileObjectId = computed(
+  () => files.value.find((file) => file.id === selectedFileId.value)?.fileId ?? '',
+);
+
+/**
+ * 本次运行是同一文件的第几次解析：按血缘里 PARSE 节点的先后顺序数出来。
+ *
+ * <p>任务 ID 是一次性的，历史运行只能靠顺序表达"第几次"，页面另加计数会与血缘不一致。
+ */
+const detailRunOrdinal = computed(() => {
+  const parseNodes = (lineage.value?.nodes ?? []).filter((node) => node.stage === 'PARSE');
+  const index = parseNodes.findIndex((node) => node.taskId === detailNode.value?.taskId);
+  return index < 0 ? parseNodes.length : index + 1;
+});
+
+/** 打开详情抽屉：只记下被点的节点，不动选中路径、也不触发轮询 */
+function openDetail(node: LineageNode): void {
+  detailNode.value = node;
+  detailVisible.value = true;
 }
 
 /**

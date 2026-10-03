@@ -75,7 +75,14 @@
     <span class="chain-node-foot">
       <span class="chain-node-time" :title="timeTitle">{{ timeText }}</span>
       <span class="chain-node-actions">
-        <button class="chain-node-detail" type="button" disabled @pointerdown.stop>详情</button>
+        <button
+          class="chain-node-detail"
+          type="button"
+          @pointerdown.stop
+          @click.stop="data.onDetail?.()"
+        >
+          详情
+        </button>
         <button
           v-if="nextStage !== null"
           class="chain-node-more"
@@ -658,6 +665,17 @@ defineOptions({ name: 'ChainNode' });
   border-color: var(--kb-line);
   color: var(--kb-text-4);
   cursor: not-allowed;
+}
+
+.chain-node-detail:hover {
+  border-color: var(--kb-primary);
+  color: var(--kb-primary);
+}
+
+/* 键盘可达：卡片本身不聚焦，操作行两个按钮都是焦点目标 */
+.chain-node-detail:focus-visible {
+  outline: 2px solid var(--kb-primary-2);
+  outline-offset: 2px;
 }
 
 /* 触发下一环节：卡片上唯一的动作，用整块主色（同样防折行） */

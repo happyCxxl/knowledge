@@ -221,3 +221,67 @@
 .chain-graph .chain-node-bar-head {
   background: rgb(255 255 255 / 28%);
 }
+
+/*
+ * 解析详情抽屉的状态配色：徽标底色与结论文案文字色。
+ *
+ * <p>放全局而不是组件 scoped 里：`.is-*` 由计算属性动态给出，静态检查看不到
+ * scoped 中的声明，会判成"样式类在模板中未使用"。
+ *
+ * <p>选择器不叠 `.chain-graph`：抽屉由 Teleport 挂到 body，不在链图容器内。
+ */
+.parse-drawer-badge.is-ok {
+  background: rgb(163 230 53 / 16%);
+  color: var(--kb-ok);
+}
+
+.parse-drawer-badge.is-partial,
+.parse-drawer-badge.is-wait {
+  background: rgb(251 191 36 / 16%);
+  color: var(--kb-warn);
+}
+
+.parse-drawer-badge.is-run {
+  background: var(--kb-tint);
+  color: var(--kb-primary);
+}
+
+.parse-drawer-badge.is-fail {
+  background: rgb(248 113 113 / 16%);
+  color: var(--kb-danger);
+}
+
+.parse-drawer-conclusion.is-ok {
+  color: var(--kb-ok);
+}
+
+.parse-drawer-conclusion.is-partial,
+.parse-drawer-conclusion.is-wait {
+  color: var(--kb-warn);
+}
+
+.parse-drawer-conclusion.is-run {
+  color: var(--kb-primary);
+}
+
+.parse-drawer-conclusion.is-fail {
+  color: var(--kb-danger);
+}
+
+/*
+ * 原文预览的元素高亮：Word 段落/表格与 Excel 单元格。
+ *
+ * <p>放全局而不是组件 scoped 里：这些类名是脚本在渲染结果上**运行时加/删**的，
+ * 不在模板里出现，静态检查看不到 scoped 中的声明。
+ *
+ * <p>用 `!important` 是为了压过渲染器自带的元素底色（docx-preview 会给段落上白底）。
+ */
+.docx-preview-hit {
+  background: rgb(251 191 36 / 35%) !important;
+  outline: 1px solid var(--kb-warn);
+}
+
+.xlsx-preview-cell.is-hit {
+  background: rgb(251 191 36 / 45%);
+  outline: 1px solid var(--kb-warn);
+}

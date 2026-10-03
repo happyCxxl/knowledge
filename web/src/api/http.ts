@@ -12,6 +12,18 @@ const CODE_SYSTEM_ERROR = 40500;
 const HTTP_UNAUTHORIZED = 401;
 const HTTP_FORBIDDEN = 403;
 
+declare module 'axios' {
+  export interface AxiosRequestConfig {
+    /**
+     * 置 true 表示响应是原始数据（文件流等），不走统一响应体解包，也不弹统一错误提示。
+     *
+     * <p>文件流这类接口**直出字节**，没有 `R` 信封（`code`/`msg`/`data`）；
+     * 照常解包会把 Blob 上的 `code` 读成 `undefined`，于是每次下载都被判成失败。
+     */
+    rawResponse?: boolean;
+  }
+}
+
 // 统一请求实例：注入令牌；响应统一解包（非 0 码提示并拒绝，页面只处理成功分支）
 export const http = axios.create({
   baseURL: '',
@@ -40,6 +52,9 @@ function redirectToLogin(): void {
 
 http.interceptors.response.use(
   (response) => {
+    if (response.config.rawResponse === true) {
+      return response;
+    }
     const body = response.data as R<unknown>;
     if (body.code !== 0) {
       if (body.code === CODE_UNAUTHORIZED) {
@@ -61,7 +76,10 @@ http.interceptors.response.use(
       redirectToLogin();
       return Promise.reject(error);
     }
-    ElMessage.error('网络异常，请检查服务是否可用');
+    // 原样响应的接口自己给失败提示（例如"取文件失败（HTTP 404）"），这里不插话
+    if (error?.config?.rawResponse !== true) {
+      ElMessage.error('网络异常，请检查服务是否可用');
+    }
     return Promise.reject(error);
   },
 );

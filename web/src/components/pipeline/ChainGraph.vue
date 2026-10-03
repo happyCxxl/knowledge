@@ -84,6 +84,8 @@ const emit = defineEmits<{
   select: [node: LineageNode | null];
   /** 用户点了卡片上的「触发下一环节」：页面据此打开触发确认弹窗 */
   trigger: [node: LineageNode];
+  /** 用户点了卡片上的「详情」：页面据此打开解析详情抽屉 */
+  detail: [node: LineageNode];
 }>();
 
 /** 节点类型注册表：普通常量，不要用 reactive（Vue Flow 会警告并反复重建） */
@@ -469,6 +471,8 @@ const graphNodes = computed(() => {
       // 并把**被点的那张卡的节点**一起交出去（下游按它的产物分叉）。
       // 这样自定义节点不必自己想办法 emit（Vue Flow 的节点是它内部渲染的）
       onTrigger: () => emit('trigger', node),
+      // 卡片上「详情」的回调：同样把被点的节点交出去，页面按它的 taskId 取详情
+      onDetail: () => emit('detail', node),
     },
   }));
 });

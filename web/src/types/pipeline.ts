@@ -22,6 +22,31 @@ export function stageLabel(stage: string): string {
   return STAGE_LABELS[stage] ?? stage;
 }
 
+/**
+ * 解析元素类型 → 展示名（解析详情抽屉的元素列表用）。
+ *
+ * <p>同样用索引签名：产物可能含本端未枚举的类型，未知类型回落原值。
+ */
+export const ELEMENT_TYPE_LABELS: Record<string, string> = {
+  PARAGRAPH: '段落',
+  TABLE: '表格',
+  TABLE_CELL: '单元格',
+  IMAGE: '图片',
+  FIGURE_CAPTION: '图注',
+  HEADER: '页眉',
+  FOOTER: '页脚',
+  TITLE: '标题',
+  LIST: '列表',
+};
+
+/** 取元素类型展示名；未知类型回落原值 */
+export function elementTypeLabel(type: string | null | undefined): string {
+  if (!type) {
+    return '—';
+  }
+  return ELEMENT_TYPE_LABELS[type] ?? type;
+}
+
 /** 任务状态（与后端 PipelineTaskStatus 枚举对齐） */
 export type PipelineTaskStatus =
   'QUEUED' | 'RUNNING' | 'SUCCESS' | 'PARTIAL_SUCCESS' | 'FAILED' | 'CANCELLED';
@@ -275,6 +300,113 @@ export interface Lineage {
   edges: LineageEdge[];
 }
 
+/** 环节子步骤（后端 StepLogVO）：详情抽屉里用于定位"卡在哪一步" */
+export interface StageStep {
+  stepName: string;
+  /** SUCCESS / FAILED */
+  status: string | null;
+  capabilityVersion: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  /** 耗时（毫秒） */
+  duration: number | null;
+  warningCount: number | null;
+  error: string | null;
+}
+
+/** 解析详情（后端 ParseDetailVO）：抽屉头部、结论、告警与子步骤的数据源 */
+export interface ParseDetail {
+  fileResultId: string;
+  taskId: string | null;
+  stage: string;
+  status: string | null;
+  errorCode: string | null;
+  errorMsg: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  artifactId: string | null;
+  contentHash: string | null;
+  /** 能力快照（JSON 文本；后端未解析，页面不消费） */
+  capabilitySnapshot: string | null;
+  /** 质量告警文案（无产物时为空列表） */
+  warnings: string[] | null;
+  /** 解析统计（产物不可读或尚无产物时为 null） */
+  parseStats: LineageParseStats | null;
+  /** 解析结论文案（统计缺失时为 null） */
+  parseSummary: string | null;
+  /** 子步骤列表 */
+  steps: StageStep[] | null;
+}
+
+/**
+ * 元素边界框（后端 extra.bbox）：单位点（pt）、左上角原点。
+ *
+ * <p>原文预览按它在页面上画高亮框；Office 元素可空。
+ */
+export interface ElementBBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** 产物内容项（后端 StageContentItemVO） */
+export interface StageContentItem {
+  /** 对齐键（解析环节 = 元素 ID） */
+  alignKey: string | null;
+  /** 集合内顺序（渲染行序） */
+  seq: number | null;
+  type: string | null;
+  status: string | null;
+  /** 展示文本（可能大段，页面折叠） */
+  display: string | null;
+  normalized: string | null;
+  /** 环节专属字段：解析=source/page/rows/cols/bbox */
+  extra: Record<string, unknown> | null;
+}
+
+/** 从 extra 里取边界框：字段缺失或数值非法时返回 null（不画高亮） */
+export function bboxOf(extra: Record<string, unknown> | null): ElementBBox | null {
+  const raw = extra?.bbox;
+  if (typeof raw !== 'object' || raw === null) {
+    return null;
+  }
+  const box = raw as Record<string, unknown>;
+  const x = statNumber(box.x as number);
+  const y = statNumber(box.y as number);
+  const width = statNumber(box.width as number);
+  const height = statNumber(box.height as number);
+  if (x === null || y === null || width === null || height === null || width <= 0 || height <= 0) {
+    return null;
+  }
+  return { x, y, width, height };
+}
+
+/** 从 extra 里取文档页码：缺失或非正数返回 null */
+export function pageOf(extra: Record<string, unknown> | null): number | null {
+  const page = statNumber(extra?.page as number);
+  return page === null || page < 1 ? null : Math.trunc(page);
+}
+
+/** 产物内容分页响应（后端 StageContentVO） */
+export interface StageContentPage {
+  fileResultId: string;
+  stage: string;
+  taskId: string | null;
+  /** 该次运行产物是否可用（false = 无任务/无产物，items 为空） */
+  latest: boolean | null;
+  /** 本次生效的文档页过滤（未过滤时为空） */
+  docPage: number | null;
+  /** 当前页内容项 */
+  items: StageContentItem[] | null;
+  /** 该次运行产物内容总条数（不受分页影响；按 docPage 过滤后为该页条数） */
+  total: number | null;
+  page: number | null;
+  limit: number | null;
+  /** 是否还有内容未返回 */
+  truncated: boolean | null;
+}
+
 /**
  * 触发环节执行的返回（后端 StageTriggerVO / PreprocessTriggerVO 等）。
  *
@@ -311,6 +443,8 @@ export interface ChainNodeData {
    * 在组装 `data` 时注入，是它自己的方法（不需要 `getCurrentInstance`）。
    */
   onTrigger?: () => void;
+  /** 点击卡片上「详情」时的回调（同上，由 `ChainGraph` 注入） */
+  onDetail?: () => void;
 }
 
 /** 节点在图上的坐标 */

@@ -51,9 +51,12 @@
     "@vue-flow/core": "1.48.2",
     "@vue-flow/minimap": "1.5.4",
     "axios": "^1.20.0",
+    "docx-preview": "^0.4.1",
     "element-plus": "^2.14.6",
+    "pdfjs-dist": "^6.3.289",
     "pinia": "^4.0.3",
     "vue": "^3.5.43",
-    "vue-router": "^5.3.1"
+    "vue-router": "^5.3.1",
+    "xlsx": "^0.18.5"
   }
 }
