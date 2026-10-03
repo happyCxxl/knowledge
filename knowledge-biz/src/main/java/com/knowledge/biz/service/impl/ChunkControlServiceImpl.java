@@ -1,14 +1,20 @@
 package com.knowledge.biz.service.impl;
 
 import cn.hutool.core.util.ObjectUtil;
+import cn.hutool.core.util.StrUtil;
 import com.knowledge.biz.service.ChunkControlService;
 import com.knowledge.biz.service.db.*;
+import com.knowledge.biz.service.support.ChunkStatsSupport;
 import com.knowledge.biz.service.support.ChunkVoAssembler;
+import com.knowledge.biz.service.support.PreprocessStatsSupport;
 import com.knowledge.biz.service.support.StageStrategySupport;
 import com.knowledge.biz.service.support.FileResultAccessGuard;
 import com.knowledge.biz.service.support.TaskDetailSupport;
 import com.knowledge.biz.task.TaskTriggerSupport;
+import com.knowledge.common.domain.chunk.Chunk;
+import com.knowledge.common.domain.chunk.ChunkSet;
 import com.knowledge.common.domain.entity.*;
+import com.knowledge.common.domain.preprocess.PreprocessView;
 import com.knowledge.common.domain.rules.ChunkRules;
 import com.knowledge.common.dto.response.chunk.ChunkDetailVO;
 import com.knowledge.common.dto.response.chunk.ChunkTriggerVO;
@@ -17,6 +23,7 @@ import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.ThrowUtil;
 import com.knowledge.common.utils.JsonUtil;
+import com.knowledge.filecenter.service.FileStorage;
 import com.knowledge.worker.chunking.strategy.ChunkStrategy;
 import com.knowledge.worker.chunking.strategy.ChunkStrategyParser;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +32,8 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 切片控制面服务实现（手动逐环节）：
@@ -46,6 +55,7 @@ public class ChunkControlServiceImpl implements ChunkControlService {
     private final KbChunkDbService chunkDbService;
     private final ChunkStrategyParser strategyParser;
     private final ChunkVoAssembler voAssembler;
+    private final FileStorage fileStorage;
     private final FileResultAccessGuard accessGuard;
 
     /**
@@ -81,17 +91,50 @@ public class ChunkControlServiceImpl implements ChunkControlService {
 
         // 切片集合/切片列表：按 task.productId → 产物 → artifactId 精确取该次运行的集合（历史任务同样可展示自己的集合；无任务/无产物留空）
         vo.setChunks(new ArrayList<>());
+        ChunkSet chunkSet = null;
         KbPipelineProduct product = detailSupport.productOfTask(task);
         if (ObjectUtil.isNotNull(product)) {
-            KbChunkSet chunkSet = chunkSetDbService.getByArtifactId(product.getArtifactId());
-            if (ObjectUtil.isNotNull(chunkSet)) {
-                List<KbChunk> chunks = chunkDbService.listByChunkSetId(chunkSet.getId());
-                vo.setSummary(voAssembler.toSummary(chunkSet, chunks));
-                vo.setChunks(voAssembler.toChunkItemVOs(chunks));
+            // 产物侧现读一次：统计与来源元素个数 / 兜底原因都只在这份产物里（kb_chunk 无对应列）
+            chunkSet = ChunkStatsSupport.readChunkSet(fileStorage, product.getArtifactId());
+            KbChunkSet chunkSetRow = chunkSetDbService.getByArtifactId(product.getArtifactId());
+            if (ObjectUtil.isNotNull(chunkSetRow)) {
+                List<KbChunk> chunks = chunkDbService.listByChunkSetId(chunkSetRow.getId());
+                vo.setSummary(voAssembler.toSummary(chunkSetRow, chunks));
+                vo.setChunks(voAssembler.toChunkItemVOs(chunks, productChunks(chunkSet)));
             }
             detailSupport.withProductRef(vo, product);
         }
+        // 统计与摘要读产物现算：与执行树切片节点同一份口径，不落产物；产物读不到时不陈述结论
+        Map<String, Object> stageStats = ChunkStatsSupport.stats(vo.getStartedAt(), vo.getFinishedAt(), chunkSet,
+                strategyOf(task), readUpstreamView(task));
+        vo.setStageStats(stageStats);
+        vo.setStageSummary(ChunkStatsSupport.summary(vo.getErrorMsg(), stageStats, vo.getStatus()));
         return vo;
+    }
+
+    /** 任务快照 → 切片策略（片长上限与兜底参数从它取；无任务 / 快照缺失回退内置默认） */
+    private ChunkStrategy strategyOf(KbPipelineTask task) {
+        return strategyParser.parse(ObjectUtil.isNull(task) ? null : task.getStrategySnapshot());
+    }
+
+    /** 产物里的片按 chunkId 建索引（产物读不到时为空表） */
+    private Map<String, Chunk> productChunks(ChunkSet chunkSet) {
+        if (ObjectUtil.isNull(chunkSet) || ObjectUtil.isNull(chunkSet.getChunks())) {
+            return Map.of();
+        }
+        return chunkSet.getChunks().stream()
+                .filter(chunk -> StrUtil.isNotBlank(chunk.getChunkId()))
+                .collect(Collectors.toMap(Chunk::getChunkId, chunk -> chunk, (first, second) -> first));
+    }
+
+    /** 读上游预处理视图（"进入切片 / 跳过"元素数的口径来源；取不到返回 null） */
+    private PreprocessView readUpstreamView(KbPipelineTask task) {
+        if (ObjectUtil.isNull(task) || ObjectUtil.isNull(task.getUpstreamProductId())) {
+            return null;
+        }
+        KbPipelineProduct upstream = pipelineProductDbService.getById(task.getUpstreamProductId());
+        return ObjectUtil.isNull(upstream)
+                ? null : PreprocessStatsSupport.readView(fileStorage, upstream.getArtifactId());
     }
 
     /** 策略解析四档：显式指定（40433 校验存在/类型/启用）→ KB 绑定（开关开启时，失效回退告警）→ 启用中最新 → 内置默认。 */

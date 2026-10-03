@@ -1,11 +1,13 @@
 package com.knowledge.biz.service.support;
 
+import com.knowledge.common.domain.chunk.Chunk;
 import com.knowledge.common.domain.entity.KbChunk;
 import com.knowledge.common.domain.entity.KbChunkSet;
 import com.knowledge.common.enums.chunk.ChunkContentType;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -57,8 +59,12 @@ class ChunkVoAssemblerTest {
         chunk.setPageRange("1-2");
         chunk.setOrderNo(1);
         chunk.setTokenCount(28);
+        Chunk productChunk = new Chunk();
+        productChunk.setChunkId("chunk-0001");
+        productChunk.setSourceElementIds(List.of("el-1", "el-2"));
+        productChunk.setFallbackReason("超长段落按 500/50 递归切分");
 
-        var vos = assembler.toChunkItemVOs(List.of(chunk));
+        var vos = assembler.toChunkItemVOs(List.of(chunk), Map.of("chunk-0001", productChunk));
 
         assertEquals(1, vos.size());
         assertEquals("chunk-0001", vos.getFirst().getChunkId());
@@ -66,5 +72,8 @@ class ChunkVoAssemblerTest {
         assertEquals("1-2", vos.getFirst().getPageRange());
         assertEquals(1, vos.getFirst().getOrderNo());
         assertEquals(28, vos.getFirst().getTokenCount());
+        // 来源元素个数与兜底原因只在切片产物里，DB 无这两列
+        assertEquals(2, vos.getFirst().getSourceElementCount());
+        assertEquals("超长段落按 500/50 递归切分", vos.getFirst().getFallbackReason());
     }
 }

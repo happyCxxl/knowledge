@@ -28,6 +28,7 @@ import com.knowledge.common.dto.response.chunk.ChunkDetailVO;
 import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.enums.task.PipelineTaskStatus;
 import com.knowledge.common.error.ErrorCode;
+import com.knowledge.filecenter.service.FileStorage;
 import com.knowledge.common.exception.KnowledgeException;
 import com.knowledge.worker.chunking.ChunkProperties;
 import com.knowledge.worker.chunking.strategy.ChunkStrategy;
@@ -79,6 +80,8 @@ class ChunkControlServiceImplTest {
     private KbStrategyBindingDbService strategyBindingDbService;
     @Mock
     private KnowledgeBaseDbService knowledgeBaseDbService;
+    @Mock
+    private FileStorage fileStorage;
 
     private ChunkControlServiceImpl service;
 
@@ -94,7 +97,7 @@ class ChunkControlServiceImplTest {
                 new TaskDetailSupport(pipelineTaskDbService, stepLogDbService, pipelineProductDbService),
                 chunkSetDbService, chunkDbService,
                 new ChunkStrategyParser(new ChunkProperties()),
-                new ChunkVoAssembler(), accessGuard);
+                new ChunkVoAssembler(), fileStorage, accessGuard);
     }
 
     private KbFileResult fileResult() {

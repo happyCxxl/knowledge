@@ -2,6 +2,7 @@ package com.knowledge.biz.controller;
 
 import cn.hutool.core.util.ObjectUtil;
 import com.knowledge.biz.service.StageContentQueryService;
+import com.knowledge.common.dto.request.stage.ChunkContentFilter;
 import com.knowledge.common.dto.request.stage.StageDetailQueryDto;
 import com.knowledge.common.dto.response.R;
 import com.knowledge.common.dto.response.stagecontent.StageContentVO;
@@ -41,7 +42,8 @@ public class KnowledgeFileStageController {
      * @param fileResultId 文件结果 ID（路径参数）
      * @param stage        环节（白名单 PARSE/STRUCTURE/PREPROCESS/CHUNK/EMBED）
      * @param query        查询条件：taskId 可选（缺省最新任务）；docPage 可选（只取该文档页）；
-     *                     status 可选（逗号分隔，只取这些处置状态）；page 从 1 起；limit 为每页条数
+     *                     status 可选（逗号分隔，只取这些处置状态）；page 从 1 起；limit 为每页条数；
+     *                     contentType / fallback / hasParent 可选，只对 CHUNK 生效（按类型 / 兜底 / 父子收窄）
      * @return 产物内容（当前页）
      * @apiNote 文件结果不存在 40432；环节非法或任务不属于该文件该环节 40001
      */
@@ -51,14 +53,20 @@ public class KnowledgeFileStageController {
             + "page/limit 分页（缺省第 1 页、每页 "
             + StageContentQueryService.DEFAULT_LIMIT + " 条，上限 " + StageContentQueryService.MAX_LIMIT
             + " 条），响应含 total 与 truncated；docPage 可选，只回该文档页的元素；"
-            + "status 可选（逗号分隔的处置状态），只回这些状态的元素")
+            + "status 可选（逗号分隔的处置状态），只回这些状态的元素；"
+            + "contentType / fallback / hasParent 可选（只对 CHUNK 生效），过滤与分页都下推到 kb_chunk")
     public R<StageContentVO> stageContent(
             @Parameter(description = "文件结果ID", required = true) @PathVariable("fileResultId") Long fileResultId,
             @Parameter(description = "环节（PARSE/STRUCTURE/PREPROCESS/CHUNK/EMBED）", required = true)
             @RequestParam("stage") String stage,
             @ParameterObject StageDetailQueryDto query) {
         return R.ok(stageContentQueryService.stageContent(fileResultId, stage, query.getTaskId(),
-                docPageOf(query), query.getPage(), query.getLimit(), query.getStatus()));
+                docPageOf(query), query.getPage(), query.getLimit(), query.getStatus(), chunkFilterOf(query)));
+    }
+
+    /** 切片内容过滤条件（三项都空时按不过滤） */
+    private ChunkContentFilter chunkFilterOf(StageDetailQueryDto query) {
+        return new ChunkContentFilter(query.getContentType(), query.getFallback(), query.getHasParent());
     }
 
     /**

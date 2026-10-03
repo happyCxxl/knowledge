@@ -39,4 +39,14 @@ public class ChunkItemVO {
 
     /** Token 估算（字符数÷1.5） */
     private Integer tokenCount;
+
+    /**
+     * 来源元素个数（组装环节元素，继承溯源链）。
+     *
+     * <p>只给个数不展开列表：父片的溯源是全部子片的并集，条数随章节大小无界增长。
+     */
+    private Integer sourceElementCount;
+
+    /** 兜底原因（递归 / 固定长度降级切分时标记；非兜底片为空） */
+    private String fallbackReason;
 }

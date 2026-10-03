@@ -8,9 +8,11 @@ import com.knowledge.biz.service.db.KbEmbeddingSetDbService;
 import com.knowledge.biz.service.db.KbPipelineProductDbService;
 import com.knowledge.biz.service.db.KbPipelineStepLogDbService;
 import com.knowledge.biz.service.db.KbPipelineTaskDbService;
+import com.knowledge.biz.service.support.ChunkStatsSupport;
 import com.knowledge.biz.service.support.FileResultAccessGuard;
 import com.knowledge.biz.service.support.ParseStatsSupport;
 import com.knowledge.biz.service.support.PreprocessStatsSupport;
+import com.knowledge.biz.service.support.StatsSupport;
 import com.knowledge.biz.service.support.StructureStatsSupport;
 import com.knowledge.common.domain.entity.KbChunkSet;
 import com.knowledge.common.domain.entity.KbEmbeddingSet;
@@ -19,6 +21,7 @@ import com.knowledge.common.domain.entity.KbPipelineStepLog;
 import com.knowledge.common.domain.entity.KbPipelineTask;
 import com.knowledge.common.domain.parse.CapabilitySnapshot;
 import com.knowledge.common.domain.parse.ParseResult;
+import com.knowledge.common.domain.chunk.ChunkSet;
 import com.knowledge.common.domain.preprocess.PreprocessView;
 import com.knowledge.common.domain.structure.UnifiedDocument;
 import com.knowledge.common.dto.response.lineage.LineageCapabilityVO;
@@ -29,6 +32,7 @@ import com.knowledge.common.dto.response.lineage.LineageVO;
 import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.utils.JsonUtil;
 import com.knowledge.filecenter.service.FileStorage;
+import com.knowledge.worker.chunking.strategy.ChunkStrategyParser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -66,6 +70,21 @@ public class LineageQueryServiceImpl implements LineageQueryService {
     private final KbEmbeddingSetDbService embeddingSetDbService;
     private final FileStorage fileStorage;
     private final FileResultAccessGuard accessGuard;
+    private final ChunkStrategyParser chunkStrategyParser;
+
+    /**
+     * 按任务索引的产物本体：一次读取，多环节共用（统计口径都从这几份产物现算）。
+     *
+     * @param parseResults  解析产物（PARSE 节点统计）
+     * @param documents     统一文档（STRUCTURE 节点统计）
+     * @param views         预处理派生视图（PREPROCESS 节点统计）
+     * @param chunkSets     切片集合（CHUNK 节点统计）
+     * @param upstreamViews 切片任务 → 上游预处理视图（"进入切片 / 跳过"元素数的口径来源）
+     */
+    private record NodeArtifacts(Map<Long, ParseResult> parseResults, Map<Long, UnifiedDocument> documents,
+                                 Map<Long, PreprocessView> views, Map<Long, ChunkSet> chunkSets,
+                                 Map<Long, PreprocessView> upstreamViews) {
+    }
 
     @Override
     public LineageVO lineage(Long fileResultId) {
@@ -98,6 +117,13 @@ public class LineageQueryServiceImpl implements LineageQueryService {
                 "组装", artifactId -> StructureStatsSupport.readDocument(fileStorage, artifactId));
         Map<Long, PreprocessView> viewByTaskId = readProductBodies(tasks, productById, PipelineStage.PREPROCESS,
                 "预处理", artifactId -> PreprocessStatsSupport.readView(fileStorage, artifactId));
+        Map<Long, ChunkSet> chunkSetByTaskId = readProductBodies(tasks, productById, PipelineStage.CHUNK, "切片",
+                artifactId -> ChunkStatsSupport.readChunkSet(fileStorage, artifactId));
+        // 切片节点要上游视图的"进入切片 / 跳过"元素数：上游产物已在本批读过，不再重复读对象
+        Map<Long, PreprocessView> upstreamViewByTaskId =
+                upstreamViewsOf(tasks, taskIdByProductId, viewByTaskId);
+        NodeArtifacts artifacts = new NodeArtifacts(parseResultByTaskId, documentByTaskId, viewByTaskId,
+                chunkSetByTaskId, upstreamViewByTaskId);
 
         // 节点：环节顺序（PARSE→…→EMBED）再按任务 id 升序
         List<KbPipelineTask> ordered = tasks.stream()
@@ -111,8 +137,7 @@ public class LineageQueryServiceImpl implements LineageQueryService {
         List<LineageEdgeVO> edges = new ArrayList<>();
         for (KbPipelineTask task : ordered) {
             KbPipelineProduct product = task.getProductId() == null ? null : productById.get(task.getProductId());
-            nodes.add(toNode(task, product, chunkSetByArtifact, embedSetByArtifact, stepAgg,
-                    parseResultByTaskId, documentByTaskId, viewByTaskId));
+            nodes.add(toNode(task, product, chunkSetByArtifact, embedSetByArtifact, stepAgg, artifacts));
             if (task.getUpstreamProductId() != null) {
                 Long fromTaskId = taskIdByProductId.get(task.getUpstreamProductId());
                 if (fromTaskId != null) {
@@ -135,9 +160,7 @@ public class LineageQueryServiceImpl implements LineageQueryService {
                                  Map<String, KbChunkSet> chunkSetByArtifact,
                                  Map<String, KbEmbeddingSet> embedSetByArtifact,
                                  Map<Long, long[]> stepAgg,
-                                 Map<Long, ParseResult> parseResultByTaskId,
-                                 Map<Long, UnifiedDocument> documentByTaskId,
-                                 Map<Long, PreprocessView> viewByTaskId) {
+                                 NodeArtifacts artifacts) {
         LineageNodeVO node = new LineageNodeVO();
         node.setTaskId(task.getId());
         node.setProductId(task.getProductId());
@@ -153,6 +176,7 @@ public class LineageQueryServiceImpl implements LineageQueryService {
         Map<String, Object> stats = new LinkedHashMap<>();
         boolean structureStage = PipelineStage.STRUCTURE.name().equals(task.getStage());
         boolean preprocessStage = PipelineStage.PREPROCESS.name().equals(task.getStage());
+        boolean chunkStage = PipelineStage.CHUNK.name().equals(task.getStage());
         if (product != null) {
             node.setArtifactId(product.getArtifactId());
             node.setContentHash(product.getContentHash());
@@ -161,7 +185,7 @@ public class LineageQueryServiceImpl implements LineageQueryService {
                 node.setCapability(resolveCapability(product.getCapabilitySnapshot()));
             }
             if (PipelineStage.PARSE.name().equals(task.getStage())) {
-                fillParseStats(node, task, parseResultByTaskId.get(task.getId()));
+                fillParseStats(node, task, artifacts.parseResults().get(task.getId()));
             }
             if (PipelineStage.STRUCTURE.name().equals(task.getStage())) {
                 structureStage = true;
@@ -172,13 +196,39 @@ public class LineageQueryServiceImpl implements LineageQueryService {
         // 组装统计在通用统计之后落位：通用 map 只覆盖切片与向量化等环节，而组装统计由本环节独占，
         // 放在它之前会被随后的空 map 覆盖掉。
         if (structureStage) {
-            fillStructureStats(node, task, documentByTaskId.get(task.getId()));
+            fillStructureStats(node, task, artifacts.documents().get(task.getId()));
         }
         // 预处理统计在通用统计之后并入：通用 map 里的 matched/changed 由 step_log 聚合而来，必须保留
         if (preprocessStage) {
-            fillPreprocessStats(node, task, viewByTaskId.get(task.getId()));
+            fillPreprocessStats(node, task, artifacts.views().get(task.getId()));
+        }
+        // 切片统计同样在通用统计之后并入：通用 map 里的 chunkCount 由集合表聚合而来，必须保留
+        if (chunkStage) {
+            fillChunkStats(node, task, artifacts);
         }
         return node;
+    }
+
+    /**
+     * 切片任务 → 其上游预处理视图（"进入切片 / 跳过"元素数的口径来源）。
+     *
+     * <p>上游产物已在本批读过，这里只做索引，不再重复读对象。
+     */
+    private Map<Long, PreprocessView> upstreamViewsOf(List<KbPipelineTask> tasks,
+                                                      Map<Long, Long> taskIdByProductId,
+                                                      Map<Long, PreprocessView> viewByTaskId) {
+        Map<Long, PreprocessView> views = new HashMap<>();
+        for (KbPipelineTask task : tasks) {
+            if (!PipelineStage.CHUNK.name().equals(task.getStage()) || task.getUpstreamProductId() == null) {
+                continue;
+            }
+            Long upstreamTaskId = taskIdByProductId.get(task.getUpstreamProductId());
+            PreprocessView view = upstreamTaskId == null ? null : viewByTaskId.get(upstreamTaskId);
+            if (ObjectUtil.isNotNull(view)) {
+                views.put(task.getId(), view);
+            }
+        }
+        return views;
     }
 
     /**
@@ -237,14 +287,20 @@ public class LineageQueryServiceImpl implements LineageQueryService {
     private void fillPreprocessStats(LineageNodeVO node, KbPipelineTask task, PreprocessView view) {
         Map<String, Object> stats =
                 PreprocessStatsSupport.stats(task.getStartedAt(), task.getFinishedAt(), view);
-        node.setStageSummary(PreprocessStatsSupport.summary(node.getErrorMsg(), stats, task.getStatus()));
-        if (ObjectUtil.isNull(stats)) {
-            return;
-        }
-        Map<String, Object> merged = ObjectUtil.isNull(node.getStats())
-                ? new LinkedHashMap<>() : new LinkedHashMap<>(node.getStats());
-        merged.putAll(stats);
-        node.setStats(merged);
+        StatsSupport.mergeNodeStats(node, stats,
+                PreprocessStatsSupport.summary(node.getErrorMsg(), stats, task.getStatus()));
+    }
+
+    /**
+     * 切片节点统计与摘要行一并回填：统计并入通用 stats（保留集合表聚合来的 chunkCount），
+     * 摘要走通用 stageSummary；片长上限与兜底参数取该次运行的策略快照。
+     */
+    private void fillChunkStats(LineageNodeVO node, KbPipelineTask task, NodeArtifacts artifacts) {
+        Map<String, Object> stats = ChunkStatsSupport.stats(task.getStartedAt(), task.getFinishedAt(),
+                artifacts.chunkSets().get(task.getId()), chunkStrategyParser.parse(task.getStrategySnapshot()),
+                artifacts.upstreamViews().get(task.getId()));
+        StatsSupport.mergeNodeStats(node, stats,
+                ChunkStatsSupport.summary(node.getErrorMsg(), stats, task.getStatus()));
     }
 
     /** 统计摘要：CHUNK/EMBED 按 artifactId 匹配集合表；PREPROCESS 用 step_log 聚合 */

@@ -30,6 +30,8 @@ import com.knowledge.common.exception.KnowledgeException;
 import com.knowledge.common.utils.JsonUtil;
 import com.knowledge.biz.service.support.FileResultAccessGuard;
 import com.knowledge.filecenter.service.FileStorage;
+import com.knowledge.worker.chunking.ChunkProperties;
+import com.knowledge.worker.chunking.strategy.ChunkStrategyParser;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -84,7 +86,7 @@ class LineageQueryServiceImplTest {
         FileResultAccessGuard accessGuard = new FileResultAccessGuard(fileResultDbService, knowledgeBaseDbService);
         service = new LineageQueryServiceImpl(pipelineTaskDbService,
                 pipelineProductDbService, stepLogDbService, chunkSetDbService, embeddingSetDbService,
-                fileStorage, accessGuard);
+                fileStorage, accessGuard, new ChunkStrategyParser(new ChunkProperties()));
     }
 
     private KbPipelineTask task(Long id, String stage, Long upstreamProductId, Long productId, String snapshot) {

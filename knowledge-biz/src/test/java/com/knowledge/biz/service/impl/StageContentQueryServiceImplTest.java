@@ -35,6 +35,7 @@ import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
 import com.knowledge.common.utils.JsonUtil;
 import com.knowledge.filecenter.service.FileStorage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -134,7 +135,9 @@ class StageContentQueryServiceImplTest {
         chunk.setChunkId("chunk-0001");
         chunk.setContent("正文片");
         chunk.setContentType("PARAGRAPH");
-        when(chunkDbService.listByChunkSetId(70L)).thenReturn(List.of(chunk));
+        chunk.setOrderNo(1);
+        when(chunkDbService.pageByChunkSetId(eq(70L), any(), eq(1L), eq(200L)))
+                .thenReturn(new Page<KbChunk>(1, 200).setRecords(List.of(chunk)).setTotal(1));
 
         StageContentVO vo = service.stageContent(10L, "CHUNK", 41L, null, null, null);
 
@@ -198,16 +201,22 @@ class StageContentQueryServiceImplTest {
         chunk.setContent("正文片");
         chunk.setContentType("PARAGRAPH");
         chunk.setTitlePath("第一章");
+        chunk.setPageRange("1-2");
         chunk.setCharCount(3);
         chunk.setTokenCount(2);
-        when(chunkDbService.listByChunkSetId(70L)).thenReturn(List.of(chunk));
+        chunk.setOrderNo(1);
+        // 过滤与分页都下推 DB：分页对象同时给出过滤后的总条数
+        when(chunkDbService.pageByChunkSetId(eq(70L), any(), eq(1L), eq(200L)))
+                .thenReturn(new Page<KbChunk>(1, 200).setRecords(List.of(chunk)).setTotal(1));
 
         StageContentVO vo = service.stageContent(10L, "CHUNK", null, null, null, null);
 
+        assertEquals(1, vo.getTotal());
         assertEquals(1, vo.getItems().size());
-        assertEquals("1", vo.getItems().get(0).getAlignKey());
+        assertEquals("chunk-0001", vo.getItems().get(0).getAlignKey());
         assertEquals("正文片", vo.getItems().get(0).getDisplay());
         assertEquals("第一章", vo.getItems().get(0).getExtra().get("titlePath"));
+        assertEquals("1-2", vo.getItems().get(0).getExtra().get("pageRange"));
     }
 
     @Test

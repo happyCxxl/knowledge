@@ -2,6 +2,7 @@ package com.knowledge.biz.service.support;
 
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
+import com.knowledge.common.domain.chunk.Chunk;
 import com.knowledge.common.domain.entity.KbChunk;
 import com.knowledge.common.domain.entity.KbChunkSet;
 import com.knowledge.common.dto.response.chunk.ChunkItemVO;
@@ -50,27 +51,40 @@ public class ChunkVoAssembler {
         return vo;
     }
 
-    /** 切片行 → 切片条目 VO 列表 */
-    public List<ChunkItemVO> toChunkItemVOs(List<KbChunk> chunks) {
+    /**
+     * 切片行 → 切片条目 VO 列表。
+     *
+     * @param chunks          切片行（DB）
+     * @param productChunks   切片产物里的片（键 = chunkId）：来源元素个数与兜底原因只在产物里，DB 无这两列
+     */
+    public List<ChunkItemVO> toChunkItemVOs(List<KbChunk> chunks, Map<String, Chunk> productChunks) {
         return ObjectUtil.defaultIfNull(chunks, new ArrayList<KbChunk>()).stream()
-                .map(this::toChunkItemVO)
+                .map(chunk -> toChunkItemVO(chunk, productChunkOf(productChunks, chunk.getChunkId())))
                 .toList();
     }
 
-    private ChunkItemVO toChunkItemVO(KbChunk chunk) {
+    /** 产物侧的片（缺失返回 null） */
+    private Chunk productChunkOf(Map<String, Chunk> productChunks, String chunkId) {
+        return productChunks == null || chunkId == null ? null : productChunks.get(chunkId);
+    }
+
+    private ChunkItemVO toChunkItemVO(KbChunk chunk, Chunk productChunk) {
         ChunkItemVO vo = new ChunkItemVO();
         vo.setChunkId(chunk.getChunkId());
         vo.setParentChunkId(chunk.getParentChunkId());
         vo.setContent(chunk.getContent());
         vo.setContentType(chunk.getContentType());
         vo.setTitlePath(chunk.getTitlePath());
-        // 溯源不回传：父片溯源是无界列表，且检索链路的溯源取自 Milvus。
-        // 详情页需要溯源时再按需从切片产物读取（与 IndexRowAssembler 同口径）。
         vo.setPageRange(chunk.getPageRange());
         vo.setTableRef(chunk.getTableRef());
         vo.setOrderNo(chunk.getOrderNo());
         vo.setCharCount(chunk.getCharCount());
         vo.setTokenCount(chunk.getTokenCount());
+        if (ObjectUtil.isNotNull(productChunk)) {
+            vo.setSourceElementCount(ObjectUtil.defaultIfNull(productChunk.getSourceElementIds(),
+                    new ArrayList<String>()).size());
+            vo.setFallbackReason(productChunk.getFallbackReason());
+        }
         return vo;
     }
 }

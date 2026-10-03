@@ -2,6 +2,7 @@ package com.knowledge.biz.service.impl;
 
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.knowledge.biz.service.StageContentQueryService;
 import com.knowledge.biz.service.db.KbChunkDbService;
 import com.knowledge.biz.service.db.KbChunkSetDbService;
@@ -25,6 +26,7 @@ import com.knowledge.common.domain.preprocess.TraceEntry;
 import com.knowledge.common.domain.preprocess.ViewElement;
 import com.knowledge.common.domain.structure.UnifiedDocument;
 import com.knowledge.common.domain.structure.UnifiedElement;
+import com.knowledge.common.dto.request.stage.ChunkContentFilter;
 import com.knowledge.common.dto.response.stagecontent.StageContentItemVO;
 import com.knowledge.common.dto.response.stagecontent.StageContentVO;
 import com.knowledge.common.enums.task.PipelineStage;
@@ -66,15 +68,15 @@ public class StageContentQueryServiceImpl implements StageContentQueryService {
     private final TaskDetailSupport detailSupport;
     private final FileResultAccessGuard accessGuard;
 
-    /** 不带状态过滤的重载：与 status 传空是同一口径 */
+    /** 不带状态与切片过滤的重载：与两个过滤参数都传空是同一口径 */
     public StageContentVO stageContent(Long fileResultId, String stage, Long taskId, Long docPage,
                                        Integer page, Integer limit) {
-        return stageContent(fileResultId, stage, taskId, docPage, page, limit, null);
+        return stageContent(fileResultId, stage, taskId, docPage, page, limit, null, null);
     }
 
     @Override
     public StageContentVO stageContent(Long fileResultId, String stage, Long taskId, Long docPage,
-                                       Integer page, Integer limit, String status) {
+                                       Integer page, Integer limit, String status, ChunkContentFilter chunkFilter) {
         accessGuard.requireExisting(fileResultId);
         ThrowUtil.throwIf(StrUtil.isBlank(stage) || !PipelineStage.FILE_CHAIN_STAGES.contains(stage),
                 ErrorCode.PARAM_INVALID, "未知环节: " + stage);
@@ -105,11 +107,16 @@ public class StageContentQueryServiceImpl implements StageContentQueryService {
         vo.setLatest(true);
 
         try {
-            // 页码与状态过滤都先于分页：total 与翻页都按过滤后的口径给
-            List<StageContentItemVO> all = filterByStatus(
-                    filterByDocPage(buildItems(stage, product.getArtifactId()), docPage), status);
-            vo.setTotal(all.size());
-            vo.setItems(slice(all, pageNo, pageSize));
+            if (PipelineStage.CHUNK.name().equals(stage)) {
+                // 切片：过滤与分页都下推到 kb_chunk（切片集合可能很大），total 按过滤后的口径给
+                fillChunkPage(vo, product.getArtifactId(), chunkFilter, pageNo, pageSize);
+            } else {
+                // 页码与状态过滤都先于分页：total 与翻页都按过滤后的口径给
+                List<StageContentItemVO> all = filterByStatus(
+                        filterByDocPage(buildItems(stage, product.getArtifactId()), docPage), status);
+                vo.setTotal(all.size());
+                vo.setItems(slice(all, pageNo, pageSize));
+            }
         } catch (Exception e) {
             log.warn("产物内容读取失败, fileResultId={}, stage={}, artifactId={}",
                     fileResultId, stage, product.getArtifactId(), e);
@@ -168,7 +175,6 @@ public class StageContentQueryServiceImpl implements StageContentQueryService {
             case "PARSE" -> parseItems(artifactId);
             case "STRUCTURE" -> structureItems(artifactId);
             case "PREPROCESS" -> preprocessItems(artifactId);
-            case "CHUNK" -> chunkItemsBySet(chunkSetDbService.getByArtifactId(artifactId));
             case "EMBED" -> embedItemsBySet(embeddingSetDbService.getByArtifactId(artifactId));
             default -> List.of();
         };
@@ -397,17 +403,33 @@ public class StageContentQueryServiceImpl implements StageContentQueryService {
 
     // ---------------- 切片：kb_chunk 内容（按该次运行产物 artifactId 精确取集合） ----------------
 
-    private List<StageContentItemVO> chunkItemsBySet(KbChunkSet chunkSet) {
-        List<StageContentItemVO> items = new ArrayList<>();
+    /**
+     * 切片分页内容：过滤（内容类型 / 是否兜底 / 有无父片）与分页都下推 DB，条目按集合内顺序给出对齐键。
+     *
+     * <p>total 取过滤后的总条数，与 items 同一口径（先过滤再分页）。
+     */
+    private void fillChunkPage(StageContentVO vo, String artifactId, ChunkContentFilter filter,
+                               int pageNo, int pageSize) {
+        KbChunkSet chunkSet = chunkSetDbService.getByArtifactId(artifactId);
         if (ObjectUtil.isNull(chunkSet)) {
-            return items;
+            return;
         }
-        int seq = 1;
-        for (KbChunk chunk : chunkDbService.listByChunkSetId(chunkSet.getId())) {
-            items.add(itemOf(seq, chunk.getContentType(), null, chunk.getContent(), chunkExtra(chunk)));
-            seq++;
+        IPage<KbChunk> chunkPage = chunkDbService.pageByChunkSetId(chunkSet.getId(), filter, pageNo, pageSize);
+        List<StageContentItemVO> items = new ArrayList<>();
+        for (KbChunk chunk : chunkPage.getRecords()) {
+            items.add(chunkItemOf(chunk));
         }
-        return items;
+        vo.setTotal((int) chunkPage.getTotal());
+        vo.setItems(items);
+    }
+
+    /** 切片条目：对齐键取切片 ID（与详情侧的片同键，两侧互相定位） */
+    private StageContentItemVO chunkItemOf(KbChunk chunk) {
+        StageContentItemVO item = itemOf(0, chunk.getContentType(), null, chunk.getContent(),
+                chunkExtra(chunk));
+        item.setSeq(ObjectUtil.defaultIfNull(chunk.getOrderNo(), 0));
+        item.setAlignKey(StrUtil.blankToDefault(chunk.getChunkId(), String.valueOf(item.getSeq())));
+        return item;
     }
 
     // ---------------- 向量化：记录列表（按该次运行产物 artifactId 精确取集合） ----------------
@@ -439,14 +461,18 @@ public class StageContentQueryServiceImpl implements StageContentQueryService {
         return item;
     }
 
-    /** 切片环节专属字段 */
+    /** 切片环节专属字段（来源元素个数与兜底原因只在切片产物里，不进这里） */
     private Map<String, Object> chunkExtra(KbChunk chunk) {
         Map<String, Object> extra = new LinkedHashMap<>();
         extra.put("chunkId", chunk.getChunkId());
+        extra.put("contentType", chunk.getContentType());
         extra.put("titlePath", chunk.getTitlePath());
         extra.put("charCount", chunk.getCharCount());
         extra.put("tokenCount", chunk.getTokenCount());
+        extra.put("orderNo", chunk.getOrderNo());
         extra.put("parentChunkId", chunk.getParentChunkId());
+        extra.put("pageRange", chunk.getPageRange());
+        extra.put("tableRef", chunk.getTableRef());
         return extra;
     }
 
