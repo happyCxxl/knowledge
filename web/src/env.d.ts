@@ -30,4 +30,19 @@ declare module 'vue' {
   }
 }
 
+/*
+ * 路由元信息的类型：vue-router 的 `RouteMeta` 是留给使用方做模块增强的空接口，
+ * 路由表里新增的字段要在这里登记，否则 `meta` 上取不到它（`meta.xxx` 报类型错误）。
+ */
+declare module 'vue-router' {
+  export interface RouteMeta {
+    /** 浏览器页签的页面名（与平台名合成完整标题，见 `utils/page-title.ts`） */
+    title: string;
+    /** 免登录页（未登录可访问） */
+    public?: boolean;
+    /** 仅管理员可进入 */
+    adminOnly?: boolean;
+  }
+}
+
 export {};

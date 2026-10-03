@@ -1,8 +1,13 @@
 import { createRouter, createWebHistory } from 'vue-router';
 
 import { useAuthStore } from '@/stores/auth';
+import { setRouteTitle } from '@/utils/page-title';
 
-// 路由表：页面按规范 §7 懒加载；path 用 kebab-case，name 与组件名保持一致
+/** 工作台路径：未登录的落点与越权访问的回落目标都是它 */
+const HOME_PATH = '/home';
+
+// 路由表：页面按规范 §7 懒加载；path 用 kebab-case，name 与组件名保持一致；
+// meta.title 是浏览器页签的页面名（与平台名合成完整标题，见 utils/page-title.ts）
 const router = createRouter({
   history: createWebHistory(),
   routes: [
@@ -11,60 +16,68 @@ const router = createRouter({
       name: 'Login',
       component: () => import('@/views/login/LoginView.vue'),
       // 免登录页：已登录用户访问时回落到工作台
-      meta: { public: true },
+      meta: { title: '登录', public: true },
     },
     {
       path: '/',
       name: 'AppLayout',
       component: () => import('@/layouts/AppLayout.vue'),
-      redirect: '/home',
+      redirect: HOME_PATH,
       children: [
         {
           // 系统首页：登录后的默认落地页，也是全局返回的终点
           path: 'home',
           name: 'Home',
           component: () => import('@/views/home/HomeView.vue'),
+          meta: { title: '首页' },
         },
         {
           path: 'knowledge-base',
           name: 'KnowledgeBase',
           component: () => import('@/views/knowledge-base/KnowledgeBaseView.vue'),
+          meta: { title: '知识库' },
         },
         {
+          // 执行链：左侧文件列表 + 右侧链图，四个环节的卡片与详情抽屉都在这里
           path: 'knowledge-base/:id/stages',
           name: 'PipelineStage',
           component: () => import('@/views/knowledge-base/PipelineStageView.vue'),
+          meta: { title: '执行链' },
         },
         {
           // 索引与发布：同一知识库的策略组合版本、发布与回退
           path: 'knowledge-base/:id/index',
           name: 'IndexBuild',
           component: () => import('@/views/knowledge-base/IndexBuildView.vue'),
+          meta: { title: '索引与发布' },
         },
         {
           // 检索评测：测试台检索 + 运行记录并排对比 + 规则选优发布
           path: 'knowledge-base/:id/retrieval',
           name: 'RetrievalEval',
           component: () => import('@/views/knowledge-base/RetrievalEvalView.vue'),
+          meta: { title: '检索评测' },
         },
         {
           // 策略管理：四类策略（预处理/切片/向量化/检索）的版本管理
           path: 'strategy',
           name: 'StrategyManagement',
           component: () => import('@/views/strategy/StrategyManagementView.vue'),
+          meta: { title: '策略管理' },
         },
         {
           path: 'user',
           name: 'UserManagement',
           component: () => import('@/views/user/UserManagementView.vue'),
           // 仅管理员可进入；非管理员回落工作台
-          meta: { adminOnly: true },
+          meta: { title: '用户管理', adminOnly: true },
         },
         {
           // 个人中心：账号信息、联系方式与修改密码；入口在布局壳的用户菜单
           path: 'profile',
           name: 'Profile',
           component: () => import('@/views/profile/ProfileView.vue'),
+          meta: { title: '个人中心' },
         },
       ],
     },
@@ -73,8 +86,6 @@ const router = createRouter({
 
 // 登录态与角色守卫：无令牌回登录页并记住来源；已登录访问登录页回首页；
 // 非管理员访问管理类页面回首页
-const HOME_PATH = '/home';
-
 router.beforeEach((to) => {
   const authStore = useAuthStore();
   if (to.meta.public) {
@@ -87,6 +98,11 @@ router.beforeEach((to) => {
     return { path: HOME_PATH };
   }
   return true;
+});
+
+// 标题只在此处按目标路由写一次；抽屉覆盖标题期间的切换由标题模块记下新值
+router.afterEach((to) => {
+  setRouteTitle(to.meta.title);
 });
 
 export default router;

@@ -719,6 +719,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 
 import { readSplitRatio, removeSplitRatio, writeSplitRatio } from '@/utils/drawer-split-storage';
+import { pushEntityTitle, restoreTitle } from '@/utils/page-title';
 import { getStageContent, getStageDetail, getSourceFile } from '@/api/pipeline';
 import PdfSourcePreview from '@/components/pipeline/PdfSourcePreview.vue';
 import DocxSourcePreview from '@/components/pipeline/DocxSourcePreview.vue';
@@ -730,6 +731,7 @@ import {
   formatCount,
   formatDuration,
   pageOf,
+  stageLabel,
   statNumber,
   statusTone,
   taskStatusLabel,
@@ -2675,6 +2677,23 @@ watch(activeTab, (tab) => {
 
 /** 上一次已落到默认页签的环节（null = 抽屉当前没打开） */
 let tabStage: string | null = null;
+
+/**
+ * 抽屉可见性同步浏览器页签标题：打开时用「文件名 · 环节名」覆盖，关闭时落回路由标题。
+ *
+ * <p>只改标题，不参与抽屉内容的渲染与取数。
+ */
+function syncDrawerTitle(): void {
+  if (props.visible && props.fileName !== '') {
+    pushEntityTitle(props.fileName, `${stageLabel(props.stage)}环节`);
+    return;
+  }
+  restoreTitle();
+}
+
+watch(() => [props.visible, props.fileName, props.stage] as const, syncDrawerTitle, {
+  immediate: true,
+});
 
 // 打开或切换到另一次运行时重新取数；关闭时不请求
 watch(
