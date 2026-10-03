@@ -6,6 +6,7 @@ import com.knowledge.biz.service.db.KbFileResultDbService;
 import com.knowledge.biz.service.db.KbPipelineProductDbService;
 import com.knowledge.biz.service.support.PreprocessVoAssembler;
 import com.knowledge.biz.service.support.StageStrategySupport;
+import com.knowledge.biz.service.support.FileResultAccessGuard;
 import com.knowledge.biz.service.support.TaskDetailSupport;
 import com.knowledge.biz.task.TaskTriggerSupport;
 import com.knowledge.common.domain.entity.KbFileResult;
@@ -50,6 +51,7 @@ public class PreprocessControlServiceImpl implements PreprocessControlService {
     private final FileStorage fileStorage;
     private final PreprocessStrategyParser strategyParser;
     private final PreprocessVoAssembler voAssembler;
+    private final FileResultAccessGuard accessGuard;
 
     /**
      * 触发预处理（手动逐环节，重跑同入口）：策略解析 → 上游组装产物校验 → 防重/唤醒 → 新建 PREPROCESS 任务入队。
@@ -63,6 +65,7 @@ public class PreprocessControlServiceImpl implements PreprocessControlService {
     public PreprocessTriggerVO preprocess(Long fileResultId, Long strategyVersionId, Long upstreamProductId) {
         KbFileResult fileResult = fileResultDbService.getById(fileResultId);
         ThrowUtil.throwIf(ObjectUtil.isNull(fileResult), ErrorCode.FILE_RESULT_NOT_FOUND);
+        accessGuard.check(fileResult);
         PreprocessStrategy strategy = resolveStrategy(fileResult, strategyVersionId);
 
         // 可选指定上游组装产物；缺省取最新
@@ -79,6 +82,7 @@ public class PreprocessControlServiceImpl implements PreprocessControlService {
     public PreprocessDetailVO preprocessDetail(Long fileResultId, Long taskId) {
         KbFileResult fileResult = fileResultDbService.getById(fileResultId);
         ThrowUtil.throwIf(ObjectUtil.isNull(fileResult), ErrorCode.FILE_RESULT_NOT_FOUND);
+        accessGuard.check(fileResult);
         KbPipelineTask task = detailSupport.resolveTask(fileResultId, PipelineStage.PREPROCESS, taskId, "预处理");
 
         PreprocessDetailVO vo = new PreprocessDetailVO();

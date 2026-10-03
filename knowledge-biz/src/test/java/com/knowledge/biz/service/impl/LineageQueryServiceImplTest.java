@@ -2,10 +2,13 @@ package com.knowledge.biz.service.impl;
 
 import com.knowledge.biz.service.db.KbChunkSetDbService;
 import com.knowledge.biz.service.db.KbEmbeddingSetDbService;
+import com.knowledge.biz.service.db.KnowledgeBaseDbService;
 import com.knowledge.biz.service.db.KbFileResultDbService;
 import com.knowledge.biz.service.db.KbPipelineProductDbService;
 import com.knowledge.biz.service.db.KbPipelineStepLogDbService;
 import com.knowledge.biz.service.db.KbPipelineTaskDbService;
+import com.knowledge.biz.testkit.SecurityTestSupport;
+import com.knowledge.common.domain.entity.KnowledgeBase;
 import com.knowledge.common.domain.entity.KbChunkSet;
 import com.knowledge.common.domain.entity.KbEmbeddingSet;
 import com.knowledge.common.domain.entity.KbFileResult;
@@ -25,6 +28,7 @@ import com.knowledge.common.enums.task.PipelineTaskStatus;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
 import com.knowledge.common.utils.JsonUtil;
+import com.knowledge.biz.service.support.FileResultAccessGuard;
 import com.knowledge.filecenter.service.FileStorage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -43,6 +47,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 /**
@@ -66,15 +71,20 @@ class LineageQueryServiceImplTest {
     @Mock
     private KbEmbeddingSetDbService embeddingSetDbService;
     @Mock
+    private KnowledgeBaseDbService knowledgeBaseDbService;
+    @Mock
     private FileStorage fileStorage;
 
     private LineageQueryServiceImpl service;
 
     @BeforeEach
     void setUp() {
+        SecurityTestSupport.loginViewer();
+        boundKnowledgeBase(10L);
+        FileResultAccessGuard accessGuard = new FileResultAccessGuard(fileResultDbService, knowledgeBaseDbService);
         service = new LineageQueryServiceImpl(fileResultDbService, pipelineTaskDbService,
                 pipelineProductDbService, stepLogDbService, chunkSetDbService, embeddingSetDbService,
-                fileStorage);
+                fileStorage, accessGuard);
     }
 
     private KbPipelineTask task(Long id, String stage, Long upstreamProductId, Long productId, String snapshot) {
@@ -102,7 +112,7 @@ class LineageQueryServiceImplTest {
 
     @Test
     void shouldAssembleNodesEdgesAndStats() {
-        when(fileResultDbService.getById(10L)).thenReturn(new KbFileResult());
+        when(fileResultDbService.getById(10L)).thenReturn(fileResultOfKb10());
         // 多分支：parse→structure→{preproc1→chunk1→embed1, preproc2→chunk2}
         when(pipelineTaskDbService.listByFileResultId(10L)).thenReturn(List.of(
                 task(20L, PipelineStage.PARSE.name(), null, 10L, null),
@@ -187,7 +197,7 @@ class LineageQueryServiceImplTest {
 
     @Test
     void shouldReturnEmptyForFileWithoutTasks() {
-        when(fileResultDbService.getById(10L)).thenReturn(new KbFileResult());
+        when(fileResultDbService.getById(10L)).thenReturn(fileResultOfKb10());
         when(pipelineTaskDbService.listByFileResultId(10L)).thenReturn(List.of());
         when(pipelineProductDbService.listByFileResultId(10L)).thenReturn(List.of());
         when(chunkSetDbService.listByFileResultId(10L)).thenReturn(List.of());
@@ -201,7 +211,7 @@ class LineageQueryServiceImplTest {
 
     @Test
     void missingUpstreamProductShouldNotCreateEdge() {
-        when(fileResultDbService.getById(10L)).thenReturn(new KbFileResult());
+        when(fileResultDbService.getById(10L)).thenReturn(fileResultOfKb10());
         // chunk 任务指向不存在的上游产物 → 孤立节点、无对应边
         when(pipelineTaskDbService.listByFileResultId(10L)).thenReturn(List.of(
                 task(71L, PipelineStage.CHUNK.name(), 999L, 40L,
@@ -231,7 +241,7 @@ class LineageQueryServiceImplTest {
         parseTask.setStatus(PipelineTaskStatus.SUCCESS.name());
         parseTask.setStartedAt(LocalDateTime.of(2024, 5, 1, 10, 0, 0));
         parseTask.setFinishedAt(LocalDateTime.of(2024, 5, 1, 10, 0, 8));
-        when(fileResultDbService.getById(10L)).thenReturn(new KbFileResult());
+        when(fileResultDbService.getById(10L)).thenReturn(fileResultOfKb10());
         when(pipelineTaskDbService.listByFileResultId(10L)).thenReturn(List.of(parseTask));
         when(pipelineProductDbService.listByFileResultId(10L)).thenReturn(List.of(
                 product(10L, PipelineStage.PARSE.name(), "art-p",
@@ -276,7 +286,7 @@ class LineageQueryServiceImplTest {
         parseTask.setStatus(PipelineTaskStatus.SUCCESS.name());
         parseTask.setStartedAt(LocalDateTime.of(2024, 5, 1, 10, 0, 0));
         parseTask.setFinishedAt(LocalDateTime.of(2024, 5, 1, 10, 0, 8));
-        when(fileResultDbService.getById(10L)).thenReturn(new KbFileResult());
+        when(fileResultDbService.getById(10L)).thenReturn(fileResultOfKb10());
         when(pipelineTaskDbService.listByFileResultId(10L)).thenReturn(List.of(parseTask));
         when(pipelineProductDbService.listByFileResultId(10L)).thenReturn(List.of(
                 product(10L, PipelineStage.PARSE.name(), "art-p",
@@ -316,7 +326,7 @@ class LineageQueryServiceImplTest {
         parseTask.setStatus(status.name());
         parseTask.setStartedAt(LocalDateTime.of(2024, 5, 1, 10, 0, 0));
         parseTask.setFinishedAt(LocalDateTime.of(2024, 5, 1, 10, 0, 8));
-        when(fileResultDbService.getById(10L)).thenReturn(new KbFileResult());
+        when(fileResultDbService.getById(10L)).thenReturn(fileResultOfKb10());
         when(pipelineTaskDbService.listByFileResultId(10L)).thenReturn(List.of(parseTask));
         when(pipelineProductDbService.listByFileResultId(10L)).thenReturn(List.of(
                 product(10L, PipelineStage.PARSE.name(), "art-p",
@@ -343,7 +353,7 @@ class LineageQueryServiceImplTest {
     void pendingParseTaskWithoutProductShouldBeVisible(PipelineTaskStatus status) {
         KbPipelineTask parseTask = task(20L, PipelineStage.PARSE.name(), null, null, null);
         parseTask.setStatus(status.name());
-        when(fileResultDbService.getById(10L)).thenReturn(new KbFileResult());
+        when(fileResultDbService.getById(10L)).thenReturn(fileResultOfKb10());
         when(pipelineTaskDbService.listByFileResultId(10L)).thenReturn(List.of(parseTask));
         when(pipelineProductDbService.listByFileResultId(10L)).thenReturn(List.of());
         when(chunkSetDbService.listByFileResultId(10L)).thenReturn(List.of());
@@ -363,5 +373,31 @@ class LineageQueryServiceImplTest {
     /** 产物里的一个元素（只有类型参与汇总） */
     private ParseElement element(ElementType type) {
         return ParseElement.of("e-" + type.name(), type);
+    }
+    @Test
+    void otherUserFileResultShouldReject40401() {
+        when(fileResultDbService.getById(10L)).thenReturn(fileResultOfKb10());
+        // 归属看的是知识库归属：换一个登录用户，越权与"不存在"同样返回 40401
+        SecurityTestSupport.loginOtherUser();
+
+        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.lineage(10L));
+        assertEquals(ErrorCode.KB_NOT_FOUND, e.getErrorCode());
+    }
+
+
+    /** 让指定知识库归当前登录用户所有（归属校验要能过） */
+    private void boundKnowledgeBase(Long id) {
+        KnowledgeBase kb = new KnowledgeBase();
+        kb.setId(id);
+        kb.setUserId(SecurityTestSupport.VIEWER_ID);
+        lenient().when(knowledgeBaseDbService.getActiveById(id)).thenReturn(kb);
+    }
+
+    /** 一次运行的文件结果（挂 10 号知识库，归属校验要能过） */
+    private KbFileResult fileResultOfKb10() {
+        KbFileResult fileResult = new KbFileResult();
+        fileResult.setId(10L);
+        fileResult.setKnowledgeBaseId(10L);
+        return fileResult;
     }
 }

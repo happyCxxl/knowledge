@@ -61,7 +61,7 @@ knowledge:
 # 切到 local 时 minio 段可留可删（MinioStorageProvider 不再装配）；
 # 注意：两种后端的对象不互通，切换后旧对象需手工复制过去才能读到
 file-center:
-  storage-type: local
+  storage-type: minio
   local-root: ./data/file-center
   endpoint: http://localhost:9000
   access-key: minioadmin

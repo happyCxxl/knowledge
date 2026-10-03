@@ -4,6 +4,7 @@ import cn.hutool.core.util.ObjectUtil;
 import com.knowledge.biz.service.StructureControlService;
 import com.knowledge.biz.service.db.KbFileResultDbService;
 import com.knowledge.biz.service.db.KbPipelineProductDbService;
+import com.knowledge.biz.service.support.FileResultAccessGuard;
 import com.knowledge.biz.service.support.StructureVoAssembler;
 import com.knowledge.biz.service.support.TaskDetailSupport;
 import com.knowledge.biz.task.TaskTriggerSupport;
@@ -44,6 +45,7 @@ public class StructureControlServiceImpl implements StructureControlService {
     private final TaskDetailSupport detailSupport;
     private final FileStorage fileStorage;
     private final StructureVoAssembler voAssembler;
+    private final FileResultAccessGuard accessGuard;
 
     /**
      * 触发组装（手动逐环节，重跑同入口）：上游解析产物校验 → 防重/唤醒 → 新建 STRUCTURE 任务入队。
@@ -56,6 +58,7 @@ public class StructureControlServiceImpl implements StructureControlService {
     public StageTriggerVO structure(Long fileResultId, Long upstreamProductId) {
         KbFileResult fileResult = fileResultDbService.getById(fileResultId);
         ThrowUtil.throwIf(ObjectUtil.isNull(fileResult), ErrorCode.FILE_RESULT_NOT_FOUND);
+        accessGuard.check(fileResult);
         // 可选指定上游解析产物；缺省取最新
         KbPipelineProduct parseProduct = requireParseProduct(fileResultId, upstreamProductId);
         ThrowUtil.throwIf(ObjectUtil.isNull(parseProduct), ErrorCode.FILE_RESULT_NOT_FOUND,
@@ -67,6 +70,7 @@ public class StructureControlServiceImpl implements StructureControlService {
     public StructureDetailVO structureDetail(Long fileResultId, Long taskId) {
         KbFileResult fileResult = fileResultDbService.getById(fileResultId);
         ThrowUtil.throwIf(ObjectUtil.isNull(fileResult), ErrorCode.FILE_RESULT_NOT_FOUND);
+        accessGuard.check(fileResult);
         KbPipelineTask task = detailSupport.resolveTask(fileResultId, PipelineStage.STRUCTURE, taskId, "组装");
 
         StructureDetailVO vo = new StructureDetailVO();

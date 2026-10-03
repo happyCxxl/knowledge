@@ -1,13 +1,17 @@
 package com.knowledge.biz.service.impl;
 
+import com.knowledge.biz.service.db.KnowledgeBaseDbService;
 import com.knowledge.biz.service.db.KbFileResultDbService;
 import com.knowledge.biz.service.db.KbPipelineProductDbService;
 import com.knowledge.biz.service.db.KbPipelineStepLogDbService;
 import com.knowledge.biz.service.db.KbPipelineTaskDbService;
+import com.knowledge.biz.service.support.FileResultAccessGuard;
 import com.knowledge.biz.service.support.StructureVoAssembler;
 import com.knowledge.biz.service.support.TaskDetailSupport;
 import com.knowledge.biz.task.TaskQueueSupport;
 import com.knowledge.biz.task.TaskTriggerSupport;
+import com.knowledge.biz.testkit.SecurityTestSupport;
+import com.knowledge.common.domain.entity.KnowledgeBase;
 import com.knowledge.common.domain.entity.KbFileResult;
 import com.knowledge.common.domain.entity.KbPipelineProduct;
 import com.knowledge.common.domain.entity.KbPipelineStepLog;
@@ -33,6 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -56,6 +61,8 @@ class StructureControlServiceImplTest {
     @Mock
     private TaskQueueSupport taskQueue;
     @Mock
+    private KnowledgeBaseDbService knowledgeBaseDbService;
+    @Mock
     private FileStorage fileStorage;
 
     private StructureControlServiceImpl service;
@@ -63,15 +70,19 @@ class StructureControlServiceImplTest {
     @BeforeEach
     void setUp() {
         // 触发/详情助手为纯委托类、组装器为纯映射类，用真实实例（mock 会让 VO 组装返回 null，断言失真）
+        SecurityTestSupport.loginViewer();
+        boundKnowledgeBase(10L);
+        FileResultAccessGuard accessGuard = new FileResultAccessGuard(fileResultDbService, knowledgeBaseDbService);
         service = new StructureControlServiceImpl(fileResultDbService, pipelineProductDbService,
                 new TaskTriggerSupport(pipelineTaskDbService, taskQueue),
                 new TaskDetailSupport(pipelineTaskDbService, stepLogDbService, pipelineProductDbService), fileStorage,
-                new StructureVoAssembler());
+                new StructureVoAssembler(), accessGuard);
     }
 
     private KbFileResult fileResult() {
         KbFileResult fileResult = new KbFileResult();
         fileResult.setId(10L);
+        fileResult.setKnowledgeBaseId(10L);
         return fileResult;
     }
 
@@ -270,4 +281,24 @@ class StructureControlServiceImplTest {
         KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.structureDetail(10L, 20L));
         assertEquals(ErrorCode.PARAM_INVALID, e.getErrorCode());
     }
+
+    @Test
+    void ownerFileResultShouldPassOwnershipCheck() {
+        when(fileResultDbService.getById(10L)).thenReturn(fileResult());
+        when(pipelineProductDbService.getByFileResultIdAndStage(10L, PipelineStage.PARSE.name()))
+                .thenReturn(null);
+
+        // 归属校验放行后进入业务分支：没有解析产物时报"产物不存在"，而不是归属的 40401
+        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.structure(10L, null));
+        assertEquals(ErrorCode.FILE_RESULT_NOT_FOUND, e.getErrorCode());
+    }
+
+    /** 让指定知识库归当前登录用户所有（归属校验要能过） */
+    private void boundKnowledgeBase(Long id) {
+        KnowledgeBase kb = new KnowledgeBase();
+        kb.setId(id);
+        kb.setUserId(SecurityTestSupport.VIEWER_ID);
+        lenient().when(knowledgeBaseDbService.getActiveById(id)).thenReturn(kb);
+    }
+
 }

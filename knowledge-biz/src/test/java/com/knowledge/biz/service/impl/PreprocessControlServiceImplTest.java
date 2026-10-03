@@ -7,11 +7,13 @@ import com.knowledge.biz.service.db.KbPipelineStrategyVersionDbService;
 import com.knowledge.biz.service.db.KbPipelineTaskDbService;
 import com.knowledge.biz.service.db.KbStrategyBindingDbService;
 import com.knowledge.biz.service.db.KnowledgeBaseDbService;
+import com.knowledge.biz.service.support.FileResultAccessGuard;
 import com.knowledge.biz.service.support.PreprocessVoAssembler;
 import com.knowledge.biz.service.support.StageStrategySupport;
 import com.knowledge.biz.service.support.TaskDetailSupport;
 import com.knowledge.biz.task.TaskQueueSupport;
 import com.knowledge.biz.task.TaskTriggerSupport;
+import com.knowledge.biz.testkit.SecurityTestSupport;
 import com.knowledge.common.domain.entity.KbFileResult;
 import com.knowledge.common.domain.entity.KbPipelineProduct;
 import com.knowledge.common.domain.entity.KbPipelineStepLog;
@@ -44,6 +46,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -80,12 +83,15 @@ class PreprocessControlServiceImplTest {
     @BeforeEach
     void setUp() {
         // 触发/详情助手为纯委托类、组装器为纯映射类，用真实实例（mock 会让 VO 组装返回 null，断言失真）
+        SecurityTestSupport.loginViewer();
+        boundKnowledgeBase(10L);
+        FileResultAccessGuard accessGuard = new FileResultAccessGuard(fileResultDbService, knowledgeBaseDbService);
         service = new PreprocessControlServiceImpl(fileResultDbService, pipelineProductDbService,
                 new StageStrategySupport(strategyVersionDbService, strategyBindingDbService, knowledgeBaseDbService),
                 new TaskTriggerSupport(pipelineTaskDbService, taskQueue),
                 new TaskDetailSupport(pipelineTaskDbService, stepLogDbService, pipelineProductDbService), fileStorage,
                 new PreprocessStrategyParser(new PreprocessProperties()),
-                new PreprocessVoAssembler());
+                new PreprocessVoAssembler(), accessGuard);
     }
 
     private KbFileResult fileResult() {
@@ -112,6 +118,7 @@ class PreprocessControlServiceImplTest {
         KnowledgeBase kb = new KnowledgeBase();
         kb.setId(10L);
         kb.setStrategyBindingEnabled(1);
+        kb.setUserId(SecurityTestSupport.VIEWER_ID);
         return kb;
     }
 
@@ -437,4 +444,22 @@ class PreprocessControlServiceImplTest {
         KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.preprocessDetail(10L, 51L));
         assertEquals(ErrorCode.PARAM_INVALID, e.getErrorCode());
     }
+    @Test
+    void otherUserFileResultShouldReject40401() {
+        when(fileResultDbService.getById(10L)).thenReturn(fileResult());
+        // 归属看的是知识库归属：换一个登录用户，越权与"不存在"同样返回 40401
+        SecurityTestSupport.loginOtherUser();
+
+        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.preprocess(10L, null, null));
+        assertEquals(ErrorCode.KB_NOT_FOUND, e.getErrorCode());
+    }
+
+    /** 让指定知识库归当前登录用户所有（归属校验要能过） */
+    private void boundKnowledgeBase(Long id) {
+        KnowledgeBase kb = new KnowledgeBase();
+        kb.setId(id);
+        kb.setUserId(SecurityTestSupport.VIEWER_ID);
+        lenient().when(knowledgeBaseDbService.getActiveById(id)).thenReturn(kb);
+    }
+
 }

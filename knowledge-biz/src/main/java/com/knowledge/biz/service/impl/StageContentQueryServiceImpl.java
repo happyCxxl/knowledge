@@ -9,13 +9,16 @@ import com.knowledge.biz.service.db.KbEmbeddingRecordDbService;
 import com.knowledge.biz.service.db.KbEmbeddingSetDbService;
 import com.knowledge.biz.service.db.KbFileResultDbService;
 import com.knowledge.biz.service.db.KbPipelineProductDbService;
+import com.knowledge.biz.service.support.FileResultAccessGuard;
 import com.knowledge.biz.service.support.TaskDetailSupport;
 import com.knowledge.common.domain.entity.KbChunk;
 import com.knowledge.common.domain.entity.KbChunkSet;
 import com.knowledge.common.domain.entity.KbEmbeddingRecord;
 import com.knowledge.common.domain.entity.KbEmbeddingSet;
+import com.knowledge.common.domain.entity.KbFileResult;
 import com.knowledge.common.domain.entity.KbPipelineProduct;
 import com.knowledge.common.domain.entity.KbPipelineTask;
+import com.knowledge.common.domain.parse.BBox;
 import com.knowledge.common.domain.parse.ParseElement;
 import com.knowledge.common.domain.parse.ParseResult;
 import com.knowledge.common.domain.parse.ParseSource;
@@ -60,20 +63,30 @@ public class StageContentQueryServiceImpl implements StageContentQueryService {
     private final KbEmbeddingRecordDbService embeddingRecordDbService;
     private final FileStorage fileStorage;
     private final TaskDetailSupport detailSupport;
+    private final FileResultAccessGuard accessGuard;
 
     @Override
-    public StageContentVO stageContent(Long fileResultId, String stage, Long taskId) {
-        ThrowUtil.throwIf(ObjectUtil.isNull(fileResultDbService.getById(fileResultId)),
-                ErrorCode.FILE_RESULT_NOT_FOUND);
+    public StageContentVO stageContent(Long fileResultId, String stage, Long taskId, Long docPage,
+                                       Integer page, Integer limit) {
+        KbFileResult fileResult = fileResultDbService.getById(fileResultId);
+        ThrowUtil.throwIf(ObjectUtil.isNull(fileResult), ErrorCode.FILE_RESULT_NOT_FOUND);
+        accessGuard.check(fileResult);
         ThrowUtil.throwIf(StrUtil.isBlank(stage) || !PipelineStage.FILE_CHAIN_STAGES.contains(stage),
                 ErrorCode.PARAM_INVALID, "未知环节: " + stage);
         KbPipelineTask task = detailSupport.resolveTask(fileResultId, stageOf(stage), taskId, stageLabel(stage));
 
+        int pageNo = resolvePage(page);
+        int pageSize = resolveLimit(limit);
         StageContentVO vo = new StageContentVO();
         vo.setFileResultId(fileResultId);
         vo.setStage(stage);
         vo.setLatest(false);
+        vo.setDocPage(ObjectUtil.isNull(docPage) || docPage < 1 ? null : docPage.intValue());
         vo.setItems(new ArrayList<>());
+        vo.setTotal(0);
+        vo.setPage(pageNo);
+        vo.setLimit(pageSize);
+        vo.setTruncated(false);
         if (ObjectUtil.isNull(task)) {
             return vo;
         }
@@ -87,13 +100,61 @@ public class StageContentQueryServiceImpl implements StageContentQueryService {
         vo.setLatest(true);
 
         try {
-            vo.setItems(buildItems(stage, product.getArtifactId()));
+            // 页码过滤先于分页：total 与翻页都按"该页元素"这一口径给
+            List<StageContentItemVO> all = filterByDocPage(buildItems(stage, product.getArtifactId()), docPage);
+            vo.setTotal(all.size());
+            vo.setItems(slice(all, pageNo, pageSize));
         } catch (Exception e) {
             log.warn("产物内容读取失败, fileResultId={}, stage={}, artifactId={}",
                     fileResultId, stage, product.getArtifactId(), e);
             vo.setItems(new ArrayList<>());
+            vo.setTotal(0);
         }
+        // 截断 = 这一页之后还有内容（含页码越界）
+        vo.setTruncated(hasMore(vo.getPage(), vo.getLimit(), vo.getItems().size(), vo.getTotal()));
         return vo;
+    }
+
+    /** 页码归一：非正数或空按第 1 页 */
+    private int resolvePage(Integer page) {
+        return ObjectUtil.isNull(page) || page < 1 ? 1 : page;
+    }
+
+    /** 每页条数归一：空/非正按默认上限，超过上限按上限截断 */
+    private int resolveLimit(Integer limit) {
+        if (ObjectUtil.isNull(limit) || limit < 1) {
+            return DEFAULT_LIMIT;
+        }
+        return Math.min(limit, MAX_LIMIT);
+    }
+
+    /**
+     * 这一页之后是否还有内容。
+     *
+     * <p>**不能写成 `page × limit < total`**：最后一页不满时（5 条按每页 2 条取第 3 页，
+     * 只回 1 条）`3 × 2 = 6` 不小于 5，会把"已到末页"报成还有内容。按"这一页取到的位移
+     * 是否到达总数"判断才等价于"后面还有没有"。
+     *
+     * @param page      当前页码
+     * @param limit     本页条数上限
+     * @param pageCount 本页实际返回条数
+     * @param total     总条数
+     * @return 还有内容未返回则为 true（页码越界为空页时同样为 true）
+     */
+    private boolean hasMore(int page, int limit, int pageCount, int total) {
+        if (total <= 0) {
+            return false;
+        }
+        return (page - 1) * limit + pageCount < total;
+    }
+
+    /** 取某一页：越界返回空列表（total 与 truncated 由调用处据实标明） */
+    private List<StageContentItemVO> slice(List<StageContentItemVO> all, int page, int limit) {
+        int from = (page - 1) * limit;
+        if (from >= all.size()) {
+            return new ArrayList<>();
+        }
+        return new ArrayList<>(all.subList(from, Math.min(from + limit, all.size())));
     }
 
     private List<StageContentItemVO> buildItems(String stage, String artifactId) {
@@ -130,13 +191,45 @@ public class StageContentQueryServiceImpl implements StageContentQueryService {
         return items;
     }
 
-    /** 解析环节专属字段 + 公共页网格字段 */
+    /** 解析环节专属字段 + 公共页网格字段 + 原文定位锚点 */
     private Map<String, Object> parseExtra(ParseSource source, ParseElement element) {
         Map<String, Object> extra = new LinkedHashMap<>();
         extra.put("source", source.getSource());
         extra.put("provider", source.getProvider());
         putPageGrid(extra, element.getPage(), element.getRows(), element.getCols());
+        putBbox(extra, element.getBbox());
+        putOfficeAnchor(extra, element);
         return extra;
+    }
+
+    /**
+     * Office 原文定位锚点：原文预览按这些字段把元素对到渲染结果上。
+     *
+     * <p>Word 段落给样式名（渲染器把样式名写在段落 DOM 上）；Excel 给工作表名与单元格行列
+     * （行列是解析产物里的 0 基下标，与表格区域高亮同一口径）。
+     */
+    private void putOfficeAnchor(Map<String, Object> extra, ParseElement element) {
+        if (StrUtil.isNotBlank(element.getStyle())) {
+            extra.put("style", element.getStyle());
+        }
+        if (StrUtil.isNotBlank(element.getSheetName())) {
+            extra.put("sheetName", element.getSheetName());
+        }
+        if (ObjectUtil.isNotNull(element.getRow())) {
+            extra.put("row", element.getRow());
+        }
+        if (ObjectUtil.isNotNull(element.getCol())) {
+            extra.put("col", element.getCol());
+        }
+        if (ObjectUtil.isNotNull(element.getRowSpan())) {
+            extra.put("rowSpan", element.getRowSpan());
+        }
+        if (ObjectUtil.isNotNull(element.getColSpan())) {
+            extra.put("colSpan", element.getColSpan());
+        }
+        if (ObjectUtil.isNotNull(element.getIsHeader())) {
+            extra.put("isHeader", element.getIsHeader());
+        }
     }
 
     // ---------------- 组装：章节树元素 ----------------
@@ -168,6 +261,7 @@ public class StageContentQueryServiceImpl implements StageContentQueryService {
             extra.put("level", element.getLevel());
         }
         putPageGrid(extra, element.getPage(), element.getRows(), element.getCols());
+        putBbox(extra, element.getBbox());
         return extra;
     }
 
@@ -182,6 +276,44 @@ public class StageContentQueryServiceImpl implements StageContentQueryService {
         if (cols != null) {
             extra.put("cols", cols);
         }
+    }
+
+    /**
+     * 边界框并入 extra：原文预览按它在页面上画高亮框。
+     *
+     * <p>单位点（pt）、左上角原点，与解析产物里的 bbox 同口径；元素无坐标时不下发该字段。
+     */
+    private void putBbox(Map<String, Object> extra, BBox bbox) {
+        if (ObjectUtil.isNull(bbox)) {
+            return;
+        }
+        Map<String, Object> box = new LinkedHashMap<>();
+        box.put("x", bbox.getX());
+        box.put("y", bbox.getY());
+        box.put("width", bbox.getWidth());
+        box.put("height", bbox.getHeight());
+        extra.put("bbox", box);
+    }
+
+    /** 元素的文档页码：解析/组装走 extra.page，其余环节无页概念返回 null */
+    private Long docPageOf(StageContentItemVO item) {
+        Object value = ObjectUtil.isNull(item.getExtra()) ? null : item.getExtra().get("page");
+        return value instanceof Number number ? number.longValue() : null;
+    }
+
+    /**
+     * 按文档页过滤：只留该页元素（无页概念/非该页的一律排除）。
+     *
+     * <p>比较用 Long：入参来自 HTTP 是大整数，而元素页码在产物里是 Integer，
+     * 直接比会因类型不同永远不相等。
+     */
+    private List<StageContentItemVO> filterByDocPage(List<StageContentItemVO> all, Long docPage) {
+        if (ObjectUtil.isNull(docPage) || docPage < 1) {
+            return all;
+        }
+        return all.stream()
+                .filter(item -> ObjectUtil.equal(docPageOf(item), docPage))
+                .toList();
     }
 
     // ---------------- 预处理：视图元素（display + normalized + 状态） ----------------

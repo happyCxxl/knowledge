@@ -10,6 +10,7 @@ import com.knowledge.biz.service.db.KbPipelineProductDbService;
 import com.knowledge.biz.service.db.KbPipelineStepLogDbService;
 import com.knowledge.biz.service.support.EmbedVoAssembler;
 import com.knowledge.biz.service.support.StageStrategySupport;
+import com.knowledge.biz.service.support.FileResultAccessGuard;
 import com.knowledge.biz.service.support.TaskDetailSupport;
 import com.knowledge.biz.task.TaskTriggerSupport;
 import com.knowledge.common.domain.entity.KbEmbeddingRecord;
@@ -65,11 +66,13 @@ public class EmbedControlServiceImpl implements EmbedControlService {
     private final StageStrategySupport strategySupport;
     private final TaskTriggerSupport triggerSupport;
     private final TaskDetailSupport detailSupport;
+    private final FileResultAccessGuard accessGuard;
 
     @Override
     public EmbedTriggerVO embed(Long fileResultId, Long strategyVersionId, Long upstreamProductId) {
         KbFileResult fileResult = fileResultDbService.getById(fileResultId);
         ThrowUtil.throwIf(ObjectUtil.isNull(fileResult), ErrorCode.FILE_RESULT_NOT_FOUND);
+        accessGuard.check(fileResult);
         EmbedStrategy strategy = resolveStrategy(fileResult, strategyVersionId);
 
         // 上游切片产物：可选指定，缺省取最新
@@ -88,6 +91,7 @@ public class EmbedControlServiceImpl implements EmbedControlService {
     public EmbedDetailVO embedDetail(Long fileResultId, Long taskId) {
         KbFileResult fileResult = fileResultDbService.getById(fileResultId);
         ThrowUtil.throwIf(ObjectUtil.isNull(fileResult), ErrorCode.FILE_RESULT_NOT_FOUND);
+        accessGuard.check(fileResult);
         KbPipelineTask task = detailSupport.resolveTask(fileResultId, PipelineStage.EMBED, taskId, "向量化");
 
         EmbedDetailVO vo = new EmbedDetailVO();

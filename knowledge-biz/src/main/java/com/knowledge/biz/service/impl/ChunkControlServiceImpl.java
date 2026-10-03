@@ -5,6 +5,7 @@ import com.knowledge.biz.service.ChunkControlService;
 import com.knowledge.biz.service.db.*;
 import com.knowledge.biz.service.support.ChunkVoAssembler;
 import com.knowledge.biz.service.support.StageStrategySupport;
+import com.knowledge.biz.service.support.FileResultAccessGuard;
 import com.knowledge.biz.service.support.TaskDetailSupport;
 import com.knowledge.biz.task.TaskTriggerSupport;
 import com.knowledge.common.domain.entity.*;
@@ -46,6 +47,7 @@ public class ChunkControlServiceImpl implements ChunkControlService {
     private final KbChunkDbService chunkDbService;
     private final ChunkStrategyParser strategyParser;
     private final ChunkVoAssembler voAssembler;
+    private final FileResultAccessGuard accessGuard;
 
     /**
      * 触发切片（手动逐环节，重跑同入口）：策略解析 → 上游预处理视图产物校验 → 防重/唤醒 → 新建 CHUNK 任务入队。
@@ -59,6 +61,7 @@ public class ChunkControlServiceImpl implements ChunkControlService {
     public ChunkTriggerVO chunk(Long fileResultId, Long strategyVersionId, Long upstreamProductId) {
         KbFileResult fileResult = fileResultDbService.getById(fileResultId);
         ThrowUtil.throwIf(ObjectUtil.isNull(fileResult), ErrorCode.FILE_RESULT_NOT_FOUND);
+        accessGuard.check(fileResult);
         ChunkStrategy strategy = resolveStrategy(fileResult, strategyVersionId);
 
         // 可选指定上游预处理产物；缺省取最新
@@ -75,6 +78,7 @@ public class ChunkControlServiceImpl implements ChunkControlService {
     public ChunkDetailVO chunkDetail(Long fileResultId, Long taskId) {
         KbFileResult fileResult = fileResultDbService.getById(fileResultId);
         ThrowUtil.throwIf(ObjectUtil.isNull(fileResult), ErrorCode.FILE_RESULT_NOT_FOUND);
+        accessGuard.check(fileResult);
         KbPipelineTask task = detailSupport.resolveTask(fileResultId, PipelineStage.CHUNK, taskId, "切片");
 
         ChunkDetailVO vo = new ChunkDetailVO();

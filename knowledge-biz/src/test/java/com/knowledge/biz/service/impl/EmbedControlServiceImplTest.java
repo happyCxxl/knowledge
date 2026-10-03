@@ -9,11 +9,14 @@ import com.knowledge.biz.service.db.KbPipelineStepLogDbService;
 import com.knowledge.biz.service.db.KbPipelineStrategyVersionDbService;
 import com.knowledge.biz.service.db.KbPipelineTaskDbService;
 import com.knowledge.biz.service.db.KbStrategyBindingDbService;
+import com.knowledge.biz.service.support.FileResultAccessGuard;
 import com.knowledge.biz.service.support.EmbedVoAssembler;
 import com.knowledge.biz.service.support.StageStrategySupport;
 import com.knowledge.biz.service.support.TaskDetailSupport;
 import com.knowledge.biz.task.TaskQueueSupport;
 import com.knowledge.biz.task.TaskTriggerSupport;
+import com.knowledge.biz.testkit.SecurityTestSupport;
+import com.knowledge.common.domain.entity.KnowledgeBase;
 import com.knowledge.common.domain.entity.KbEmbeddingRecord;
 import com.knowledge.common.domain.entity.KbEmbeddingSet;
 import com.knowledge.common.domain.entity.KbFileResult;
@@ -46,6 +49,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -85,6 +89,9 @@ class EmbedControlServiceImplTest {
     @BeforeEach
     void setUp() {
         // 触发/详情助手为纯委托类、组装器为纯映射类，用真实实例（mock 会让 VO 组装返回 null，断言失真）
+        SecurityTestSupport.loginViewer();
+        boundKnowledgeBase(10L);
+        FileResultAccessGuard accessGuard = new FileResultAccessGuard(fileResultDbService, knowledgeBaseDbService);
         service = new EmbedControlServiceImpl(fileResultDbService, pipelineProductDbService, stepLogDbService,
                 embeddingSetDbService, embeddingRecordDbService, new EmbedVoAssembler(),
                 new EmbedStrategyParser(new EmbedProperties(), new StaticModelCatalog()),
@@ -92,7 +99,7 @@ class EmbedControlServiceImplTest {
                 new EmbedProperties(), new ChunkProperties(),
                 new StageStrategySupport(strategyVersionDbService, strategyBindingDbService, knowledgeBaseDbService),
                 new TaskTriggerSupport(pipelineTaskDbService, taskQueue),
-                new TaskDetailSupport(pipelineTaskDbService, stepLogDbService, pipelineProductDbService));
+                new TaskDetailSupport(pipelineTaskDbService, stepLogDbService, pipelineProductDbService), accessGuard);
     }
 
     private KbFileResult fileResult() {
@@ -314,5 +321,23 @@ class EmbedControlServiceImplTest {
         row.setConfigSnapshot("{\"model\":\"text-embedding-v4\"}");
         row.setStatus(status);
         return row;
+    }    @Test
+    void otherUserFileResultShouldReject40401() {
+        when(fileResultDbService.getById(10L)).thenReturn(fileResult());
+        // 归属看的是知识库归属：换一个登录用户，越权与"不存在"同样返回 40401
+        SecurityTestSupport.loginOtherUser();
+
+        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.embed(10L, null, null));
+        assertEquals(ErrorCode.KB_NOT_FOUND, e.getErrorCode());
     }
+
+
+    /** 让指定知识库归当前登录用户所有（归属校验要能过） */
+    private void boundKnowledgeBase(Long id) {
+        KnowledgeBase kb = new KnowledgeBase();
+        kb.setId(id);
+        kb.setUserId(SecurityTestSupport.VIEWER_ID);
+        lenient().when(knowledgeBaseDbService.getActiveById(id)).thenReturn(kb);
+    }
+
 }

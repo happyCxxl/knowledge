@@ -4,6 +4,8 @@ import cn.hutool.core.util.ObjectUtil;
 import com.knowledge.biz.service.ParseControlService;
 import com.knowledge.biz.service.db.KbFileResultDbService;
 import com.knowledge.biz.service.db.KbPipelineProductDbService;
+import com.knowledge.biz.service.support.FileResultAccessGuard;
+import com.knowledge.biz.service.support.ParseStatsSupport;
 import com.knowledge.biz.service.support.TaskDetailSupport;
 import com.knowledge.biz.task.TaskTriggerSupport;
 import com.knowledge.common.domain.entity.KbFileResult;
@@ -15,13 +17,11 @@ import com.knowledge.common.dto.response.task.StageTriggerVO;
 import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.ThrowUtil;
-import com.knowledge.common.utils.JsonUtil;
 import com.knowledge.filecenter.service.FileStorage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -40,6 +40,7 @@ public class ParseControlServiceImpl implements ParseControlService {
     private final TaskTriggerSupport triggerSupport;
     private final TaskDetailSupport detailSupport;
     private final FileStorage fileStorage;
+    private final FileResultAccessGuard accessGuard;
 
     /**
      * 触发解析（首次解析与失败重跑同一入口）四分支：
@@ -58,6 +59,7 @@ public class ParseControlServiceImpl implements ParseControlService {
     public StageTriggerVO parse(Long fileResultId) {
         KbFileResult fileResult = fileResultDbService.getById(fileResultId);
         ThrowUtil.throwIf(ObjectUtil.isNull(fileResult), ErrorCode.FILE_RESULT_NOT_FOUND);
+        accessGuard.check(fileResult);
         // 手动逐环节口径：本接口 = "触发解析"（首次解析 / 失败后重跑同一个入口；成功后禁止重跑）
         return triggerSupport.trigger(fileResultId, PipelineStage.PARSE, null, null, "解析", true);
     }
@@ -66,35 +68,32 @@ public class ParseControlServiceImpl implements ParseControlService {
     public ParseDetailVO parseDetail(Long fileResultId, Long taskId) {
         KbFileResult fileResult = fileResultDbService.getById(fileResultId);
         ThrowUtil.throwIf(ObjectUtil.isNull(fileResult), ErrorCode.FILE_RESULT_NOT_FOUND);
+        accessGuard.check(fileResult);
         KbPipelineTask task = detailSupport.resolveTask(fileResultId, PipelineStage.PARSE, taskId, "解析");
 
         ParseDetailVO vo = new ParseDetailVO();
         detailSupport.withTask(vo, fileResultId, task);
 
-        // 产物引用/告警：按 task.productId 精确取该次运行的产物（历史任务同样可展示自己的产物；无任务/无产物留空）
+        // 产物引用/告警/统计：按 task.productId 精确取该次运行的产物（历史任务同样可展示自己的产物；无任务/无产物留空）
         vo.setWarnings(new ArrayList<>());
         KbPipelineProduct product = detailSupport.productOfTask(task);
         if (ObjectUtil.isNotNull(product)) {
             detailSupport.withProductRef(vo, product);
-            vo.setWarnings(readWarnings(product.getArtifactId()));
+            ParseResult parseResult = ParseStatsSupport.readArtifact(fileStorage, product.getArtifactId());
+            vo.setWarnings(warningsOf(parseResult));
+            vo.setParseStats(ParseStatsSupport.stats(vo.getStartedAt(), vo.getFinishedAt(), parseResult));
+            vo.setParseSummary(ParseStatsSupport.summary(vo.getErrorMsg(), vo.getParseStats(), vo.getStatus()));
         }
         return vo;
     }
 
-    /** 读产物 JSON 提取 quality.warnings（展示用；读取失败记日志并返回空，不阻断详情） */
-    private List<String> readWarnings(String artifactId) {
-        try {
-            byte[] content = fileStorage.getObject(artifactId);
-            ParseResult result = JsonUtil.toObject(new String(content, StandardCharsets.UTF_8), ParseResult.class);
-            if (ObjectUtil.isNull(result) || ObjectUtil.isNull(result.getQuality())) {
-                return new ArrayList<>();
-            }
-            return result.getQuality().getWarnings().stream()
-                    .map(w -> w.getLevel() + " " + w.getCode() + ": " + w.getMessage())
-                    .toList();
-        } catch (Exception e) {
-            log.warn("读取产物告警失败, artifactId={}", artifactId, e);
+    /** 产物本体 → 告警文案（展示用；无产物或无告警返回空列表） */
+    private List<String> warningsOf(ParseResult parseResult) {
+        if (ObjectUtil.isNull(parseResult) || ObjectUtil.isNull(parseResult.getQuality())) {
             return new ArrayList<>();
         }
+        return parseResult.getQuality().getWarnings().stream()
+                .map(w -> w.getLevel() + " " + w.getCode() + ": " + w.getMessage())
+                .toList();
     }
 }
