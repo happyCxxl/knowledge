@@ -87,8 +87,8 @@ export interface StageViewConfig {
   checklist: (node: LineageNode) => StageCheckItem[];
   /** 卡片摘要行文案（空串表示这一行留空） */
   summary: (node: LineageNode) => string;
-  /** 详情右栏页签（顺序即展示顺序） */
-  tabs: StageTab[];
+  /** 详情右栏页签（顺序即展示顺序；至少一项，详情打开时默认落在第一项） */
+  tabs: [StageTab, ...StageTab[]];
   /** 详情统计条 */
   statItems: (detail: ParseDetail | StructureDetail | null) => StageStatItem[];
   /** 详情左栏内容类型 */

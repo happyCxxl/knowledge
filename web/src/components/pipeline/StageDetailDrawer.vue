@@ -1216,14 +1216,21 @@ function parseSummaryOf(value: ParseDetail | StructureDetail): string | null {
 
 const conclusionClass = computed(() => badgeClass.value);
 
-/** 右栏页签：由环节配置给（解析=元素/告警/过程；组装=元素/结构树/告警/过程） */
+/** 右栏页签：由环节配置给（解析=元素/告警/过程；组装=结构树/元素/告警/过程） */
 const tabs = computed<StageTab[]>(() => stageView.value.tabs);
 
 /** 页签键别名：模板里 `activeTab === 'warnings'` 之类的字面量比较需要它 */
 type ResultTabKey = StageTabKey;
 
-/** 当前页签：切换只换右栏内容，左栏位置与选中状态都不受影响 */
-const activeTab = ref<ResultTabKey>('elements');
+/** 环节默认页签：环节配置里页签表的第一项 */
+const defaultTab = computed<ResultTabKey>(() => tabs.value[0].key);
+
+/**
+ * 当前页签：切换只换右栏内容，左栏位置与选中状态都不受影响。
+ *
+ * <p>打开抽屉或换环节时落到该环节的默认页签；同一环节内换运行保留用户选的页签。
+ */
+const activeTab = ref<ResultTabKey>(defaultTab.value);
 
 /** 页签角标数：没有内容的页签不显示数字 */
 function tabCount(key: ResultTabKey): number {
@@ -1614,11 +1621,16 @@ watch(previewReady, (ready) => {
   }
 });
 
+/** 上一次已落到默认页签的环节（null = 抽屉当前没打开） */
+let tabStage: string | null = null;
+
 // 打开或切换到另一次运行时重新取数；关闭时不请求
 watch(
   () => [props.visible, props.fileResultId, props.taskId, props.stage] as const,
   ([visible]) => {
     if (!visible) {
+      // 关闭时忘掉已落位的环节，再次打开仍从默认页签开始
+      tabStage = null;
       return;
     }
     detail.value = null;
@@ -1636,10 +1648,10 @@ watch(
     sourceError.value = '';
     // 文档渲染窗口回到起点：换运行后按新产物重新按需渲染
     docRenderLimit.value = DOC_RENDER_STEP;
-    // 页签在当前环节的页签表里就保留上次选择，不在表里则回到第一个页签（不留上一个环节的页签）
-    const stageTabs = tabs.value;
-    if (stageTabs.length > 0 && !stageTabs.some((tab) => tab.key === activeTab.value)) {
-      activeTab.value = stageTabs[0].key;
+    // 打开或换环节时落到该环节的默认页签；同一环节内换运行保留用户选的页签
+    if (tabStage !== props.stage) {
+      activeTab.value = defaultTab.value;
+      tabStage = props.stage;
     }
     void getStageDetail(props.stage, props.fileResultId, props.taskId)
       .then((data) => {

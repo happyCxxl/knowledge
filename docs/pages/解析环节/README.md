@@ -7,7 +7,7 @@
 | 路由       | `/knowledge-base/:id/stages`（与其余环节共用同一路由，按执行链节点区分）                                                                                                |
 | 入口       | 知识库列表 → 某库的「切片阶段（执行链）」→ 解析环节卡片                                                                                                                 |
 | 前端视图   | `../../../web/src/views/knowledge-base/PipelineStageView.vue`（页面）                                                                                                   |
-| 前端组件   | `../../../web/src/components/pipeline/ChainNode.vue`（卡片）、`ParseDetailDrawer.vue`（抽屉）                                                                           |
+| 前端组件   | `../../../web/src/components/pipeline/ChainNode.vue`（卡片）、`StageDetailDrawer.vue`（抽屉）                                                                           |
 | 前端接口层 | `../../../web/src/api/pipeline.ts`                                                                                                                                      |
 | 后端       | `KnowledgeFileParseController`（解析触发 / 解析详情）、`KnowledgeFileStageController`（产物内容）、`LineageController`（血缘）                                          |
 | 涉及接口   | `GET /file-results/{id}/lineage`、`POST /file-results/{id}/parse`、`GET /file-results/{id}/parse-detail`、`GET /file-results/{id}/stage-content`、`GET /files/{fileId}` |
