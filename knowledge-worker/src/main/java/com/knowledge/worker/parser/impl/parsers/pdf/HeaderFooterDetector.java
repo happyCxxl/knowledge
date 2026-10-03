@@ -21,6 +21,19 @@ public final class HeaderFooterDetector {
     /** 页码行共享键（纯页码行全文只产一条页脚元素） */
     public static final String PAGE_NUMBER_KEY = "__page_number__";
 
+    /**
+     * 比较键空白归一化：去首尾空白、连续空白压成一个空格、去掉零宽字符。
+     * 只用于文本比对，不改元素里的文本。
+     */
+    public static String normalizeKey(String text) {
+        if (StrUtil.isBlank(text)) {
+            return "";
+        }
+        return text.replaceAll("[\\u200B-\\u200D\\uFEFF]", "")
+                .trim()
+                .replaceAll("\\s+", " ");
+    }
+
     private HeaderFooterDetector() {
     }
 
@@ -32,8 +45,9 @@ public final class HeaderFooterDetector {
         for (PageContent page : pages) {
             double bandY = page.pageHeight() * headerBand;
             for (PageLine line : page.lines()) {
-                if (line.y() < bandY && StrUtil.isNotBlank(line.text().trim())) {
-                    occurrences.computeIfAbsent(line.text().trim(), k -> new ArrayList<>()).add(line);
+                String text = normalizeKey(line.text());
+                if (line.y() < bandY && StrUtil.isNotBlank(text)) {
+                    occurrences.computeIfAbsent(text, k -> new ArrayList<>()).add(line);
                 }
             }
         }
@@ -61,7 +75,7 @@ public final class HeaderFooterDetector {
                 if (line.y() + line.height() < bandY) {
                     continue;
                 }
-                String text = line.text().trim();
+                String text = normalizeKey(line.text());
                 if (StrUtil.isBlank(text)) {
                     continue;
                 }

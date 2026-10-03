@@ -212,10 +212,90 @@ public class PdfBoxDocumentParser implements DocumentParserPort {
         if (!tokenText.isEmpty()) {
             tokens.add(new Token(tokenText.toString(), tokenStart, tokenEnd));
         }
-        String text = String.join("", tokens.stream().map(Token::text).toList());
+        String text = lineText(lineChars);
         boolean tocCandidate = TocLineFeature.isTocLine(text);
         return new PageLine(pageNo, x, y, maxX - x, maxY - y, text, fontSize,
                 first.fontName, first.bold, tokens, tocCandidate);
+    }
+
+    /**
+     * 行文本重建：按词边界补分隔符，内容流里的真实空白压缩为一个空格。
+     * 词边界由 PDFBox 逐词回调给出（一次回调 = 一个词），两侧同为 CJK 时不补空格。
+     */
+    static String lineText(List<CharInfo> sortedByX) {
+        StringBuilder text = new StringBuilder();
+        CharInfo prev = null;
+        for (CharInfo current : sortedByX) {
+            if (Character.isWhitespace(current.codePoint)) {
+                appendSpace(text);
+            } else {
+                if (ObjectUtil.isNotNull(prev) && prev.wordEnd && current.wordStart
+                        && !(isCjk(prev.codePoint) && isCjk(current.codePoint))) {
+                    appendSpace(text);
+                }
+                text.appendCodePoint(current.codePoint);
+            }
+            prev = current;
+        }
+        if (!text.isEmpty() && text.charAt(text.length() - 1) == ' ') {
+            text.setLength(text.length() - 1);
+        }
+        return text.toString();
+    }
+
+    /** 行间分隔：任一侧取不到可见字符、或两侧同为 CJK 时不补空格，其余补一个空格 */
+    static String lineSeparator(PageLine upper, PageLine lower) {
+        int upperCodePoint = lastVisibleCodePoint(upper.text());
+        int lowerCodePoint = firstVisibleCodePoint(lower.text());
+        if (upperCodePoint < 0 || lowerCodePoint < 0
+                || (isCjk(upperCodePoint) && isCjk(lowerCodePoint))) {
+            return "";
+        }
+        return " ";
+    }
+
+    /** CJK 码位：Han、假名、谚文、CJK 标点与符号、全角形式 */
+    static boolean isCjk(int codePoint) {
+        return (codePoint >= 0x3400 && codePoint <= 0x4DBF)
+                || (codePoint >= 0x4E00 && codePoint <= 0x9FFF)
+                || (codePoint >= 0xF900 && codePoint <= 0xFAFF)
+                || (codePoint >= 0x3040 && codePoint <= 0x30FF)
+                || (codePoint >= 0xAC00 && codePoint <= 0xD7AF)
+                || (codePoint >= 0x1100 && codePoint <= 0x11FF)
+                || (codePoint >= 0x3000 && codePoint <= 0x303F)
+                || (codePoint >= 0xFF00 && codePoint <= 0xFFEF);
+    }
+
+    /** 追加一个空格：行首与连续空白都不追加 */
+    private static void appendSpace(StringBuilder text) {
+        if (!text.isEmpty() && text.charAt(text.length() - 1) != ' ') {
+            text.append(' ');
+        }
+    }
+
+    /** 首个非空白码位；取不到返回 -1 */
+    private static int firstVisibleCodePoint(String text) {
+        for (int i = 0; i < text.length(); ) {
+            int codePoint = text.codePointAt(i);
+            if (!Character.isWhitespace(codePoint)) {
+                return codePoint;
+            }
+            i += Character.charCount(codePoint);
+        }
+        return -1;
+    }
+
+    /** 末个非空白码位；取不到返回 -1 */
+    private static int lastVisibleCodePoint(String text) {
+        int result = -1;
+        for (int i = 0; i < text.length(); ) {
+            int codePoint = text.codePointAt(i);
+            if (!Character.isWhitespace(codePoint)) {
+                result = codePoint;
+            }
+            i += Character.charCount(codePoint);
+        }
+        return result;
     }
 
     /**
@@ -248,26 +328,26 @@ public class PdfBoxDocumentParser implements DocumentParserPort {
                                       com.knowledge.worker.parser.ParseProperties properties) {
         // 页首 HEADER 元素（按本页首见顺序）
         for (PageLine line : page.lines()) {
-            String key = line.text().trim();
+            String key = HeaderFooterDetector.normalizeKey(line.text());
             if (headers.containsKey(key) && headers.get(key).pending()) {
                 HeaderFooterDetector.HeaderLine header = headers.get(key);
                 elements.add(bandElement(
                         "h" + page.pageNo() + "_" + Integer.toHexString(key.hashCode()),
-                        ElementType.HEADER, key, "pdf#top-area", page.pageNo(), line, fileId));
+                        ElementType.HEADER, line.text().trim(), "pdf#top-area", page.pageNo(), line, fileId));
                 header.markEmitted();
             }
         }
 
         // 页底 FOOTER 元素（多页重复文本按首见产出；页码模式全文一条；文本取基础文本）
         for (PageLine line : page.lines()) {
-            String key = line.text().trim();
+            String key = HeaderFooterDetector.normalizeKey(line.text());
             String footerKey = HeaderFooterDetector.footerBase(key);
             HeaderFooterDetector.HeaderLine footer = footers.get(footerKey);
             if (footer != null && footer.pending()) {
                 elements.add(bandElement(
                         "f" + page.pageNo() + "_" + Integer.toHexString(footerKey.hashCode()),
                         ElementType.FOOTER,
-                        HeaderFooterDetector.PAGE_NUMBER_KEY.equals(footerKey) ? key : footerKey,
+                        HeaderFooterDetector.PAGE_NUMBER_KEY.equals(footerKey) ? line.text().trim() : footerKey,
                         "pdf#bottom-area", page.pageNo(), line, fileId));
                 footer.markEmitted();
             }
@@ -276,10 +356,11 @@ public class PdfBoxDocumentParser implements DocumentParserPort {
         // 正文：按 y 顺序推进；多 token 连续行尝试表格块，否则段落聚合
         double footerBandY = page.pageHeight() * (1 - properties.getFooterAreaRatio());
         List<PageLine> bodyLines = page.lines().stream()
-                .filter(line -> !headers.containsKey(line.text().trim()))
+                .filter(line -> !headers.containsKey(HeaderFooterDetector.normalizeKey(line.text())))
                 .filter(line -> {
                     boolean inFooterBand = line.y() + line.height() >= footerBandY;
-                    return !(inFooterBand && footers.containsKey(HeaderFooterDetector.footerBase(line.text().trim())));
+                    return !(inFooterBand && footers.containsKey(HeaderFooterDetector.footerBase(
+                            HeaderFooterDetector.normalizeKey(line.text()))));
                 })
                 .sorted(Comparator.comparingDouble(PageLine::y))
                 .toList();
@@ -396,7 +477,16 @@ public class PdfBoxDocumentParser implements DocumentParserPort {
         PageLine first = lines.getFirst();
         PageLine last = lines.getLast();
         ParseElement element = ParseElement.of("p" + first.page() + "_" + lines.hashCode(), ElementType.PARAGRAPH);
-        element.setText(String.join("", lines.stream().map(PageLine::text).toList()));
+        StringBuilder paragraph = new StringBuilder();
+        PageLine prevLine = null;
+        for (PageLine line : lines) {
+            if (ObjectUtil.isNotNull(prevLine)) {
+                paragraph.append(lineSeparator(prevLine, line));
+            }
+            paragraph.append(line.text());
+            prevLine = line;
+        }
+        element.setText(paragraph.toString());
         element.setPage(first.page());
         double x = lines.stream().mapToDouble(PageLine::x).min().orElse(0);
         double y = first.y();
@@ -422,25 +512,33 @@ public class PdfBoxDocumentParser implements DocumentParserPort {
             super();
         }
 
+        /** 逐词回调：收集本次回调的全部码点，首末码点标记词边界 */
         @Override
         protected void writeString(String text, List<TextPosition> textPositions) {
-            for (TextPosition tp : textPositions) {
+            List<TextPosition> positions = textPositions.stream()
+                    .filter(tp -> ObjectUtil.isNotNull(tp.getUnicode()))
+                    .toList();
+            int total = positions.stream()
+                    .mapToInt(tp -> tp.getUnicode().codePointCount(0, tp.getUnicode().length()))
+                    .sum();
+            int index = 0;
+            for (TextPosition tp : positions) {
                 String unicode = tp.getUnicode();
-                if (ObjectUtil.isNull(unicode)) {
-                    continue;
-                }
                 boolean bold = tp.getFont().getName().toLowerCase(Locale.ROOT).contains("bold");
                 for (int i = 0; i < unicode.length(); ) {
                     int cp = unicode.codePointAt(i);
                     chars.add(new CharInfo(tp.getXDirAdj(), tp.getYDirAdj(), tp.getWidthDirAdj(),
-                            tp.getHeightDir(), tp.getFontSizeInPt(), tp.getFont().getName(), bold, cp));
+                            tp.getHeightDir(), tp.getFontSizeInPt(), tp.getFont().getName(), bold, cp,
+                            index == 0, index == total - 1));
+                    index++;
                     i += Character.charCount(cp);
                 }
             }
         }
     }
 
-    private record CharInfo(double x, double y, double width, double height, double fontSize,
-                            String fontName, boolean bold, int codePoint) {
+    /** 字符事实：坐标与字体 + 码点 + 词边界标记（词边界来自 PDFBox 的逐词回调） */
+    record CharInfo(double x, double y, double width, double height, double fontSize,
+                    String fontName, boolean bold, int codePoint, boolean wordStart, boolean wordEnd) {
     }
 }

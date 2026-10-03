@@ -5,6 +5,8 @@ import com.knowledge.common.domain.parse.ParseSource;
 import com.knowledge.common.enums.parse.ElementType;
 import com.knowledge.worker.parser.ParseContext;
 import com.knowledge.worker.parser.ParseProperties;
+import com.knowledge.worker.parser.impl.parsers.pdf.HeaderFooterDetector;
+import com.knowledge.worker.parser.impl.parsers.pdf.PageLine;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
@@ -15,9 +17,11 @@ import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -87,14 +91,17 @@ class PdfBoxDocumentParserTest {
                 .filter(e -> ElementType.HEADER.name().equals(e.getType()))
                 .toList();
         assertEquals(1, headers.size());
-        assertEquals("XXProjectHeader", headers.getFirst().getText());
+        assertEquals("XX Project Header", headers.getFirst().getText());
 
         // 段落：正文（页眉除外）
         List<ParseElement> paragraphs = source.getElements().stream()
                 .filter(e -> ElementType.PARAGRAPH.name().equals(e.getType()))
                 .toList();
         assertTrue(paragraphs.size() >= 2);
-        assertTrue(paragraphs.stream().anyMatch(p -> p.getText().contains("Chapteronebody")));
+        assertTrue(paragraphs.stream().anyMatch(p -> p.getText().contains("Chapter one body")));
+        // 行间拼接：同一段落内的相邻行之间补空格
+        assertTrue(paragraphs.stream()
+                .anyMatch(p -> p.getText().contains("line 0 Chapter one body continues")));
         // 溯源与坐标
         assertNotNull(paragraphs.getFirst().getProvenance());
         assertTrue(paragraphs.getFirst().getProvenance().getPath().startsWith("pdf#page"));
@@ -258,7 +265,82 @@ class PdfBoxDocumentParserTest {
             assertTrue(source.getElements().stream()
                     .filter(e -> ElementType.PARAGRAPH.name().equals(e.getType()))
                     .anyMatch(e -> Boolean.TRUE.equals(e.getTocCandidate())
-                            && e.getText().contains("ChapterOne....1")));
+                            && e.getText().contains("Chapter One .... 1")));
         }
+    }
+
+    @Test
+    void englishWordBoundariesShouldKeepSpaces() {
+        List<PdfBoxDocumentParser.CharInfo> chars = new ArrayList<>();
+        chars.addAll(word("Chapter", 72));
+        chars.addAll(word("one", 110));
+        chars.addAll(word("body", 130));
+
+        assertEquals("Chapter one body", PdfBoxDocumentParser.lineText(chars));
+    }
+
+    @Test
+    void cjkWordBoundariesShouldNotInsertSpaces() {
+        List<PdfBoxDocumentParser.CharInfo> chars = new ArrayList<>();
+        // 每个汉字各成一次回调（PDFBox 对 CJK 常逐字回调）
+        chars.add(ch('知', 72, true, true));
+        chars.add(ch('识', 82, true, true));
+        chars.add(ch('库', 92, true, true));
+
+        assertEquals("知识库", PdfBoxDocumentParser.lineText(chars));
+    }
+
+    @Test
+    void mixedScriptBoundaryShouldKeepSpace() {
+        List<PdfBoxDocumentParser.CharInfo> chars = new ArrayList<>();
+        chars.add(ch('知', 72, true, true));
+        chars.add(ch('识', 82, true, true));
+        chars.add(ch('库', 92, true, true));
+        chars.addAll(word("knowledge", 110));
+
+        assertEquals("知识库 knowledge", PdfBoxDocumentParser.lineText(chars));
+    }
+
+    @Test
+    void lineSeparatorShouldFollowCjkRule() {
+        assertTrue(PdfBoxDocumentParser.lineSeparator(line("知识库"), line("下一句")).isEmpty());
+        assertEquals(" ", PdfBoxDocumentParser.lineSeparator(line("Chapter one"), line("body")));
+    }
+
+    @Test
+    void cjkCodePointShouldCoverHanAndFullwidthPunctuation() {
+        assertTrue(PdfBoxDocumentParser.isCjk('中'));
+        assertTrue(PdfBoxDocumentParser.isCjk('。'));
+        assertTrue(PdfBoxDocumentParser.isCjk('，'));
+        assertTrue(PdfBoxDocumentParser.isCjk('ア'));
+        assertFalse(PdfBoxDocumentParser.isCjk('A'));
+        assertFalse(PdfBoxDocumentParser.isCjk(','));
+    }
+
+    @Test
+    void headerFooterKeyShouldNormalizeWhitespace() {
+        assertEquals("XX Project Header", HeaderFooterDetector.normalizeKey("  XX   Project \t Header "));
+        assertEquals("知识库", HeaderFooterDetector.normalizeKey("\u200B知识库"));
+        assertEquals("", HeaderFooterDetector.normalizeKey("   "));
+    }
+
+    /** 造一个词的字符序列：词内 x 连续，首末码点带词边界标记 */
+    private List<PdfBoxDocumentParser.CharInfo> word(String text, double x) {
+        List<PdfBoxDocumentParser.CharInfo> chars = new ArrayList<>();
+        for (int i = 0; i < text.length(); i++) {
+            chars.add(ch(text.charAt(i), x + i * 5, i == 0, i == text.length() - 1));
+        }
+        return chars;
+    }
+
+    /** 造一个字符事实（固定行高与字号） */
+    private PdfBoxDocumentParser.CharInfo ch(int codePoint, double x, boolean wordStart, boolean wordEnd) {
+        return new PdfBoxDocumentParser.CharInfo(x, 700, 5, 10, 10, "Helvetica", false,
+                codePoint, wordStart, wordEnd);
+    }
+
+    /** 造一个行事实（只用到文本） */
+    private PageLine line(String text) {
+        return new PageLine(1, 72, 700, 100, 10, text, 10, "Helvetica", false, List.of(), false);
     }
 }
