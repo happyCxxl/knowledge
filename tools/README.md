@@ -30,6 +30,16 @@ node tools/check-comments.mjs --strings    # 额外报告字符串字面量里�
 
 接入点：`.husky/pre-push` 的第 1 步（改动涉及 `.java/.ts/.vue/.css/.mjs/.md/.husky/` 时执行）。`mvn -o verify` 与 `pnpm lint` 不重复这份词表——避免同一份规则两处维护。
 
+## check-encoding.mjs
+
+扫出被"系统编码误读误写"破坏过的源码与文档：替换字符 `U+FFFD`，或 `锛?` / `鏂囦欢` 这类 GBK 误读序列。<!-- 编码豁免：本行就是判定词表的举例，必须原样写出 -->
+
+典型成因是用 PowerShell 的文本写入命令（`Set-Content` / `Out-File`）改 UTF-8 源码——中文被按系统编码读入再写回。这类破坏**不影响编译**（字符串仍是合法内容），类型检查与 lint 都看不出来，只有人眼看界面或日志才会发现，因此单独设一道门禁。
+
+某行确实需要举例写出这些序列时，在该行写 `编码豁免：<理由>`；脚本自身要写出判定词表，已在扫描时跳过。
+
+接入点：`.husky/pre-push` 的编码步骤（改动涉及源码与文档类文件时执行）。
+
 ## 相关
 
 - 后端检查组成：`tools/backend/README.md`

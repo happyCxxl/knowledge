@@ -103,11 +103,15 @@ fi
 
 # ---------- 3. 规划步骤 ----------
 run_comments=0
+run_encoding=0
 run_frontend=0
 run_source=0
 run_bytecode=0
 if printf '%s\n' "$changed" | grep -qE '(\.java$|\.ts$|\.vue$|\.css$|\.mjs$|\.md$|^\.husky/|^tools/check-comments\.mjs$)'; then
   run_comments=1
+fi
+if printf '%s\n' "$changed" | grep -qE '(\.java$|\.ts$|\.vue$|\.css$|\.mjs$|\.js$|\.md$|\.sql$|\.ya?ml$|\.json$|\.html$|\.sh$|\.xml$|\.properties$|^tools/|^docker/)'; then
+  run_encoding=1
 fi
 if printf '%s\n' "$changed" | grep -qE '^(web|tools/frontend)/'; then
   run_frontend=1
@@ -116,7 +120,7 @@ if printf '%s\n' "$changed" | grep -qE '(\.java$|pom\.xml$|^tools/backend/)'; th
   run_source=1
   run_bytecode=1
 fi
-total=$((run_comments + run_frontend + run_source + run_bytecode))
+total=$((run_comments + run_encoding + run_frontend + run_source + run_bytecode))
 
 echo ""
 echo "==================== 推送前检查 ===================="
@@ -151,6 +155,24 @@ if [ "$run_comments" = "1" ]; then
     echo "!!!! [$step/$total] 注释口径检查失败（上方列出 文件:行 与命中的词）"
     echo "     复跑：node tools/check-comments.mjs"
     echo "     说明：注释只写做什么；确需保留禁词时在该行写「口径豁免：<理由>」"
+    exit 1
+  fi
+fi
+
+# 文件编码：源码/文档是否被系统编码误读误写（PowerShell 写文件常见的破坏形态）。
+if [ "$run_encoding" = "1" ]; then
+  step=$((step + 1))
+  started=$(date +%s)
+  echo ""
+  echo ">>>> [$step/$total] 文件编码：node tools/check-encoding.mjs"
+  echo "     （替换字符 U+FFFD 与 GBK 误读序列；命中即拦下）"
+  if node "$root/tools/check-encoding.mjs"; then
+    echo "---- [$step/$total] 通过（$(( $(date +%s) - started ))s）"
+  else
+    echo ""
+    echo "!!!! [$step/$total] 文件编码检查失败（上方列出 文件:行 与命中形态）"
+    echo "     复跑：node tools/check-encoding.mjs"
+    echo "     说明：用 UTF-8 工具重写受影响的行；确需举例写出这些序列时在该行写「编码豁免：<理由>」"
     exit 1
   fi
 fi
