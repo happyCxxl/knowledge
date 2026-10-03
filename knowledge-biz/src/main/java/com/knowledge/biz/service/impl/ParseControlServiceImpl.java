@@ -2,21 +2,17 @@ package com.knowledge.biz.service.impl;
 
 import cn.hutool.core.util.ObjectUtil;
 import com.knowledge.biz.service.ParseControlService;
-import com.knowledge.biz.service.db.KbFileResultDbService;
 import com.knowledge.biz.service.db.KbPipelineProductDbService;
 import com.knowledge.biz.service.support.FileResultAccessGuard;
 import com.knowledge.biz.service.support.ParseStatsSupport;
 import com.knowledge.biz.service.support.TaskDetailSupport;
 import com.knowledge.biz.task.TaskTriggerSupport;
-import com.knowledge.common.domain.entity.KbFileResult;
 import com.knowledge.common.domain.entity.KbPipelineProduct;
 import com.knowledge.common.domain.entity.KbPipelineTask;
 import com.knowledge.common.domain.parse.ParseResult;
 import com.knowledge.common.dto.response.parse.ParseDetailVO;
 import com.knowledge.common.dto.response.task.StageTriggerVO;
 import com.knowledge.common.enums.task.PipelineStage;
-import com.knowledge.common.error.ErrorCode;
-import com.knowledge.common.exception.ThrowUtil;
 import com.knowledge.filecenter.service.FileStorage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,7 +31,6 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ParseControlServiceImpl implements ParseControlService {
 
-    private final KbFileResultDbService fileResultDbService;
     private final KbPipelineProductDbService pipelineProductDbService;
     private final TaskTriggerSupport triggerSupport;
     private final TaskDetailSupport detailSupport;
@@ -57,18 +52,14 @@ public class ParseControlServiceImpl implements ParseControlService {
      */
     @Override
     public StageTriggerVO parse(Long fileResultId) {
-        KbFileResult fileResult = fileResultDbService.getById(fileResultId);
-        ThrowUtil.throwIf(ObjectUtil.isNull(fileResult), ErrorCode.FILE_RESULT_NOT_FOUND);
-        accessGuard.check(fileResult);
+        accessGuard.requireExisting(fileResultId);
         // 手动逐环节口径：本接口 = "触发解析"（首次解析 / 失败后重跑同一个入口；成功后禁止重跑）
         return triggerSupport.trigger(fileResultId, PipelineStage.PARSE, null, null, "解析", true);
     }
 
     @Override
     public ParseDetailVO parseDetail(Long fileResultId, Long taskId) {
-        KbFileResult fileResult = fileResultDbService.getById(fileResultId);
-        ThrowUtil.throwIf(ObjectUtil.isNull(fileResult), ErrorCode.FILE_RESULT_NOT_FOUND);
-        accessGuard.check(fileResult);
+        accessGuard.requireExisting(fileResultId);
         KbPipelineTask task = detailSupport.resolveTask(fileResultId, PipelineStage.PARSE, taskId, "解析");
 
         ParseDetailVO vo = new ParseDetailVO();

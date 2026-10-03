@@ -2,7 +2,6 @@ package com.knowledge.biz.service.impl;
 
 import cn.hutool.core.util.ObjectUtil;
 import com.knowledge.biz.service.PreprocessControlService;
-import com.knowledge.biz.service.db.KbFileResultDbService;
 import com.knowledge.biz.service.db.KbPipelineProductDbService;
 import com.knowledge.biz.service.support.PreprocessVoAssembler;
 import com.knowledge.biz.service.support.StageStrategySupport;
@@ -43,7 +42,6 @@ import java.util.ArrayList;
 @RequiredArgsConstructor
 public class PreprocessControlServiceImpl implements PreprocessControlService {
 
-    private final KbFileResultDbService fileResultDbService;
     private final KbPipelineProductDbService pipelineProductDbService;
     private final StageStrategySupport strategySupport;
     private final TaskTriggerSupport triggerSupport;
@@ -63,9 +61,7 @@ public class PreprocessControlServiceImpl implements PreprocessControlService {
      */
     @Override
     public PreprocessTriggerVO preprocess(Long fileResultId, Long strategyVersionId, Long upstreamProductId) {
-        KbFileResult fileResult = fileResultDbService.getById(fileResultId);
-        ThrowUtil.throwIf(ObjectUtil.isNull(fileResult), ErrorCode.FILE_RESULT_NOT_FOUND);
-        accessGuard.check(fileResult);
+        KbFileResult fileResult = accessGuard.requireExisting(fileResultId);
         PreprocessStrategy strategy = resolveStrategy(fileResult, strategyVersionId);
 
         // 可选指定上游组装产物；缺省取最新
@@ -80,9 +76,7 @@ public class PreprocessControlServiceImpl implements PreprocessControlService {
 
     @Override
     public PreprocessDetailVO preprocessDetail(Long fileResultId, Long taskId) {
-        KbFileResult fileResult = fileResultDbService.getById(fileResultId);
-        ThrowUtil.throwIf(ObjectUtil.isNull(fileResult), ErrorCode.FILE_RESULT_NOT_FOUND);
-        accessGuard.check(fileResult);
+        accessGuard.requireExisting(fileResultId);
         KbPipelineTask task = detailSupport.resolveTask(fileResultId, PipelineStage.PREPROCESS, taskId, "预处理");
 
         PreprocessDetailVO vo = new PreprocessDetailVO();

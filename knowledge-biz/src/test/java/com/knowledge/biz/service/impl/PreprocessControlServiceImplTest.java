@@ -86,7 +86,7 @@ class PreprocessControlServiceImplTest {
         SecurityTestSupport.loginViewer();
         boundKnowledgeBase(10L);
         FileResultAccessGuard accessGuard = new FileResultAccessGuard(fileResultDbService, knowledgeBaseDbService);
-        service = new PreprocessControlServiceImpl(fileResultDbService, pipelineProductDbService,
+        service = new PreprocessControlServiceImpl(pipelineProductDbService,
                 new StageStrategySupport(strategyVersionDbService, strategyBindingDbService, knowledgeBaseDbService),
                 new TaskTriggerSupport(pipelineTaskDbService, taskQueue),
                 new TaskDetailSupport(pipelineTaskDbService, stepLogDbService, pipelineProductDbService), fileStorage,

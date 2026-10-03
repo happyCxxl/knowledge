@@ -82,7 +82,7 @@ class LineageQueryServiceImplTest {
         SecurityTestSupport.loginViewer();
         boundKnowledgeBase(10L);
         FileResultAccessGuard accessGuard = new FileResultAccessGuard(fileResultDbService, knowledgeBaseDbService);
-        service = new LineageQueryServiceImpl(fileResultDbService, pipelineTaskDbService,
+        service = new LineageQueryServiceImpl(pipelineTaskDbService,
                 pipelineProductDbService, stepLogDbService, chunkSetDbService, embeddingSetDbService,
                 fileStorage, accessGuard);
     }

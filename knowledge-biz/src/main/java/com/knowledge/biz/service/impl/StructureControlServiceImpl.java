@@ -2,14 +2,12 @@ package com.knowledge.biz.service.impl;
 
 import cn.hutool.core.util.ObjectUtil;
 import com.knowledge.biz.service.StructureControlService;
-import com.knowledge.biz.service.db.KbFileResultDbService;
 import com.knowledge.biz.service.db.KbPipelineProductDbService;
 import com.knowledge.biz.service.support.FileResultAccessGuard;
 import com.knowledge.biz.service.support.StructureStatsSupport;
 import com.knowledge.biz.service.support.StructureVoAssembler;
 import com.knowledge.biz.service.support.TaskDetailSupport;
 import com.knowledge.biz.task.TaskTriggerSupport;
-import com.knowledge.common.domain.entity.KbFileResult;
 import com.knowledge.common.domain.entity.KbPipelineProduct;
 import com.knowledge.common.domain.entity.KbPipelineTask;
 import com.knowledge.common.domain.structure.UnifiedDocument;
@@ -41,7 +39,6 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class StructureControlServiceImpl implements StructureControlService {
 
-    private final KbFileResultDbService fileResultDbService;
     private final KbPipelineProductDbService pipelineProductDbService;
     private final TaskTriggerSupport triggerSupport;
     private final TaskDetailSupport detailSupport;
@@ -58,9 +55,7 @@ public class StructureControlServiceImpl implements StructureControlService {
      */
     @Override
     public StageTriggerVO structure(Long fileResultId, Long upstreamProductId) {
-        KbFileResult fileResult = fileResultDbService.getById(fileResultId);
-        ThrowUtil.throwIf(ObjectUtil.isNull(fileResult), ErrorCode.FILE_RESULT_NOT_FOUND);
-        accessGuard.check(fileResult);
+        accessGuard.requireExisting(fileResultId);
         // 可选指定上游解析产物；缺省取最新
         KbPipelineProduct parseProduct = requireParseProduct(fileResultId, upstreamProductId);
         ThrowUtil.throwIf(ObjectUtil.isNull(parseProduct), ErrorCode.FILE_RESULT_NOT_FOUND,
@@ -70,9 +65,7 @@ public class StructureControlServiceImpl implements StructureControlService {
 
     @Override
     public StructureDetailVO structureDetail(Long fileResultId, Long taskId) {
-        KbFileResult fileResult = fileResultDbService.getById(fileResultId);
-        ThrowUtil.throwIf(ObjectUtil.isNull(fileResult), ErrorCode.FILE_RESULT_NOT_FOUND);
-        accessGuard.check(fileResult);
+        accessGuard.requireExisting(fileResultId);
         KbPipelineTask task = detailSupport.resolveTask(fileResultId, PipelineStage.STRUCTURE, taskId, "组装");
 
         StructureDetailVO vo = new StructureDetailVO();

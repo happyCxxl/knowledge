@@ -88,7 +88,7 @@ class ChunkControlServiceImplTest {
         SecurityTestSupport.loginViewer();
         boundKnowledgeBase(10L);
         FileResultAccessGuard accessGuard = new FileResultAccessGuard(fileResultDbService, knowledgeBaseDbService);
-        service = new ChunkControlServiceImpl(fileResultDbService, pipelineProductDbService,
+        service = new ChunkControlServiceImpl(pipelineProductDbService,
                 new StageStrategySupport(strategyVersionDbService, strategyBindingDbService, knowledgeBaseDbService),
                 new TaskTriggerSupport(pipelineTaskDbService, taskQueue),
                 new TaskDetailSupport(pipelineTaskDbService, stepLogDbService, pipelineProductDbService),

@@ -8,12 +8,8 @@ import com.knowledge.common.domain.parse.ParseSource;
 import com.knowledge.common.domain.parse.QualityInfo;
 import com.knowledge.common.dto.response.lineage.LineageParseStatsVO;
 import com.knowledge.common.enums.parse.ElementType;
-import com.knowledge.common.enums.task.PipelineTaskStatus;
-import com.knowledge.common.utils.JsonUtil;
 import com.knowledge.filecenter.service.FileStorage;
 
-import java.nio.charset.StandardCharsets;
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
@@ -40,18 +36,7 @@ public final class ParseStatsSupport {
      * @return 产物本体；取不到返回 null
      */
     public static ParseResult readArtifact(FileStorage fileStorage, String artifactId) {
-        if (fileStorage == null || StrUtil.isBlank(artifactId)) {
-            return null;
-        }
-        try {
-            byte[] content = fileStorage.getObject(artifactId);
-            if (ObjectUtil.isNull(content)) {
-                return null;
-            }
-            return JsonUtil.toObject(new String(content, StandardCharsets.UTF_8), ParseResult.class);
-        } catch (Exception e) {
-            return null;
-        }
+        return StatsSupport.readArtifact(fileStorage, artifactId, ParseResult.class);
     }
 
     /**
@@ -95,7 +80,7 @@ public final class ParseStatsSupport {
         stats.setFailedUnitCount(failedUnits.isEmpty() ? null : failedUnits.size());
         stats.setFailedFrom(failedUnits.isEmpty() ? null : failedUnits.getFirst());
         stats.setFailedTo(failedUnits.isEmpty() ? null : failedUnits.getLast());
-        stats.setDurationMs(durationMs(startedAt, finishedAt));
+        stats.setDurationMs(StatsSupport.durationMs(startedAt, finishedAt));
         return stats;
     }
 
@@ -108,15 +93,11 @@ public final class ParseStatsSupport {
      * @return 结论文案；统计缺失或无可陈述内容时返回 null
      */
     public static String summary(String errorMsg, LineageParseStatsVO stats, String status) {
-        if (PipelineTaskStatus.FAILED.name().equals(status)
-                || PipelineTaskStatus.CANCELLED.name().equals(status)) {
-            return StrUtil.blankToDefault(errorMsg, "解析失败");
-        }
-        if (!PipelineTaskStatus.SUCCESS.name().equals(status)
-                && !PipelineTaskStatus.PARTIAL_SUCCESS.name().equals(status)) {
-            return null;
-        }
-        // 统计缺失（产物不可读）时不陈述结论：无异常的断言只在统计到手时成立
+        return StatsSupport.summaryOf(errorMsg, status, "解析失败", () -> parseSummaryBody(stats));
+    }
+
+    /** 解析统计陈述：统计缺失（产物不可读）时不陈述结论，无异常的断言只在统计到手时成立 */
+    private static String parseSummaryBody(LineageParseStatsVO stats) {
         if (ObjectUtil.isNull(stats)) {
             return null;
         }
@@ -150,13 +131,5 @@ public final class ParseStatsSupport {
                 .distinct()
                 .sorted()
                 .toList();
-    }
-
-    /** 本次运行耗时：起止时间齐全时相减，缺失返回 null */
-    private static Long durationMs(LocalDateTime startedAt, LocalDateTime finishedAt) {
-        if (ObjectUtil.isNull(startedAt) || ObjectUtil.isNull(finishedAt)) {
-            return null;
-        }
-        return Duration.between(startedAt, finishedAt).toMillis();
     }
 }

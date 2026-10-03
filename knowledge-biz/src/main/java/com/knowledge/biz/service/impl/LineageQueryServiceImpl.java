@@ -5,7 +5,6 @@ import cn.hutool.core.util.StrUtil;
 import com.knowledge.biz.service.LineageQueryService;
 import com.knowledge.biz.service.db.KbChunkSetDbService;
 import com.knowledge.biz.service.db.KbEmbeddingSetDbService;
-import com.knowledge.biz.service.db.KbFileResultDbService;
 import com.knowledge.biz.service.db.KbPipelineProductDbService;
 import com.knowledge.biz.service.db.KbPipelineStepLogDbService;
 import com.knowledge.biz.service.db.KbPipelineTaskDbService;
@@ -14,7 +13,6 @@ import com.knowledge.biz.service.support.ParseStatsSupport;
 import com.knowledge.biz.service.support.StructureStatsSupport;
 import com.knowledge.common.domain.entity.KbChunkSet;
 import com.knowledge.common.domain.entity.KbEmbeddingSet;
-import com.knowledge.common.domain.entity.KbFileResult;
 import com.knowledge.common.domain.entity.KbPipelineProduct;
 import com.knowledge.common.domain.entity.KbPipelineStepLog;
 import com.knowledge.common.domain.entity.KbPipelineTask;
@@ -27,8 +25,6 @@ import com.knowledge.common.dto.response.lineage.LineageNodeVO;
 import com.knowledge.common.dto.response.lineage.LineageParseStatsVO;
 import com.knowledge.common.dto.response.lineage.LineageVO;
 import com.knowledge.common.enums.task.PipelineStage;
-import com.knowledge.common.error.ErrorCode;
-import com.knowledge.common.exception.ThrowUtil;
 import com.knowledge.common.utils.JsonUtil;
 import com.knowledge.filecenter.service.FileStorage;
 import lombok.RequiredArgsConstructor;
@@ -41,6 +37,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -60,7 +57,6 @@ public class LineageQueryServiceImpl implements LineageQueryService {
     private static final Set<String> STRATEGY_STAGES = Set.of(
             PipelineStage.PREPROCESS.name(), PipelineStage.CHUNK.name(), PipelineStage.EMBED.name());
 
-    private final KbFileResultDbService fileResultDbService;
     private final KbPipelineTaskDbService pipelineTaskDbService;
     private final KbPipelineProductDbService pipelineProductDbService;
     private final KbPipelineStepLogDbService stepLogDbService;
@@ -71,9 +67,7 @@ public class LineageQueryServiceImpl implements LineageQueryService {
 
     @Override
     public LineageVO lineage(Long fileResultId) {
-        KbFileResult fileResult = fileResultDbService.getById(fileResultId);
-        ThrowUtil.throwIf(ObjectUtil.isNull(fileResult), ErrorCode.FILE_RESULT_NOT_FOUND);
-        accessGuard.check(fileResult);
+        accessGuard.requireExisting(fileResultId);
 
         List<KbPipelineTask> tasks = pipelineTaskDbService.listByFileResultId(fileResultId).stream()
                 .filter(task -> PipelineStage.FILE_CHAIN_STAGES.contains(task.getStage()))
@@ -96,8 +90,10 @@ public class LineageQueryServiceImpl implements LineageQueryService {
                 .stream()
                 .collect(Collectors.toMap(KbEmbeddingSet::getArtifactId, s -> s, (a, b) -> a));
         Map<Long, long[]> stepAgg = aggregateStepLogs(tasks);
-        Map<Long, ParseResult> parseResultByTaskId = readParseResults(tasks, productById);
-        Map<Long, UnifiedDocument> documentByTaskId = readStructureDocuments(tasks, productById);
+        Map<Long, ParseResult> parseResultByTaskId = readProductBodies(tasks, productById, PipelineStage.PARSE, "解析",
+                artifactId -> ParseStatsSupport.readArtifact(fileStorage, artifactId));
+        Map<Long, UnifiedDocument> documentByTaskId = readProductBodies(tasks, productById, PipelineStage.STRUCTURE,
+                "组装", artifactId -> StructureStatsSupport.readDocument(fileStorage, artifactId));
 
         // 节点：环节顺序（PARSE→…→EMBED）再按任务 id 升序
         List<KbPipelineTask> ordered = tasks.stream()
@@ -176,28 +172,32 @@ public class LineageQueryServiceImpl implements LineageQueryService {
     }
 
     /**
-     * 批量读取解析环节产物本体：每个解析任务至多一次对象读取，读取失败记日志并按"无统计"处理。
+     * 批量读取某环节的产物本体：每个任务至多一次对象读取，读取失败记日志并按"无统计"处理。
      *
-     * @param tasks      本次血缘的任务列表
+     * @param tasks       本次血缘的任务列表
      * @param productById 产物 ID → 产物行
-     * @return 解析任务 ID → 产物本体（无产物或读取失败的任务不出现在结果里）
+     * @param stage       目标环节（只处理该环节的任务）
+     * @param label       日志里的环节名
+     * @param reader      产物引用 → 产物本体（读不到返回 null）
+     * @return 任务 ID → 产物本体（无产物或读取失败的任务不出现在结果里）
      */
-    private Map<Long, ParseResult> readParseResults(List<KbPipelineTask> tasks,
-                                                    Map<Long, KbPipelineProduct> productById) {
-        Map<Long, ParseResult> result = new HashMap<>();
+    private <T> Map<Long, T> readProductBodies(List<KbPipelineTask> tasks,
+                                               Map<Long, KbPipelineProduct> productById, PipelineStage stage,
+                                               String label, Function<String, T> reader) {
+        Map<Long, T> result = new HashMap<>();
         for (KbPipelineTask task : tasks) {
-            if (!PipelineStage.PARSE.name().equals(task.getStage()) || task.getProductId() == null) {
+            if (!stage.name().equals(task.getStage()) || task.getProductId() == null) {
                 continue;
             }
             KbPipelineProduct product = productById.get(task.getProductId());
             if (product == null || StrUtil.isBlank(product.getArtifactId())) {
                 continue;
             }
-            ParseResult parseResult = ParseStatsSupport.readArtifact(fileStorage, product.getArtifactId());
-            if (ObjectUtil.isNotNull(parseResult)) {
-                result.put(task.getId(), parseResult);
+            T body = reader.apply(product.getArtifactId());
+            if (ObjectUtil.isNotNull(body)) {
+                result.put(task.getId(), body);
             } else {
-                log.warn("解析产物读取失败, taskId={}, artifactId={}", task.getId(), product.getArtifactId());
+                log.warn("{}产物读取失败, taskId={}, artifactId={}", label, task.getId(), product.getArtifactId());
             }
         }
         return result;
@@ -218,34 +218,6 @@ public class LineageQueryServiceImpl implements LineageQueryService {
         if (ObjectUtil.isNotNull(stats)) {
             node.setStats(stats);
         }
-    }
-
-    /**
-     * 批量读取组装环节产物本体：每个组装任务至多一次对象读取，读取失败记日志并按"无统计"处理。
-     *
-     * @param tasks       本次血缘的任务列表
-     * @param productById 产物 ID → 产物行
-     * @return 组装任务 ID → 产物本体（无产物或读取失败的任务不出现在结果里）
-     */
-    private Map<Long, UnifiedDocument> readStructureDocuments(List<KbPipelineTask> tasks,
-                                                              Map<Long, KbPipelineProduct> productById) {
-        Map<Long, UnifiedDocument> result = new HashMap<>();
-        for (KbPipelineTask task : tasks) {
-            if (!PipelineStage.STRUCTURE.name().equals(task.getStage()) || task.getProductId() == null) {
-                continue;
-            }
-            KbPipelineProduct product = productById.get(task.getProductId());
-            if (product == null || StrUtil.isBlank(product.getArtifactId())) {
-                continue;
-            }
-            UnifiedDocument document = StructureStatsSupport.readDocument(fileStorage, product.getArtifactId());
-            if (ObjectUtil.isNotNull(document)) {
-                result.put(task.getId(), document);
-            } else {
-                log.warn("组装产物读取失败, taskId={}, artifactId={}", task.getId(), product.getArtifactId());
-            }
-        }
-        return result;
     }
 
     /** 统计摘要：CHUNK/EMBED 按 artifactId 匹配集合表；PREPROCESS 用 step_log 聚合 */

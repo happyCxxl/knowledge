@@ -12,12 +12,8 @@ import com.knowledge.common.enums.structure.ElementMark;
 import com.knowledge.common.enums.structure.PageMark;
 import com.knowledge.common.enums.structure.RelationType;
 import com.knowledge.common.enums.structure.UnifiedElementType;
-import com.knowledge.common.enums.task.PipelineTaskStatus;
-import com.knowledge.common.utils.JsonUtil;
 import com.knowledge.filecenter.service.FileStorage;
 
-import java.nio.charset.StandardCharsets;
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -104,18 +100,7 @@ public final class StructureStatsSupport {
      * @return 产物本体；取不到返回 null
      */
     public static UnifiedDocument readDocument(FileStorage fileStorage, String artifactId) {
-        if (fileStorage == null || StrUtil.isBlank(artifactId)) {
-            return null;
-        }
-        try {
-            byte[] content = fileStorage.getObject(artifactId);
-            if (ObjectUtil.isNull(content)) {
-                return null;
-            }
-            return JsonUtil.toObject(new String(content, StandardCharsets.UTF_8), UnifiedDocument.class);
-        } catch (Exception e) {
-            return null;
-        }
+        return StatsSupport.readArtifact(fileStorage, artifactId, UnifiedDocument.class);
     }
 
     /**
@@ -182,7 +167,7 @@ public final class StructureStatsSupport {
         long traced = elements.stream().filter(StructureStatsSupport::isTraced).count();
         stats.put(KEY_TRACED_COUNT, traced);
         stats.put(KEY_PROVENANCE_COVERAGE, coverage(traced, elements.size()));
-        stats.put(KEY_DURATION_MS, durationMs(startedAt, finishedAt));
+        stats.put(KEY_DURATION_MS, StatsSupport.durationMs(startedAt, finishedAt));
 
         // 阅读顺序口径：产物里没有"是否重排"的标记，用"无坐标元素数"表达 ——
         // 有坐标的元素按坐标排、无坐标的按原序追加，两者共同决定阅读顺序
@@ -276,14 +261,11 @@ public final class StructureStatsSupport {
      * @return 结论文案；统计缺失或无可陈述内容时返回 null
      */
     public static String summary(String errorMsg, Map<String, Object> stats, String status) {
-        if (PipelineTaskStatus.FAILED.name().equals(status)
-                || PipelineTaskStatus.CANCELLED.name().equals(status)) {
-            return StrUtil.blankToDefault(errorMsg, "组装失败");
-        }
-        if (!PipelineTaskStatus.SUCCESS.name().equals(status)
-                && !PipelineTaskStatus.PARTIAL_SUCCESS.name().equals(status)) {
-            return null;
-        }
+        return StatsSupport.summaryOf(errorMsg, status, "组装失败", () -> structureSummaryBody(stats));
+    }
+
+    /** 组装统计陈述：统计缺失（产物不可读）时不陈述结论；空树与各项异常逐条陈述 */
+    private static String structureSummaryBody(Map<String, Object> stats) {
         if (ObjectUtil.isNull(stats)) {
             return null;
         }
@@ -328,14 +310,6 @@ public final class StructureStatsSupport {
     /** 溯源覆盖率（百分比，四舍五入取整）；无元素时记 0 */
     private static int coverage(long traced, int total) {
         return total <= 0 ? 0 : (int) Math.round(traced * 100.0 / total);
-    }
-
-    /** 本次运行耗时：起止时间齐全时相减，缺失返回 null */
-    private static Long durationMs(LocalDateTime startedAt, LocalDateTime finishedAt) {
-        if (ObjectUtil.isNull(startedAt) || ObjectUtil.isNull(finishedAt)) {
-            return null;
-        }
-        return Duration.between(startedAt, finishedAt).toMillis();
     }
 
     private static int intOf(Object value) {

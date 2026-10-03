@@ -94,7 +94,7 @@ class StageContentQueryServiceImplTest {
         SecurityTestSupport.loginViewer();
         boundKnowledgeBase(10L);
         FileResultAccessGuard accessGuard = new FileResultAccessGuard(fileResultDbService, knowledgeBaseDbService);
-        service = new StageContentQueryServiceImpl(fileResultDbService, pipelineProductDbService,
+        service = new StageContentQueryServiceImpl(pipelineProductDbService,
                 chunkSetDbService, chunkDbService, embeddingSetDbService, embeddingRecordDbService,
                 fileStorage, new TaskDetailSupport(pipelineTaskDbService, stepLogDbService, pipelineProductDbService), accessGuard);
     }

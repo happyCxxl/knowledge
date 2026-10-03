@@ -5,7 +5,6 @@ import cn.hutool.core.util.StrUtil;
 import com.knowledge.biz.service.EmbedControlService;
 import com.knowledge.biz.service.db.KbEmbeddingRecordDbService;
 import com.knowledge.biz.service.db.KbEmbeddingSetDbService;
-import com.knowledge.biz.service.db.KbFileResultDbService;
 import com.knowledge.biz.service.db.KbPipelineProductDbService;
 import com.knowledge.biz.service.db.KbPipelineStepLogDbService;
 import com.knowledge.biz.service.support.EmbedVoAssembler;
@@ -53,7 +52,6 @@ import java.util.List;
 @RequiredArgsConstructor
 public class EmbedControlServiceImpl implements EmbedControlService {
 
-    private final KbFileResultDbService fileResultDbService;
     private final KbPipelineProductDbService pipelineProductDbService;
     private final KbPipelineStepLogDbService stepLogDbService;
     private final KbEmbeddingSetDbService embeddingSetDbService;
@@ -70,9 +68,7 @@ public class EmbedControlServiceImpl implements EmbedControlService {
 
     @Override
     public EmbedTriggerVO embed(Long fileResultId, Long strategyVersionId, Long upstreamProductId) {
-        KbFileResult fileResult = fileResultDbService.getById(fileResultId);
-        ThrowUtil.throwIf(ObjectUtil.isNull(fileResult), ErrorCode.FILE_RESULT_NOT_FOUND);
-        accessGuard.check(fileResult);
+        KbFileResult fileResult = accessGuard.requireExisting(fileResultId);
         EmbedStrategy strategy = resolveStrategy(fileResult, strategyVersionId);
 
         // 上游切片产物：可选指定，缺省取最新
@@ -89,9 +85,7 @@ public class EmbedControlServiceImpl implements EmbedControlService {
 
     @Override
     public EmbedDetailVO embedDetail(Long fileResultId, Long taskId) {
-        KbFileResult fileResult = fileResultDbService.getById(fileResultId);
-        ThrowUtil.throwIf(ObjectUtil.isNull(fileResult), ErrorCode.FILE_RESULT_NOT_FOUND);
-        accessGuard.check(fileResult);
+        accessGuard.requireExisting(fileResultId);
         KbPipelineTask task = detailSupport.resolveTask(fileResultId, PipelineStage.EMBED, taskId, "向量化");
 
         EmbedDetailVO vo = new EmbedDetailVO();

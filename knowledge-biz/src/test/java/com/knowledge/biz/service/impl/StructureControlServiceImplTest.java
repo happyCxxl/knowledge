@@ -73,7 +73,7 @@ class StructureControlServiceImplTest {
         SecurityTestSupport.loginViewer();
         boundKnowledgeBase(10L);
         FileResultAccessGuard accessGuard = new FileResultAccessGuard(fileResultDbService, knowledgeBaseDbService);
-        service = new StructureControlServiceImpl(fileResultDbService, pipelineProductDbService,
+        service = new StructureControlServiceImpl(pipelineProductDbService,
                 new TaskTriggerSupport(pipelineTaskDbService, taskQueue),
                 new TaskDetailSupport(pipelineTaskDbService, stepLogDbService, pipelineProductDbService), fileStorage,
                 new StructureVoAssembler(), accessGuard);

@@ -73,7 +73,7 @@ class ParseControlServiceImplTest {
         SecurityTestSupport.loginViewer();
         boundKnowledgeBase(10L);
         FileResultAccessGuard accessGuard = new FileResultAccessGuard(fileResultDbService, knowledgeBaseDbService);
-        service = new ParseControlServiceImpl(fileResultDbService, pipelineProductDbService,
+        service = new ParseControlServiceImpl(pipelineProductDbService,
                 new TaskTriggerSupport(pipelineTaskDbService, taskQueue),
                 new TaskDetailSupport(pipelineTaskDbService, stepLogDbService, pipelineProductDbService), fileStorage,
                 accessGuard);

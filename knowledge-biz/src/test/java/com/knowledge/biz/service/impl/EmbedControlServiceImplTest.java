@@ -92,7 +92,7 @@ class EmbedControlServiceImplTest {
         SecurityTestSupport.loginViewer();
         boundKnowledgeBase(10L);
         FileResultAccessGuard accessGuard = new FileResultAccessGuard(fileResultDbService, knowledgeBaseDbService);
-        service = new EmbedControlServiceImpl(fileResultDbService, pipelineProductDbService, stepLogDbService,
+        service = new EmbedControlServiceImpl(pipelineProductDbService, stepLogDbService,
                 embeddingSetDbService, embeddingRecordDbService, new EmbedVoAssembler(),
                 new EmbedStrategyParser(new EmbedProperties(), new StaticModelCatalog()),
                 new ChunkStrategyParser(new ChunkProperties()),

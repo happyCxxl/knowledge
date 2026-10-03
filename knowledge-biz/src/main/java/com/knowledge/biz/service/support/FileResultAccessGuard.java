@@ -7,6 +7,7 @@ import com.knowledge.common.domain.entity.KbFileResult;
 import com.knowledge.common.domain.rules.KnowledgeBaseRules;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
+import com.knowledge.common.exception.ThrowUtil;
 import com.knowledge.common.security.KnowledgeUser;
 import com.knowledge.common.utils.SecurityUtil;
 import lombok.RequiredArgsConstructor;
@@ -54,6 +55,22 @@ public class FileResultAccessGuard {
         KnowledgeBaseRules.visibleOwnerId(user);
         KbFileResult fileResult = ObjectUtil.isNull(fileResultId) ? null : fileResultDbService.getById(fileResultId);
         check(fileResult, user);
+        return fileResult;
+    }
+
+    /**
+     * 取「该文件结果」并按两种语义分别拒绝：记录不存在给 {@link ErrorCode#FILE_RESULT_NOT_FOUND}，
+     * 无登录上下文或不可访问给 {@link ErrorCode#KB_NOT_FOUND}。
+     *
+     * @param fileResultId 文件结果 ID
+     * @return 文件结果实体
+     * @throws KnowledgeException 记录不存在（FILE_RESULT_NOT_FOUND 40432）、无登录上下文（UNAUTHORIZED 40101）
+     *                            或不可访问（KB_NOT_FOUND 40401）
+     */
+    public KbFileResult requireExisting(Long fileResultId) {
+        KbFileResult fileResult = fileResultDbService.getById(fileResultId);
+        ThrowUtil.throwIf(ObjectUtil.isNull(fileResult), ErrorCode.FILE_RESULT_NOT_FOUND);
+        check(fileResult);
         return fileResult;
     }
 

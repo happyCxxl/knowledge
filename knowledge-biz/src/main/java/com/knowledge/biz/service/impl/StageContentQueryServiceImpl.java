@@ -7,7 +7,6 @@ import com.knowledge.biz.service.db.KbChunkDbService;
 import com.knowledge.biz.service.db.KbChunkSetDbService;
 import com.knowledge.biz.service.db.KbEmbeddingRecordDbService;
 import com.knowledge.biz.service.db.KbEmbeddingSetDbService;
-import com.knowledge.biz.service.db.KbFileResultDbService;
 import com.knowledge.biz.service.db.KbPipelineProductDbService;
 import com.knowledge.biz.service.support.FileResultAccessGuard;
 import com.knowledge.biz.service.support.TaskDetailSupport;
@@ -15,7 +14,6 @@ import com.knowledge.common.domain.entity.KbChunk;
 import com.knowledge.common.domain.entity.KbChunkSet;
 import com.knowledge.common.domain.entity.KbEmbeddingRecord;
 import com.knowledge.common.domain.entity.KbEmbeddingSet;
-import com.knowledge.common.domain.entity.KbFileResult;
 import com.knowledge.common.domain.entity.KbPipelineProduct;
 import com.knowledge.common.domain.entity.KbPipelineTask;
 import com.knowledge.common.domain.parse.BBox;
@@ -55,7 +53,6 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class StageContentQueryServiceImpl implements StageContentQueryService {
 
-    private final KbFileResultDbService fileResultDbService;
     private final KbPipelineProductDbService pipelineProductDbService;
     private final KbChunkSetDbService chunkSetDbService;
     private final KbChunkDbService chunkDbService;
@@ -68,9 +65,7 @@ public class StageContentQueryServiceImpl implements StageContentQueryService {
     @Override
     public StageContentVO stageContent(Long fileResultId, String stage, Long taskId, Long docPage,
                                        Integer page, Integer limit) {
-        KbFileResult fileResult = fileResultDbService.getById(fileResultId);
-        ThrowUtil.throwIf(ObjectUtil.isNull(fileResult), ErrorCode.FILE_RESULT_NOT_FOUND);
-        accessGuard.check(fileResult);
+        accessGuard.requireExisting(fileResultId);
         ThrowUtil.throwIf(StrUtil.isBlank(stage) || !PipelineStage.FILE_CHAIN_STAGES.contains(stage),
                 ErrorCode.PARAM_INVALID, "未知环节: " + stage);
         KbPipelineTask task = detailSupport.resolveTask(fileResultId, stageOf(stage), taskId, stageLabel(stage));

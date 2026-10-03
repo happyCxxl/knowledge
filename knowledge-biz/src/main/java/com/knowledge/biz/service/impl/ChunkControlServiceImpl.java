@@ -38,7 +38,6 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ChunkControlServiceImpl implements ChunkControlService {
 
-    private final KbFileResultDbService fileResultDbService;
     private final KbPipelineProductDbService pipelineProductDbService;
     private final StageStrategySupport strategySupport;
     private final TaskTriggerSupport triggerSupport;
@@ -59,9 +58,7 @@ public class ChunkControlServiceImpl implements ChunkControlService {
      */
     @Override
     public ChunkTriggerVO chunk(Long fileResultId, Long strategyVersionId, Long upstreamProductId) {
-        KbFileResult fileResult = fileResultDbService.getById(fileResultId);
-        ThrowUtil.throwIf(ObjectUtil.isNull(fileResult), ErrorCode.FILE_RESULT_NOT_FOUND);
-        accessGuard.check(fileResult);
+        KbFileResult fileResult = accessGuard.requireExisting(fileResultId);
         ChunkStrategy strategy = resolveStrategy(fileResult, strategyVersionId);
 
         // 可选指定上游预处理产物；缺省取最新
@@ -76,9 +73,7 @@ public class ChunkControlServiceImpl implements ChunkControlService {
 
     @Override
     public ChunkDetailVO chunkDetail(Long fileResultId, Long taskId) {
-        KbFileResult fileResult = fileResultDbService.getById(fileResultId);
-        ThrowUtil.throwIf(ObjectUtil.isNull(fileResult), ErrorCode.FILE_RESULT_NOT_FOUND);
-        accessGuard.check(fileResult);
+        accessGuard.requireExisting(fileResultId);
         KbPipelineTask task = detailSupport.resolveTask(fileResultId, PipelineStage.CHUNK, taskId, "切片");
 
         ChunkDetailVO vo = new ChunkDetailVO();
