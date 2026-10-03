@@ -104,7 +104,7 @@
 | 40433 | `STRATEGY_VERSION_NOT_FOUND`           | 策略版本不存在或未启用                             |
 | 40434 | `EMBED_UPSTREAM_MISSING`               | 切片产物不存在，请先触发切片                       |
 | 40435 | `EMBED_MODEL_INCOMPATIBLE`             | 切片最大片长超过模型窗口，请更换模型或调整切片策略 |
-| 40437 | `PARSE_ALREADY_SUCCEEDED`              | 解析已成功或部分成功，无需重跑                     |
+| 40437 | `PARSE_ALREADY_SUCCEEDED`              | 解析已成功或部分成功，无需再次触发                 |
 | 40441 | `INDEX_VERSION_NOT_FOUND`              | 索引版本不存在                                     |
 | 40442 | `INDEX_ONLINE_DELETE_FORBIDDEN`        | 在线发布版本禁止删除                               |
 | 40443 | `INDEX_BUILDING_CONFLICT`              | 该索引版本构建中，禁止重复操作                     |

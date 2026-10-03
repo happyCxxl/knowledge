@@ -75,8 +75,8 @@ public enum ErrorCode {
     /** 策略版本不存在或未启用 */
     STRATEGY_VERSION_NOT_FOUND(40433, "策略版本不存在或未启用"),
 
-    /** 解析已成功或部分成功，禁止重跑 */
-    PARSE_ALREADY_SUCCEEDED(40437, "解析已成功或部分成功，无需重跑"),
+    /** 解析已成功或部分成功，禁止再次触发 */
+    PARSE_ALREADY_SUCCEEDED(40437, "解析已成功或部分成功，无需再次触发"),
 
     /** 切片产物缺失（向量化上游） */
     EMBED_UPSTREAM_MISSING(40434, "切片产物不存在，请先触发切片"),

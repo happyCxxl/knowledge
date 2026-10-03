@@ -35,7 +35,7 @@ public class TaskTriggerSupport {
      * @param upstreamProductId 上游产物 ID（可空）
      * @param strategySnapshot 环节策略快照 JSON（可空；有策略的环节触发时固定，执行只用快照）
      * @param stageLabel       环节中文名（日志与错误提示用）
-     * @param banOnSuccess     成功后是否禁止重跑
+     * @param banOnSuccess     成功后是否禁止再次触发
      * @return 触发响应（新登记/已有任务 ID）
      */
     public StageTriggerVO trigger(Long fileResultId, PipelineStage stage, Long upstreamProductId,
