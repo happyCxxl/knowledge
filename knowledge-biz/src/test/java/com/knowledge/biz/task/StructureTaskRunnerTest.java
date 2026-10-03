@@ -135,7 +135,7 @@ class StructureTaskRunnerTest {
     }
 
     @Test
-    void missingUpstreamProductShouldFailStructureEmpty() {
+    void missingUpstreamProductShouldFailUpstreamUnreadable() {
         when(pipelineTaskDbService.getById(60L)).thenReturn(queuedTask());
         when(pipelineTaskDbService.claim(60L)).thenReturn(1);
         when(pipelineProductDbService.getById(50L)).thenReturn(null);
@@ -143,8 +143,9 @@ class StructureTaskRunnerTest {
 
         runner.run(60L);
 
+        // 上游拿不到记"上游不可读"，与"空树"分开，两者失败原因对用户可区分
         verify(pipelineTaskDbService).finish(eq(60L), eq(PipelineTaskStatus.FAILED.name()),
-                eq(PipelineTaskErrorCode.STRUCTURE_EMPTY.name()), any());
+                eq(PipelineTaskErrorCode.STRUCTURE_UPSTREAM_UNREADABLE.name()), any());
         verify(fileStorage, never()).getObject(any());
     }
 }

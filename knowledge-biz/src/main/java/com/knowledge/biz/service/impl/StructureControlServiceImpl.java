@@ -5,6 +5,7 @@ import com.knowledge.biz.service.StructureControlService;
 import com.knowledge.biz.service.db.KbFileResultDbService;
 import com.knowledge.biz.service.db.KbPipelineProductDbService;
 import com.knowledge.biz.service.support.FileResultAccessGuard;
+import com.knowledge.biz.service.support.StructureStatsSupport;
 import com.knowledge.biz.service.support.StructureVoAssembler;
 import com.knowledge.biz.service.support.TaskDetailSupport;
 import com.knowledge.biz.task.TaskTriggerSupport;
@@ -25,6 +26,7 @@ import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Map;
 
 /**
  * 结构组装控制面服务实现（手动逐环节）：
@@ -80,11 +82,17 @@ public class StructureControlServiceImpl implements StructureControlService {
         vo.setWarnings(new ArrayList<>());
         vo.setConflicts(new ArrayList<>());
         vo.setOutline(new ArrayList<>());
+        UnifiedDocument document = null;
         KbPipelineProduct product = detailSupport.productOfTask(task);
         if (ObjectUtil.isNotNull(product)) {
             detailSupport.withProductRef(vo, product);
-            readDocument(product.getArtifactId(), vo);
+            document = readDocument(product.getArtifactId(), vo);
         }
+        // 统计与摘要读产物现算：与执行树组装节点同一份口径，不落产物；产物读不到时不陈述结论
+        Map<String, Object> stageStats =
+                StructureStatsSupport.stats(vo.getStartedAt(), vo.getFinishedAt(), document);
+        vo.setStageStats(stageStats);
+        vo.setStageSummary(StructureStatsSupport.summary(vo.getErrorMsg(), stageStats, vo.getStatus()));
         return vo;
     }
 
@@ -102,21 +110,27 @@ public class StructureControlServiceImpl implements StructureControlService {
         return product;
     }
 
-    /** 读统一文档产物并委托 VO 组装器提取统计/告警/冲突/文档内容大纲（读取失败记日志并留空，不阻断详情） */
-    private void readDocument(String artifactId, StructureDetailVO vo) {
+    /**
+     * 读统一文档产物并委托 VO 组装器提取统计/告警/冲突/文档内容大纲（读取失败记日志并留空，不阻断详情）。
+     *
+     * @return 产物本体；读不到返回 null（调用侧据此不陈述结论）
+     */
+    private UnifiedDocument readDocument(String artifactId, StructureDetailVO vo) {
         try {
             byte[] content = fileStorage.getObject(artifactId);
             UnifiedDocument document = JsonUtil.toObject(
                     new String(content, StandardCharsets.UTF_8), UnifiedDocument.class);
             if (ObjectUtil.isNull(document)) {
-                return;
+                return null;
             }
             vo.setSummary(voAssembler.toSummary(document));
             vo.setWarnings(voAssembler.toWarningTexts(document.getQuality()));
             vo.setConflicts(voAssembler.toConflicts(document.getQuality()));
             vo.setOutline(voAssembler.toOutline(document));
+            return document;
         } catch (Exception e) {
             log.warn("读取统一文档产物失败, artifactId={}", artifactId, e);
+            return null;
         }
     }
 }

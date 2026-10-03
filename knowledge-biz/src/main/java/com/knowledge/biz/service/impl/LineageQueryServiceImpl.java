@@ -11,6 +11,7 @@ import com.knowledge.biz.service.db.KbPipelineStepLogDbService;
 import com.knowledge.biz.service.db.KbPipelineTaskDbService;
 import com.knowledge.biz.service.support.FileResultAccessGuard;
 import com.knowledge.biz.service.support.ParseStatsSupport;
+import com.knowledge.biz.service.support.StructureStatsSupport;
 import com.knowledge.common.domain.entity.KbChunkSet;
 import com.knowledge.common.domain.entity.KbEmbeddingSet;
 import com.knowledge.common.domain.entity.KbFileResult;
@@ -19,6 +20,7 @@ import com.knowledge.common.domain.entity.KbPipelineStepLog;
 import com.knowledge.common.domain.entity.KbPipelineTask;
 import com.knowledge.common.domain.parse.CapabilitySnapshot;
 import com.knowledge.common.domain.parse.ParseResult;
+import com.knowledge.common.domain.structure.UnifiedDocument;
 import com.knowledge.common.dto.response.lineage.LineageCapabilityVO;
 import com.knowledge.common.dto.response.lineage.LineageEdgeVO;
 import com.knowledge.common.dto.response.lineage.LineageNodeVO;
@@ -95,6 +97,7 @@ public class LineageQueryServiceImpl implements LineageQueryService {
                 .collect(Collectors.toMap(KbEmbeddingSet::getArtifactId, s -> s, (a, b) -> a));
         Map<Long, long[]> stepAgg = aggregateStepLogs(tasks);
         Map<Long, ParseResult> parseResultByTaskId = readParseResults(tasks, productById);
+        Map<Long, UnifiedDocument> documentByTaskId = readStructureDocuments(tasks, productById);
 
         // 节点：环节顺序（PARSE→…→EMBED）再按任务 id 升序
         List<KbPipelineTask> ordered = tasks.stream()
@@ -108,7 +111,8 @@ public class LineageQueryServiceImpl implements LineageQueryService {
         List<LineageEdgeVO> edges = new ArrayList<>();
         for (KbPipelineTask task : ordered) {
             KbPipelineProduct product = task.getProductId() == null ? null : productById.get(task.getProductId());
-            nodes.add(toNode(task, product, chunkSetByArtifact, embedSetByArtifact, stepAgg, parseResultByTaskId));
+            nodes.add(toNode(task, product, chunkSetByArtifact, embedSetByArtifact, stepAgg,
+                    parseResultByTaskId, documentByTaskId));
             if (task.getUpstreamProductId() != null) {
                 Long fromTaskId = taskIdByProductId.get(task.getUpstreamProductId());
                 if (fromTaskId != null) {
@@ -131,7 +135,8 @@ public class LineageQueryServiceImpl implements LineageQueryService {
                                  Map<String, KbChunkSet> chunkSetByArtifact,
                                  Map<String, KbEmbeddingSet> embedSetByArtifact,
                                  Map<Long, long[]> stepAgg,
-                                 Map<Long, ParseResult> parseResultByTaskId) {
+                                 Map<Long, ParseResult> parseResultByTaskId,
+                                 Map<Long, UnifiedDocument> documentByTaskId) {
         LineageNodeVO node = new LineageNodeVO();
         node.setTaskId(task.getId());
         node.setProductId(task.getProductId());
@@ -144,7 +149,8 @@ public class LineageQueryServiceImpl implements LineageQueryService {
         if (STRATEGY_STAGES.contains(task.getStage())) {
             node.setStrategyVersion(resolveStrategyVersion(task.getStrategySnapshot()));
         }
-        Map<String, String> stats = new LinkedHashMap<>();
+        Map<String, Object> stats = new LinkedHashMap<>();
+        boolean structureStage = PipelineStage.STRUCTURE.name().equals(task.getStage());
         if (product != null) {
             node.setArtifactId(product.getArtifactId());
             node.setContentHash(product.getContentHash());
@@ -155,9 +161,17 @@ public class LineageQueryServiceImpl implements LineageQueryService {
             if (PipelineStage.PARSE.name().equals(task.getStage())) {
                 fillParseStats(node, task, parseResultByTaskId.get(task.getId()));
             }
+            if (PipelineStage.STRUCTURE.name().equals(task.getStage())) {
+                structureStage = true;
+            }
             fillStats(stats, task, product, chunkSetByArtifact, embedSetByArtifact, stepAgg);
         }
         node.setStats(stats);
+        // 组装统计在通用统计之后落位：通用 map 只覆盖切片与向量化等环节，而组装统计由本环节独占，
+        // 放在它之前会被随后的空 map 覆盖掉。
+        if (structureStage) {
+            fillStructureStats(node, task, documentByTaskId.get(task.getId()));
+        }
         return node;
     }
 
@@ -196,26 +210,64 @@ public class LineageQueryServiceImpl implements LineageQueryService {
         node.setParseSummary(ParseStatsSupport.summary(node.getErrorMsg(), stats, task.getStatus()));
     }
 
+    /** 组装节点统计与摘要行一并回填：统计进通用 stats，摘要走通用 stageSummary */
+    private void fillStructureStats(LineageNodeVO node, KbPipelineTask task, UnifiedDocument document) {
+        Map<String, Object> stats =
+                StructureStatsSupport.stats(task.getStartedAt(), task.getFinishedAt(), document);
+        node.setStageSummary(StructureStatsSupport.summary(node.getErrorMsg(), stats, task.getStatus()));
+        if (ObjectUtil.isNotNull(stats)) {
+            node.setStats(stats);
+        }
+    }
+
+    /**
+     * 批量读取组装环节产物本体：每个组装任务至多一次对象读取，读取失败记日志并按"无统计"处理。
+     *
+     * @param tasks       本次血缘的任务列表
+     * @param productById 产物 ID → 产物行
+     * @return 组装任务 ID → 产物本体（无产物或读取失败的任务不出现在结果里）
+     */
+    private Map<Long, UnifiedDocument> readStructureDocuments(List<KbPipelineTask> tasks,
+                                                              Map<Long, KbPipelineProduct> productById) {
+        Map<Long, UnifiedDocument> result = new HashMap<>();
+        for (KbPipelineTask task : tasks) {
+            if (!PipelineStage.STRUCTURE.name().equals(task.getStage()) || task.getProductId() == null) {
+                continue;
+            }
+            KbPipelineProduct product = productById.get(task.getProductId());
+            if (product == null || StrUtil.isBlank(product.getArtifactId())) {
+                continue;
+            }
+            UnifiedDocument document = StructureStatsSupport.readDocument(fileStorage, product.getArtifactId());
+            if (ObjectUtil.isNotNull(document)) {
+                result.put(task.getId(), document);
+            } else {
+                log.warn("组装产物读取失败, taskId={}, artifactId={}", task.getId(), product.getArtifactId());
+            }
+        }
+        return result;
+    }
+
     /** 统计摘要：CHUNK/EMBED 按 artifactId 匹配集合表；PREPROCESS 用 step_log 聚合 */
-    private void fillStats(Map<String, String> stats, KbPipelineTask task, KbPipelineProduct product,
+    private void fillStats(Map<String, Object> stats, KbPipelineTask task, KbPipelineProduct product,
                            Map<String, KbChunkSet> chunkSetByArtifact,
                            Map<String, KbEmbeddingSet> embedSetByArtifact,
                            Map<Long, long[]> stepAgg) {
         if (PipelineStage.CHUNK.name().equals(task.getStage())) {
             KbChunkSet chunkSet = chunkSetByArtifact.get(product.getArtifactId());
             if (chunkSet != null) {
-                stats.put("chunkCount", String.valueOf(chunkSet.getChunkCount()));
+                stats.put("chunkCount", chunkSet.getChunkCount());
             }
         } else if (PipelineStage.EMBED.name().equals(task.getStage())) {
             KbEmbeddingSet embedSet = embedSetByArtifact.get(product.getArtifactId());
             if (embedSet != null) {
-                stats.put("recordCount", String.valueOf(embedSet.getRecordCount()));
-                stats.put("cachedCount", String.valueOf(embedSet.getCachedCount()));
+                stats.put("recordCount", embedSet.getRecordCount());
+                stats.put("cachedCount", embedSet.getCachedCount());
             }
         } else if (PipelineStage.PREPROCESS.name().equals(task.getStage())) {
             long[] agg = stepAgg.getOrDefault(task.getId(), new long[] { 0, 0 });
-            stats.put("matched", String.valueOf(agg[0]));
-            stats.put("changed", String.valueOf(agg[1]));
+            stats.put("matched", agg[0]);
+            stats.put("changed", agg[1]);
         }
     }
 

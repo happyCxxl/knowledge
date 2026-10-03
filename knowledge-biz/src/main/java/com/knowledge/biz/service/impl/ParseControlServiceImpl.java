@@ -75,6 +75,7 @@ public class ParseControlServiceImpl implements ParseControlService {
         detailSupport.withTask(vo, fileResultId, task);
 
         // 产物引用/告警/统计：按 task.productId 精确取该次运行的产物（历史任务同样可展示自己的产物；无任务/无产物留空）
+        // 解析的统计结构固定（LineageParseStatsVO），走 parseStats；通用 stageStats 只给没有专属结构的环节
         vo.setWarnings(new ArrayList<>());
         KbPipelineProduct product = detailSupport.productOfTask(task);
         if (ObjectUtil.isNotNull(product)) {

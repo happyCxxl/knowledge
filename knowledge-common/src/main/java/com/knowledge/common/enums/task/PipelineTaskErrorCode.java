@@ -22,8 +22,11 @@ public enum PipelineTaskErrorCode {
     /** 解析执行异常兜底 */
     PARSE_FAILED,
 
-    /** 组装空树（上游产物缺失/无任何可组装元素） */
+    /** 组装空树（无任何可组装元素） */
     STRUCTURE_EMPTY,
+
+    /** 组装上游产物不可读（产物引用缺失、对象读不到、反序列化失败） */
+    STRUCTURE_UPSTREAM_UNREADABLE,
 
     /** 组装执行异常兜底 */
     STRUCTURE_FAILED,

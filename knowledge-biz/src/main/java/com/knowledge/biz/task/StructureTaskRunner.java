@@ -59,7 +59,8 @@ public class StructureTaskRunner {
             if (ObjectUtil.isNull(parseProduct)) {
                 log.warn("===> StructureTaskRunner 组装失败：上游解析产物缺失, taskId={}, fileResultId={}",
                         taskId, task.getFileResultId());
-                finishFailed(taskId, PipelineTaskErrorCode.STRUCTURE_EMPTY.name(), "上游解析产物缺失，请先触发解析");
+                finishFailed(taskId, PipelineTaskErrorCode.STRUCTURE_UPSTREAM_UNREADABLE.name(),
+                        "上游解析产物缺失，请先触发解析");
                 return;
             }
             ParseResult parseResult;
@@ -68,14 +69,15 @@ public class StructureTaskRunner {
                 parseResult = JsonUtil.toObject(new String(content, StandardCharsets.UTF_8), ParseResult.class);
             } catch (Exception e) {
                 log.warn("读取上游解析产物失败, taskId={}, artifactId={}", taskId, parseProduct.getArtifactId(), e);
-                finishFailed(taskId, PipelineTaskErrorCode.STRUCTURE_EMPTY.name(),
+                finishFailed(taskId, PipelineTaskErrorCode.STRUCTURE_UPSTREAM_UNREADABLE.name(),
                         "上游解析产物读取失败: " + e.getMessage());
                 return;
             }
             if (ObjectUtil.isNull(parseResult)) {
                 log.warn("===> StructureTaskRunner 组装失败：上游解析产物反序列化失败, taskId={}, artifactId={}",
                         taskId, parseProduct.getArtifactId());
-                finishFailed(taskId, PipelineTaskErrorCode.STRUCTURE_EMPTY.name(), "上游解析产物反序列化失败");
+                finishFailed(taskId, PipelineTaskErrorCode.STRUCTURE_UPSTREAM_UNREADABLE.name(),
+                        "上游解析产物反序列化失败");
                 return;
             }
 

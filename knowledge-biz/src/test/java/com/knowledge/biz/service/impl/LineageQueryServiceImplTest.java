@@ -183,12 +183,12 @@ class LineageQueryServiceImplTest {
         assertEquals("v1", vo.getNodes().get(1).getCapability().getParserVersion());
         // 有策略环节不填能力快照
         assertNull(vo.getNodes().get(2).getCapability());
-        // 统计摘要
-        assertEquals("156", vo.getNodes().get(4).getStats().get("chunkCount"));
-        assertEquals("782", vo.getNodes().get(6).getStats().get("recordCount"));
-        assertEquals("12", vo.getNodes().get(6).getStats().get("cachedCount"));
-        assertEquals("1200", vo.getNodes().get(2).getStats().get("matched"));
-        assertEquals("64", vo.getNodes().get(2).getStats().get("changed"));
+        // 统计摘要：计数按数字下发（前端要按数字格式化千分位）
+        assertEquals(156, vo.getNodes().get(4).getStats().get("chunkCount"));
+        assertEquals(782, vo.getNodes().get(6).getStats().get("recordCount"));
+        assertEquals(12, vo.getNodes().get(6).getStats().get("cachedCount"));
+        assertEquals(1200L, vo.getNodes().get(2).getStats().get("matched"));
+        assertEquals(64L, vo.getNodes().get(2).getStats().get("changed"));
         // 血缘边：p→s, s→pr1, s→pr2, pr1→c1, pr2→c2, c1→e1 = 6 条
         assertEquals(6, vo.getEdges().size());
         assertEquals(20L, vo.getEdges().get(0).getFromTaskId());

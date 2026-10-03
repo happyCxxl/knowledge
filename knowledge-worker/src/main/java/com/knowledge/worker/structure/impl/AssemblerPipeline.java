@@ -62,7 +62,7 @@ public class AssemblerPipeline implements DocumentAssemblerPort {
     public AssembleOutcome assemble(ParseResult parseResult, AssembleContext context) {
         AssembleOutcome outcome = new AssembleOutcome();
         if (ObjectUtil.isNull(parseResult) || ObjectUtil.isNull(parseResult.getFile())) {
-            outcome.fail(PipelineTaskErrorCode.STRUCTURE_EMPTY.name(), "上游解析产物缺失");
+            outcome.fail(PipelineTaskErrorCode.STRUCTURE_UPSTREAM_UNREADABLE.name(), "上游解析产物缺失");
             return outcome;
         }
         context.setSourceFileType(parseResult.getFile().getMimeType());
