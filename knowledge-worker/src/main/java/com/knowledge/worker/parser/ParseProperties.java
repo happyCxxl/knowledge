@@ -44,4 +44,16 @@ public class ParseProperties {
 
     /** 页脚候选区域：页面底部高度占比 */
     private double footerAreaRatio = 0.08;
+
+    /** 线网格：线段需覆盖区域边长的比例（低于该比例的线不参与网格） */
+    private double tableLineCoverRatio = 0.6;
+
+    /** 文本列聚类：一列需被多少比例的行支持（低于该比例的列剔除） */
+    private double tableColumnSupportRatio = 0.5;
+
+    /** 假表门限：非空单元格占比低于该值即弃表（空白率门禁） */
+    private double tableMinFilledRatio = 0.1;
+
+    /** 表头判定：首行含数字的单元格占比上限（超过该值判为无表头） */
+    private double tableHeaderMaxNumericRatio = 0.3;
 }

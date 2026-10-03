@@ -5,8 +5,12 @@ import com.knowledge.common.domain.parse.ParseSource;
 import com.knowledge.common.enums.parse.ElementType;
 import com.knowledge.worker.parser.ParseContext;
 import com.knowledge.worker.parser.ParseProperties;
+import com.knowledge.worker.parser.impl.parsers.pdf.CharInfo;
 import com.knowledge.worker.parser.impl.parsers.pdf.HeaderFooterDetector;
 import com.knowledge.worker.parser.impl.parsers.pdf.PageLine;
+import com.knowledge.worker.parser.impl.parsers.pdf.RuleLines;
+import com.knowledge.worker.parser.impl.parsers.pdf.TableCandidateDetector;
+import com.knowledge.worker.parser.impl.parsers.pdf.Token;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
@@ -23,6 +27,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -154,6 +159,8 @@ class PdfBoxDocumentParserTest {
             assertEquals(3, tables.getFirst().getRows());
             assertEquals(3, tables.getFirst().getCols());
             assertEquals("Score", tables.getFirst().getCells().getFirst().getText());
+            // 格内多词完整保留（词边界补空格）
+            assertEquals("Bidding price", tables.getFirst().getCells().get(4).getText());
             assertTrue(tables.getFirst().getCells().getFirst().getIsHeader());
         }
     }
@@ -271,7 +278,7 @@ class PdfBoxDocumentParserTest {
 
     @Test
     void englishWordBoundariesShouldKeepSpaces() {
-        List<PdfBoxDocumentParser.CharInfo> chars = new ArrayList<>();
+        List<CharInfo> chars = new ArrayList<>();
         chars.addAll(word("Chapter", 72));
         chars.addAll(word("one", 110));
         chars.addAll(word("body", 130));
@@ -281,7 +288,7 @@ class PdfBoxDocumentParserTest {
 
     @Test
     void cjkWordBoundariesShouldNotInsertSpaces() {
-        List<PdfBoxDocumentParser.CharInfo> chars = new ArrayList<>();
+        List<CharInfo> chars = new ArrayList<>();
         // 每个汉字各成一次回调（PDFBox 对 CJK 常逐字回调）
         chars.add(ch('知', 72, true, true));
         chars.add(ch('识', 82, true, true));
@@ -292,7 +299,7 @@ class PdfBoxDocumentParserTest {
 
     @Test
     void mixedScriptBoundaryShouldKeepSpace() {
-        List<PdfBoxDocumentParser.CharInfo> chars = new ArrayList<>();
+        List<CharInfo> chars = new ArrayList<>();
         chars.add(ch('知', 72, true, true));
         chars.add(ch('识', 82, true, true));
         chars.add(ch('库', 92, true, true));
@@ -324,9 +331,219 @@ class PdfBoxDocumentParserTest {
         assertEquals("", HeaderFooterDetector.normalizeKey("   "));
     }
 
+    @Test
+    void borderedTableShouldUseRuleGridWithSpanAndSparseRow() throws Exception {
+        ParseSource source = parser.parse(context(buildRuledTable()));
+
+        List<ParseElement> tables = source.getElements().stream()
+                .filter(e -> ElementType.TABLE.name().equals(e.getType()))
+                .toList();
+        assertEquals(1, tables.size(), () -> "elements=" + source.getElements());
+        ParseElement table = tables.getFirst();
+        // 三行三列；首行横向合并成一格，第二行只填一格也留在同一张表内
+        assertEquals(3, table.getRows());
+        assertEquals(3, table.getCols());
+        assertEquals(0, table.getHeaderRow());
+        assertEquals(7, table.getCells().size());
+
+        ParseElement merged = table.getCells().stream()
+                .filter(c -> c.getRow() == 0 && c.getCol() == 0).findFirst().orElse(null);
+        assertNotNull(merged);
+        assertEquals(3, merged.getColSpan());
+        assertEquals("Score sheet", merged.getText());
+        assertTrue(merged.getIsHeader());
+
+        assertEquals("A1", cellText(table, 1, 0));
+        assertEquals("Bidding price", cellText(table, 1, 1));
+        assertEquals("30", cellText(table, 2, 2));
+    }
+
+    @Test
+    void ruledEmptyGridShouldNotProduceTable() throws Exception {
+        ParseSource source = parser.parse(context(buildRuledTable(false)));
+
+        assertTrue(source.getElements().stream()
+                .noneMatch(e -> ElementType.TABLE.name().equals(e.getType())));
+    }
+
+    @Test
+    void sparseRuledGridShouldBeRejectedByFilledGate() throws Exception {
+        ParseSource source = parser.parse(context(buildSparseRuledGrid()));
+
+        assertTrue(source.getElements().stream()
+                .noneMatch(e -> ElementType.TABLE.name().equals(e.getType())));
+        assertTrue(source.getFacts().stream()
+                .anyMatch(f -> f.getEvidence() != null && f.getEvidence().contains("空白率")));
+    }
+
+    @Test
+    void numericFirstRowShouldHaveNoHeader() throws Exception {
+        try (PDDocument doc = new PDDocument()) {
+            PDPage pdfPage = new PDPage(new PDRectangle(595, 842));
+            doc.addPage(pdfPage);
+            try (PDPageContentStream cs = new PDPageContentStream(doc, pdfPage)) {
+                cs.setFont(new PDType1Font(Standard14Fonts.FontName.HELVETICA), 10);
+                String[][] rows = {{"2024", "Q1", "100"}, {"2025", "Q2", "200"}, {"2026", "Q3", "300"}};
+                float y = 700;
+                for (String[] row : rows) {
+                    cs.beginText();
+                    cs.newLineAtOffset(60, y);
+                    cs.showText(row[0]);
+                    cs.newLineAtOffset(130, 0);
+                    cs.showText(row[1]);
+                    cs.newLineAtOffset(150, 0);
+                    cs.showText(row[2]);
+                    cs.endText();
+                    y -= 24;
+                }
+            }
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            doc.save(out);
+            ParseSource source = parser.parse(context(out.toByteArray()));
+
+            List<ParseElement> tables = source.getElements().stream()
+                    .filter(e -> ElementType.TABLE.name().equals(e.getType()))
+                    .toList();
+            assertEquals(1, tables.size(), () -> "elements=" + source.getElements());
+            assertEquals(null, tables.getFirst().getHeaderRow());
+            assertTrue(tables.getFirst().getCells().stream()
+                    .noneMatch(c -> Boolean.TRUE.equals(c.getIsHeader())));
+        }
+    }
+
+    @Test
+    void supportedColumnsShouldDropUnsupportedColumns() {
+        List<List<Token>> matrix = List.of(
+                List.of(new Token("A", 10, 20), new Token("B", 100, 110)),
+                List.of(new Token("C", 10, 20), new Token("D", 100, 110)),
+                List.of(new Token("E", 10, 20), new Token("X", 200, 210)));
+
+        assertEquals(List.of(10.0, 100.0), TableCandidateDetector.supportedColumns(matrix, 2));
+    }
+
+    @Test
+    void detectHeaderRowShouldFollowNumericRule() {
+        assertEquals(0, PdfBoxDocumentParser.detectHeaderRow(
+                List.of(List.of("项目", "分值"), List.of("A1", "30")), List.of(10.0, 10.0), 0.3));
+        assertNull(PdfBoxDocumentParser.detectHeaderRow(
+                List.of(List.of("2024", "100"), List.of("2025", "200")), List.of(10.0, 10.0), 0.3));
+        assertEquals(0, PdfBoxDocumentParser.detectHeaderRow(
+                List.of(List.of("项目", "分值"), List.of("A1", "B1")), List.of(14.0, 10.0), 0.3));
+    }
+
+    @Test
+    void mergedCellsShouldMergeAcrossMissingDividers() {
+        RuleLines.Grid grid = new RuleLines.Grid(
+                List.of(0.0, 10.0, 20.0), List.of(0.0, 10.0, 20.0),
+                List.of(List.of(true), List.of(false), List.of(false)),
+                List.of(List.of(false, false), List.of(false, false)));
+
+        List<PdfBoxDocumentParser.CellRect> rects = PdfBoxDocumentParser.mergedCells(grid);
+
+        assertEquals(3, rects.size());
+        assertEquals(0, rects.getFirst().row());
+        assertEquals(2, rects.getFirst().colSpan());
+        assertEquals(1, rects.getFirst().rowSpan());
+    }
+
+    private String cellText(ParseElement table, int row, int col) {
+        return table.getCells().stream()
+                .filter(c -> c.getRow() == row && c.getCol() == col)
+                .map(ParseElement::getText).findFirst().orElse(null);
+    }
+
+    /** 造一张带框线的表：三行三列，首行横向合并、第二行只填一格 */
+    private byte[] buildRuledTable() throws Exception {
+        return buildRuledTable(true);
+    }
+
+    /** 造一张带框线的表；withText 为 false 时只画线不写文字（空白率门禁用例） */
+    private byte[] buildRuledTable(boolean withText) throws Exception {
+        try (PDDocument doc = new PDDocument()) {
+            PDPage page = new PDPage(new PDRectangle(595, 842));
+            doc.addPage(page);
+            float left = 72;
+            float right = 372;
+            float top = 842 - 200;
+            float middle = 842 - 230;
+            float lower = 842 - 260;
+            float bottom = 842 - 290;
+            try (PDPageContentStream cs = new PDPageContentStream(doc, page)) {
+                cs.setLineWidth(0.8f);
+                drawLine(cs, left, top, right, top);
+                drawLine(cs, left, middle, right, middle);
+                drawLine(cs, left, lower, right, lower);
+                drawLine(cs, left, bottom, right, bottom);
+                drawLine(cs, left, bottom, left, top);
+                drawLine(cs, right, bottom, right, top);
+                drawLine(cs, 172, bottom, 172, middle);
+                drawLine(cs, 272, bottom, 272, middle);
+                if (withText) {
+                    cs.setFont(new PDType1Font(Standard14Fonts.FontName.HELVETICA), 10);
+                    cs.beginText();
+                    cs.newLineAtOffset(left + 10, middle + 8);
+                    cs.showText("Score sheet");
+                    cs.endText();
+                    cs.beginText();
+                    cs.newLineAtOffset(left + 10, lower + 8);
+                    cs.showText("A1");
+                    cs.endText();
+                    cs.beginText();
+                    cs.newLineAtOffset(182, lower + 8);
+                    cs.showText("Bidding price");
+                    cs.endText();
+                    cs.beginText();
+                    cs.newLineAtOffset(282, bottom + 8);
+                    cs.showText("30");
+                    cs.endText();
+                }
+            }
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            doc.save(out);
+            return out.toByteArray();
+        }
+    }
+
+    /** 造一张 2 行 6 列的线框网格，只填一格（填充率低于假表门限） */
+    private byte[] buildSparseRuledGrid() throws Exception {
+        try (PDDocument doc = new PDDocument()) {
+            PDPage page = new PDPage(new PDRectangle(595, 842));
+            doc.addPage(page);
+            float left = 72;
+            float right = 372;
+            float top = 842 - 200;
+            float middle = 842 - 245;
+            float bottom = 842 - 290;
+            try (PDPageContentStream cs = new PDPageContentStream(doc, page)) {
+                cs.setLineWidth(0.8f);
+                drawLine(cs, left, top, right, top);
+                drawLine(cs, left, middle, right, middle);
+                drawLine(cs, left, bottom, right, bottom);
+                for (int i = 0; i <= 6; i++) {
+                    float x = left + i * 50;
+                    drawLine(cs, x, bottom, x, top);
+                }
+                cs.setFont(new PDType1Font(Standard14Fonts.FontName.HELVETICA), 10);
+                cs.beginText();
+                cs.newLineAtOffset(left + 10, top - 8);
+                cs.showText("X");
+                cs.endText();
+            }
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            doc.save(out);
+            return out.toByteArray();
+        }
+    }
+
+    private void drawLine(PDPageContentStream cs, float x1, float y1, float x2, float y2) throws Exception {
+        cs.moveTo(x1, y1);
+        cs.lineTo(x2, y2);
+        cs.stroke();
+    }
+
     /** 造一个词的字符序列：词内 x 连续，首末码点带词边界标记 */
-    private List<PdfBoxDocumentParser.CharInfo> word(String text, double x) {
-        List<PdfBoxDocumentParser.CharInfo> chars = new ArrayList<>();
+    private List<CharInfo> word(String text, double x) {
+        List<CharInfo> chars = new ArrayList<>();
         for (int i = 0; i < text.length(); i++) {
             chars.add(ch(text.charAt(i), x + i * 5, i == 0, i == text.length() - 1));
         }
@@ -334,13 +551,14 @@ class PdfBoxDocumentParserTest {
     }
 
     /** 造一个字符事实（固定行高与字号） */
-    private PdfBoxDocumentParser.CharInfo ch(int codePoint, double x, boolean wordStart, boolean wordEnd) {
-        return new PdfBoxDocumentParser.CharInfo(x, 700, 5, 10, 10, "Helvetica", false,
+    private CharInfo ch(int codePoint, double x, boolean wordStart, boolean wordEnd) {
+        return new CharInfo(x, 700, 5, 10, 10, "Helvetica", false,
                 codePoint, wordStart, wordEnd);
     }
 
     /** 造一个行事实（只用到文本） */
     private PageLine line(String text) {
-        return new PageLine(1, 72, 700, 100, 10, text, 10, "Helvetica", false, List.of(), false);
+        return new PageLine(1, 72, 700, 100, 10, text, 10, "Helvetica", false,
+                List.of(), List.of(), false);
     }
 }

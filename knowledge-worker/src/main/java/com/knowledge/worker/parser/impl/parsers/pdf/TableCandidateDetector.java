@@ -60,6 +60,30 @@ public final class TableCandidateDetector {
         return clusters;
     }
 
+    /**
+     * 支持度过滤的列聚类：簇内需有足够行数的 token 落位才保留该列，
+     * 剔除个别行多出的 token 造成的虚列。
+     *
+     * @param tokenMatrix   块内各行 token
+     * @param minSupportRows 列被保留所需的最少行数
+     * @return 保留的列起点（升序）
+     */
+    public static List<Double> supportedColumns(List<List<Token>> tokenMatrix, int minSupportRows) {
+        List<Double> kept = new ArrayList<>();
+        for (double column : clusterColumns(tokenMatrix)) {
+            int support = 0;
+            for (List<Token> line : tokenMatrix) {
+                if (ObjectUtil.isNotNull(findTokenInColumn(line, column))) {
+                    support++;
+                }
+            }
+            if (support >= minSupportRows) {
+                kept.add(column);
+            }
+        }
+        return kept;
+    }
+
     /** 表格置信校验：至少 2 行完整覆盖全部列，且覆盖行数 ≥ 60%（不足则判规则失败降级）。 */
     public static boolean enoughLinesCoverColumns(List<List<Token>> tokenMatrix, List<Double> columns) {
         int covered = 0;
