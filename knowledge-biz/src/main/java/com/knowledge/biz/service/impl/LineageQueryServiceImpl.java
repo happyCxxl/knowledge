@@ -10,6 +10,7 @@ import com.knowledge.biz.service.db.KbPipelineStepLogDbService;
 import com.knowledge.biz.service.db.KbPipelineTaskDbService;
 import com.knowledge.biz.service.support.FileResultAccessGuard;
 import com.knowledge.biz.service.support.ParseStatsSupport;
+import com.knowledge.biz.service.support.PreprocessStatsSupport;
 import com.knowledge.biz.service.support.StructureStatsSupport;
 import com.knowledge.common.domain.entity.KbChunkSet;
 import com.knowledge.common.domain.entity.KbEmbeddingSet;
@@ -18,6 +19,7 @@ import com.knowledge.common.domain.entity.KbPipelineStepLog;
 import com.knowledge.common.domain.entity.KbPipelineTask;
 import com.knowledge.common.domain.parse.CapabilitySnapshot;
 import com.knowledge.common.domain.parse.ParseResult;
+import com.knowledge.common.domain.preprocess.PreprocessView;
 import com.knowledge.common.domain.structure.UnifiedDocument;
 import com.knowledge.common.dto.response.lineage.LineageCapabilityVO;
 import com.knowledge.common.dto.response.lineage.LineageEdgeVO;
@@ -94,6 +96,8 @@ public class LineageQueryServiceImpl implements LineageQueryService {
                 artifactId -> ParseStatsSupport.readArtifact(fileStorage, artifactId));
         Map<Long, UnifiedDocument> documentByTaskId = readProductBodies(tasks, productById, PipelineStage.STRUCTURE,
                 "组装", artifactId -> StructureStatsSupport.readDocument(fileStorage, artifactId));
+        Map<Long, PreprocessView> viewByTaskId = readProductBodies(tasks, productById, PipelineStage.PREPROCESS,
+                "预处理", artifactId -> PreprocessStatsSupport.readView(fileStorage, artifactId));
 
         // 节点：环节顺序（PARSE→…→EMBED）再按任务 id 升序
         List<KbPipelineTask> ordered = tasks.stream()
@@ -108,7 +112,7 @@ public class LineageQueryServiceImpl implements LineageQueryService {
         for (KbPipelineTask task : ordered) {
             KbPipelineProduct product = task.getProductId() == null ? null : productById.get(task.getProductId());
             nodes.add(toNode(task, product, chunkSetByArtifact, embedSetByArtifact, stepAgg,
-                    parseResultByTaskId, documentByTaskId));
+                    parseResultByTaskId, documentByTaskId, viewByTaskId));
             if (task.getUpstreamProductId() != null) {
                 Long fromTaskId = taskIdByProductId.get(task.getUpstreamProductId());
                 if (fromTaskId != null) {
@@ -132,7 +136,8 @@ public class LineageQueryServiceImpl implements LineageQueryService {
                                  Map<String, KbEmbeddingSet> embedSetByArtifact,
                                  Map<Long, long[]> stepAgg,
                                  Map<Long, ParseResult> parseResultByTaskId,
-                                 Map<Long, UnifiedDocument> documentByTaskId) {
+                                 Map<Long, UnifiedDocument> documentByTaskId,
+                                 Map<Long, PreprocessView> viewByTaskId) {
         LineageNodeVO node = new LineageNodeVO();
         node.setTaskId(task.getId());
         node.setProductId(task.getProductId());
@@ -147,6 +152,7 @@ public class LineageQueryServiceImpl implements LineageQueryService {
         }
         Map<String, Object> stats = new LinkedHashMap<>();
         boolean structureStage = PipelineStage.STRUCTURE.name().equals(task.getStage());
+        boolean preprocessStage = PipelineStage.PREPROCESS.name().equals(task.getStage());
         if (product != null) {
             node.setArtifactId(product.getArtifactId());
             node.setContentHash(product.getContentHash());
@@ -167,6 +173,10 @@ public class LineageQueryServiceImpl implements LineageQueryService {
         // 放在它之前会被随后的空 map 覆盖掉。
         if (structureStage) {
             fillStructureStats(node, task, documentByTaskId.get(task.getId()));
+        }
+        // 预处理统计在通用统计之后并入：通用 map 里的 matched/changed 由 step_log 聚合而来，必须保留
+        if (preprocessStage) {
+            fillPreprocessStats(node, task, viewByTaskId.get(task.getId()));
         }
         return node;
     }
@@ -218,6 +228,23 @@ public class LineageQueryServiceImpl implements LineageQueryService {
         if (ObjectUtil.isNotNull(stats)) {
             node.setStats(stats);
         }
+    }
+
+    /**
+     * 预处理节点统计与摘要行一并回填：统计并入通用 stats（保留 step_log 聚合来的 matched/changed），
+     * 摘要走通用 stageSummary。
+     */
+    private void fillPreprocessStats(LineageNodeVO node, KbPipelineTask task, PreprocessView view) {
+        Map<String, Object> stats =
+                PreprocessStatsSupport.stats(task.getStartedAt(), task.getFinishedAt(), view);
+        node.setStageSummary(PreprocessStatsSupport.summary(node.getErrorMsg(), stats, task.getStatus()));
+        if (ObjectUtil.isNull(stats)) {
+            return;
+        }
+        Map<String, Object> merged = ObjectUtil.isNull(node.getStats())
+                ? new LinkedHashMap<>() : new LinkedHashMap<>(node.getStats());
+        merged.putAll(stats);
+        node.setStats(merged);
     }
 
     /** 统计摘要：CHUNK/EMBED 按 artifactId 匹配集合表；PREPROCESS 用 step_log 聚合 */

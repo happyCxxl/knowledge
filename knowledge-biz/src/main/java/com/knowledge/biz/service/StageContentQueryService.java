@@ -25,14 +25,18 @@ public interface StageContentQueryService {
      * <p>文档页过滤：docPage 指定后只回该页元素，total 与翻页随之按该页口径给
      * （原文预览与解析结果按页联动用）。
      *
+     * <p>状态过滤：status 以逗号分隔指定处置状态（如 `EXCLUDED_TOC,REPEATED`），只回这些状态的元素；
+     * 与文档页过滤同一原则 —— 先过滤再分页，total 与 truncated 都按过滤后的口径给。
+     *
      * @param fileResultId 文件结果 ID（不存在 40432）
      * @param stage        环节（必填，白名单校验）
      * @param taskId       可选：缺省取最新任务；不属于该文件该环节 40001
      * @param docPage      可选：只取该文档页的元素（可空，按全部）
      * @param page         页码（可空，按 1）
      * @param limit        每页条数（可空，按默认上限）
+     * @param status       可选：只取这些处置状态的元素（逗号分隔；空按全部）
      * @return 产物内容（当前页）
      */
     StageContentVO stageContent(Long fileResultId, String stage, Long taskId, Long docPage, Integer page,
-                                Integer limit);
+                                Integer limit, String status);
 }

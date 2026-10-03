@@ -1,7 +1,6 @@
 package com.knowledge.biz.service.support;
 
 import cn.hutool.core.util.ObjectUtil;
-import cn.hutool.core.util.StrUtil;
 import com.knowledge.common.domain.preprocess.NormalizedField;
 import com.knowledge.common.domain.preprocess.PreprocessView;
 import com.knowledge.common.domain.preprocess.TraceEntry;
@@ -31,29 +30,18 @@ public class PreprocessVoAssembler {
     /** 预处理统计（展示口径：检索文本与展示文本不同的元素数等；与步骤日志的规则改写计数口径不同） */
     public PreprocessSummaryVO toSummary(PreprocessView view) {
         List<ViewElement> elements = ObjectUtil.defaultIfNull(view.getElements(), new ArrayList<>());
-        int changedCount = 0;
-        int excludedCount = 0;
-        int repeatedCount = 0;
-        int fieldCount = 0;
-        for (ViewElement element : elements) {
-            if (StrUtil.isNotBlank(element.getNormalizedText())
-                    && !StrUtil.equals(element.getNormalizedText(), element.getDisplayText())) {
-                changedCount++;
-            }
-            if (PreprocessViewRules.EXCLUDED_STATUSES.contains(element.getStatus())) {
-                excludedCount++;
-            }
-            if (ViewElementStatus.REPEATED.name().equals(element.getStatus())) {
-                repeatedCount++;
-            }
-            fieldCount += ObjectUtil.defaultIfNull(element.getNormalizedFields(), new ArrayList<>()).size();
-        }
+        int excludedCount = PreprocessStatsSupport.countStatuses(elements, PreprocessViewRules.EXCLUDED_STATUSES);
+        int repeatedCount =
+                PreprocessStatsSupport.countStatuses(elements, List.of(ViewElementStatus.REPEATED.name()));
         PreprocessSummaryVO summary = new PreprocessSummaryVO();
         summary.setElementCount(elements.size());
-        summary.setChangedCount(changedCount);
+        summary.setChangedCount(PreprocessStatsSupport.countChanged(elements));
         summary.setExcludedCount(excludedCount);
         summary.setRepeatedCount(repeatedCount);
-        summary.setFieldCount(fieldCount);
+        summary.setMarkedCount(PreprocessStatsSupport.countStatuses(elements, PreprocessStatsSupport.MARKED_STATUSES));
+        summary.setChunkSkippedCount(excludedCount + repeatedCount);
+        summary.setFieldCount(PreprocessStatsSupport.countFields(elements));
+        summary.setStatusCounts(PreprocessStatsSupport.statusCounts(elements));
         return summary;
     }
 

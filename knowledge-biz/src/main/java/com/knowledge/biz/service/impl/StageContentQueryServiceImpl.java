@@ -21,6 +21,7 @@ import com.knowledge.common.domain.parse.ParseElement;
 import com.knowledge.common.domain.parse.ParseResult;
 import com.knowledge.common.domain.parse.ParseSource;
 import com.knowledge.common.domain.preprocess.PreprocessView;
+import com.knowledge.common.domain.preprocess.TraceEntry;
 import com.knowledge.common.domain.preprocess.ViewElement;
 import com.knowledge.common.domain.structure.UnifiedDocument;
 import com.knowledge.common.domain.structure.UnifiedElement;
@@ -37,9 +38,12 @@ import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * 产物内容查询实现：
@@ -62,9 +66,15 @@ public class StageContentQueryServiceImpl implements StageContentQueryService {
     private final TaskDetailSupport detailSupport;
     private final FileResultAccessGuard accessGuard;
 
-    @Override
+    /** 不带状态过滤的重载：与 status 传空是同一口径 */
     public StageContentVO stageContent(Long fileResultId, String stage, Long taskId, Long docPage,
                                        Integer page, Integer limit) {
+        return stageContent(fileResultId, stage, taskId, docPage, page, limit, null);
+    }
+
+    @Override
+    public StageContentVO stageContent(Long fileResultId, String stage, Long taskId, Long docPage,
+                                       Integer page, Integer limit, String status) {
         accessGuard.requireExisting(fileResultId);
         ThrowUtil.throwIf(StrUtil.isBlank(stage) || !PipelineStage.FILE_CHAIN_STAGES.contains(stage),
                 ErrorCode.PARAM_INVALID, "未知环节: " + stage);
@@ -95,8 +105,9 @@ public class StageContentQueryServiceImpl implements StageContentQueryService {
         vo.setLatest(true);
 
         try {
-            // 页码过滤先于分页：total 与翻页都按"该页元素"这一口径给
-            List<StageContentItemVO> all = filterByDocPage(buildItems(stage, product.getArtifactId()), docPage);
+            // 页码与状态过滤都先于分页：total 与翻页都按过滤后的口径给
+            List<StageContentItemVO> all = filterByStatus(
+                    filterByDocPage(buildItems(stage, product.getArtifactId()), docPage), status);
             vo.setTotal(all.size());
             vo.setItems(slice(all, pageNo, pageSize));
         } catch (Exception e) {
@@ -311,6 +322,28 @@ public class StageContentQueryServiceImpl implements StageContentQueryService {
                 .toList();
     }
 
+    /**
+     * 按处置状态过滤：只留状态在给定集合里的元素。
+     *
+     * <p>状态以逗号分隔（如 `EXCLUDED_TOC,REPEATED`）；空串或全是空白表示不过滤。
+     * 与文档页过滤同一原则：先过滤再分页，total 与 truncated 都按过滤后的口径给。
+     */
+    private List<StageContentItemVO> filterByStatus(List<StageContentItemVO> all, String status) {
+        if (StrUtil.isBlank(status)) {
+            return all;
+        }
+        Set<String> wanted = Arrays.stream(status.split(","))
+                .map(String::trim)
+                .filter(StrUtil::isNotBlank)
+                .collect(Collectors.toSet());
+        if (wanted.isEmpty()) {
+            return all;
+        }
+        return all.stream()
+                .filter(item -> wanted.contains(item.getStatus()))
+                .toList();
+    }
+
     // ---------------- 预处理：视图元素（display + normalized + 状态） ----------------
 
     private List<StageContentItemVO> preprocessItems(String artifactId) {
@@ -329,6 +362,12 @@ public class StageContentQueryServiceImpl implements StageContentQueryService {
             item.setDisplay(element.getDisplayText());
             item.setNormalized(element.getNormalizedText());
             Map<String, Object> extra = new LinkedHashMap<>();
+            if (StrUtil.isNotBlank(element.getRawText())) {
+                extra.put("rawText", element.getRawText());
+            }
+            if (ObjectUtil.isNotNull(element.getMarks()) && !element.getMarks().isEmpty()) {
+                extra.put("marks", element.getMarks());
+            }
             if (element.getNormalizedFields() != null && !element.getNormalizedFields().isEmpty()) {
                 extra.put("normalizedFields", JsonUtil.toJsonStr(element.getNormalizedFields()));
             }
@@ -338,10 +377,22 @@ public class StageContentQueryServiceImpl implements StageContentQueryService {
             if (element.getPage() != null) {
                 extra.put("page", element.getPage());
             }
+            // 处理轨迹只对被处理过的元素下发（非 KEEP 条目），避免响应体膨胀
+            List<TraceEntry> trace = nonKeepTrace(element);
+            if (!trace.isEmpty()) {
+                extra.put("trace", JsonUtil.toJsonStr(trace));
+            }
             item.setExtra(extra);
             items.add(item);
         }
         return items;
+    }
+
+    /** 处理轨迹里的非 KEEP 条目（KEEP = 未命中改写，下发没有意义） */
+    private List<TraceEntry> nonKeepTrace(ViewElement element) {
+        return ObjectUtil.defaultIfNull(element.getPreprocessTrace(), List.<TraceEntry>of()).stream()
+                .filter(entry -> !TraceEntry.ACTION_KEEP.equals(entry.getAction()))
+                .toList();
     }
 
     // ---------------- 切片：kb_chunk 内容（按该次运行产物 artifactId 精确取集合） ----------------

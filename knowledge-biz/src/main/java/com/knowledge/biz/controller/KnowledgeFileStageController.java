@@ -40,7 +40,8 @@ public class KnowledgeFileStageController {
      *
      * @param fileResultId 文件结果 ID（路径参数）
      * @param stage        环节（白名单 PARSE/STRUCTURE/PREPROCESS/CHUNK/EMBED）
-     * @param query        查询条件：taskId 可选（缺省最新任务）；docPage 可选（只取该文档页）；page 从 1 起；limit 为每页条数
+     * @param query        查询条件：taskId 可选（缺省最新任务）；docPage 可选（只取该文档页）；
+     *                     status 可选（逗号分隔，只取这些处置状态）；page 从 1 起；limit 为每页条数
      * @return 产物内容（当前页）
      * @apiNote 文件结果不存在 40432；环节非法或任务不属于该文件该环节 40001
      */
@@ -49,14 +50,15 @@ public class KnowledgeFileStageController {
             + "按 task.productId 精确取该次运行产物，历史任务同样可展示（latest=该次运行产物是否可用）；taskId 可选（缺省最新任务）；"
             + "page/limit 分页（缺省第 1 页、每页 "
             + StageContentQueryService.DEFAULT_LIMIT + " 条，上限 " + StageContentQueryService.MAX_LIMIT
-            + " 条），响应含 total 与 truncated；docPage 可选，只回该文档页的元素")
+            + " 条），响应含 total 与 truncated；docPage 可选，只回该文档页的元素；"
+            + "status 可选（逗号分隔的处置状态），只回这些状态的元素")
     public R<StageContentVO> stageContent(
             @Parameter(description = "文件结果ID", required = true) @PathVariable("fileResultId") Long fileResultId,
             @Parameter(description = "环节（PARSE/STRUCTURE/PREPROCESS/CHUNK/EMBED）", required = true)
             @RequestParam("stage") String stage,
             @ParameterObject StageDetailQueryDto query) {
         return R.ok(stageContentQueryService.stageContent(fileResultId, stage, query.getTaskId(),
-                docPageOf(query), query.getPage(), query.getLimit()));
+                docPageOf(query), query.getPage(), query.getLimit(), query.getStatus()));
     }
 
     /**

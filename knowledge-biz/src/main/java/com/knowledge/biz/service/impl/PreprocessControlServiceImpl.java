@@ -3,6 +3,7 @@ package com.knowledge.biz.service.impl;
 import cn.hutool.core.util.ObjectUtil;
 import com.knowledge.biz.service.PreprocessControlService;
 import com.knowledge.biz.service.db.KbPipelineProductDbService;
+import com.knowledge.biz.service.support.PreprocessStatsSupport;
 import com.knowledge.biz.service.support.PreprocessVoAssembler;
 import com.knowledge.biz.service.support.StageStrategySupport;
 import com.knowledge.biz.service.support.FileResultAccessGuard;
@@ -29,6 +30,7 @@ import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Map;
 
 /**
  * 预处理控制面服务实现（手动逐环节）：
@@ -84,28 +86,39 @@ public class PreprocessControlServiceImpl implements PreprocessControlService {
 
         // 产物引用/统计/视图元素：按 task.productId 精确取该次运行的产物（历史任务同样可展示自己的产物；无任务/无产物留空）
         vo.setElements(new ArrayList<>());
+        PreprocessView view = null;
         KbPipelineProduct product = detailSupport.productOfTask(task);
         if (ObjectUtil.isNotNull(product)) {
             detailSupport.withProductRef(vo, product);
-            readView(product.getArtifactId(), vo);
+            view = readView(product.getArtifactId(), vo);
         }
+        // 统计与摘要读产物现算：与执行树预处理节点同一份口径，不落产物；产物读不到时不陈述结论
+        Map<String, Object> stageStats = PreprocessStatsSupport.stats(vo.getStartedAt(), vo.getFinishedAt(), view);
+        vo.setStageStats(stageStats);
+        vo.setStageSummary(PreprocessStatsSupport.summary(vo.getErrorMsg(), stageStats, vo.getStatus()));
         return vo;
     }
 
-    /** 读派生视图产物并委托 VO 组装器提取统计/视图元素（读取失败记日志并留空，不阻断详情） */
-    private void readView(String artifactId, PreprocessDetailVO vo) {
+    /**
+     * 读派生视图产物并委托 VO 组装器提取统计/视图元素（读取失败记日志并留空，不阻断详情）。
+     *
+     * @return 产物本体；读不到返回 null（统计与摘要随之为空）
+     */
+    private PreprocessView readView(String artifactId, PreprocessDetailVO vo) {
         try {
             byte[] content = fileStorage.getObject(artifactId);
             PreprocessView view = JsonUtil.toObject(
                     new String(content, StandardCharsets.UTF_8), PreprocessView.class);
             if (ObjectUtil.isNull(view)) {
                 log.debug("预处理视图产物反序列化为空, artifactId={}", artifactId);
-                return;
+                return null;
             }
             vo.setSummary(voAssembler.toSummary(view));
             vo.setElements(voAssembler.toElementVOs(view));
+            return view;
         } catch (Exception e) {
             log.warn("读取预处理视图产物失败, artifactId={}", artifactId, e);
+            return null;
         }
     }
 

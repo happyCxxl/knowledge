@@ -10,7 +10,8 @@ import java.io.Serializable;
  *
  * <p>taskId 可选：不传取该环节最新任务，传了则查该次运行。
  * page/limit 只在产物内容接口上生效，用于逐页取内容项（大文档不一次取回）；
- * docPage 同样只在产物内容接口上生效，用于只取某个文档页的元素。
+ * docPage 同样只在产物内容接口上生效，用于只取某个文档页的元素；
+ * status 同样只在产物内容接口上生效，用于只取某些处置状态的元素（预处理环节核对剔除内容用）。
  *
  * @author cxxl
  */
@@ -25,6 +26,9 @@ public class StageDetailQueryDto implements Serializable {
 
     /** 文档页码（可选；传了只回该页元素，从 1 起） */
     private Integer docPage;
+
+    /** 处置状态（可选；逗号分隔，传了只回这些状态的元素） */
+    private String status;
 
     /** 页码（从 1 起；不传按 1） */
     private Integer page;
