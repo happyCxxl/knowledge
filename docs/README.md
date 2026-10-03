@@ -39,6 +39,7 @@
 | 04-1 | 解析环节（卡片 / 触发 / 详情抽屉 / 原文预览）       | `/knowledge-base/:id/stages`    | `../web/src/views/knowledge-base/PipelineStageView.vue` | `KnowledgeFileParseController`（解析触发 `POST /{fileResultId}/parse`、解析详情 `GET /{fileResultId}/parse-detail`）、`KnowledgeFileStageController`（各环节共用的产物内容 `GET /{fileResultId}/stage-content`）、`FileController`（原文件字节 `GET /files/{fileId}`）                                     | 已梳理 |
 | 04-2 | 组装环节（卡片 / 触发 / 详情抽屉 / 组装文档）       | `/knowledge-base/:id/stages`    | `../web/src/views/knowledge-base/PipelineStageView.vue` | `KnowledgeFileStructureController`（组装触发 `POST /{fileResultId}/structure`、组装详情 `GET /{fileResultId}/structure-detail`）、`KnowledgeFileStageController`（各环节共用的产物内容 `GET /{fileResultId}/stage-content`）                                                                               | 已梳理 |
 | 04-3 | 预处理环节（卡片 / 触发 / 详情抽屉 / 清洗后的正文） | `/knowledge-base/:id/stages`    | `../web/src/views/knowledge-base/PipelineStageView.vue` | `KnowledgeFilePreprocessController`（预处理触发 `POST /{fileResultId}/preprocess`、预处理详情 `GET /{fileResultId}/preprocess-detail`）、`KnowledgeFileStageController`（各环节共用的产物内容 `GET /{fileResultId}/stage-content`，支持 `status` 过滤）                                                    | 已梳理 |
+| 04-4 | 切片环节（卡片 / 触发 / 详情抽屉 / 切片结果）       | `/knowledge-base/:id/stages`    | `../web/src/views/knowledge-base/PipelineStageView.vue` | `KnowledgeFileChunkController`（切片触发 `POST /{fileResultId}/chunk`、切片详情 `GET /{fileResultId}/chunk-detail`）、`KnowledgeFileStageController`（各环节共用的产物内容 `GET /{fileResultId}/stage-content`，支持按类型 / 兜底 / 父子过滤）                                                             | 已梳理 |
 | 05   | 索引与发布                                          | `/knowledge-base/:id/index`     | `../web/src/views/knowledge-base/IndexBuildView.vue`    | `KnowledgeFileIndexController`                                                                                                                                                                                                                                                                             | 待梳理 |
 | 06   | 检索评测                                            | `/knowledge-base/:id/retrieval` | `../web/src/views/knowledge-base/RetrievalEvalView.vue` | `RetrievalController`                                                                                                                                                                                                                                                                                      | 待梳理 |
 | 07   | 策略管理                                            | `/strategy`                     | `../web/src/views/strategy/StrategyManagementView.vue`  | `StrategyVersionController`                                                                                                                                                                                                                                                                                | 待梳理 |
@@ -56,6 +57,7 @@
 - 04-1 解析环节 → `pages/解析环节/README.md`
 - 04-2 组装环节 → `pages/组装环节/README.md`
 - 04-3 预处理环节 → `pages/预处理环节/README.md`
+- 04-4 切片环节 → `pages/切片环节/README.md`
 - 09 个人中心 → `pages/个人中心/README.md`
 - 其余功能单元（04-0、05~08）梳理后在此补上
 
@@ -198,7 +200,6 @@
 
 梳理后续页面时一旦遇到就回填本文档：
 
-- 文件上传与下载的请求形态（`/files` 前缀，待梳理切片阶段页时确认）。
 - 各页面的数据刷新节奏（轮询 / 手动刷新）暂记在各页面文件里，若形成统一约定再上移到这里。
 
 ## 已定口径
