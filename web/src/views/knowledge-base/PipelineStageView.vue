@@ -141,12 +141,13 @@
       @confirm="onTriggerConfirm"
     />
 
-    <!-- 解析详情抽屉：只看不改，打开与关闭都不影响链图的选中与轮询 -->
-    <ParseDetailDrawer
+    <!-- 环节详情抽屉：只看不改，打开与关闭都不影响链图的选中与轮询 -->
+    <StageDetailDrawer
       v-if="detailNode"
       :visible="detailVisible"
       :file-result-id="selectedFileId"
       :task-id="detailNode.taskId"
+      :stage="detailNode.stage"
       :file-name="selectedFileName"
       :source-file-id="selectedFileObjectId"
       :run-ordinal="detailRunOrdinal"
@@ -162,7 +163,7 @@ import { useRoute } from 'vue-router';
 import { getKnowledgeBaseDetail } from '@/api/knowledge-base';
 import { getFileResults, getLineage, getStrategyBinding, addStageTrigger } from '@/api/pipeline';
 import ChainGraph from '@/components/pipeline/ChainGraph.vue';
-import ParseDetailDrawer from '@/components/pipeline/ParseDetailDrawer.vue';
+import StageDetailDrawer from '@/components/pipeline/StageDetailDrawer.vue';
 import TriggerStageDialog from '@/components/pipeline/TriggerStageDialog.vue';
 import FileExtBadge from '@/components/knowledge-base/FileExtBadge.vue';
 import { prunePositions, readPositions } from '@/utils/chain-layout-storage';

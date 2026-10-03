@@ -15,7 +15,9 @@
             >第 <span class="parse-drawer-ident-num">{{ runOrdinal }}</span> 次执行</span
           >
           <span class="parse-drawer-ident-item">开始 {{ formatClock(detail?.startedAt) }}</span>
-          <span class="parse-drawer-ident-item">耗时 {{ formatDuration(stats?.durationMs) }}</span>
+          <span class="parse-drawer-ident-item"
+            >耗时 {{ formatDuration(stats?.durationMs ?? detailDurationMs) }}</span
+          >
           <span class="parse-drawer-ident-item">任务 {{ taskId }}</span>
         </div>
 
@@ -43,59 +45,122 @@
         </section>
 
         <div ref="splitBodyRef" class="parse-drawer-body" :class="{ 'is-dragging': dragging }">
-          <!-- 左栏：原文预览。工具条固定在本区顶，只有画布滚动；宽度由分隔条决定 -->
+          <!-- 左栏：内容形态由环节配置给（原文预览 / 组装产物文档）；宽度由分隔条决定 -->
           <section class="parse-drawer-pane parse-drawer-pane-source" :style="sourcePaneStyle">
             <div class="parse-drawer-pane-head">
-              <h4 class="parse-drawer-block-title">原文预览</h4>
+              <h4 class="parse-drawer-block-title">{{ leftPaneTitle }}</h4>
               <span class="parse-drawer-hint">
-                {{ fileKindText }}<span v-if="fileSizeText"> · {{ fileSizeText }}</span>
-                <span v-if="previewTotal > 0"> · 共 {{ previewTotal }} 页</span>
-                <span v-if="canPreview && highlightCount > 0">
-                  · 可定位 {{ highlightCount }} 个元素</span
-                >
+                <template v-if="leftPaneKind === 'assembly'">
+                  <span v-if="docBlocks.length > 0"
+                    >共 {{ docBlocks.length }} 个元素 · {{ docTitleCount }} 个标题</span
+                  >
+                  <span v-if="docBlocks.length > docRenderLimit">
+                    · 已渲染 {{ docRenderLimit }}</span
+                  >
+                </template>
+                <template v-else>
+                  {{ fileKindText }}<span v-if="fileSizeText"> · {{ fileSizeText }}</span>
+                  <span v-if="previewTotal > 0"> · 共 {{ previewTotal }} 页</span>
+                  <span v-if="canPreview && highlightCount > 0">
+                    · 可定位 {{ highlightCount }} 个元素</span
+                  >
+                </template>
               </span>
             </div>
             <div class="parse-drawer-pane-fill">
-              <p v-if="sourceError" class="parse-drawer-hint parse-drawer-hint-bad">
-                {{ sourceError }}
-              </p>
-              <p v-else-if="!sourceBlob && previewKind !== 'none'" class="parse-drawer-hint">
-                原文件加载中…
-              </p>
-              <!-- 没有浏览器端渲染器的类型（.doc/.xls/图片等）：只给文件信息与下载 -->
-              <p v-else-if="previewKind === 'none'" class="parse-drawer-hint">
-                该类型暂不支持内嵌预览（{{ fileKindText }}），可用底部「下载原文件」查看
-              </p>
-              <!-- 拿到字节后一律交给对应预览组件：解析失败由它自己报原因（不在这里摘掉组件，
-                   否则页码与错误明细都会跟着消失） -->
-              <PdfSourcePreview
-                v-else-if="previewKind === 'pdf'"
-                ref="previewRef"
-                :blob="sourceBlob"
-                :highlights="highlights"
-                :active-key="activeKey"
-                @page-change="onPreviewPage"
-                @pick="onPreviewPick"
-                @loaded="onPreviewLoaded"
-              />
-              <DocxSourcePreview
-                v-else-if="previewKind === 'docx'"
-                ref="docxRef"
-                :blob="sourceBlob"
-                :anchors="docxAnchors"
-                :active-key="activeKey"
-                @pick="onPreviewPick"
-                @loaded="onOfficeLoaded"
-              />
-              <XlsxSourcePreview
-                v-else
-                ref="xlsxRef"
-                :blob="sourceBlob"
-                :anchors="xlsxAnchors"
-                :active-key="activeKey"
-                @pick="onPreviewPick"
-                @loaded="onOfficeLoaded"
-              />
+              <!-- 组装产物文档：解析 + 组装之后得到的实际内容，按元素类型排版；
+                   块与右栏行都以产物元素 id 对齐，两侧互相定位 -->
+              <template v-if="leftPaneKind === 'assembly'">
+                <p v-if="detailLoading" class="parse-drawer-hint">组装产物加载中…</p>
+                <p v-else-if="detailError" class="parse-drawer-hint parse-drawer-hint-bad">
+                  {{ detailError }}
+                </p>
+                <p v-else-if="docBlocks.length === 0" class="parse-drawer-hint">
+                  本次运行没有可展示的组装产物内容
+                </p>
+                <div v-else ref="docRef" class="parse-drawer-doc" @scroll="onDocScroll">
+                  <div
+                    v-for="block in renderedDocBlocks"
+                    :key="block.key"
+                    class="parse-drawer-doc-block"
+                    :class="[block.className, { 'is-picked': block.key === pickedKey }]"
+                    :data-key="block.key"
+                    @click="onDocPick(block.key)"
+                  >
+                    <span v-if="block.badge" class="parse-drawer-doc-badge">{{ block.badge }}</span>
+                    <table
+                      v-if="block.kind === 'table' && block.grid.length > 0"
+                      class="parse-drawer-doc-table"
+                    >
+                      <tbody>
+                        <tr
+                          v-for="(row, rowIndex) in block.grid"
+                          :key="rowIndex"
+                          class="parse-drawer-doc-tr"
+                        >
+                          <td
+                            v-for="(cell, colIndex) in row"
+                            :key="colIndex"
+                            class="parse-drawer-doc-td"
+                            :class="{ 'is-head': cell !== null && cell.isHeader }"
+                          >
+                            {{ cell?.text ?? '' }}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                    <span v-else-if="block.kind === 'figure'" class="parse-drawer-doc-image">{{
+                      block.text
+                    }}</span>
+                    <span v-else class="parse-drawer-doc-text">{{ block.text }}</span>
+                  </div>
+                  <p v-if="docRenderLimit < docBlocks.length" class="parse-drawer-hint">
+                    继续向下滚动加载剩余 {{ docBlocks.length - docRenderLimit }} 个元素
+                  </p>
+                </div>
+              </template>
+              <template v-else>
+                <p v-if="sourceError" class="parse-drawer-hint parse-drawer-hint-bad">
+                  {{ sourceError }}
+                </p>
+                <p v-else-if="!sourceBlob && previewKind !== 'none'" class="parse-drawer-hint">
+                  原文件加载中…
+                </p>
+                <!-- 没有浏览器端渲染器的类型（.doc/.xls/图片等）：只给文件信息与下载 -->
+                <p v-else-if="previewKind === 'none'" class="parse-drawer-hint">
+                  该类型暂不支持内嵌预览（{{ fileKindText }}），可用底部「下载原文件」查看
+                </p>
+                <!-- 拿到字节后一律交给对应预览组件：解析失败由它自己报原因（不在这里摘掉组件，
+                     否则页码与错误明细都会跟着消失） -->
+                <PdfSourcePreview
+                  v-else-if="previewKind === 'pdf'"
+                  ref="previewRef"
+                  :blob="sourceBlob"
+                  :highlights="highlights"
+                  :active-key="activeKey"
+                  @page-change="onPreviewPage"
+                  @pick="onPreviewPick"
+                  @loaded="onPreviewLoaded"
+                />
+                <DocxSourcePreview
+                  v-else-if="previewKind === 'docx'"
+                  ref="docxRef"
+                  :blob="sourceBlob"
+                  :anchors="docxAnchors"
+                  :active-key="activeKey"
+                  @pick="onPreviewPick"
+                  @loaded="onOfficeLoaded"
+                />
+                <XlsxSourcePreview
+                  v-else-if="previewKind === 'xlsx'"
+                  ref="xlsxRef"
+                  :blob="sourceBlob"
+                  :anchors="xlsxAnchors"
+                  :active-key="activeKey"
+                  @pick="onPreviewPick"
+                  @loaded="onOfficeLoaded"
+                />
+              </template>
             </div>
           </section>
 
@@ -123,7 +188,7 @@
           <div ref="resultPaneRef" class="parse-drawer-pane parse-drawer-pane-result">
             <div class="parse-drawer-tabs" role="tablist">
               <button
-                v-for="tab in RESULT_TABS"
+                v-for="tab in tabs"
                 :key="tab.key"
                 class="parse-drawer-tab"
                 :class="{ 'is-on': activeTab === tab.key }"
@@ -243,11 +308,86 @@
               </div>
             </div>
 
-            <!-- 页签：告警 -->
+            <!-- 页签：结构树（组装环节；与元素页签同一份分页内容，按标题层级缩进） -->
+            <div v-else-if="activeTab === 'tree'" class="parse-drawer-tabpane">
+              <div class="parse-drawer-tabscroll">
+                <p v-if="itemsError" class="parse-drawer-hint parse-drawer-hint-bad">
+                  {{ itemsError }}
+                </p>
+                <p v-else-if="!itemsLoading && elementTotal === 0" class="parse-drawer-hint">
+                  本次运行没有产物内容
+                </p>
+                <p v-else-if="treeRows.length === 0" class="parse-drawer-hint">
+                  {{ itemsLoading ? '结构树加载中…' : '本页没有可展示的结构行' }}
+                </p>
+                <ul v-else class="parse-drawer-tree">
+                  <li
+                    v-for="row in treeRows"
+                    :key="row.key"
+                    class="parse-drawer-tree-row"
+                    :class="{ 'is-on': row.key === activeKey, 'is-backup': row.isBackup }"
+                    :style="{ paddingLeft: row.indent }"
+                    :data-key="row.key"
+                    @click="onTreePick(row.key)"
+                  >
+                    <div class="parse-drawer-tree-head">
+                      <span class="parse-drawer-type">{{ row.typeText }}</span>
+                      <span class="parse-drawer-element-meta">#{{ row.seq }}</span>
+                      <span v-if="row.page !== null" class="parse-drawer-element-meta"
+                        >第 {{ row.page }} 页</span
+                      >
+                      <span v-if="row.grid" class="parse-drawer-element-meta">{{ row.grid }}</span>
+                      <button
+                        v-if="row.expandable"
+                        class="parse-drawer-toggle"
+                        type="button"
+                        @click.stop="toggleExpand(row.key)"
+                      >
+                        {{ expanded.has(row.key) ? '收起' : '展开' }}
+                      </button>
+                    </div>
+                    <pre
+                      v-if="row.text"
+                      class="parse-drawer-tree-text"
+                      :class="{ 'is-expanded': expanded.has(row.key) }"
+                      :title="row.text"
+                      >{{ row.text }}</pre>
+                    <span v-else class="parse-drawer-element-meta">（无文本）</span>
+                  </li>
+                </ul>
+              </div>
+
+              <div class="parse-drawer-tabfoot">
+                <button
+                  class="parse-drawer-page-btn"
+                  type="button"
+                  :disabled="page <= 1 || itemsLoading"
+                  @click="goPage(page - 1)"
+                >
+                  上一页
+                </button>
+                <span class="parse-drawer-page-info">第 {{ page }} / {{ pageCount }} 页</span>
+                <button
+                  class="parse-drawer-page-btn"
+                  type="button"
+                  :disabled="page >= pageCount || itemsLoading"
+                  @click="goPage(page + 1)"
+                >
+                  下一页
+                </button>
+                <span class="parse-drawer-page-info"
+                  >共 {{ elementTotal }} 条 · 每页 {{ PAGE_SIZE }}</span
+                >
+              </div>
+            </div>
+
+            <!-- 页签：告警（告警与冲突分两类展示） -->
             <div v-else-if="activeTab === 'warnings'" class="parse-drawer-tabpane">
               <div class="parse-drawer-tabscroll">
-                <p v-if="warnings.length === 0" class="parse-drawer-hint">本次运行没有告警</p>
-                <ul v-else class="parse-drawer-warnings">
+                <h5 v-if="warnings.length > 0" class="parse-drawer-subtitle">
+                  告警 {{ warnings.length }}
+                </h5>
+                <ul v-if="warnings.length > 0" class="parse-drawer-warnings">
                   <li v-for="(warn, index) in warnings" :key="index" class="parse-drawer-warning">
                     <template v-for="(part, partIndex) in warningParts(warn)" :key="partIndex">
                       <button
@@ -262,6 +402,20 @@
                     </template>
                   </li>
                 </ul>
+                <h5 v-if="conflicts.length > 0" class="parse-drawer-subtitle">
+                  冲突 {{ conflicts.length }}
+                </h5>
+                <ul v-if="conflicts.length > 0" class="parse-drawer-warnings">
+                  <li v-for="(item, index) in conflicts" :key="index" class="parse-drawer-warning">
+                    <span class="parse-drawer-conflict-pair">
+                      {{ item.primaryElementId ?? '—' }} / {{ item.backupElementId ?? '—' }}
+                    </span>
+                    {{ item.message ?? '该处两路内容不一致，已按主路保留' }}
+                  </li>
+                </ul>
+                <p v-if="warnings.length === 0 && conflicts.length === 0" class="parse-drawer-hint">
+                  本次运行没有告警
+                </p>
               </div>
             </div>
 
@@ -313,46 +467,110 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 import { readSplitRatio, removeSplitRatio, writeSplitRatio } from '@/utils/drawer-split-storage';
-import { getParseDetail, getSourceFile, getStageContent } from '@/api/pipeline';
+import { getStageContent, getStageDetail, getSourceFile } from '@/api/pipeline';
 import PdfSourcePreview from '@/components/pipeline/PdfSourcePreview.vue';
 import DocxSourcePreview from '@/components/pipeline/DocxSourcePreview.vue';
 import XlsxSourcePreview from '@/components/pipeline/XlsxSourcePreview.vue';
 import {
   bboxOf,
   elementTypeLabel,
-  formatCount,
   formatDuration,
   pageOf,
   statNumber,
   statusTone,
   taskStatusLabel,
 } from '@/types/pipeline';
+import { stageViewOf } from '@/types/pipeline-stage-view';
 import type { DocxAnchor } from '@/components/pipeline/DocxSourcePreview.vue';
 import type { XlsxAnchor } from '@/components/pipeline/XlsxSourcePreview.vue';
 import type { PreviewHighlight } from '@/components/pipeline/PdfSourcePreview.vue';
-import type { LineageParseStats, ParseDetail, StageContentItem } from '@/types/pipeline';
+import type { StageTab, StageTabKey } from '@/types/pipeline-stage-view';
+import type {
+  ParseDetail,
+  StageContentItem,
+  StructureCellItem,
+  StructureDetail,
+  StructureOutlineItem,
+} from '@/types/pipeline';
 
-// 解析详情抽屉：只看不改 —— 不发任何写请求，也不改链图的选中与轮询。
+// 环节详情抽屉：只看不改 —— 不发任何写请求，也不改链图的选中与轮询。
 const props = defineProps<{
   visible: boolean;
   /** 当前文件结果 */
   fileResultId: string;
   /** 被查看的那次运行（必填：看的是"这一张卡"，不是"最新一次"） */
   taskId: string;
+  /** 被查看的环节（PipelineStage 枚举名）：决定详情接口、页签、统计项与左栏形态 */
+  stage: string;
   /** 文件名（头部展示与下载保存名；由页面从文件列表带进来） */
   fileName: string;
   /** 源文件引用（原文件下载用：文件结果里的 fileId；缺失时下载按钮置灰） */
   sourceFileId: string;
-  /** 本次运行是同一文件的第几次解析（页面按血缘节点顺序算出） */
+  /** 本次运行是同一文件的第几次执行（页面按血缘节点顺序算出） */
   runOrdinal: number;
 }>();
 
 const emit = defineEmits<{ close: [] }>();
 
+/** 当前环节的展示配置：页签、统计项与左栏形态都从这里取 */
+const stageView = computed(() => stageViewOf(props.stage));
+
+/** 左栏内容形态 */
+const leftPaneKind = computed(() => stageView.value.leftPaneKind);
+
+/** 左栏标题：按形态给（组装产物文档与原文预览是两件事） */
+const leftPaneTitle = computed(() =>
+  leftPaneKind.value === 'assembly' ? '组装后的文档' : '原文预览',
+);
+
 /** 每页条数：与后端上限（1000）留出余量，单次响应可控 */
 const PAGE_SIZE = 100;
 
-const detail = ref<ParseDetail | null>(null);
+// ---- 左栏：组装产物文档（组装环节用） ----
+
+/** 文档块一次渲染多少条：大文档不做一次性全渲染，滚动到底再追加 */
+const DOC_RENDER_STEP = 80;
+
+/** 距底部多远触发追加渲染 */
+const DOC_LOAD_MARGIN = 240;
+
+/** 表格渲染的格数上限：超过只按行列数占位，不做整表渲染 */
+const DOC_TABLE_MAX_CELLS = 1200;
+
+/** 标题层级上限：产物层级再深也只按 4 级排版 */
+const DOC_TITLE_MAX_LEVEL = 4;
+
+/** 文档块形态：标题 / 分节 / 段落 / 表格 / 图片 / 弱化块（页眉页脚）/ 一般文本 */
+type DocBlockKind = 'title' | 'section' | 'paragraph' | 'table' | 'figure' | 'weak' | 'text';
+
+/** 文档块里的一个表格单元格 */
+interface DocCell {
+  text: string;
+  isHeader: boolean;
+}
+
+/** 文档块：一个产物元素排成的一段内容 */
+interface DocBlock {
+  /** 产物元素 id（与右栏行同键，两侧按它互相定位） */
+  key: string;
+  kind: DocBlockKind;
+  /** 类型标签（只给页眉页脚，避免与正文混淆） */
+  badge: string;
+  /** 块的样式类名（标题按层级、分节、弱化块各一档） */
+  className: string;
+  text: string;
+  /** 表格网格（产物无单元格明细时为空数组） */
+  grid: (DocCell | null)[][];
+}
+
+/** 文档滚动容器（左栏定位用） */
+const docRef = ref<HTMLElement | null>(null);
+
+/** 文档已渲染到第几条（滚动递增；定位时按目标块补足） */
+const docRenderLimit = ref(DOC_RENDER_STEP);
+
+/** 详情：按环节取到的是各自的结构（解析 / 组装），页面按 `in` 判别专属字段 */
+const detail = ref<ParseDetail | StructureDetail | null>(null);
 const detailLoading = ref(false);
 const detailError = ref('');
 
@@ -711,9 +929,249 @@ const highlights = computed<PreviewHighlight[]>(() =>
 /** 可用坐标定位的元素（画高亮框的条数）与它们覆盖的页数，说明预览联动是否可用 */
 const highlightCount = computed(() => highlights.value.length);
 
-const stats = computed<LineageParseStats | null>(() => detail.value?.parseStats ?? null);
+/**
+ * 环节统计（判解析/组装用）：解析有固定的 parseStats 结构，其余环节用通用的 stageStats。
+ *
+ * <p>耗时口径：解析读产物统计里的 durationMs（与执行树卡片同一份值）；
+ * 组装没有该字段，读通用统计的 durationMs，再不行才按任务起止时间现算。
+ */
+const stats = computed(() => {
+  const value = detail.value;
+  return value !== null && 'parseStats' in value ? value.parseStats : null;
+});
+
 const warnings = computed<string[]>(() => detail.value?.warnings ?? []);
 const steps = computed(() => detail.value?.steps ?? []);
+
+/** 组装冲突（仅组装详情有该字段；解析环节恒空） */
+const conflicts = computed(() => {
+  const value = detail.value;
+  return value !== null && 'conflicts' in value ? (value.conflicts ?? []) : [];
+});
+
+/** 组装产物大纲（仅组装详情有 outline；解析环节恒空）：左栏文档按它排版 */
+const outlineItems = computed<StructureOutlineItem[]>(() => {
+  const value = detail.value;
+  return value !== null && 'outline' in value ? (value.outline ?? []) : [];
+});
+
+/** 文档块：一个产物元素排成的一段内容 */
+const docBlocks = computed<DocBlock[]>(() =>
+  outlineItems.value.map((item, index) => docBlockOf(item, index)),
+);
+
+/** 文档里的标题数（栏头展示口径） */
+const docTitleCount = computed(
+  () => outlineItems.value.filter((item) => item.type === 'TITLE').length,
+);
+
+/** 已渲染的文档块：滚动到哪渲染到哪 */
+const renderedDocBlocks = computed(() => docBlocks.value.slice(0, docRenderLimit.value));
+
+/** 产物元素 → 文档块：按元素类型分派排版口径 */
+function docBlockOf(item: StructureOutlineItem, index: number): DocBlock {
+  const key = item.elementId ?? `outline-${index}`;
+  const type = item.type ?? '';
+  const text = (item.text ?? '').trim();
+  if (type === 'TITLE') {
+    const level = Math.min(Math.max(item.level ?? 1, 1), DOC_TITLE_MAX_LEVEL);
+    return {
+      key,
+      kind: 'title',
+      badge: '',
+      className: `parse-drawer-doc-title parse-drawer-doc-title-${level}`,
+      text: text === '' ? '（无标题文本）' : text,
+      grid: [],
+    };
+  }
+  if (type === 'SECTION') {
+    return {
+      key,
+      kind: 'section',
+      badge: '',
+      className: 'parse-drawer-doc-section',
+      text: text === '' ? '（无分节名）' : text,
+      grid: [],
+    };
+  }
+  if (type === 'TABLE') {
+    return {
+      key,
+      kind: 'table',
+      badge: '',
+      className: 'parse-drawer-doc-table-wrap',
+      text: tablePlaceholderText(item),
+      grid: tableGridOf(item),
+    };
+  }
+  if (type === 'IMAGE') {
+    return {
+      key,
+      kind: 'figure',
+      badge: '',
+      className: 'parse-drawer-doc-figure',
+      text: text === '' ? (item.caption ?? '图片（产物未含图片内容）') : text,
+      grid: [],
+    };
+  }
+  // 页眉页脚必须出现，但弱化并标出类型，避免与正文混淆
+  if (type === 'HEADER' || type === 'FOOTER') {
+    return {
+      key,
+      kind: 'weak',
+      badge: elementTypeLabel(type),
+      className: 'parse-drawer-doc-weak',
+      text: text === '' ? '（无文本）' : text,
+      grid: [],
+    };
+  }
+  return {
+    key,
+    kind: type === 'PARAGRAPH' ? 'paragraph' : 'text',
+    badge: '',
+    className: type === 'PARAGRAPH' ? 'parse-drawer-doc-paragraph' : 'parse-drawer-doc-text',
+    text: text === '' ? '（无文本）' : text,
+    grid: [],
+  };
+}
+
+/** 表格网格：按单元格行列把明细摆进网格（无明细或超上限时不给网格） */
+function tableGridOf(item: StructureOutlineItem): (DocCell | null)[][] {
+  const cells = item.cells ?? [];
+  if (cells.length === 0) {
+    return [];
+  }
+  const rows = Math.max(item.rows ?? 0, maxCellIndex(cells, (cell) => cell.row) + 1);
+  const cols = Math.max(item.cols ?? 0, maxCellIndex(cells, (cell) => cell.col) + 1);
+  if (rows <= 0 || cols <= 0 || rows * cols > DOC_TABLE_MAX_CELLS) {
+    return [];
+  }
+  const grid: (DocCell | null)[][] = Array.from({ length: rows }, () =>
+    Array.from({ length: cols }, () => null),
+  );
+  for (const cell of cells) {
+    const row = cell.row ?? 0;
+    const col = cell.col ?? 0;
+    if (row < 0 || col < 0 || row >= rows || col >= cols) {
+      continue;
+    }
+    grid[row][col] = { text: cell.text ?? '', isHeader: cell.isHeader === true };
+  }
+  return grid;
+}
+
+/** 单元格行列的最大值（行列缺失按 0 计） */
+function maxCellIndex(
+  cells: StructureCellItem[],
+  pick: (cell: StructureCellItem) => number | null,
+): number {
+  return cells.reduce((max, cell) => Math.max(max, pick(cell) ?? 0), 0);
+}
+
+/** 表格占位文案：无单元格明细时给行列数与说明 */
+function tablePlaceholderText(item: StructureOutlineItem): string {
+  const rows = item.rows === null ? '—' : String(item.rows);
+  const cols = item.cols === null ? '—' : String(item.cols);
+  return `表格 ${rows} 行 × ${cols} 列（产物未含单元格明细）`;
+}
+
+/** 结构树缩进：每层一档，行自身再留一段左内边距 */
+const TREE_INDENT_BASE = 10;
+const TREE_INDENT_STEP = 14;
+
+/** 结构树行：字段与元素页签的行同口径，另加缩进层级 */
+interface TreeRow {
+  key: string;
+  /** 集合内顺序（渲染行序） */
+  seq: number;
+  typeText: string;
+  text: string;
+  /** 文档页码（无页概念的元素为 null） */
+  page: number | null;
+  /** 行列数文案（表格给 `行×列`） */
+  grid: string;
+  /** 行左内边距（按标题层级给） */
+  indent: string;
+  /** 文本是否可展开（没有正文的行只显示占位说明） */
+  expandable: boolean;
+  /** 是否是冲突里的被裁决方（弱化显示） */
+  isBackup: boolean;
+}
+
+/**
+ * 结构树行：与元素页签同一份分页内容，仅按标题层级缩进。
+ *
+ * <p>标题按自身层级缩进，正文跟随最近的一个标题；层级读产物下发的 extra.level。
+ * 文本折叠与展开复用元素页签的 {@link expanded} 与 {@link toggleExpand}，行键同为产物元素 id。
+ */
+const treeRows = computed<TreeRow[]>(() => {
+  // 当前所属标题层级：正文跟随最近的一个标题
+  let currentLevel = 0;
+  return rawItems.value.map((item, index) => {
+    const isTitle = item.type === 'TITLE';
+    const extra = item.extra ?? {};
+    const level = statNumber(extra.level as number | null);
+    if (isTitle) {
+      currentLevel = level ?? 1;
+    }
+    // 层级 1 顶格；层级 N 缩进 (N-1) 档；正文比所属标题再进一档
+    const depth = isTitle ? Math.max(currentLevel - 1, 0) : currentLevel;
+    const rows = statNumber(extra.rows as number | null);
+    const cols = statNumber(extra.cols as number | null);
+    const display = (item.display ?? '').trim();
+    return {
+      key: itemKeyOf(item, index),
+      seq: item.seq ?? index + 1,
+      typeText: elementTypeLabel(item.type),
+      text: rowTextOf(item, display),
+      page: pageOf(item.extra),
+      grid: rows !== null && cols !== null ? `${rows}×${cols}` : '',
+      indent: `${TREE_INDENT_BASE + depth * TREE_INDENT_STEP}px`,
+      expandable: display !== '',
+      isBackup: item.status === 'BACKUP',
+    };
+  });
+});
+
+/** 行文本：有正文用正文，没有正文的元素给占位说明（表格给行列数） */
+function rowTextOf(item: StageContentItem, display: string): string {
+  if (display !== '') {
+    return display;
+  }
+  const extra = item.extra ?? {};
+  if (item.type === 'TABLE') {
+    const rows = statNumber(extra.rows as number | null);
+    const cols = statNumber(extra.cols as number | null);
+    return `表格 ${rows ?? '—'} 行 × ${cols ?? '—'} 列`;
+  }
+  if (item.type === 'IMAGE') {
+    return '图片';
+  }
+  return '';
+}
+
+/** 产物内容项的键：优先用对齐键（组装 = 产物元素 id），缺失时按序号兜底 */
+function itemKeyOf(item: StageContentItem, index: number): string {
+  return item.alignKey ?? `seq-${item.seq ?? index}`;
+}
+
+/**
+ * 耗时按任务起止时间现算：只在统计里没有 durationMs 时用作兜底。
+ *
+ * <p>解析与组装都有量好的耗时（解析取产物统计、组装取通用统计），走到这里说明统计缺失。
+ */
+const detailDurationMs = computed(() => {
+  const value = detail.value;
+  if (value?.startedAt === null || value?.finishedAt === null || value === null) {
+    return null;
+  }
+  const start = Date.parse(value.startedAt);
+  const end = Date.parse(value.finishedAt);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) {
+    return null;
+  }
+  return end - start;
+});
 
 const statusText = computed(() => taskStatusLabel(detail.value?.status ?? ''));
 const tone = computed(() => statusTone(detail.value?.status));
@@ -730,24 +1188,20 @@ const TONE_CLASSES: Record<string, string> = {
 
 const badgeClass = computed(() => TONE_CLASSES[tone.value] ?? 'is-wait');
 
-const statItems = computed(() => {
-  const s = stats.value;
-  return [
-    { key: 'pages', label: '页', value: formatCount(s?.pageCount) },
-    { key: 'elements', label: '元素', value: formatCount(s?.elementCount) },
-    { key: 'body', label: '正文', value: formatCount(s?.bodyCount) },
-    { key: 'table', label: '表格', value: formatCount(s?.tableCount) },
-    { key: 'image', label: '图片', value: formatCount(s?.imageCount) },
-    { key: 'head', label: '页眉页脚', value: formatCount(s?.headerFooterCount) },
-    { key: 'failed', label: '问题单元', value: formatCount(s?.failedUnitCount) },
-    { key: 'duration', label: '耗时', value: formatDuration(s?.durationMs) },
-  ];
-});
+/** 统计条：口径由环节配置给（固定格数，缺失项给 `—`） */
+const statItems = computed(() => stageView.value.statItems(detail.value));
 
-/** 结论文案：后端给就用后端的，缺失时按状态回落 */
+/**
+ * 结论文案：后端给就用后端的，缺失时按状态回落。
+ *
+ * <p>解析环节读 `parseSummary`（统计结构固定），其余环节读通用的 `stageSummary`；
+ * 两者都空且不是失败态时给 `—`。
+ */
 const conclusionText = computed(() => {
-  if (detail.value?.parseSummary) {
-    return detail.value.parseSummary;
+  const value = detail.value;
+  const summary = value === null ? null : (value.stageSummary ?? parseSummaryOf(value));
+  if (summary) {
+    return summary;
   }
   if (isFailed.value) {
     return detail.value?.errorMsg ?? '—';
@@ -755,16 +1209,18 @@ const conclusionText = computed(() => {
   return '—';
 });
 
+/** 解析环节的专属摘要字段（其余环节没有该字段） */
+function parseSummaryOf(value: ParseDetail | StructureDetail): string | null {
+  return 'parseSummary' in value ? value.parseSummary : null;
+}
+
 const conclusionClass = computed(() => badgeClass.value);
 
-/** 右栏页签：元素 / 告警 / 过程 */
-const RESULT_TABS = [
-  { key: 'elements', label: '元素' },
-  { key: 'warnings', label: '告警' },
-  { key: 'steps', label: '过程' },
-] as const;
+/** 右栏页签：由环节配置给（解析=元素/告警/过程；组装=元素/结构树/告警/过程） */
+const tabs = computed<StageTab[]>(() => stageView.value.tabs);
 
-type ResultTabKey = (typeof RESULT_TABS)[number]['key'];
+/** 页签键别名：模板里 `activeTab === 'warnings'` 之类的字面量比较需要它 */
+type ResultTabKey = StageTabKey;
 
 /** 当前页签：切换只换右栏内容，左栏位置与选中状态都不受影响 */
 const activeTab = ref<ResultTabKey>('elements');
@@ -775,7 +1231,10 @@ function tabCount(key: ResultTabKey): number {
     return elementTotal.value;
   }
   if (key === 'warnings') {
-    return warnings.value.length;
+    return warnings.value.length + conflicts.value.length;
+  }
+  if (key === 'tree') {
+    return treeRows.value.length;
   }
   return steps.value.length;
 }
@@ -788,6 +1247,9 @@ const FAIL_ADVICE: Record<string, string> = {
     '纯扫描件暂不支持：请提供带文本层的 PDF（OCR 能力尚未开放），再从页面工具栏发起解析',
   RATIO_BELOW_THRESHOLD:
     '成功单元占比过低：检查是否有大量扫描页或乱码，换一版文件后从页面工具栏发起解析',
+  STRUCTURE_EMPTY: '解析产物里没有可组装的元素（空树）：确认上游解析结果有内容后再触发组装',
+  STRUCTURE_UPSTREAM_UNREADABLE:
+    '读不到上游解析产物：确认上游解析已成功产出产物，或重新触发一次解析后再组装',
 };
 
 const failAdvice = computed(() => {
@@ -864,7 +1326,7 @@ async function loadItems(): Promise<void> {
   itemsLoading.value = true;
   itemsError.value = '';
   try {
-    const data = await getStageContent(props.fileResultId, 'PARSE', {
+    const data = await getStageContent(props.fileResultId, props.stage, {
       taskId: props.taskId,
       docPage: followPreview.value && previewReady.value ? previewPage.value : undefined,
       page: page.value,
@@ -963,6 +1425,11 @@ function onOfficeLoaded(): void {
 function onElementPick(key: string): void {
   activeKey.value = key;
   pickedKey.value = key;
+  // 左栏是组装产物文档时，元素列表与文档是同一份产物的元素，按元素 id 对齐
+  if (leftPaneKind.value === 'assembly') {
+    void revealDocBlock(key);
+    return;
+  }
   if (previewKind.value === 'pdf') {
     void previewRef.value?.revealHighlight(key);
     return;
@@ -973,6 +1440,73 @@ function onElementPick(key: string): void {
   }
   if (previewKind.value === 'xlsx') {
     void xlsxRef.value?.revealAnchor(key);
+  }
+}
+
+/**
+ * 点结构树某行 → 左栏文档滚到对应块并高亮。
+ *
+ * <p>两侧来自同一产物，按产物元素 id 对齐；对不上时只保留选中，不做顺序近似定位。
+ */
+function onTreePick(key: string): void {
+  activeKey.value = key;
+  pickedKey.value = key;
+  void revealDocBlock(key);
+}
+
+/** 点左栏文档里的块 → 右栏对应行选中并滚入视野 */
+function onDocPick(key: string): void {
+  activeKey.value = key;
+  pickedKey.value = key;
+  void revealRightRow(key);
+}
+
+/**
+ * 左栏文档按产物元素 id 定位。
+ *
+ * <p>目标块还没渲染时先把渲染窗口补到它（大文档不做一次性全渲染）。
+ */
+async function revealDocBlock(key: string): Promise<void> {
+  const index = docBlocks.value.findIndex((block) => block.key === key);
+  if (index < 0) {
+    return;
+  }
+  if (index >= docRenderLimit.value) {
+    docRenderLimit.value = Math.min(docBlocks.value.length, index + DOC_RENDER_STEP);
+  }
+  await nextTick();
+  const block = docRef.value?.querySelector(`[data-key="${CSS.escape(key)}"]`);
+  if (block instanceof HTMLElement) {
+    block.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }
+}
+
+/**
+ * 右栏定位到某个产物元素所在的行：目标不在当前页时先切到它所在的那一页。
+ *
+ * <p>页码按左栏文档里的下标换算，只在两侧条数一致时才换页（口径不同就不动，避免跳错页）。
+ */
+async function revealRightRow(key: string): Promise<void> {
+  const onPage = rawItems.value.some((item, index) => itemKeyOf(item, index) === key);
+  if (!onPage && elementTotal.value === docBlocks.value.length) {
+    const index = docBlocks.value.findIndex((block) => block.key === key);
+    const targetPage = index < 0 ? page.value : Math.floor(index / PAGE_SIZE) + 1;
+    if (targetPage !== page.value) {
+      page.value = targetPage;
+      await loadItems();
+    }
+  }
+  await scrollElementIntoView(key);
+}
+
+/** 文档滚动到接近底部时追加渲染窗口 */
+function onDocScroll(event: Event): void {
+  const box = event.currentTarget as HTMLElement | null;
+  if (box === null || docRenderLimit.value >= docBlocks.value.length) {
+    return;
+  }
+  if (box.scrollTop + box.clientHeight >= box.scrollHeight - DOC_LOAD_MARGIN) {
+    docRenderLimit.value = Math.min(docBlocks.value.length, docRenderLimit.value + DOC_RENDER_STEP);
   }
 }
 
@@ -1082,7 +1616,7 @@ watch(previewReady, (ready) => {
 
 // 打开或切换到另一次运行时重新取数；关闭时不请求
 watch(
-  () => [props.visible, props.fileResultId, props.taskId] as const,
+  () => [props.visible, props.fileResultId, props.taskId, props.stage] as const,
   ([visible]) => {
     if (!visible) {
       return;
@@ -1100,17 +1634,26 @@ watch(
     activeKey.value = '';
     pickedKey.value = '';
     sourceError.value = '';
-    void getParseDetail(props.fileResultId, props.taskId)
+    // 文档渲染窗口回到起点：换运行后按新产物重新按需渲染
+    docRenderLimit.value = DOC_RENDER_STEP;
+    // 页签在当前环节的页签表里就保留上次选择，不在表里则回到第一个页签（不留上一个环节的页签）
+    const stageTabs = tabs.value;
+    if (stageTabs.length > 0 && !stageTabs.some((tab) => tab.key === activeTab.value)) {
+      activeTab.value = stageTabs[0].key;
+    }
+    void getStageDetail(props.stage, props.fileResultId, props.taskId)
       .then((data) => {
         detail.value = data;
       })
       .catch(() => {
-        detailError.value = '解析详情加载失败';
+        detailError.value = `${stageView.value.runningText.replace('中', '')}详情加载失败`;
       })
       .finally(() => {
         detailLoading.value = false;
       });
-    void loadSource();
+    if (leftPaneKind.value === 'source') {
+      void loadSource();
+    }
     void loadItems();
     // 打开（或换运行）后量一次双栏宽度，按记住的比例定左栏宽
     sourceWidth.value = null;
@@ -1662,10 +2205,12 @@ onBeforeUnmount(() => {
 }
 
 /*
- * 元素文本：默认两行封顶（超出省略），展开后放开。
+ * 可展开文本块：默认两行封顶（超出省略），展开后放开。
  * 用 `-webkit-box` + `line-clamp`：折叠态两行，展开态由 is-expanded 还原成普通块。
+ * 元素页签与结构树页签共用这一份规则，行键同为产物元素 id。
  */
-.parse-drawer-element-text {
+.parse-drawer-element-text,
+.parse-drawer-tree-text {
   display: -webkit-box;
   margin: 6px 0 0;
   overflow: hidden;
@@ -1680,7 +2225,8 @@ onBeforeUnmount(() => {
   overflow-wrap: anywhere;
 }
 
-.parse-drawer-element-text.is-expanded {
+.parse-drawer-element-text.is-expanded,
+.parse-drawer-tree-text.is-expanded {
   display: block;
   -webkit-line-clamp: unset;
   line-clamp: unset;
@@ -1756,5 +2302,50 @@ onBeforeUnmount(() => {
 
 .parse-drawer-btn-primary:hover {
   box-shadow: 0 0 12px var(--kb-glow);
+}
+
+/* 结构树：页签内的滚动列表；行头与文本块和元素页签同一套，另按层级给左内边距 */
+.parse-drawer-tree {
+  margin: 0;
+  padding: 4px 0;
+  list-style: none;
+}
+
+.parse-drawer-tree-row {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--kb-line);
+  cursor: pointer;
+}
+
+.parse-drawer-tree-row:hover {
+  background: var(--kb-bg-2);
+}
+
+/* 当前选中的结构行（.is-on 由脚本按选中键加，故样式在全局 chain-graph.css） */
+
+.parse-drawer-tree-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: baseline;
+}
+
+/* 冲突里的被裁决方：弱化，不与被采用的一路混淆 */
+.parse-drawer-tree-row.is-backup .parse-drawer-tree-text {
+  color: var(--kb-text-4);
+  text-decoration: line-through;
+}
+
+.parse-drawer-subtitle {
+  margin: 10px 10px 6px;
+  color: var(--kb-text-3);
+  font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.parse-drawer-conflict-pair {
+  margin-right: 6px;
+  color: var(--kb-warn);
 }
 </style>

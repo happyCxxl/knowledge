@@ -28,42 +28,53 @@
       <span class="chain-node-status" :class="toneClass">{{ statusText }}</span>
     </span>
 
-    <!-- ② 身份行：解析器版本 · 策略版本 -->
+    <!-- ② 身份行：解析器版本 · 策略版本（组装环节是产物 schema 版本） -->
     <span class="chain-node-ident">{{ identText }}</span>
 
-    <!-- ③ 指标行：页数 / 元素数 / 耗时（缺项显示 —） -->
-    <span class="chain-node-metrics">
-      <span v-for="item in metrics" :key="item.key" class="chain-node-metric">
-        <span class="chain-node-metric-value">{{ item.value }}</span>
-        {{ item.unit }}
-      </span>
-    </span>
-
     <!--
-      ④ 构成图：一个类型一条（类型标签 + 浅槽 + 彩色条 + 右侧数字），条长 = 该类占全部元素的比例。
-      标签与数字都是定宽右对齐列，四条才能对齐成一张表。
+      ③ 主体区：形态由环节配置给。
+      bars = 指标行 + 构成图（解析）；checklist = 结构体检清单（组装，不再显示指标行）。
     -->
-    <span class="chain-node-compose">
-      <span v-for="bar in composeBars" :key="bar.type" class="chain-node-bar" :title="bar.title">
-        <span class="chain-node-bar-label">{{ bar.title }}</span>
-        <span class="chain-node-bar-track">
-          <span
-            class="chain-node-bar-fill"
-            :class="{
-              'chain-node-bar-body': bar.type === 'body',
-              'chain-node-bar-table': bar.type === 'table',
-              'chain-node-bar-image': bar.type === 'image',
-              'chain-node-bar-head': bar.type === 'head',
-            }"
-            :style="{ width: bar.width }"
-          ></span>
+    <template v-if="bodyKind === 'checklist'">
+      <span class="chain-node-check">
+        <span v-for="item in checklist" :key="item.key" class="chain-node-check-row">
+          <i class="chain-node-check-dot" :class="item.toneClass"></i>
+          <span class="chain-node-check-label">{{ item.label }}</span>
+          <span class="chain-node-check-value">{{ item.value }}</span>
+          <span class="chain-node-check-note">{{ item.note }}</span>
         </span>
-        <span class="chain-node-bar-value">{{ bar.value }}</span>
       </span>
-    </span>
+    </template>
+    <template v-else>
+      <!-- 指标行：页数 / 元素数 / 耗时（缺项显示 —） -->
+      <span class="chain-node-metrics">
+        <span v-for="item in metrics" :key="item.key" class="chain-node-metric">
+          <span class="chain-node-metric-value">{{ item.value }}</span>
+          {{ item.unit }}
+        </span>
+      </span>
+
+      <!--
+        构成图：一个类型一条（类型标签 + 浅槽 + 彩色条 + 右侧数字），条长 = 该类占全部元素的比例。
+        标签与数字都是定宽右对齐列，四条才能对齐成一张表。
+      -->
+      <span class="chain-node-compose">
+        <span v-for="bar in composeBars" :key="bar.type" class="chain-node-bar" :title="bar.title">
+          <span class="chain-node-bar-label">{{ bar.title }}</span>
+          <span class="chain-node-bar-track">
+            <span
+              class="chain-node-bar-fill"
+              :class="bar.fillClass"
+              :style="{ width: bar.width }"
+            ></span>
+          </span>
+          <span class="chain-node-bar-value">{{ bar.value }}</span>
+        </span>
+      </span>
+    </template>
 
     <!--
-      ⑤ 警告行：与构成图用分隔线隔开，独立成一块。
+      ④ 结论行：与主体区用分隔线隔开，独立成一块。
       `⚠` 与文本是**并排的两个子项**：图标不进截断盒，截断盒里只有纯文本。
     -->
     <span class="chain-node-summary" :class="toneClass" :title="summaryTitle">
@@ -71,7 +82,7 @@
       <span class="chain-node-summary-text">{{ summaryText }}</span>
     </span>
 
-    <!-- ⑥ 操作行：时间 + 详情 + 触发下一环节（按钮常驻，只有可点与不可用两态） -->
+    <!-- ⑤ 操作行：时间 + 详情 + 触发下一环节（按钮常驻，只有可点与不可用两态） -->
     <span class="chain-node-foot">
       <span class="chain-node-time" :title="timeTitle">{{ timeText }}</span>
       <span class="chain-node-actions">
@@ -107,14 +118,12 @@ import type { NodeProps } from '@vue-flow/core';
 import {
   PIPELINE_STAGES,
   capabilityText,
-  formatCount,
-  formatDuration,
   isTaskPending,
-  statNumber,
   stageLabel,
   statusTone,
 } from '@/types/pipeline';
-import type { ChainNodeData, PipelineStage } from '@/types/pipeline';
+import { stageViewOf } from '@/types/pipeline-stage-view';
+import type { ChainNodeData, LineageNode, PipelineStage } from '@/types/pipeline';
 
 // 执行树节点 = 一次运行。这里只负责「长什么样」，位置与选中由外层图组件控制。
 // 注意：Vue Flow 要求自定义节点接收 NodeProps，自定义载荷放在 data 里
@@ -144,89 +153,110 @@ const toneClass = computed(() => TONE_CLASSES[tone.value] ?? 'tone-wait');
 const isFailed = computed(() => tone.value === 'fail');
 const isRunning = computed(() => tone.value === 'run');
 
-/** 状态文字：解析环节的进行态读作"解析中" */
+/** 状态文字公共表：终态文字与环节无关；进行态按环节给（见下） */
 const STATUS_LABELS: Record<string, string> = {
   SUCCESS: '成功',
   PARTIAL_SUCCESS: '部分成功',
-  RUNNING: '解析中',
   FAILED: '失败',
   CANCELLED: '已取消',
   QUEUED: '排队中',
 };
 
-const statusText = computed(() => STATUS_LABELS[props.data.node.status] ?? props.data.node.status);
+/** 当前环节的展示配置：未配置的环节给中性内容，不回落成别的环节的口径 */
+const stageView = computed(() => stageViewOf(props.data.node.stage));
 
-/** 解析统计（仅解析环节且该次运行产出产物时非空） */
-const parseStats = computed(() => props.data.node.parseStats);
+const statusText = computed(() => {
+  const status = props.data.node.status;
+  if (status === 'RUNNING') {
+    return stageView.value.runningText;
+  }
+  return STATUS_LABELS[status] ?? status;
+});
 
-/** 身份行：解析器版本与策略版本各取各的，两段都取不到时显示 `—` */
+/**
+ * 身份行：这份产物自身是什么（两段都取不到时留空，不显示占位符）。
+ *
+ * <p>解析环节 = 解析器版本 · 策略版本；组装环节 = 产物 schema 版本。
+ * 上下游关系由链图的连线表达，不在卡片上重复。
+ */
 const identText = computed(() => {
   const node = props.data.node;
-  const parser = capabilityText(node.capability);
-  const parts = [parser ?? '—', node.strategyVersion ?? '—'];
+  if (node.stage === 'STRUCTURE') {
+    return statText(node, 'schemaVersion') ?? '';
+  }
+  const parts = [capabilityText(node.capability), node.strategyVersion].filter(
+    (part): part is string => typeof part === 'string' && part !== '',
+  );
   return parts.join(' · ');
 });
 
-/** 身份行是否是"两段都缺失"的兜底文案：样式上弱化，不冒充真实值 */
-const detailIsFallback = computed(
-  () => !props.data.node.strategyVersion && capabilityText(props.data.node.capability) === null,
-);
+/** 从节点通用统计里取一个字符串值 */
+function statText(node: LineageNode, key: string): string | null {
+  const raw = node.stats?.[key];
+  return typeof raw === 'string' && raw !== '' ? raw : null;
+}
 
-/**
- * 指标行三项：页数 / 元素数 / 耗时。
- *
- * <p>固定三项三格：缺失项显示 `—`，行高与列位不变。
- */
-const metrics = computed(() => {
-  const stats = parseStats.value;
-  return [
-    { key: 'pages', value: formatCount(stats?.pageCount), unit: '页' },
-    { key: 'elements', value: formatCount(stats?.elementCount), unit: '元素' },
-    { key: 'duration', value: formatDuration(stats?.durationMs), unit: '' },
-  ];
+/** 身份行是否是"两段都缺失"的兜底文案：样式上弱化，不冒充真实值 */
+const detailIsFallback = computed(() => {
+  const node = props.data.node;
+  if (node.stage === 'STRUCTURE') {
+    return statText(node, 'schemaVersion') === null;
+  }
+  return !node.strategyVersion && capabilityText(node.capability) === null;
 });
 
-/** 构成图的一段：类型、数值、条长、悬停提示；四段固定且顺序固定 */
+/** 指标行三项：口径由环节配置给（固定三项三格，缺失项显示 `—`，行高与列位不变） */
+const metrics = computed(() => stageView.value.metrics(props.data.node));
+
+/** 主体区形态：构成条（解析）或体检清单（组装） */
+const bodyKind = computed(() => stageView.value.bodyKind);
+
+/** 体检清单行：状态点颜色类名由脚本给（样式检查看不到计算属性给出的名字，故放全局） */
 interface ComposeBar {
   type: string;
   title: string;
   value: string;
   width: string;
+  /** 条色类名（由环节配置按段类型给，模板只做一次绑定） */
+  fillClass: string;
 }
 
-/** 四类元素构成（类型名只在 title 里给出） */
-const COMPOSE_TYPES = [
-  { type: 'body', label: '正文' },
-  { type: 'table', label: '表格' },
-  { type: 'image', label: '图片' },
-  { type: 'head', label: '页眉页脚' },
-];
+/** 体检项：多带一个状态点类名 */
+interface CheckRow {
+  key: string;
+  label: string;
+  value: string;
+  note: string;
+  toneClass: string;
+}
 
-const composeBars = computed<ComposeBar[]>(() => {
-  const stats = parseStats.value;
-  const counts = [
-    statNumber(stats?.bodyCount),
-    statNumber(stats?.tableCount),
-    statNumber(stats?.imageCount),
-    statNumber(stats?.headerFooterCount),
-  ];
-  // 条长以元素总数为分母；总数缺失时用四类之和，四类全缺则该行没有可表达的构成
-  const sum = counts.reduce<number>((acc, count) => acc + (count ?? 0), 0);
-  const total = statNumber(stats?.elementCount) ?? sum;
+/** 状态点配色：类名写成字面量表，取值由 tone 决定 */
+const CHECK_TONES: Record<string, string> = {
+  ok: 'chain-node-check-ok',
+  warn: 'chain-node-check-warn',
+  bad: 'chain-node-check-bad',
+  idle: 'chain-node-check-idle',
+};
 
-  return COMPOSE_TYPES.map((item, index) => {
-    const count = counts[index];
-    // 条长按同一比例尺；有值但占比极小时抬到 3px 下限，值 0 或统计缺失时不画条
-    const ratio = isFailed.value || count === null || total <= 0 ? 0 : (count / total) * 100;
-    const width = count !== null && count > 0 ? `max(3px, ${ratio.toFixed(1)}%)` : '0';
-    return {
-      type: item.type,
-      title: item.label,
-      value: isFailed.value ? '—' : formatCount(count),
-      width,
-    };
-  });
-});
+const checklist = computed<CheckRow[]>(() =>
+  stageView.value.checklist(props.data.node).map((item) => ({
+    key: item.key,
+    label: item.label,
+    value: item.value,
+    note: item.note,
+    toneClass: CHECK_TONES[item.tone] ?? 'chain-node-check-idle',
+  })),
+);
+
+const composeBars = computed<ComposeBar[]>(() =>
+  stageView.value.composeBars(props.data.node).map((bar) => ({
+    type: bar.type,
+    title: bar.label,
+    value: bar.value,
+    width: bar.width,
+    fillClass: bar.fillClass,
+  })),
+);
 
 /**
  * 警告行。
@@ -237,16 +267,7 @@ const composeBars = computed<ComposeBar[]>(() => {
  * <p>**文案为空就留空**（行高固定，不给 `—` 之类的占位）：统计没到手时不编造结论，
  * "没有可陈述的内容"本身就是要如实显示的信息。
  */
-const summaryText = computed(() => {
-  const node = props.data.node;
-  if (isRunning.value) {
-    return '正在解析…';
-  }
-  if (isFailed.value) {
-    return node.parseSummary ?? node.errorMsg ?? '';
-  }
-  return node.parseSummary ?? '';
-});
+const summaryText = computed(() => stageView.value.summary(props.data.node));
 
 /** 该行是否是"有内容要处置"的告警：加 `⚠` 图标与告警色；「无异常」与进行态不加 */
 const isWarning = computed(() => {
@@ -482,6 +503,60 @@ defineOptions({ name: 'ChainNode' });
   line-height: 15px;
 }
 
+/*
+ * ③' 体检清单（组装）：一行 = 状态点 + 项目名 + 关键量 + 说明。
+ *
+ * <p>五行的行高与间距合计必须落在主体区可用高度内 —— 卡片总高固定 214px，
+ * 行数变化会挤出滚动或压扁结论行。
+ */
+.chain-node-check {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--kb-text-2);
+  font-size: 11px;
+  line-height: 14px;
+}
+
+.chain-node-check-row {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  white-space: nowrap;
+}
+
+.chain-node-check-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  transform: translateY(-1px);
+}
+
+/* 项目名定宽：五行才对得齐（列宽够放 4 个汉字） */
+.chain-node-check-label {
+  flex: none;
+  width: 54px;
+  color: var(--kb-text-3);
+}
+
+.chain-node-check-value {
+  flex: none;
+  color: var(--kb-text-1);
+  font-weight: 600;
+}
+
+/* 说明弱化并允许截断：它只是补充，不参与列对齐 */
+.chain-node-check-note {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--kb-text-4);
+  font-size: 10px;
+  text-overflow: ellipsis;
+}
+
 .chain-node-metric {
   display: flex;
   gap: 3px;
@@ -572,7 +647,7 @@ defineOptions({ name: 'ChainNode' });
 .chain-node-summary {
   display: flex;
   box-sizing: border-box;
-  height: 42px;
+  height: 34px;
   flex: none;
   gap: 3px;
   overflow: hidden;
@@ -581,7 +656,7 @@ defineOptions({ name: 'ChainNode' });
   border-top: 1px solid var(--kb-line);
   color: var(--kb-text-3);
   font-size: 11px;
-  line-height: 13px;
+  line-height: 14px;
 }
 
 /* 告警图标与文案同色（颜色由状态 tone 给出，见全局 chain-graph.css），不参与收缩 */

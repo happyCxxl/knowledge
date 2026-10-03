@@ -7,6 +7,7 @@ import type {
   StageContentPage,
   StageTriggerResult,
   StrategyBinding,
+  StructureDetail,
 } from '@/types/pipeline';
 
 /** 分页查询知识库下的文件结果（每行含各环节最新任务状态） */
@@ -38,6 +39,32 @@ export async function getParseDetail(fileResultId: string, taskId?: string): Pro
     params: taskId ? { taskId } : {},
   });
   return response.data;
+}
+
+/**
+ * 按环节取详情：每个环节有自己的详情路径，各自返回专属字段。
+ *
+ * <p>解析走 `parse-detail`（统计结构固定），组装走 `structure-detail`（含大纲与冲突）。
+ * 未接详情接口的环节返回 `null`，调用侧按"没有详情"渲染 —— 不回落成别的环节的接口。
+ *
+ * <p>`taskId` 同上：必须传被查看的那次运行。
+ */
+export async function getStageDetail(
+  stage: string,
+  fileResultId: string,
+  taskId?: string,
+): Promise<ParseDetail | StructureDetail | null> {
+  if (stage === 'PARSE') {
+    return getParseDetail(fileResultId, taskId);
+  }
+  if (stage === 'STRUCTURE') {
+    const response = await http.get<StructureDetail>(
+      `/file-results/${fileResultId}/structure-detail`,
+      { params: taskId ? { taskId } : {} },
+    );
+    return response.data;
+  }
+  return null;
 }
 
 /**

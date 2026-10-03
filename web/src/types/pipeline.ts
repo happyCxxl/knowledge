@@ -211,12 +211,14 @@ export interface LineageNode {
   productId: string | null;
   artifactId: string | null;
   contentHash: string | null;
-  /** 统计摘要（原样透传展示）：CHUNK=chunkCount、EMBED=recordCount/cachedCount 等 */
-  stats: Record<string, string> | null;
+  /** 统计摘要（原样透传展示）：CHUNK=chunkCount、EMBED=recordCount/cachedCount、STRUCTURE=元素构成等 */
+  stats: Record<string, string | number | null> | null;
   /** 解析环节运行统计（仅 PARSE 且该次运行有产物时非空） */
   parseStats: LineageParseStats | null;
   /** 解析环节摘要行文案（后端按状态与问题单元生成；解析进行中为空） */
   parseSummary: string | null;
+  /** 环节摘要行文案（STRUCTURE 等通用环节；产物不可读时为空，不陈述结论） */
+  stageSummary: string | null;
   startedAt: string | null;
   finishedAt: string | null;
 }
@@ -314,8 +316,13 @@ export interface StageStep {
   error: string | null;
 }
 
-/** 解析详情（后端 ParseDetailVO）：抽屉头部、结论、告警与子步骤的数据源 */
-export interface ParseDetail {
+/**
+ * 环节详情公共部分（后端 StageDetailVO）：解析详情与组装详情都继承它。
+ *
+ * <p>两个环节的详情接口各自的专属字段不同（解析给 `parseStats`，组装给 `summary`/`outline` 等），
+ * 公共部分在这里只声明一次。
+ */
+export interface StageDetailCommon {
   fileResultId: string;
   taskId: string | null;
   stage: string;
@@ -328,14 +335,86 @@ export interface ParseDetail {
   contentHash: string | null;
   /** 能力快照（JSON 文本；后端未解析，页面不消费） */
   capabilitySnapshot: string | null;
+  /** 子步骤列表 */
+  steps: StageStep[] | null;
+  /**
+   * 环节统计（读产物现算，键名各环节自定义）：与执行树节点的 `stats` 同一份口径。
+   *
+   * <p>值是数字或字符串；计数走 {@link statNumber} 兜底。产物不可读时为 null。
+   */
+  stageStats: Record<string, unknown> | null;
+  /** 环节摘要行文案（产物不可读导致统计缺失时为空，不陈述结论） */
+  stageSummary: string | null;
+}
+
+/** 解析详情（后端 ParseDetailVO）：抽屉头部、结论、告警与子步骤的数据源 */
+export interface ParseDetail extends StageDetailCommon {
   /** 质量告警文案（无产物时为空列表） */
   warnings: string[] | null;
   /** 解析统计（产物不可读或尚无产物时为 null） */
   parseStats: LineageParseStats | null;
   /** 解析结论文案（统计缺失时为 null） */
   parseSummary: string | null;
-  /** 子步骤列表 */
-  steps: StageStep[] | null;
+}
+
+/** 组装统计（后端 StructureSummaryVO）：从统一文档产物推导 */
+export interface StructureSummary {
+  elementCount: number | null;
+  titleCount: number | null;
+  paragraphCount: number | null;
+  tableCount: number | null;
+  imageCount: number | null;
+  relationCount: number | null;
+  conflictCount: number | null;
+  warningCount: number | null;
+}
+
+/** 组装冲突记录（后端 StructureConflictVO）：PRIMARY 为主路、BACKUP 为被裁决方 */
+export interface StructureConflict {
+  primaryElementId: string | null;
+  backupElementId: string | null;
+  message: string | null;
+}
+
+/**
+ * 组装大纲元素（后端 StructureOutlineVO）：按阅读顺序排列的统一文档元素。
+ *
+ * <p>左栏按元素类型把大纲排成一份文档；TABLE 的行列明细走
+ * {@link StructureOutlineItem.cells}（产物里有明细才有，没有则按行列数占位）。
+ */
+export interface StructureOutlineItem {
+  elementId: string | null;
+  /** 元素类型（UnifiedElementType 枚举名） */
+  type: string | null;
+  text: string | null;
+  /** 标题层级（TITLE 专属，1 起） */
+  level: number | null;
+  page: number | null;
+  pageRange: number[] | null;
+  rows: number | null;
+  cols: number | null;
+  conflictStatus: string | null;
+  caption: string | null;
+  /** 表格单元格（TABLE 专属；产物无明细时为空） */
+  cells: StructureCellItem[] | null;
+}
+
+/** 表格单元格（后端 StructureCellVO）：行列从 0 起，与产物里的单元格同口径 */
+export interface StructureCellItem {
+  row: number | null;
+  col: number | null;
+  text: string | null;
+  isHeader: boolean | null;
+}
+
+/** 组装详情（后端 StructureDetailVO） */
+export interface StructureDetail extends StageDetailCommon {
+  /** 组装统计（产物不可读时为 null） */
+  summary: StructureSummary | null;
+  warnings: string[] | null;
+  conflicts: StructureConflict[] | null;
+  /** 文档内容大纲（按阅读顺序全量，含标题/段落/表格等） */
+  outline: StructureOutlineItem[] | null;
 }
 
 /**

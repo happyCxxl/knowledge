@@ -222,6 +222,23 @@
   background: rgb(255 255 255 / 28%);
 }
 
+/* 体检清单的状态点：绿=正常、黄=需要关注、红=有问题、灰=无数据 */
+.chain-graph .chain-node-check-ok {
+  background: var(--kb-ok);
+}
+
+.chain-graph .chain-node-check-warn {
+  background: var(--kb-warn);
+}
+
+.chain-graph .chain-node-check-bad {
+  background: var(--kb-danger);
+}
+
+.chain-graph .chain-node-check-idle {
+  background: rgb(255 255 255 / 22%);
+}
+
 /*
  * 解析详情抽屉的状态配色：徽标底色与结论文案文字色。
  *
@@ -284,4 +301,152 @@
 .xlsx-preview-cell.is-hit {
   background: rgb(251 191 36 / 45%);
   outline: 1px solid var(--kb-warn);
+}
+
+/* 当前选中的结构行：`.is-on` 由脚本按选中键加，故与上方同类放全局 */
+.parse-drawer-tree-row.is-on {
+  background: var(--kb-tint);
+  box-shadow: inset 2px 0 0 var(--kb-primary);
+}
+
+/*
+ * 组装后的文档（详情抽屉左栏）：一个产物元素一段，按类型排版。
+ *
+ * <p>放全局而不是组件 scoped 里：块的类名由脚本按元素类型与标题层级拼接，静态检查看不到。
+ * 标题按层级给字号与缩进；页眉页脚带类型标签并弱化，避免与正文混淆。
+ */
+.parse-drawer-doc {
+  flex: 1;
+  min-height: 0;
+  padding: 12px 14px 16px;
+  overflow: auto;
+  background: var(--kb-bg-0);
+}
+
+.parse-drawer-doc-block {
+  margin: 0 0 10px;
+  padding: 2px 6px;
+  border-left: 2px solid transparent;
+  color: var(--kb-text-2);
+  font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+  font-size: 12px;
+  line-height: 1.7;
+  cursor: pointer;
+}
+
+.parse-drawer-doc-block:hover {
+  background: var(--kb-surface);
+}
+
+/* 当前定位命中的块：与右栏选中的行同键 */
+.parse-drawer-doc-block.is-picked {
+  border-left-color: var(--kb-primary);
+  background: var(--kb-tint);
+}
+
+.parse-drawer-doc-title {
+  color: var(--kb-text-1);
+  font-weight: 650;
+}
+
+.parse-drawer-doc-title-1 {
+  padding-left: 0;
+  font-size: 16px;
+}
+
+.parse-drawer-doc-title-2 {
+  padding-left: 14px;
+  font-size: 15px;
+}
+
+.parse-drawer-doc-title-3 {
+  padding-left: 28px;
+  font-size: 14px;
+}
+
+.parse-drawer-doc-title-4 {
+  padding-left: 42px;
+  font-size: 13px;
+}
+
+/* 分节标题（Excel 按工作表归并的顶层分组） */
+.parse-drawer-doc-section {
+  padding-left: 0;
+  border-bottom: 1px solid var(--kb-line);
+  color: var(--kb-text-1);
+  font-weight: 650;
+}
+
+.parse-drawer-doc-paragraph {
+  margin-bottom: 12px;
+  text-align: justify;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.parse-drawer-doc-text {
+  margin-bottom: 6px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* 页眉页脚：虚线段标出，与正文区分 */
+.parse-drawer-doc-weak {
+  margin-bottom: 6px;
+  padding-left: 10px;
+  border-left: 2px dashed var(--kb-line-strong);
+  color: var(--kb-text-4);
+  font-size: 11px;
+}
+
+.parse-drawer-doc-badge {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 6px;
+  border-radius: 5px;
+  background: var(--kb-surface);
+  color: var(--kb-text-3);
+  font-size: 10px;
+}
+
+/* 图片占位：产物只给引用与图注，正文区按占位框对待 */
+.parse-drawer-doc-figure {
+  display: block;
+  padding: 18px 12px;
+  border: 1px dashed var(--kb-line-strong);
+  border-radius: 8px;
+  color: var(--kb-text-3);
+  text-align: center;
+}
+
+/* 表格：横向可滚，单元格按产物行列明细落位 */
+.parse-drawer-doc-table-wrap {
+  overflow-x: auto;
+}
+
+.parse-drawer-doc-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.parse-drawer-doc-tr {
+  border-bottom: 1px solid var(--kb-line);
+}
+
+.parse-drawer-doc-td {
+  padding: 4px 8px;
+  border-right: 1px solid var(--kb-line);
+  color: var(--kb-text-2);
+  font-size: 11px;
+  text-align: left;
+  vertical-align: top;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* 表头单元格：底色与字重区分 */
+.parse-drawer-doc-td.is-head {
+  background: var(--kb-surface);
+  color: var(--kb-text-1);
+  font-weight: 600;
 }
