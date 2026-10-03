@@ -1,4 +1,4 @@
-import type { LineageNode, ParseDetail, StructureDetail } from '@/types/pipeline';
+import type { LineageNode, ParseDetail, PreprocessDetail, StructureDetail } from '@/types/pipeline';
 import { formatCount, formatDuration, statNumber } from '@/types/pipeline';
 
 /**
@@ -34,7 +34,7 @@ export interface StageComposeBar {
 }
 
 /** 详情右栏页签 */
-export type StageTabKey = 'elements' | 'tree' | 'warnings' | 'steps';
+export type StageTabKey = 'elements' | 'tree' | 'excluded' | 'fields' | 'warnings' | 'steps';
 
 export interface StageTab {
   key: StageTabKey;
@@ -48,8 +48,8 @@ export interface StageStatItem {
   value: string;
 }
 
-/** 左栏内容类型：原文预览 / 组装产物文档 / 无 */
-export type StageLeftPaneKind = 'source' | 'assembly' | 'none';
+/** 左栏内容类型：原文预览 / 组装产物文档 / 清洗后的正文 / 无 */
+export type StageLeftPaneKind = 'source' | 'assembly' | 'cleaned' | 'none';
 
 /** 体检项状态：绿=正常、黄=需要关注、红=有问题、灰=无数据 */
 export type CheckTone = 'ok' | 'warn' | 'bad' | 'idle';
@@ -90,7 +90,7 @@ export interface StageViewConfig {
   /** 详情右栏页签（顺序即展示顺序；至少一项，详情打开时默认落在第一项） */
   tabs: [StageTab, ...StageTab[]];
   /** 详情统计条 */
-  statItems: (detail: ParseDetail | StructureDetail | null) => StageStatItem[];
+  statItems: (detail: ParseDetail | StructureDetail | PreprocessDetail | null) => StageStatItem[];
   /** 详情左栏内容类型 */
   leftPaneKind: StageLeftPaneKind;
 }
@@ -238,8 +238,9 @@ const STRUCTURE_VIEW: StageViewConfig = {
     { key: 'steps', label: '过程' },
   ],
   statItems: (detail) => {
-    const summary = detail !== null && 'summary' in detail ? detail.summary : null;
-    const outline = detail !== null && 'outline' in detail ? (detail.outline ?? []) : [];
+    const structure = detail !== null && 'outline' in detail ? detail : null;
+    const summary = structure?.summary ?? null;
+    const outline = structure?.outline ?? [];
     const stats = detail?.stageStats ?? null;
     const statNum = (key: string): number | null =>
       statNumber(typeof stats?.[key] === 'number' ? stats[key] : null);
@@ -270,6 +271,219 @@ const STRUCTURE_VIEW: StageViewConfig = {
 /** 溯源覆盖率文案（后端已算成百分比整数） */
 function coverageText(value: number | null): string {
   return value === null ? '—' : `${value}%`;
+}
+
+/**
+ * 预处理环节：主体区 = **清洗体检清单**（与组装同一套形态）。
+ *
+ * <p>默认策略下"剔除"很少、"仅标记"才是大头，而仅标记的内容**仍然进检索**，
+ * 清单把两者分开陈述；指标行返回空数组（信息都在清单里）。
+ */
+const PREPROCESS_VIEW: StageViewConfig = {
+  runningText: '预处理中',
+  bodyKind: 'checklist',
+  metrics: () => [],
+  composeBars: () => [],
+  checklist: (node) => preprocessChecklist(node),
+  summary: (node) => {
+    if (node.status === 'RUNNING') {
+      return '正在预处理…';
+    }
+    return node.stageSummary ?? (node.status === 'FAILED' ? (node.errorMsg ?? '') : '');
+  },
+  tabs: [
+    { key: 'elements', label: '清洗结果' },
+    { key: 'excluded', label: '剔除内容' },
+    { key: 'fields', label: '字段' },
+    { key: 'steps', label: '过程' },
+    { key: 'warnings', label: '告警' },
+  ],
+  statItems: (detail) => preprocessStatItems(detail),
+  leftPaneKind: 'cleaned',
+};
+
+/** 仅标记状态 → 展示名（清单说明列按状态拆分） */
+const MARKED_STATUS_LABELS: Record<string, string> = {
+  MARKED_HEADER: '页眉',
+  MARKED_FOOTER: '页脚',
+  MARKED_TOC: '目录',
+  NOISE: '噪声',
+};
+
+/**
+ * 不进切片的处置状态（剔除态与重复份）：左栏"看被剔除"与「剔除内容」页签都按它筛。
+ *
+ * <p>与后端 `PreprocessViewRules.CHUNK_SKIP_STATUSES` 同一份名单。
+ */
+export const PREPROCESS_CHUNK_SKIP_STATUSES = [
+  'EXCLUDED_HEADER',
+  'EXCLUDED_FOOTER',
+  'EXCLUDED_TOC',
+  'EXCLUDED_NOISE',
+  'BACKUP_SKIPPED',
+  'REPEATED',
+];
+
+/** 处置状态 → 展示标签（清洗后的正文与剔除内容列表都按它标注） */
+export const PREPROCESS_STATUS_LABELS: Record<string, string> = {
+  NORMAL: '',
+  MARKED_HEADER: '仅标记·页眉',
+  MARKED_FOOTER: '仅标记·页脚',
+  MARKED_TOC: '仅标记·目录',
+  NOISE: '仅标记·噪声',
+  EXCLUDED_HEADER: '剔除·页眉',
+  EXCLUDED_FOOTER: '剔除·页脚',
+  EXCLUDED_TOC: '剔除·目录',
+  EXCLUDED_NOISE: '剔除·噪声',
+  REPEATED: '剔除·重复份',
+  IMAGE_REF_ONLY: '仅引用',
+  BACKUP_SKIPPED: '剔除·冲突被裁决方',
+};
+
+/** 字段规范化分布的行序（清单说明列与「字段」页签共用） */
+export const PREPROCESS_FIELD_LABELS: Record<string, string> = {
+  AMOUNT: '金额',
+  DATE: '日期',
+  AREA: '面积',
+  CERT_NO: '证书号',
+};
+
+/** 从节点统计里取一个数值（缺失给 null） */
+function statValue(stats: Record<string, unknown> | null | undefined, key: string): number | null {
+  const raw = stats === null || stats === undefined ? null : stats[key];
+  return statNumber(typeof raw === 'number' ? raw : null);
+}
+
+/** 从节点统计里取一个分布（缺失给空对象） */
+function statCounts(
+  stats: Record<string, unknown> | null | undefined,
+  key: string,
+): Record<string, unknown> {
+  const raw = stats === null || stats === undefined ? null : stats[key];
+  return typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : {};
+}
+
+/** 分布 → 说明文案（`标签 数量`，零值项不出现；顺序按给定标签表） */
+function distributionText(counts: Record<string, unknown>, labels: Record<string, string>): string {
+  const parts: string[] = [];
+  for (const [key, label] of Object.entries(labels)) {
+    const raw = counts[key];
+    const value = statNumber(typeof raw === 'number' ? raw : null);
+    if (value !== null && value > 0) {
+      parts.push(`${label} ${value}`);
+    }
+  }
+  return parts.join(' · ');
+}
+
+/**
+ * 清洗体检清单：每行 = 状态点 + 项目名 + 关键量 + 说明。
+ *
+ * <p>取值一律走 {@link statValue} 的数字兜底：产物不可读时统计为 null，各行落到"灰 + `—`"。
+ */
+function preprocessChecklist(node: LineageNode): StageCheckItem[] {
+  const stats = node.stats;
+  const elements = statValue(stats, 'elementCount');
+  const excluded = statValue(stats, 'excludedCount');
+  const repeated = statValue(stats, 'repeatedCount');
+  const skipped = statValue(stats, 'chunkSkippedCount');
+  const marked = statValue(stats, 'markedCount');
+  const fields = statValue(stats, 'fieldCount');
+  const changed = statValue(stats, 'changedCount');
+  const retained = statValue(stats, 'retainedCount');
+  const retention = statValue(stats, 'retentionPercent');
+  const encoding = statValue(stats, 'encodingCount');
+  const tidy = statValue(stats, 'tidyCount');
+  const markedParts = distributionText(statCounts(stats, 'statusCounts'), MARKED_STATUS_LABELS);
+  const fieldParts = distributionText(
+    statCounts(stats, 'fieldTypeCounts'),
+    PREPROCESS_FIELD_LABELS,
+  );
+  const changedParts = [
+    encoding !== null && encoding > 0 ? `编码 ${encoding}` : '',
+    tidy !== null && tidy > 0 ? `整理 ${tidy}` : '',
+  ].filter(Boolean);
+
+  const skippedTone: CheckTone = skipped === null ? 'idle' : skipped > 0 ? 'warn' : 'ok';
+  const markedTone: CheckTone = marked === null ? 'idle' : marked > 0 ? 'warn' : 'ok';
+  const fieldTone: CheckTone = fields === null ? 'idle' : fields > 0 ? 'ok' : 'idle';
+  const changedTone: CheckTone = changed === null ? 'idle' : changed > 0 ? 'ok' : 'idle';
+  const retainedTone: CheckTone =
+    elements === null || skipped === null ? 'idle' : skipped > 0 ? 'warn' : 'ok';
+
+  return [
+    {
+      key: 'excluded',
+      label: '剔除元素',
+      value: countText(skipped),
+      note: excludedNote(repeated, excluded),
+      tone: skippedTone,
+    },
+    {
+      key: 'marked',
+      label: '仅标记',
+      value: countText(marked),
+      note: markedParts,
+      tone: markedTone,
+    },
+    {
+      key: 'fields',
+      label: '字段规范',
+      value: countText(fields),
+      note: fieldParts,
+      tone: fieldTone,
+    },
+    {
+      key: 'changed',
+      label: '文本改写',
+      value: countText(changed),
+      note: changedParts.join(' · '),
+      tone: changedTone,
+    },
+    {
+      key: 'retained',
+      label: '保留元素',
+      value: countText(retained),
+      note: retention === null ? '' : `占 ${retention}%`,
+      tone: retainedTone,
+    },
+  ];
+}
+
+/** 剔除元素的说明：重复份与剔除态分开报数 */
+function excludedNote(repeated: number | null, excluded: number | null): string {
+  const parts = [
+    repeated !== null && repeated > 0 ? `重复份 ${repeated}` : '',
+    excluded !== null && excluded > 0 ? `剔除 ${excluded}` : '',
+  ].filter(Boolean);
+  return parts.length > 0 ? `${parts.join(' · ')}，不进检索` : '无剔除';
+}
+
+/** 预处理详情：统计条八项（元素 / 保留 / 剔除 / 仅标记 / 重复 / 字段 / 告警 / 耗时） */
+function preprocessStatItems(
+  detail: ParseDetail | StructureDetail | PreprocessDetail | null,
+): StageStatItem[] {
+  const stats = detail?.stageStats ?? null;
+  return [
+    { key: 'elements', label: '元素', value: countText(statValue(stats, 'elementCount')) },
+    { key: 'retained', label: '保留', value: countText(statValue(stats, 'retainedCount')) },
+    { key: 'excluded', label: '剔除', value: countText(statValue(stats, 'excludedCount')) },
+    { key: 'marked', label: '仅标记', value: countText(statValue(stats, 'markedCount')) },
+    { key: 'repeated', label: '重复', value: countText(statValue(stats, 'repeatedCount')) },
+    { key: 'fields', label: '字段', value: countText(statValue(stats, 'fieldCount')) },
+    { key: 'warnings', label: '告警', value: stepWarningText(detail) },
+    { key: 'duration', label: '耗时', value: durationOf(detail, statValue(stats, 'durationMs')) },
+  ];
+}
+
+/** 预处理告警数：按子步骤的告警数求和（产物里没有独立的告警清单） */
+function stepWarningText(detail: ParseDetail | StructureDetail | PreprocessDetail | null): string {
+  const steps = detail?.steps ?? null;
+  if (steps === null) {
+    return '—';
+  }
+  const total = steps.reduce((sum, step) => sum + (step.warningCount ?? 0), 0);
+  return countText(total);
 }
 
 /**
@@ -382,14 +596,14 @@ function continuationRangeText(
  * <p>组装产物的统计里就有 durationMs（读取侧现算），不必依赖时间字段。
  */
 function durationOf(
-  detail: ParseDetail | StructureDetail | null,
+  detail: ParseDetail | StructureDetail | PreprocessDetail | null,
   statDurationMs: number | null,
 ): string {
   return statDurationMs === null ? durationText(detail) : formatDuration(statDurationMs);
 }
 
-/** 耗时按起止时间现算（组装产物里没有 durationMs 字段） */
-function durationText(detail: ParseDetail | StructureDetail | null): string {
+/** 耗时按起止时间现算（统计里没有 durationMs 时兜底） */
+function durationText(detail: ParseDetail | StructureDetail | PreprocessDetail | null): string {
   if (detail?.startedAt === null || detail?.finishedAt === null || detail === null) {
     return '—';
   }
@@ -427,6 +641,7 @@ const NEUTRAL_VIEW: StageViewConfig = {
 const STAGE_VIEWS: Record<string, StageViewConfig> = {
   PARSE: PARSE_VIEW,
   STRUCTURE: STRUCTURE_VIEW,
+  PREPROCESS: PREPROCESS_VIEW,
 };
 
 /** 取环节展示配置；未配置的环节返回中性配置 */

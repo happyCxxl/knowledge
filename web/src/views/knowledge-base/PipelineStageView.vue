@@ -150,7 +150,6 @@
       :stage="detailNode.stage"
       :file-name="selectedFileName"
       :source-file-id="selectedFileObjectId"
-      :run-ordinal="detailRunOrdinal"
       @close="detailVisible = false"
     />
   </div>
@@ -440,17 +439,6 @@ const selectedFileName = computed(
 const selectedFileObjectId = computed(
   () => files.value.find((file) => file.id === selectedFileId.value)?.fileId ?? '',
 );
-
-/**
- * 本次运行是同一文件的第几次解析：按血缘里 PARSE 节点的先后顺序数出来。
- *
- * <p>任务 ID 是一次性的，历史运行只能靠顺序表达"第几次"，页面另加计数会与血缘不一致。
- */
-const detailRunOrdinal = computed(() => {
-  const parseNodes = (lineage.value?.nodes ?? []).filter((node) => node.stage === 'PARSE');
-  const index = parseNodes.findIndex((node) => node.taskId === detailNode.value?.taskId);
-  return index < 0 ? parseNodes.length : index + 1;
-});
 
 /** 打开详情抽屉：只记下被点的节点，不动选中路径、也不触发轮询 */
 function openDetail(node: LineageNode): void {

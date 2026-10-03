@@ -11,9 +11,6 @@
           <button class="parse-drawer-x" type="button" @click="onClose">关闭</button>
         </header>
         <div class="parse-drawer-ident">
-          <span v-if="runOrdinal > 1" class="parse-drawer-ident-item"
-            >第 <span class="parse-drawer-ident-num">{{ runOrdinal }}</span> 次执行</span
-          >
           <span class="parse-drawer-ident-item">开始 {{ formatClock(detail?.startedAt) }}</span>
           <span class="parse-drawer-ident-item"
             >耗时 {{ formatDuration(stats?.durationMs ?? detailDurationMs) }}</span
@@ -45,14 +42,24 @@
         </section>
 
         <div ref="splitBodyRef" class="parse-drawer-body" :class="{ 'is-dragging': dragging }">
-          <!-- 左栏：内容形态由环节配置给（原文预览 / 组装产物文档）；宽度由分隔条决定 -->
+          <!-- 左栏：内容形态由环节配置给（原文预览 / 组装产物文档 / 清洗后的正文）；宽度由分隔条决定 -->
           <section class="parse-drawer-pane parse-drawer-pane-source" :style="sourcePaneStyle">
             <div class="parse-drawer-pane-head">
               <h4 class="parse-drawer-block-title">{{ leftPaneTitle }}</h4>
               <span class="parse-drawer-hint">
                 <template v-if="leftPaneKind === 'assembly'">
-                  <span v-if="docBlocks.length > 0"
-                    >共 {{ docBlocks.length }} 个元素 · {{ docTitleCount }} 个标题</span
+                  <span v-if="docAllBlocks.length > 0"
+                    >共 {{ docAllBlocks.length }} 个元素 · {{ docTitleCount }} 个标题</span
+                  >
+                  <span v-if="docBlocks.length > docRenderLimit">
+                    · 已渲染 {{ docRenderLimit }}</span
+                  >
+                </template>
+                <template v-else-if="leftPaneKind === 'cleaned'">
+                  <span v-if="docAllBlocks.length > 0"
+                    >共 {{ cleanedKeptCount }} 个保留元素<span v-if="docDroppedCount > 0">
+                      · 已剔除 {{ docDroppedCount }}</span
+                    ></span
                   >
                   <span v-if="docBlocks.length > docRenderLimit">
                     · 已渲染 {{ docRenderLimit }}</span
@@ -66,28 +73,53 @@
                   >
                 </template>
               </span>
+              <!-- 清洗后的正文：只看保留 / 看被剔除（被剔除的块灰化划线留在原位） -->
+              <div v-if="leftPaneKind === 'cleaned'" class="parse-drawer-seg">
+                <button
+                  class="parse-drawer-seg-btn"
+                  :class="{ 'is-on': cleanedMode === 'kept' }"
+                  type="button"
+                  @click="cleanedMode = 'kept'"
+                >
+                  只看保留
+                </button>
+                <button
+                  class="parse-drawer-seg-btn"
+                  :class="{ 'is-on': cleanedMode === 'dropped' }"
+                  type="button"
+                  @click="cleanedMode = 'dropped'"
+                >
+                  看被剔除
+                </button>
+              </div>
             </div>
             <div class="parse-drawer-pane-fill">
-              <!-- 组装产物文档：解析 + 组装之后得到的实际内容，按元素类型排版；
+              <!-- 文档形态左栏（组装产物文档 / 清洗后的正文）：按元素类型排版；
                    块与右栏行都以产物元素 id 对齐，两侧互相定位 -->
-              <template v-if="leftPaneKind === 'assembly'">
-                <p v-if="detailLoading" class="parse-drawer-hint">组装产物加载中…</p>
+              <template v-if="isDocPane">
+                <p v-if="detailLoading" class="parse-drawer-hint">{{ docLoadingText }}</p>
                 <p v-else-if="detailError" class="parse-drawer-hint parse-drawer-hint-bad">
                   {{ detailError }}
                 </p>
                 <p v-else-if="docBlocks.length === 0" class="parse-drawer-hint">
-                  本次运行没有可展示的组装产物内容
+                  {{ docEmptyText }}
                 </p>
                 <div v-else ref="docRef" class="parse-drawer-doc" @scroll="onDocScroll">
                   <div
                     v-for="block in renderedDocBlocks"
                     :key="block.key"
                     class="parse-drawer-doc-block"
-                    :class="[block.className, { 'is-picked': block.key === pickedKey }]"
+                    :class="[
+                      block.className,
+                      { 'is-picked': block.key === pickedKey, 'is-dropped': block.dropped },
+                    ]"
                     :data-key="block.key"
                     @click="onDocPick(block.key)"
                   >
                     <span v-if="block.badge" class="parse-drawer-doc-badge">{{ block.badge }}</span>
+                    <span v-if="block.stateText" class="parse-drawer-doc-state">{{
+                      block.stateText
+                    }}</span>
                     <table
                       v-if="block.kind === 'table' && block.grid.length > 0"
                       class="parse-drawer-doc-table"
@@ -381,6 +413,89 @@
               </div>
             </div>
 
+            <!-- 页签：剔除内容（预处理；只列不进切片的元素，按状态过滤后分页） -->
+            <div v-else-if="activeTab === 'excluded'" class="parse-drawer-tabpane">
+              <div class="parse-drawer-tabscroll">
+                <p v-if="excludedError" class="parse-drawer-hint parse-drawer-hint-bad">
+                  {{ excludedError }}
+                </p>
+                <p
+                  v-else-if="excludedLoading && excludedRows.length === 0"
+                  class="parse-drawer-hint"
+                >
+                  剔除内容加载中…
+                </p>
+                <p v-else-if="excludedRows.length === 0" class="parse-drawer-hint">
+                  本次运行没有剔除内容（全部进入切片）
+                </p>
+                <ul v-else class="parse-drawer-elements">
+                  <li
+                    v-for="row in excludedRows"
+                    :key="row.key"
+                    class="parse-drawer-element"
+                    :class="{ 'is-active': row.key === activeKey }"
+                    :data-key="row.key"
+                    @click="onElementPick(row.key)"
+                  >
+                    <div class="parse-drawer-element-head">
+                      <span class="parse-drawer-type">{{ row.typeText }}</span>
+                      <span class="parse-drawer-state">{{ row.stateText }}</span>
+                      <span v-if="row.page !== null" class="parse-drawer-element-meta"
+                        >第 {{ row.page }} 页</span
+                      >
+                    </div>
+                    <p class="parse-drawer-excluded-text">{{ row.text || '（无文本）' }}</p>
+                    <p v-if="row.reason" class="parse-drawer-hint">依据：{{ row.reason }}</p>
+                  </li>
+                </ul>
+              </div>
+
+              <div class="parse-drawer-tabfoot">
+                <button
+                  class="parse-drawer-page-btn"
+                  type="button"
+                  :disabled="excludedPage <= 1 || excludedLoading"
+                  @click="goExcludedPage(excludedPage - 1)"
+                >
+                  上一页
+                </button>
+                <span class="parse-drawer-page-info"
+                  >第 {{ excludedPage }} / {{ excludedPageCount }} 页</span
+                >
+                <button
+                  class="parse-drawer-page-btn"
+                  type="button"
+                  :disabled="excludedPage >= excludedPageCount || excludedLoading"
+                  @click="goExcludedPage(excludedPage + 1)"
+                >
+                  下一页
+                </button>
+                <span class="parse-drawer-page-info"
+                  >共 {{ excludedTotal }} 条 · 每页 {{ PAGE_SIZE }}</span
+                >
+              </div>
+            </div>
+
+            <!-- 页签：字段（预处理；标准化字段一览） -->
+            <div v-else-if="activeTab === 'fields'" class="parse-drawer-tabpane">
+              <div class="parse-drawer-tabscroll">
+                <p v-if="fieldRows.length === 0" class="parse-drawer-hint">
+                  本次运行没有标准化字段
+                </p>
+                <ul v-else class="parse-drawer-fields">
+                  <li v-for="row in fieldRows" :key="row.key" class="parse-drawer-field">
+                    <span class="parse-drawer-type">{{ row.fieldText }}</span>
+                    <span class="parse-drawer-field-value">{{ row.valueText }}</span>
+                    <span class="parse-drawer-element-meta">{{ row.typeText }}</span>
+                    <span v-if="row.page !== null" class="parse-drawer-element-meta"
+                      >第 {{ row.page }} 页</span
+                    >
+                    <span v-if="row.rule" class="parse-drawer-element-meta">{{ row.rule }}</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+
             <!-- 页签：告警（告警与冲突分两类展示） -->
             <div v-else-if="activeTab === 'warnings'" class="parse-drawer-tabpane">
               <div class="parse-drawer-tabscroll">
@@ -480,13 +595,21 @@ import {
   statusTone,
   taskStatusLabel,
 } from '@/types/pipeline';
-import { stageViewOf } from '@/types/pipeline-stage-view';
+import {
+  PREPROCESS_CHUNK_SKIP_STATUSES,
+  PREPROCESS_FIELD_LABELS,
+  PREPROCESS_STATUS_LABELS,
+  stageViewOf,
+} from '@/types/pipeline-stage-view';
 import type { DocxAnchor } from '@/components/pipeline/DocxSourcePreview.vue';
 import type { XlsxAnchor } from '@/components/pipeline/XlsxSourcePreview.vue';
 import type { PreviewHighlight } from '@/components/pipeline/PdfSourcePreview.vue';
 import type { StageTab, StageTabKey } from '@/types/pipeline-stage-view';
 import type {
   ParseDetail,
+  PreprocessDetail,
+  PreprocessElement,
+  PreprocessField,
   StageContentItem,
   StructureCellItem,
   StructureDetail,
@@ -506,8 +629,6 @@ const props = defineProps<{
   fileName: string;
   /** 源文件引用（原文件下载用：文件结果里的 fileId；缺失时下载按钮置灰） */
   sourceFileId: string;
-  /** 本次运行是同一文件的第几次执行（页面按血缘节点顺序算出） */
-  runOrdinal: number;
 }>();
 
 const emit = defineEmits<{ close: [] }>();
@@ -518,10 +639,13 @@ const stageView = computed(() => stageViewOf(props.stage));
 /** 左栏内容形态 */
 const leftPaneKind = computed(() => stageView.value.leftPaneKind);
 
-/** 左栏标题：按形态给（组装产物文档与原文预览是两件事） */
-const leftPaneTitle = computed(() =>
-  leftPaneKind.value === 'assembly' ? '组装后的文档' : '原文预览',
-);
+/** 左栏标题：按形态给（原文预览 / 组装后的文档 / 清洗后的正文是三件事） */
+const leftPaneTitle = computed(() => {
+  if (leftPaneKind.value === 'assembly') {
+    return '组装后的文档';
+  }
+  return leftPaneKind.value === 'cleaned' ? '清洗后的正文' : '原文预览';
+});
 
 /** 每页条数：与后端上限（1000）留出余量，单次响应可控 */
 const PAGE_SIZE = 100;
@@ -556,6 +680,10 @@ interface DocBlock {
   kind: DocBlockKind;
   /** 类型标签（只给页眉页脚，避免与正文混淆） */
   badge: string;
+  /** 状态标签（清洗后的正文给"仅标记"/"剔除·原因"；其余形态空串） */
+  stateText: string;
+  /** 是否不进切片（预处理：剔除态与重复份；其余形态恒 false） */
+  dropped: boolean;
   /** 块的样式类名（标题按层级、分节、弱化块各一档） */
   className: string;
   text: string;
@@ -569,8 +697,8 @@ const docRef = ref<HTMLElement | null>(null);
 /** 文档已渲染到第几条（滚动递增；定位时按目标块补足） */
 const docRenderLimit = ref(DOC_RENDER_STEP);
 
-/** 详情：按环节取到的是各自的结构（解析 / 组装），页面按 `in` 判别专属字段 */
-const detail = ref<ParseDetail | StructureDetail | null>(null);
+/** 详情：按环节取到的是各自的结构（解析 / 组装 / 预处理），页面按 `in` 判别专属字段 */
+const detail = ref<ParseDetail | StructureDetail | PreprocessDetail | null>(null);
 const detailLoading = ref(false);
 const detailError = ref('');
 
@@ -940,7 +1068,10 @@ const stats = computed(() => {
   return value !== null && 'parseStats' in value ? value.parseStats : null;
 });
 
-const warnings = computed<string[]>(() => detail.value?.warnings ?? []);
+const warnings = computed<string[]>(() => {
+  const value = detail.value;
+  return value !== null && 'warnings' in value ? (value.warnings ?? []) : [];
+});
 const steps = computed(() => detail.value?.steps ?? []);
 
 /** 组装冲突（仅组装详情有该字段；解析环节恒空） */
@@ -949,36 +1080,116 @@ const conflicts = computed(() => {
   return value !== null && 'conflicts' in value ? (value.conflicts ?? []) : [];
 });
 
-/** 组装产物大纲（仅组装详情有 outline；解析环节恒空）：左栏文档按它排版 */
+/** 文档块的归一入参：组装大纲与预处理视图元素都映射到这一份字段 */
+interface DocSource {
+  /** 产物元素 id（与右栏行同键） */
+  key: string;
+  type: string;
+  text: string;
+  level: number | null;
+  rows: number | null;
+  cols: number | null;
+  caption: string | null;
+  cells: StructureCellItem[];
+  /** 是否不进切片（预处理：剔除态与重复份；其余形态恒 false） */
+  dropped: boolean;
+  /** 状态标签（预处理：仅标记 / 剔除·原因；其余形态空串） */
+  stateText: string;
+}
+
+/** 组装产物大纲（仅组装详情有 outline；其余环节恒空）：左栏文档按它排版 */
 const outlineItems = computed<StructureOutlineItem[]>(() => {
   const value = detail.value;
   return value !== null && 'outline' in value ? (value.outline ?? []) : [];
 });
 
-/** 文档块：一个产物元素排成的一段内容 */
+/** 预处理视图元素（仅预处理详情有 elements；其余环节恒空）：清洗后的正文按它排版 */
+const viewElements = computed<PreprocessElement[]>(() => {
+  const value = detail.value;
+  return value !== null && 'elements' in value ? (value.elements ?? []) : [];
+});
+
+/** 组装大纲元素 → 文档块入参 */
+function outlineSourceOf(item: StructureOutlineItem, index: number): DocSource {
+  return {
+    key: item.elementId ?? `outline-${index}`,
+    type: item.type ?? '',
+    text: (item.text ?? '').trim(),
+    level: item.level,
+    rows: item.rows,
+    cols: item.cols,
+    caption: item.caption,
+    cells: item.cells ?? [],
+    dropped: false,
+    stateText: '',
+  };
+}
+
+/** 预处理视图元素 → 文档块入参：正文取展示文本（缺展示文本回落原文） */
+function cleanedSourceOf(item: PreprocessElement, index: number): DocSource {
+  const status = item.status ?? '';
+  const dropped = PREPROCESS_CHUNK_SKIP_STATUSES.includes(status);
+  const text = (item.displayText ?? '').trim();
+  return {
+    key: item.elementId ?? `cleaned-${index}`,
+    type: item.type ?? '',
+    text: text === '' ? (item.rawText ?? '').trim() : text,
+    // 视图产物不带标题层级：清洗后的正文标题按同一档呈现，层级读正文里的编号
+    level: 1,
+    rows: null,
+    cols: null,
+    caption: null,
+    cells: item.cells ?? [],
+    dropped,
+    stateText: PREPROCESS_STATUS_LABELS[status] ?? '',
+  };
+}
+
+/** 左栏文档块的数据源：组装取大纲、清洗取视图元素 */
+const docSources = computed<DocSource[]>(() =>
+  leftPaneKind.value === 'cleaned'
+    ? viewElements.value.map((item, index) => cleanedSourceOf(item, index))
+    : outlineItems.value.map((item, index) => outlineSourceOf(item, index)),
+);
+
+/** 全部文档块（未按"只看保留/看被剔除"过滤） */
+const docAllBlocks = computed<DocBlock[]>(() =>
+  docSources.value.map((source) => docBlockOf(source)),
+);
+
+/** 当前档位下要渲染的文档块：清洗后的正文在"只看保留"档滤掉不进切片的元素 */
 const docBlocks = computed<DocBlock[]>(() =>
-  outlineItems.value.map((item, index) => docBlockOf(item, index)),
+  leftPaneKind.value === 'cleaned' && cleanedMode.value === 'kept'
+    ? docAllBlocks.value.filter((block) => !block.dropped)
+    : docAllBlocks.value,
 );
 
 /** 文档里的标题数（栏头展示口径） */
 const docTitleCount = computed(
-  () => outlineItems.value.filter((item) => item.type === 'TITLE').length,
+  () => docAllBlocks.value.filter((block) => block.kind === 'title').length,
 );
+
+/** 不进切片的块数（清洗后的正文栏头展示口径） */
+const docDroppedCount = computed(() => docAllBlocks.value.filter((block) => block.dropped).length);
 
 /** 已渲染的文档块：滚动到哪渲染到哪 */
 const renderedDocBlocks = computed(() => docBlocks.value.slice(0, docRenderLimit.value));
 
 /** 产物元素 → 文档块：按元素类型分派排版口径 */
-function docBlockOf(item: StructureOutlineItem, index: number): DocBlock {
-  const key = item.elementId ?? `outline-${index}`;
-  const type = item.type ?? '';
-  const text = (item.text ?? '').trim();
+function docBlockOf(item: DocSource): DocBlock {
+  const key = item.key;
+  const type = item.type;
+  const text = item.text;
+  const state = item.stateText;
+  const dropped = item.dropped;
   if (type === 'TITLE') {
     const level = Math.min(Math.max(item.level ?? 1, 1), DOC_TITLE_MAX_LEVEL);
     return {
       key,
       kind: 'title',
       badge: '',
+      stateText: state,
+      dropped,
       className: `parse-drawer-doc-title parse-drawer-doc-title-${level}`,
       text: text === '' ? '（无标题文本）' : text,
       grid: [],
@@ -989,6 +1200,8 @@ function docBlockOf(item: StructureOutlineItem, index: number): DocBlock {
       key,
       kind: 'section',
       badge: '',
+      stateText: state,
+      dropped,
       className: 'parse-drawer-doc-section',
       text: text === '' ? '（无分节名）' : text,
       grid: [],
@@ -999,6 +1212,8 @@ function docBlockOf(item: StructureOutlineItem, index: number): DocBlock {
       key,
       kind: 'table',
       badge: '',
+      stateText: state,
+      dropped,
       className: 'parse-drawer-doc-table-wrap',
       text: tablePlaceholderText(item),
       grid: tableGridOf(item),
@@ -1009,6 +1224,8 @@ function docBlockOf(item: StructureOutlineItem, index: number): DocBlock {
       key,
       kind: 'figure',
       badge: '',
+      stateText: state,
+      dropped,
       className: 'parse-drawer-doc-figure',
       text: text === '' ? (item.caption ?? '图片（产物未含图片内容）') : text,
       grid: [],
@@ -1020,6 +1237,8 @@ function docBlockOf(item: StructureOutlineItem, index: number): DocBlock {
       key,
       kind: 'weak',
       badge: elementTypeLabel(type),
+      stateText: state,
+      dropped,
       className: 'parse-drawer-doc-weak',
       text: text === '' ? '（无文本）' : text,
       grid: [],
@@ -1029,6 +1248,8 @@ function docBlockOf(item: StructureOutlineItem, index: number): DocBlock {
     key,
     kind: type === 'PARAGRAPH' ? 'paragraph' : 'text',
     badge: '',
+    stateText: state,
+    dropped,
     className: type === 'PARAGRAPH' ? 'parse-drawer-doc-paragraph' : 'parse-drawer-doc-text',
     text: text === '' ? '（无文本）' : text,
     grid: [],
@@ -1036,8 +1257,8 @@ function docBlockOf(item: StructureOutlineItem, index: number): DocBlock {
 }
 
 /** 表格网格：按单元格行列把明细摆进网格（无明细或超上限时不给网格） */
-function tableGridOf(item: StructureOutlineItem): (DocCell | null)[][] {
-  const cells = item.cells ?? [];
+function tableGridOf(item: DocSource): (DocCell | null)[][] {
+  const cells = item.cells;
   if (cells.length === 0) {
     return [];
   }
@@ -1068,11 +1289,171 @@ function maxCellIndex(
   return cells.reduce((max, cell) => Math.max(max, pick(cell) ?? 0), 0);
 }
 
-/** 表格占位文案：无单元格明细时给行列数与说明 */
-function tablePlaceholderText(item: StructureOutlineItem): string {
+/** 表格占位文案：无单元格明细时给行列数与说明（行列数缺失时只给说明） */
+function tablePlaceholderText(item: DocSource): string {
+  if (item.rows === null && item.cols === null) {
+    return '表格（产物未含单元格明细）';
+  }
   const rows = item.rows === null ? '—' : String(item.rows);
   const cols = item.cols === null ? '—' : String(item.cols);
   return `表格 ${rows} 行 × ${cols} 列（产物未含单元格明细）`;
+}
+
+// ---- 左栏：清洗后的正文 / 右栏：剔除内容与字段（预处理环节用） ----
+
+/** 清洗后正文的档位：只看保留（默认）/ 看被剔除（被剔除的块灰化划线留在原位） */
+type CleanedMode = 'kept' | 'dropped';
+const cleanedMode = ref<CleanedMode>('kept');
+
+/** 保留块数（清洗后正文的栏头计数） */
+const cleanedKeptCount = computed(() => docAllBlocks.value.length - docDroppedCount.value);
+
+/** 左栏是否是文档形态（组装后的文档与清洗后的正文共用一套排版与定位） */
+const isDocPane = computed(
+  () => leftPaneKind.value === 'assembly' || leftPaneKind.value === 'cleaned',
+);
+
+/** 文档形态左栏的加载文案 */
+const docLoadingText = computed(() =>
+  leftPaneKind.value === 'cleaned' ? '清洗结果加载中…' : '组装产物加载中…',
+);
+
+/** 文档形态左栏的空态文案 */
+const docEmptyText = computed(() =>
+  leftPaneKind.value === 'cleaned'
+    ? '本次运行没有可展示的清洗结果'
+    : '本次运行没有可展示的组装产物内容',
+);
+
+/** 剔除内容：页码与数据（与「清洗结果」各自独立取数） */
+const excludedPage = ref(1);
+const excludedItems = ref<StageContentItem[]>([]);
+const excludedTotal = ref(0);
+const excludedLoading = ref(false);
+const excludedError = ref('');
+/** 是否已取过（切到该页签时按需加载） */
+const excludedLoaded = ref(false);
+
+/** 拉「剔除内容」某一页：只取不进切片的元素（剔除态 + 重复份） */
+async function loadExcluded(): Promise<void> {
+  excludedLoading.value = true;
+  excludedError.value = '';
+  try {
+    const data = await getStageContent(props.fileResultId, props.stage, {
+      taskId: props.taskId,
+      status: PREPROCESS_CHUNK_SKIP_STATUSES.join(','),
+      page: excludedPage.value,
+      limit: PAGE_SIZE,
+    });
+    excludedItems.value = data.items ?? [];
+    excludedTotal.value = data.total ?? 0;
+    excludedLoaded.value = true;
+  } catch {
+    // 失败提示已由接口层统一拦截处理
+    excludedItems.value = [];
+    excludedTotal.value = 0;
+    excludedError.value = '剔除内容加载失败';
+  } finally {
+    excludedLoading.value = false;
+  }
+}
+
+/** 剔除内容行 */
+interface ExcludedRow {
+  key: string;
+  typeText: string;
+  /** 状态标签（剔除·原因） */
+  stateText: string;
+  page: number | null;
+  text: string;
+  /** 剔除依据（取轨迹里的证据或规则名） */
+  reason: string;
+}
+
+/** 剔除内容行：状态标签 + 类型 + 页码 + 文本 + 剔除依据 */
+const excludedRows = computed<ExcludedRow[]>(() =>
+  excludedItems.value.map((item, index) => {
+    const extra = item.extra ?? {};
+    const status = item.status ?? '';
+    const rawText = typeof extra.rawText === 'string' ? extra.rawText.trim() : '';
+    return {
+      key: itemKeyOf(item, index),
+      typeText: elementTypeLabel(item.type),
+      stateText: PREPROCESS_STATUS_LABELS[status] ?? status,
+      page: pageOf(item.extra),
+      text: (item.display ?? '').trim() || rawText,
+      reason: traceReason(extra.trace),
+    };
+  }),
+);
+
+/** 轨迹（JSON 串）→ 剔除依据：取第一条的证据，缺失时给规则名 */
+function traceReason(raw: unknown): string {
+  if (typeof raw !== 'string' || raw === '') {
+    return '';
+  }
+  try {
+    const entries = JSON.parse(raw) as { rule?: string | null; evidence?: string | null }[];
+    const first = entries.at(0);
+    return first?.evidence ?? first?.rule ?? '';
+  } catch {
+    return '';
+  }
+}
+
+const excludedPageCount = computed(() => Math.max(1, Math.ceil(excludedTotal.value / PAGE_SIZE)));
+
+/** 剔除内容翻页 */
+function goExcludedPage(next: number): void {
+  const target = Math.min(Math.max(next, 1), excludedPageCount.value);
+  if (target === excludedPage.value) {
+    return;
+  }
+  excludedPage.value = target;
+  void loadExcluded();
+}
+
+/** 字段行（预处理） */
+interface FieldRow {
+  key: string;
+  typeText: string;
+  page: number | null;
+  fieldText: string;
+  valueText: string;
+  rule: string;
+}
+
+/** 字段行：视图元素上的标准化字段摊平成一览 */
+const fieldRows = computed<FieldRow[]>(() => {
+  const rows: FieldRow[] = [];
+  viewElements.value.forEach((element, index) => {
+    const key = element.elementId ?? `cleaned-${index}`;
+    (element.fields ?? []).forEach((field, fieldIndex) => {
+      rows.push({
+        key: `${key}-${fieldIndex}`,
+        typeText: elementTypeLabel(element.type),
+        page: element.page,
+        fieldText: fieldLabel(field.field),
+        valueText: fieldText(field),
+        rule: field.rule ?? '',
+      });
+    });
+  });
+  return rows;
+});
+
+/** 字段类型展示名：未枚举的类型回落原值，缺失给 `—` */
+function fieldLabel(field: string | null | undefined): string {
+  if (!field) {
+    return '—';
+  }
+  return PREPROCESS_FIELD_LABELS[field] ?? field;
+}
+
+/** 字段值文案：带单位时拼上单位 */
+function fieldText(field: PreprocessField): string {
+  const value = field.value ?? '—';
+  return field.unit ? `${value} ${field.unit}` : value;
 }
 
 /** 结构树缩进：每层一档，行自身再留一段左内边距 */
@@ -1210,8 +1591,15 @@ const conclusionText = computed(() => {
 });
 
 /** 解析环节的专属摘要字段（其余环节没有该字段） */
-function parseSummaryOf(value: ParseDetail | StructureDetail): string | null {
+function parseSummaryOf(value: ParseDetail | StructureDetail | PreprocessDetail): string | null {
   return 'parseSummary' in value ? value.parseSummary : null;
+}
+
+/** 预处理详情（用只属于它的 elements 字段判别；其余环节为 null） */
+function preprocessDetailOf(
+  value: ParseDetail | StructureDetail | PreprocessDetail | null,
+): PreprocessDetail | null {
+  return value !== null && 'elements' in value ? value : null;
 }
 
 const conclusionClass = computed(() => badgeClass.value);
@@ -1243,7 +1631,25 @@ function tabCount(key: ResultTabKey): number {
   if (key === 'tree') {
     return treeRows.value.length;
   }
+  if (key === 'excluded') {
+    return excludedCount();
+  }
+  if (key === 'fields') {
+    return fieldCount();
+  }
   return steps.value.length;
+}
+
+/** 剔除内容的角标数：优先用详情统计（不必先请求列表），缺统计时用已取回的条数 */
+function excludedCount(): number {
+  const skipped = preprocessDetailOf(detail.value)?.summary?.chunkSkippedCount ?? null;
+  return skipped ?? excludedTotal.value;
+}
+
+/** 字段页签的角标数：优先用详情统计，缺统计时用已摊平的字段行数 */
+function fieldCount(): number {
+  const total = preprocessDetailOf(detail.value)?.summary?.fieldCount ?? null;
+  return total ?? fieldRows.value.length;
 }
 
 /** 失败建议：按错误码给下一步动作（同码不同意的都归到这几种） */
@@ -1257,6 +1663,8 @@ const FAIL_ADVICE: Record<string, string> = {
   STRUCTURE_EMPTY: '解析产物里没有可组装的元素（空树）：确认上游解析结果有内容后再触发组装',
   STRUCTURE_UPSTREAM_UNREADABLE:
     '读不到上游解析产物：确认上游解析已成功产出产物，或重新触发一次解析后再组装',
+  PREPROCESS_EMPTY: '上游组装产物缺失或读不到：确认组装已成功产出产物后再触发预处理',
+  PREPROCESS_FAILED: '预处理执行异常：看「过程」页签里失败的步骤，必要时重新触发一次预处理',
 };
 
 const failAdvice = computed(() => {
@@ -1471,10 +1879,16 @@ function onDocPick(key: string): void {
 /**
  * 左栏文档按产物元素 id 定位。
  *
- * <p>目标块还没渲染时先把渲染窗口补到它（大文档不做一次性全渲染）。
+ * <p>目标块还没渲染时先把渲染窗口补到它（大文档不做一次性全渲染）；
+ * 清洗后的正文本档只列保留元素，目标落在被剔除的元素上时先切到"看被剔除"档再定位。
  */
 async function revealDocBlock(key: string): Promise<void> {
-  const index = docBlocks.value.findIndex((block) => block.key === key);
+  let index = docBlocks.value.findIndex((block) => block.key === key);
+  if (index < 0 && leftPaneKind.value === 'cleaned' && cleanedMode.value === 'kept') {
+    cleanedMode.value = 'dropped';
+    await nextTick();
+    index = docBlocks.value.findIndex((block) => block.key === key);
+  }
   if (index < 0) {
     return;
   }
@@ -1495,8 +1909,8 @@ async function revealDocBlock(key: string): Promise<void> {
  */
 async function revealRightRow(key: string): Promise<void> {
   const onPage = rawItems.value.some((item, index) => itemKeyOf(item, index) === key);
-  if (!onPage && elementTotal.value === docBlocks.value.length) {
-    const index = docBlocks.value.findIndex((block) => block.key === key);
+  if (!onPage && elementTotal.value === docAllBlocks.value.length) {
+    const index = docAllBlocks.value.findIndex((block) => block.key === key);
     const targetPage = index < 0 ? page.value : Math.floor(index / PAGE_SIZE) + 1;
     if (targetPage !== page.value) {
       page.value = targetPage;
@@ -1621,6 +2035,13 @@ watch(previewReady, (ready) => {
   }
 });
 
+// 切到「剔除内容」页签时按需取列表（角标数已由详情统计给出，不必打开就请求）
+watch(activeTab, (tab) => {
+  if (tab === 'excluded' && !excludedLoaded.value) {
+    void loadExcluded();
+  }
+});
+
 /** 上一次已落到默认页签的环节（null = 抽屉当前没打开） */
 let tabStage: string | null = null;
 
@@ -1648,6 +2069,13 @@ watch(
     sourceError.value = '';
     // 文档渲染窗口回到起点：换运行后按新产物重新按需渲染
     docRenderLimit.value = DOC_RENDER_STEP;
+    // 清洗后的正文回到"只看保留"档；剔除内容重新按需取
+    cleanedMode.value = 'kept';
+    excludedPage.value = 1;
+    excludedItems.value = [];
+    excludedTotal.value = 0;
+    excludedError.value = '';
+    excludedLoaded.value = false;
     // 打开或换环节时落到该环节的默认页签；同一环节内换运行保留用户选的页签
     if (tabStage !== props.stage) {
       activeTab.value = defaultTab.value;
@@ -1776,11 +2204,6 @@ onBeforeUnmount(() => {
   font-size: 11px;
 }
 
-.parse-drawer-ident-num {
-  color: var(--kb-text-1);
-  font-weight: 600;
-}
-
 /* 统计条：固定分区，内容一行放不下就换行，自身不滚动 */
 .parse-drawer-statbar {
   display: flex;
@@ -1868,6 +2291,35 @@ onBeforeUnmount(() => {
   gap: 4px 10px;
   align-items: baseline;
   padding: 12px 14px 8px;
+}
+
+/* 清洗后正文的档位切换：只看保留 / 看被剔除（被剔除的块灰化划线留在原位） */
+.parse-drawer-seg {
+  display: flex;
+  flex: none;
+  margin-left: auto;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--kb-line-2);
+  border-radius: 8px;
+  background: var(--kb-surface);
+}
+
+.parse-drawer-seg-btn {
+  padding: 2px 8px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--kb-text-3);
+  font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.parse-drawer-seg-btn.is-on {
+  background: var(--kb-tint);
+  color: var(--kb-primary);
+  font-weight: 600;
 }
 
 /* 预览组件占满栏头之下的空间；它内部自带工具条（固定）与画布（滚动） */
@@ -2173,6 +2625,56 @@ onBeforeUnmount(() => {
 .parse-drawer-element.is-picked {
   border-color: var(--kb-primary);
   box-shadow: 0 0 0 1px var(--kb-primary) inset;
+}
+
+/* 处置状态徽标（预处理：仅标记 / 剔除·原因） */
+.parse-drawer-state {
+  flex: none;
+  padding: 1px 7px;
+  border-radius: 5px;
+  background: var(--kb-surface);
+  color: var(--kb-text-3);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+/* 剔除内容行的正文：保留换行，长文本可读 */
+.parse-drawer-excluded-text {
+  margin: 6px 0 0;
+  color: var(--kb-text-2);
+  font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* 字段一览：一行一个字段（类型 + 值 + 来源元素） */
+.parse-drawer-fields {
+  display: flex;
+  margin: 0;
+  padding: 0;
+  gap: 6px;
+  flex-direction: column;
+  list-style: none;
+}
+
+.parse-drawer-field {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+  padding: 6px 10px;
+  border: 1px solid var(--kb-line);
+  border-radius: 8px;
+  background: var(--kb-surface);
+}
+
+.parse-drawer-field-value {
+  color: var(--kb-text-1);
+  font-family: ui-monospace, 'JetBrains Mono', Consolas, monospace;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .parse-drawer-element-head {

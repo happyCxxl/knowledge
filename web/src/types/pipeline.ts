@@ -417,6 +417,89 @@ export interface StructureDetail extends StageDetailCommon {
   outline: StructureOutlineItem[] | null;
 }
 
+/** 预处理统计（后端 PreprocessSummaryVO）：从派生视图推导的汇总指标 */
+export interface PreprocessSummary {
+  /** 视图元素总数 */
+  elementCount: number | null;
+  /** 检索文本与展示文本不同的元素数 */
+  changedCount: number | null;
+  /** 剔除元素数（不含重复份，不进内容流） */
+  excludedCount: number | null;
+  /** 重复元素数 */
+  repeatedCount: number | null;
+  /** 仅标记元素数（标注后仍进检索内容流） */
+  markedCount: number | null;
+  /** 不进切片的元素数（剔除态 + 重复份） */
+  chunkSkippedCount: number | null;
+  /** 标准化字段总数 */
+  fieldCount: number | null;
+  /** 按状态分布（状态名 → 元素数） */
+  statusCounts: Record<string, number> | null;
+}
+
+/**
+ * 预处理视图元素（后端 PreprocessElementVO）：一个统一文档元素的派生副本。
+ *
+ * <p>三层文本：`rawText` 永为原文、`displayText` 供展示、`normalizedText` 供检索
+ * （被剔除的元素该字段为空，表示不进内容流）。
+ */
+export interface PreprocessElement {
+  /** 源元素 ID（与产物元素 id 同口径） */
+  elementId: string | null;
+  type: string | null;
+  /** 处置状态（ViewElementStatus 枚举名） */
+  status: string | null;
+  page: number | null;
+  rawText: string | null;
+  displayText: string | null;
+  normalizedText: string | null;
+  /** 处理轨迹（只含非 KEEP 条目：规则 / 动作 / 前后摘要 / 证据） */
+  trace: PreprocessTrace[] | null;
+  /** 标准化字段（金额 / 日期 / 面积 / 证书号） */
+  fields: PreprocessField[] | null;
+  /** 表格单元格（TABLE 元素专用） */
+  cells: PreprocessCell[] | null;
+}
+
+/** 预处理处理轨迹（后端 PreprocessTraceVO）：单次规则命中的摘要 */
+export interface PreprocessTrace {
+  /** 命中规则名（如 encoding-clean-v1） */
+  rule: string | null;
+  /** 字段类型（PreprocessFieldType 枚举名；可空） */
+  field: string | null;
+  /** 动作（MARK / REPLACE / EXCLUDE / KEEP / EXTRACT / MANUAL_REVIEW） */
+  action: string | null;
+  before: string | null;
+  after: string | null;
+  evidence: string | null;
+}
+
+/** 预处理标准化字段（后端 PreprocessFieldVO） */
+export interface PreprocessField {
+  field: string | null;
+  value: string | null;
+  unit: string | null;
+  rule: string | null;
+}
+
+/** 预处理表格单元格（后端 PreprocessCellVO） */
+export interface PreprocessCell {
+  cellId: string | null;
+  text: string | null;
+  row: number | null;
+  col: number | null;
+  isHeader: boolean | null;
+  normalizedText: string | null;
+}
+
+/** 预处理详情（后端 PreprocessDetailVO） */
+export interface PreprocessDetail extends StageDetailCommon {
+  /** 预处理统计（产物不可读时为 null） */
+  summary: PreprocessSummary | null;
+  /** 视图元素（按阅读顺序全量） */
+  elements: PreprocessElement[] | null;
+}
+
 /**
  * 元素边界框（后端 extra.bbox）：单位点（pt）、左上角原点。
  *

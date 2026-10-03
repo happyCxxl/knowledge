@@ -4,6 +4,7 @@ import type {
   FileResult,
   Lineage,
   ParseDetail,
+  PreprocessDetail,
   StageContentPage,
   StageTriggerResult,
   StrategyBinding,
@@ -44,7 +45,8 @@ export async function getParseDetail(fileResultId: string, taskId?: string): Pro
 /**
  * 按环节取详情：每个环节有自己的详情路径，各自返回专属字段。
  *
- * <p>解析走 `parse-detail`（统计结构固定），组装走 `structure-detail`（含大纲与冲突）。
+ * <p>解析走 `parse-detail`（统计结构固定），组装走 `structure-detail`（含大纲与冲突），
+ * 预处理走 `preprocess-detail`（含派生视图元素与清洗统计）。
  * 未接详情接口的环节返回 `null`，调用侧按"没有详情"渲染 —— 不回落成别的环节的接口。
  *
  * <p>`taskId` 同上：必须传被查看的那次运行。
@@ -53,14 +55,22 @@ export async function getStageDetail(
   stage: string,
   fileResultId: string,
   taskId?: string,
-): Promise<ParseDetail | StructureDetail | null> {
+): Promise<ParseDetail | StructureDetail | PreprocessDetail | null> {
   if (stage === 'PARSE') {
     return getParseDetail(fileResultId, taskId);
   }
+  const params = taskId ? { taskId } : {};
   if (stage === 'STRUCTURE') {
     const response = await http.get<StructureDetail>(
       `/file-results/${fileResultId}/structure-detail`,
-      { params: taskId ? { taskId } : {} },
+      { params },
+    );
+    return response.data;
+  }
+  if (stage === 'PREPROCESS') {
+    const response = await http.get<PreprocessDetail>(
+      `/file-results/${fileResultId}/preprocess-detail`,
+      { params },
     );
     return response.data;
   }
@@ -89,12 +99,13 @@ export async function getSourceFile(fileId: string): Promise<Blob> {
  * 分页查询某环节某次运行的产物内容。
  *
  * <p>`taskId` 同上，必须传被查看的那次运行；`page` 从 1 起，`limit` 由页面按行数档位给。
- * `docPage` 按文档页收窄（只回该页元素），原文预览与解析结果按页联动用。
+ * `docPage` 按文档页收窄（只回该页元素），原文预览与解析结果按页联动用；
+ * `status` 按处置状态收窄（逗号分隔，只回这些状态的元素），预处理环节核对剔除内容用。
  */
 export async function getStageContent(
   fileResultId: string,
   stage: string,
-  query: { taskId?: string; docPage?: number; page?: number; limit?: number } = {},
+  query: { taskId?: string; docPage?: number; status?: string; page?: number; limit?: number } = {},
 ): Promise<StageContentPage> {
   const params: Record<string, string | number> = { stage };
   if (query.taskId) {
@@ -102,6 +113,9 @@ export async function getStageContent(
   }
   if (query.docPage) {
     params.docPage = query.docPage;
+  }
+  if (query.status) {
+    params.status = query.status;
   }
   if (query.page) {
     params.page = query.page;
