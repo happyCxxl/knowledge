@@ -47,6 +47,27 @@ export function elementTypeLabel(type: string | null | undefined): string {
   return ELEMENT_TYPE_LABELS[type] ?? type;
 }
 
+/**
+ * 切片内容类型展示名（`ChunkContentType` 枚举名 → 片的中文名）。
+ *
+ * <p>与元素类型分开：切片的 SECTION 是"父片"，与元素的标题 / 章节不是同一层概念。
+ */
+export const CHUNK_TYPE_LABELS: Record<string, string> = {
+  SECTION: '父片',
+  PARAGRAPH: '正文',
+  TABLE: '表格',
+  IMAGE: '图片',
+  FALLBACK: '兜底',
+};
+
+/** 取切片类型展示名；未知类型回落原值 */
+export function chunkTypeLabel(type: string | null | undefined): string {
+  if (!type) {
+    return '—';
+  }
+  return CHUNK_TYPE_LABELS[type] ?? type;
+}
+
 /** 任务状态（与后端 PipelineTaskStatus 枚举对齐） */
 export type PipelineTaskStatus =
   'QUEUED' | 'RUNNING' | 'SUCCESS' | 'PARTIAL_SUCCESS' | 'FAILED' | 'CANCELLED';
@@ -500,6 +521,58 @@ export interface PreprocessDetail extends StageDetailCommon {
   elements: PreprocessElement[] | null;
 }
 
+/** 切片统计（后端 ChunkSummaryVO）：最新切片集合的汇总指标 */
+export interface ChunkSummary {
+  /** 切片总数（含父片） */
+  chunkCount: number | null;
+  /** 父片数（contentType=SECTION） */
+  parentChunkCount: number | null;
+  /** 子片数（parentChunkId 非空） */
+  childChunkCount: number | null;
+  totalChars: number | null;
+  avgChars: number | null;
+  /** 内容类型分布（ChunkContentType 枚举名 → 片数） */
+  typeCounts: Record<string, number> | null;
+}
+
+/**
+ * 切片项（后端 ChunkItemVO）：kb_chunk 行的展示副本。
+ *
+ * <p>`sourceElementCount` 只给个数不展开列表（父片的溯源是子片并集，条数无界）；
+ * `fallbackReason` 只在兜底片上有值。
+ */
+export interface ChunkItem {
+  /** 集合内切片 ID（chunk-0001 起） */
+  chunkId: string | null;
+  /** 父片 ID（父片本身为空） */
+  parentChunkId: string | null;
+  /** 切片内容（normalizedText 口径） */
+  content: string | null;
+  /** 内容类型（ChunkContentType 枚举名） */
+  contentType: string | null;
+  titlePath: string | null;
+  /** 页码范围（如 1-3） */
+  pageRange: string | null;
+  /** 表格引用（组装环节表元素 ID） */
+  tableRef: string | null;
+  /** 集合内顺序（1 起；父片全在前，不是阅读序） */
+  orderNo: number | null;
+  charCount: number | null;
+  tokenCount: number | null;
+  /** 来源元素个数 */
+  sourceElementCount: number | null;
+  /** 兜底原因（非兜底片为空） */
+  fallbackReason: string | null;
+}
+
+/** 切片详情（后端 ChunkDetailVO） */
+export interface ChunkDetail extends StageDetailCommon {
+  /** 切片统计（无集合时为 null） */
+  summary: ChunkSummary | null;
+  /** 切片列表（集合内顺序；无集合时为空列表） */
+  chunks: ChunkItem[] | null;
+}
+
 /**
  * 元素边界框（后端 extra.bbox）：单位点（pt）、左上角原点。
  *
@@ -514,16 +587,16 @@ export interface ElementBBox {
 
 /** 产物内容项（后端 StageContentItemVO） */
 export interface StageContentItem {
-  /** 对齐键（解析环节 = 元素 ID） */
+  /** 对齐键（解析 / 组装 / 预处理 = 产物元素 ID，切片 = 片 ID） */
   alignKey: string | null;
-  /** 集合内顺序（渲染行序） */
+  /** 集合内顺序（渲染行序；切片是集合内顺序号 orderNo） */
   seq: number | null;
   type: string | null;
   status: string | null;
   /** 展示文本（可能大段，页面折叠） */
   display: string | null;
   normalized: string | null;
-  /** 环节专属字段：解析=source/page/rows/cols/bbox */
+  /** 环节专属字段：解析=source/page/rows/cols/bbox、切片=chunkId/titlePath/orderNo/pageRange 等 */
   extra: Record<string, unknown> | null;
 }
 

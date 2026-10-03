@@ -1,4 +1,10 @@
-import type { LineageNode, ParseDetail, PreprocessDetail, StructureDetail } from '@/types/pipeline';
+import type {
+  ChunkDetail,
+  LineageNode,
+  ParseDetail,
+  PreprocessDetail,
+  StructureDetail,
+} from '@/types/pipeline';
 import { formatCount, formatDuration, statNumber } from '@/types/pipeline';
 
 /**
@@ -34,7 +40,16 @@ export interface StageComposeBar {
 }
 
 /** 详情右栏页签 */
-export type StageTabKey = 'elements' | 'tree' | 'excluded' | 'fields' | 'warnings' | 'steps';
+export type StageTabKey =
+  | 'elements'
+  | 'tree'
+  | 'excluded'
+  | 'fields'
+  | 'fallback'
+  | 'parents'
+  | 'sources'
+  | 'warnings'
+  | 'steps';
 
 export interface StageTab {
   key: StageTabKey;
@@ -48,8 +63,8 @@ export interface StageStatItem {
   value: string;
 }
 
-/** 左栏内容类型：原文预览 / 组装产物文档 / 清洗后的正文 / 无 */
-export type StageLeftPaneKind = 'source' | 'assembly' | 'cleaned' | 'none';
+/** 左栏内容类型：原文预览 / 组装产物文档 / 清洗后的正文 / 切片结果 / 无 */
+export type StageLeftPaneKind = 'source' | 'assembly' | 'cleaned' | 'chunks' | 'none';
 
 /** 体检项状态：绿=正常、黄=需要关注、红=有问题、灰=无数据 */
 export type CheckTone = 'ok' | 'warn' | 'bad' | 'idle';
@@ -90,7 +105,9 @@ export interface StageViewConfig {
   /** 详情右栏页签（顺序即展示顺序；至少一项，详情打开时默认落在第一项） */
   tabs: [StageTab, ...StageTab[]];
   /** 详情统计条 */
-  statItems: (detail: ParseDetail | StructureDetail | PreprocessDetail | null) => StageStatItem[];
+  statItems: (
+    detail: ParseDetail | StructureDetail | PreprocessDetail | ChunkDetail | null,
+  ) => StageStatItem[];
   /** 详情左栏内容类型 */
   leftPaneKind: StageLeftPaneKind;
 }
@@ -461,7 +478,7 @@ function excludedNote(repeated: number | null, excluded: number | null): string 
 
 /** 预处理详情：统计条八项（元素 / 保留 / 剔除 / 仅标记 / 重复 / 字段 / 告警 / 耗时） */
 function preprocessStatItems(
-  detail: ParseDetail | StructureDetail | PreprocessDetail | null,
+  detail: ParseDetail | StructureDetail | PreprocessDetail | ChunkDetail | null,
 ): StageStatItem[] {
   const stats = detail?.stageStats ?? null;
   return [
@@ -477,7 +494,9 @@ function preprocessStatItems(
 }
 
 /** 预处理告警数：按子步骤的告警数求和（产物里没有独立的告警清单） */
-function stepWarningText(detail: ParseDetail | StructureDetail | PreprocessDetail | null): string {
+function stepWarningText(
+  detail: ParseDetail | StructureDetail | PreprocessDetail | ChunkDetail | null,
+): string {
   const steps = detail?.steps ?? null;
   if (steps === null) {
     return '—';
@@ -596,14 +615,16 @@ function continuationRangeText(
  * <p>组装产物的统计里就有 durationMs（读取侧现算），不必依赖时间字段。
  */
 function durationOf(
-  detail: ParseDetail | StructureDetail | PreprocessDetail | null,
+  detail: ParseDetail | StructureDetail | PreprocessDetail | ChunkDetail | null,
   statDurationMs: number | null,
 ): string {
   return statDurationMs === null ? durationText(detail) : formatDuration(statDurationMs);
 }
 
 /** 耗时按起止时间现算（统计里没有 durationMs 时兜底） */
-function durationText(detail: ParseDetail | StructureDetail | PreprocessDetail | null): string {
+function durationText(
+  detail: ParseDetail | StructureDetail | PreprocessDetail | ChunkDetail | null,
+): string {
   if (detail?.startedAt === null || detail?.finishedAt === null || detail === null) {
     return '—';
   }
@@ -613,6 +634,149 @@ function durationText(detail: ParseDetail | StructureDetail | PreprocessDetail |
     return '—';
   }
   return formatDuration(end - start);
+}
+
+/**
+ * 切片环节：主体区 = **切片体检清单**（与组装 / 预处理同一套形态）。
+ *
+ * <p>片数里含"不产向量的父片"，单看总数会把片数当成检索量；清单把父片、兜底片、孤儿片分开陈述。
+ */
+const CHUNK_VIEW: StageViewConfig = {
+  runningText: '切片中',
+  bodyKind: 'checklist',
+  metrics: () => [],
+  composeBars: () => [],
+  checklist: (node) => chunkChecklist(node),
+  summary: (node) => {
+    if (node.status === 'RUNNING') {
+      return '正在切片…';
+    }
+    return node.stageSummary ?? (node.status === 'FAILED' ? (node.errorMsg ?? '') : '');
+  },
+  tabs: [
+    { key: 'elements', label: '切片' },
+    { key: 'fallback', label: '兜底片' },
+    { key: 'parents', label: '父片 · 孤儿' },
+    { key: 'sources', label: '来源对照' },
+    { key: 'steps', label: '过程' },
+  ],
+  statItems: (detail) => chunkStatItems(detail),
+  leftPaneKind: 'chunks',
+};
+
+/**
+ * 切片体检清单：每行 = 状态点 + 项目名 + 关键量 + 说明。
+ *
+ * <p>取值一律走 {@link statValue} 的数字兜底：产物不可读时统计为 null，各行落到"灰 + `—`"。
+ */
+function chunkChecklist(node: LineageNode): StageCheckItem[] {
+  const stats = node.stats;
+  const chunks = statValue(stats, 'chunkCount');
+  const parents = statValue(stats, 'parentCount');
+  const orphans = statValue(stats, 'orphanCount');
+  const overSoft = statValue(stats, 'overSoftMaxCount');
+  const overTarget = statValue(stats, 'overTargetMaxCount');
+  const routed = statValue(stats, 'routedElementCount');
+  const skipped = statValue(stats, 'skippedElementCount');
+  const targetMaxLen = statValue(stats, 'targetMaxLen');
+  const fallbackLen = statValue(stats, 'fallbackLen');
+
+  const overTone: CheckTone = overSoft === null ? 'idle' : overSoft > 0 ? 'warn' : 'ok';
+  const parentTone: CheckTone = parents === null ? 'idle' : parents > 0 ? 'warn' : 'ok';
+  const orphanTone: CheckTone = orphans === null ? 'idle' : orphans > 0 ? 'warn' : 'ok';
+
+  return [
+    {
+      key: 'chunks',
+      label: '切片条数',
+      value: countText(chunks),
+      note: chunkTypeNote(stats),
+      tone: chunks === null ? 'idle' : 'ok',
+    },
+    {
+      key: 'over',
+      label: '超限片',
+      value: countText(overSoft),
+      note: overLimitNote(targetMaxLen, overTarget, fallbackLen),
+      tone: overTone,
+    },
+    {
+      key: 'parents',
+      label: '父片',
+      value: countText(parents),
+      note: '不产向量（向量化时跳过）',
+      tone: parentTone,
+    },
+    {
+      key: 'orphans',
+      label: '孤儿片',
+      value: countText(orphans),
+      note: '无同节邻居，未并入正文片',
+      tone: orphanTone,
+    },
+    {
+      key: 'routed',
+      label: '进入切片',
+      value: countText(routed),
+      note: skipped === null ? '' : `跳过 ${skipped}（预处理剔除与重复份）`,
+      tone: routed === null ? 'idle' : 'ok',
+    },
+  ];
+}
+
+/** 切片条数的说明列：按内容类型报数（缺统计的类型不出现） */
+function chunkTypeNote(stats: Record<string, unknown> | null | undefined): string {
+  const parts = [
+    { label: '正文', value: statValue(stats, 'paragraphCount') },
+    { label: '表格', value: statValue(stats, 'tableCount') },
+    { label: '图片', value: statValue(stats, 'imageCount') },
+    { label: '父片', value: statValue(stats, 'parentCount') },
+    { label: '兜底', value: statValue(stats, 'fallbackCount') },
+  ]
+    .filter((part) => part.value !== null)
+    .map((part) => `${part.label} ${part.value}`);
+  return parts.join(' · ');
+}
+
+/** 超限片的说明列：超目标上限的片数 + 兜底切分参数 */
+function overLimitNote(
+  targetMaxLen: number | null,
+  overTarget: number | null,
+  fallbackLen: number | null,
+): string {
+  const parts: string[] = [];
+  if (targetMaxLen !== null && overTarget !== null) {
+    parts.push(`超 ${targetMaxLen} 字 ${overTarget} 片`);
+  }
+  if (fallbackLen !== null) {
+    parts.push(`已按 ${fallbackLen} 字递归切分`);
+  }
+  return parts.join(' · ');
+}
+
+/** 切片详情：统计条十项（元素 / 切片 / 正文 / 表格 / 图片 / 父片 / 兜底 / 超限 / 跳过 / 耗时） */
+function chunkStatItems(
+  detail: ParseDetail | StructureDetail | PreprocessDetail | ChunkDetail | null,
+): StageStatItem[] {
+  const stats = detail?.stageStats ?? null;
+  const routed = statValue(stats, 'routedElementCount');
+  const skipped = statValue(stats, 'skippedElementCount');
+  return [
+    {
+      key: 'elements',
+      label: '元素',
+      value: routed === null || skipped === null ? '—' : countText(routed + skipped),
+    },
+    { key: 'chunks', label: '切片', value: countText(statValue(stats, 'chunkCount')) },
+    { key: 'paragraphs', label: '正文', value: countText(statValue(stats, 'paragraphCount')) },
+    { key: 'tables', label: '表格', value: countText(statValue(stats, 'tableCount')) },
+    { key: 'images', label: '图片', value: countText(statValue(stats, 'imageCount')) },
+    { key: 'parents', label: '父片', value: countText(statValue(stats, 'parentCount')) },
+    { key: 'fallback', label: '兜底', value: countText(statValue(stats, 'fallbackCount')) },
+    { key: 'over', label: '超限', value: countText(statValue(stats, 'overSoftMaxCount')) },
+    { key: 'skipped', label: '跳过', value: countText(skipped) },
+    { key: 'duration', label: '耗时', value: durationOf(detail, statValue(stats, 'durationMs')) },
+  ];
 }
 
 /** 未配置环节：中性内容（`—` 与空槽，不给任何环节专属文案） */
@@ -642,6 +806,7 @@ const STAGE_VIEWS: Record<string, StageViewConfig> = {
   PARSE: PARSE_VIEW,
   STRUCTURE: STRUCTURE_VIEW,
   PREPROCESS: PREPROCESS_VIEW,
+  CHUNK: CHUNK_VIEW,
 };
 
 /** 取环节展示配置；未配置的环节返回中性配置 */

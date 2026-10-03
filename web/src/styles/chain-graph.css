@@ -462,6 +462,26 @@
   font-size: 10px;
 }
 
+/* 切片结果：片号 + 类型标签 + 说明列占一行，内容另起一行 */
+.parse-drawer-doc-seq {
+  margin-right: 6px;
+  color: var(--kb-text-1);
+  font-weight: 650;
+}
+
+.parse-drawer-doc-meta {
+  margin-left: 6px;
+  color: var(--kb-text-4);
+  font-size: 11px;
+}
+
+.parse-drawer-doc-chunk .parse-drawer-doc-text,
+.parse-drawer-doc-chunk .parse-drawer-doc-paragraph,
+.parse-drawer-doc-chunk .parse-drawer-doc-image {
+  display: block;
+  margin-top: 4px;
+}
+
 /* 清洗后的正文：被剔除的块灰化划线留在原位（核对剔除结果用） */
 .parse-drawer-doc-block.is-dropped {
   border-left-color: var(--kb-line-strong);
@@ -473,4 +493,17 @@
 .parse-drawer-doc-block.is-dropped .parse-drawer-doc-title {
   color: var(--kb-text-4);
   text-decoration: line-through;
+}
+
+/* 片的三种形态各给一档左边框：父片（章节锚点）/ 兜底片 / 表格片 */
+.parse-drawer-doc-parent {
+  border-left-color: var(--kb-ok);
+}
+
+.parse-drawer-doc-fallback {
+  border-left-color: var(--kb-warn);
+}
+
+.parse-drawer-doc-table-chunk {
+  border-left-color: var(--kb-primary);
 }

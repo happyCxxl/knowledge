@@ -1,6 +1,7 @@
 import { http } from './http';
 import type { PageResult } from '@/types/response';
 import type {
+  ChunkDetail,
   FileResult,
   Lineage,
   ParseDetail,
@@ -46,7 +47,8 @@ export async function getParseDetail(fileResultId: string, taskId?: string): Pro
  * 按环节取详情：每个环节有自己的详情路径，各自返回专属字段。
  *
  * <p>解析走 `parse-detail`（统计结构固定），组装走 `structure-detail`（含大纲与冲突），
- * 预处理走 `preprocess-detail`（含派生视图元素与清洗统计）。
+ * 预处理走 `preprocess-detail`（含派生视图元素与清洗统计），
+ * 切片走 `chunk-detail`（含切片列表与切片统计）。
  * 未接详情接口的环节返回 `null`，调用侧按"没有详情"渲染 —— 不回落成别的环节的接口。
  *
  * <p>`taskId` 同上：必须传被查看的那次运行。
@@ -55,7 +57,7 @@ export async function getStageDetail(
   stage: string,
   fileResultId: string,
   taskId?: string,
-): Promise<ParseDetail | StructureDetail | PreprocessDetail | null> {
+): Promise<ParseDetail | StructureDetail | PreprocessDetail | ChunkDetail | null> {
   if (stage === 'PARSE') {
     return getParseDetail(fileResultId, taskId);
   }
@@ -72,6 +74,12 @@ export async function getStageDetail(
       `/file-results/${fileResultId}/preprocess-detail`,
       { params },
     );
+    return response.data;
+  }
+  if (stage === 'CHUNK') {
+    const response = await http.get<ChunkDetail>(`/file-results/${fileResultId}/chunk-detail`, {
+      params,
+    });
     return response.data;
   }
   return null;
@@ -100,14 +108,24 @@ export async function getSourceFile(fileId: string): Promise<Blob> {
  *
  * <p>`taskId` 同上，必须传被查看的那次运行；`page` 从 1 起，`limit` 由页面按行数档位给。
  * `docPage` 按文档页收窄（只回该页元素），原文预览与解析结果按页联动用；
- * `status` 按处置状态收窄（逗号分隔，只回这些状态的元素），预处理环节核对剔除内容用。
+ * `status` 按处置状态收窄（逗号分隔，只回这些状态的元素），预处理环节核对剔除内容用；
+ * `contentType` / `fallback` / `hasParent` 收窄切片内容（只对 CHUNK 生效，过滤在 DB 侧做）。
  */
 export async function getStageContent(
   fileResultId: string,
   stage: string,
-  query: { taskId?: string; docPage?: number; status?: string; page?: number; limit?: number } = {},
+  query: {
+    taskId?: string;
+    docPage?: number;
+    status?: string;
+    contentType?: string;
+    fallback?: boolean;
+    hasParent?: boolean;
+    page?: number;
+    limit?: number;
+  } = {},
 ): Promise<StageContentPage> {
-  const params: Record<string, string | number> = { stage };
+  const params: Record<string, string | number | boolean> = { stage };
   if (query.taskId) {
     params.taskId = query.taskId;
   }
@@ -116,6 +134,15 @@ export async function getStageContent(
   }
   if (query.status) {
     params.status = query.status;
+  }
+  if (query.contentType) {
+    params.contentType = query.contentType;
+  }
+  if (query.fallback !== undefined) {
+    params.fallback = query.fallback;
+  }
+  if (query.hasParent !== undefined) {
+    params.hasParent = query.hasParent;
   }
   if (query.page) {
     params.page = query.page;

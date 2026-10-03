@@ -65,7 +65,17 @@
                     · 已渲染 {{ docRenderLimit }}</span
                   >
                 </template>
-                <template v-else>
+                <template v-else-if="leftPaneKind === 'chunks'">
+                  <span v-if="readingChunks.length > 0"
+                    >共 {{ readingChunks.length }} 片 · 按阅读序<span v-if="chunkMode !== 'all'">
+                      · 当前档 {{ visibleChunks.length }}</span
+                    ></span
+                  >
+                  <span v-if="docBlocks.length > docRenderLimit">
+                    · 已渲染 {{ docRenderLimit }}</span
+                  >
+                </template>
+                <template v-else-if="leftPaneKind === 'source'">
                   {{ fileKindText }}<span v-if="fileSizeText"> · {{ fileSizeText }}</span>
                   <span v-if="previewTotal > 0"> · 共 {{ previewTotal }} 页</span>
                   <span v-if="canPreview && highlightCount > 0">
@@ -92,6 +102,33 @@
                   看被剔除
                 </button>
               </div>
+              <!-- 切片结果：全部 / 兜底片 / 父片（只影响左栏，右栏各自的页签另有过滤） -->
+              <div v-else-if="leftPaneKind === 'chunks'" class="parse-drawer-seg">
+                <button
+                  class="parse-drawer-seg-btn"
+                  :class="{ 'is-on': chunkMode === 'all' }"
+                  type="button"
+                  @click="chunkMode = 'all'"
+                >
+                  全部
+                </button>
+                <button
+                  class="parse-drawer-seg-btn"
+                  :class="{ 'is-on': chunkMode === 'fallback' }"
+                  type="button"
+                  @click="chunkMode = 'fallback'"
+                >
+                  兜底片
+                </button>
+                <button
+                  class="parse-drawer-seg-btn"
+                  :class="{ 'is-on': chunkMode === 'parent' }"
+                  type="button"
+                  @click="chunkMode = 'parent'"
+                >
+                  父片
+                </button>
+              </div>
             </div>
             <div class="parse-drawer-pane-fill">
               <!-- 文档形态左栏（组装产物文档 / 清洗后的正文）：按元素类型排版；
@@ -116,10 +153,14 @@
                     :data-key="block.key"
                     @click="onDocPick(block.key)"
                   >
+                    <span v-if="block.seqText" class="parse-drawer-doc-seq">{{
+                      block.seqText
+                    }}</span>
                     <span v-if="block.badge" class="parse-drawer-doc-badge">{{ block.badge }}</span>
                     <span v-if="block.stateText" class="parse-drawer-doc-state">{{
                       block.stateText
                     }}</span>
+                    <span v-if="block.meta" class="parse-drawer-doc-meta">{{ block.meta }}</span>
                     <table
                       v-if="block.kind === 'table' && block.grid.length > 0"
                       class="parse-drawer-doc-table"
@@ -151,7 +192,7 @@
                   </p>
                 </div>
               </template>
-              <template v-else>
+              <template v-else-if="leftPaneKind === 'source'">
                 <p v-if="sourceError" class="parse-drawer-hint parse-drawer-hint-bad">
                   {{ sourceError }}
                 </p>
@@ -192,6 +233,12 @@
                   @pick="onPreviewPick"
                   @loaded="onOfficeLoaded"
                 />
+              </template>
+              <!-- 没有左栏形态的环节：不给原文预览，也不去取原文件字节 -->
+              <template v-else>
+                <p class="parse-drawer-hint">
+                  该环节没有可展示的产物内容，看右栏列表与「过程」页签
+                </p>
               </template>
             </div>
           </section>
@@ -496,6 +543,96 @@
               </div>
             </div>
 
+            <!-- 页签：兜底片 / 父片 · 孤儿（切片；服务端按片类型与父子关系过滤后分页） -->
+            <div
+              v-else-if="activeTab === 'fallback' || activeTab === 'parents'"
+              class="parse-drawer-tabpane"
+            >
+              <div class="parse-drawer-tabscroll">
+                <p v-if="activeChunkPane.error" class="parse-drawer-hint parse-drawer-hint-bad">
+                  {{ activeChunkPane.error }}
+                </p>
+                <p
+                  v-else-if="activeChunkPane.loading && activeChunkRows.length === 0"
+                  class="parse-drawer-hint"
+                >
+                  {{ activeChunkLoadingText }}
+                </p>
+                <p v-else-if="activeChunkRows.length === 0" class="parse-drawer-hint">
+                  {{ activeChunkEmptyText }}
+                </p>
+                <ul v-else class="parse-drawer-elements">
+                  <li
+                    v-for="row in activeChunkRows"
+                    :key="row.key"
+                    class="parse-drawer-element"
+                    :class="{ 'is-active': row.key === activeKey }"
+                    :data-key="row.key"
+                    @click="onElementPick(row.key)"
+                  >
+                    <div class="parse-drawer-element-head">
+                      <span v-if="row.seqText" class="parse-drawer-chunk-seq">{{
+                        row.seqText
+                      }}</span>
+                      <span class="parse-drawer-type">{{ row.typeText }}</span>
+                      <span v-if="row.meta" class="parse-drawer-element-meta">{{ row.meta }}</span>
+                    </div>
+                    <p class="parse-drawer-excluded-text">{{ row.text || '（无内容）' }}</p>
+                  </li>
+                </ul>
+              </div>
+
+              <div class="parse-drawer-tabfoot">
+                <button
+                  class="parse-drawer-page-btn"
+                  type="button"
+                  :disabled="activeChunkPane.page <= 1 || activeChunkPane.loading"
+                  @click="goChunkPanePage(activeChunkPane.page - 1)"
+                >
+                  上一页
+                </button>
+                <span class="parse-drawer-page-info"
+                  >第 {{ activeChunkPane.page }} / {{ activeChunkPanePages }} 页</span
+                >
+                <button
+                  class="parse-drawer-page-btn"
+                  type="button"
+                  :disabled="
+                    activeChunkPane.page >= activeChunkPanePages || activeChunkPane.loading
+                  "
+                  @click="goChunkPanePage(activeChunkPane.page + 1)"
+                >
+                  下一页
+                </button>
+                <span class="parse-drawer-page-info"
+                  >共 {{ activeChunkPane.total }} 条 · 每页 {{ PAGE_SIZE }}</span
+                >
+              </div>
+            </div>
+
+            <!-- 页签：来源对照（切片；按左栏选中的片给来源元素个数与关联字段） -->
+            <div v-else-if="activeTab === 'sources'" class="parse-drawer-tabpane">
+              <div class="parse-drawer-tabscroll">
+                <p v-if="selectedChunk === null" class="parse-drawer-hint">
+                  在左栏点一片、或在「切片」页签点一行，这里给它的来源对照
+                </p>
+                <template v-else>
+                  <h5 class="parse-drawer-subtitle">
+                    {{ selectedChunk.chunkId ?? '—' }} · {{ chunkBadgeOf(selectedChunk) }}
+                  </h5>
+                  <ul class="parse-drawer-fields">
+                    <li v-for="row in sourceRows" :key="row.label" class="parse-drawer-field">
+                      <span class="parse-drawer-element-meta">{{ row.label }}</span>
+                      <span class="parse-drawer-field-value">{{ row.value }}</span>
+                    </li>
+                  </ul>
+                  <p class="parse-drawer-hint">
+                    来源元素只给个数：父片的溯源是全部子片的并集（条数随章节大小无界），逐个来源元素走产物或索引里的溯源
+                  </p>
+                </template>
+              </div>
+            </div>
+
             <!-- 页签：告警（告警与冲突分两类展示） -->
             <div v-else-if="activeTab === 'warnings'" class="parse-drawer-tabpane">
               <div class="parse-drawer-tabscroll">
@@ -579,7 +716,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 
 import { readSplitRatio, removeSplitRatio, writeSplitRatio } from '@/utils/drawer-split-storage';
 import { getStageContent, getStageDetail, getSourceFile } from '@/api/pipeline';
@@ -588,7 +725,9 @@ import DocxSourcePreview from '@/components/pipeline/DocxSourcePreview.vue';
 import XlsxSourcePreview from '@/components/pipeline/XlsxSourcePreview.vue';
 import {
   bboxOf,
+  chunkTypeLabel,
   elementTypeLabel,
+  formatCount,
   formatDuration,
   pageOf,
   statNumber,
@@ -606,6 +745,8 @@ import type { XlsxAnchor } from '@/components/pipeline/XlsxSourcePreview.vue';
 import type { PreviewHighlight } from '@/components/pipeline/PdfSourcePreview.vue';
 import type { StageTab, StageTabKey } from '@/types/pipeline-stage-view';
 import type {
+  ChunkDetail,
+  ChunkItem,
   ParseDetail,
   PreprocessDetail,
   PreprocessElement,
@@ -639,12 +780,15 @@ const stageView = computed(() => stageViewOf(props.stage));
 /** 左栏内容形态 */
 const leftPaneKind = computed(() => stageView.value.leftPaneKind);
 
-/** 左栏标题：按形态给（原文预览 / 组装后的文档 / 清洗后的正文是三件事） */
+/** 左栏标题：按形态给（原文预览 / 组装后的文档 / 清洗后的正文 / 切片结果是四件事） */
 const leftPaneTitle = computed(() => {
   if (leftPaneKind.value === 'assembly') {
     return '组装后的文档';
   }
-  return leftPaneKind.value === 'cleaned' ? '清洗后的正文' : '原文预览';
+  if (leftPaneKind.value === 'cleaned') {
+    return '清洗后的正文';
+  }
+  return leftPaneKind.value === 'chunks' ? '切片结果' : '原文预览';
 });
 
 /** 每页条数：与后端上限（1000）留出余量，单次响应可控 */
@@ -654,7 +798,6 @@ const PAGE_SIZE = 100;
 
 /** 文档块一次渲染多少条：大文档不做一次性全渲染，滚动到底再追加 */
 const DOC_RENDER_STEP = 80;
-
 /** 距底部多远触发追加渲染 */
 const DOC_LOAD_MARGIN = 240;
 
@@ -680,6 +823,10 @@ interface DocBlock {
   kind: DocBlockKind;
   /** 类型标签（只给页眉页脚，避免与正文混淆） */
   badge: string;
+  /** 序号前缀（切片结果给 `#12`；其余形态空串） */
+  seqText: string;
+  /** 弱化说明（切片结果给标题路径 / 字数 / 来源元素数；其余形态空串） */
+  meta: string;
   /** 状态标签（清洗后的正文给"仅标记"/"剔除·原因"；其余形态空串） */
   stateText: string;
   /** 是否不进切片（预处理：剔除态与重复份；其余形态恒 false） */
@@ -697,8 +844,8 @@ const docRef = ref<HTMLElement | null>(null);
 /** 文档已渲染到第几条（滚动递增；定位时按目标块补足） */
 const docRenderLimit = ref(DOC_RENDER_STEP);
 
-/** 详情：按环节取到的是各自的结构（解析 / 组装 / 预处理），页面按 `in` 判别专属字段 */
-const detail = ref<ParseDetail | StructureDetail | PreprocessDetail | null>(null);
+/** 详情：按环节取到的是各自的结构（解析 / 组装 / 预处理 / 切片），页面按 `in` 判别专属字段 */
+const detail = ref<ParseDetail | StructureDetail | PreprocessDetail | ChunkDetail | null>(null);
 const detailLoading = ref(false);
 const detailError = ref('');
 
@@ -1005,6 +1152,18 @@ const xlsxAnchors = computed<XlsxAnchor[]>(() =>
     .filter((anchor): anchor is XlsxAnchor => anchor !== null),
 );
 
+/** 列表行的类型标签：切片用片类型名（父片 / 兜底），其余环节用元素类型名 */
+function rowTypeLabel(item: StageContentItem): string {
+  return props.stage === 'CHUNK' ? chunkTypeLabel(item.type) : elementTypeLabel(item.type);
+}
+
+/** 列表行的来源列：切片给标题路径，其余环节给产物来源 */
+function rowSourceText(extra: Record<string, unknown> | null | undefined): string {
+  const key = props.stage === 'CHUNK' ? 'titlePath' : 'source';
+  const value = extra?.[key];
+  return typeof value === 'string' ? value : '';
+}
+
 /** 元素行：把 extra 里的页码/来源/网格/坐标摊平成可渲染字段，并按关键字过滤当前页 */
 const visibleItems = computed(() => {
   const text = keyword.value.trim().toLowerCase();
@@ -1016,11 +1175,11 @@ const visibleItems = computed(() => {
       return {
         key: item.alignKey ?? `seq-${item.seq ?? index}`,
         seq: item.seq ?? index + 1,
-        typeText: elementTypeLabel(item.type),
+        typeText: rowTypeLabel(item),
         rawType: item.type ?? '',
         text: item.display ?? '',
         page: pageOf(item.extra),
-        source: typeof extra.source === 'string' ? extra.source : '',
+        source: rowSourceText(item.extra),
         grid: rows !== null && cols !== null ? `${rows}×${cols}` : '',
       };
     })
@@ -1080,7 +1239,7 @@ const conflicts = computed(() => {
   return value !== null && 'conflicts' in value ? (value.conflicts ?? []) : [];
 });
 
-/** 文档块的归一入参：组装大纲与预处理视图元素都映射到这一份字段 */
+/** 文档块的归一入参：组装大纲 / 预处理视图元素 / 切片都映射到这一份字段 */
 interface DocSource {
   /** 产物元素 id（与右栏行同键） */
   key: string;
@@ -1095,6 +1254,14 @@ interface DocSource {
   dropped: boolean;
   /** 状态标签（预处理：仅标记 / 剔除·原因；其余形态空串） */
   stateText: string;
+  /** 类型标签（切片按片类型给；其余形态空串，由类型推导） */
+  badge: string;
+  /** 序号前缀（切片给 `#12`；其余形态空串） */
+  seqText: string;
+  /** 弱化说明（切片给标题路径 / 字数 / 来源元素数；其余形态空串） */
+  meta: string;
+  /** 附加样式类（切片按片类型给边框色；其余形态空串） */
+  extraClass: string;
 }
 
 /** 组装产物大纲（仅组装详情有 outline；其余环节恒空）：左栏文档按它排版 */
@@ -1122,6 +1289,10 @@ function outlineSourceOf(item: StructureOutlineItem, index: number): DocSource {
     cells: item.cells ?? [],
     dropped: false,
     stateText: '',
+    badge: '',
+    seqText: '',
+    meta: '',
+    extraClass: '',
   };
 }
 
@@ -1142,15 +1313,23 @@ function cleanedSourceOf(item: PreprocessElement, index: number): DocSource {
     cells: item.cells ?? [],
     dropped,
     stateText: PREPROCESS_STATUS_LABELS[status] ?? '',
+    badge: '',
+    seqText: '',
+    meta: '',
+    extraClass: '',
   };
 }
 
-/** 左栏文档块的数据源：组装取大纲、清洗取视图元素 */
-const docSources = computed<DocSource[]>(() =>
-  leftPaneKind.value === 'cleaned'
-    ? viewElements.value.map((item, index) => cleanedSourceOf(item, index))
-    : outlineItems.value.map((item, index) => outlineSourceOf(item, index)),
-);
+/** 左栏文档块的数据源：组装取大纲、清洗取视图元素、切片取按阅读序重排后的片 */
+const docSources = computed<DocSource[]>(() => {
+  if (leftPaneKind.value === 'cleaned') {
+    return viewElements.value.map((item, index) => cleanedSourceOf(item, index));
+  }
+  if (leftPaneKind.value === 'chunks') {
+    return visibleChunks.value.map((item, index) => chunkSourceOf(item, index));
+  }
+  return outlineItems.value.map((item, index) => outlineSourceOf(item, index));
+});
 
 /** 全部文档块（未按"只看保留/看被剔除"过滤） */
 const docAllBlocks = computed<DocBlock[]>(() =>
@@ -1175,21 +1354,38 @@ const docDroppedCount = computed(() => docAllBlocks.value.filter((block) => bloc
 /** 已渲染的文档块：滚动到哪渲染到哪 */
 const renderedDocBlocks = computed(() => docBlocks.value.slice(0, docRenderLimit.value));
 
-/** 产物元素 → 文档块：按元素类型分派排版口径 */
+/** 产物元素 → 文档块：排版口径来自类型，序号 / 说明 / 标签由入参给（切片用） */
 function docBlockOf(item: DocSource): DocBlock {
-  const key = item.key;
+  const body = docBodyOf(item);
+  return {
+    key: item.key,
+    kind: body.kind,
+    badge: item.badge === '' ? body.badge : item.badge,
+    seqText: item.seqText,
+    meta: item.meta,
+    stateText: item.stateText,
+    dropped: item.dropped,
+    className: item.extraClass === '' ? body.className : `${body.className} ${item.extraClass}`,
+    text: body.text,
+    grid: body.grid,
+  };
+}
+
+/** 文档块的主体（按元素类型分派排版口径） */
+function docBodyOf(item: DocSource): {
+  kind: DocBlockKind;
+  badge: string;
+  className: string;
+  text: string;
+  grid: (DocCell | null)[][];
+} {
   const type = item.type;
   const text = item.text;
-  const state = item.stateText;
-  const dropped = item.dropped;
   if (type === 'TITLE') {
     const level = Math.min(Math.max(item.level ?? 1, 1), DOC_TITLE_MAX_LEVEL);
     return {
-      key,
       kind: 'title',
       badge: '',
-      stateText: state,
-      dropped,
       className: `parse-drawer-doc-title parse-drawer-doc-title-${level}`,
       text: text === '' ? '（无标题文本）' : text,
       grid: [],
@@ -1197,11 +1393,8 @@ function docBlockOf(item: DocSource): DocBlock {
   }
   if (type === 'SECTION') {
     return {
-      key,
       kind: 'section',
       badge: '',
-      stateText: state,
-      dropped,
       className: 'parse-drawer-doc-section',
       text: text === '' ? '（无分节名）' : text,
       grid: [],
@@ -1209,11 +1402,8 @@ function docBlockOf(item: DocSource): DocBlock {
   }
   if (type === 'TABLE') {
     return {
-      key,
       kind: 'table',
       badge: '',
-      stateText: state,
-      dropped,
       className: 'parse-drawer-doc-table-wrap',
       text: tablePlaceholderText(item),
       grid: tableGridOf(item),
@@ -1221,11 +1411,8 @@ function docBlockOf(item: DocSource): DocBlock {
   }
   if (type === 'IMAGE') {
     return {
-      key,
       kind: 'figure',
       badge: '',
-      stateText: state,
-      dropped,
       className: 'parse-drawer-doc-figure',
       text: text === '' ? (item.caption ?? '图片（产物未含图片内容）') : text,
       grid: [],
@@ -1234,22 +1421,16 @@ function docBlockOf(item: DocSource): DocBlock {
   // 页眉页脚必须出现，但弱化并标出类型，避免与正文混淆
   if (type === 'HEADER' || type === 'FOOTER') {
     return {
-      key,
       kind: 'weak',
       badge: elementTypeLabel(type),
-      stateText: state,
-      dropped,
       className: 'parse-drawer-doc-weak',
       text: text === '' ? '（无文本）' : text,
       grid: [],
     };
   }
   return {
-    key,
     kind: type === 'PARAGRAPH' ? 'paragraph' : 'text',
     badge: '',
-    stateText: state,
-    dropped,
     className: type === 'PARAGRAPH' ? 'parse-drawer-doc-paragraph' : 'parse-drawer-doc-text',
     text: text === '' ? '（无文本）' : text,
     grid: [],
@@ -1299,6 +1480,421 @@ function tablePlaceholderText(item: DocSource): string {
   return `表格 ${rows} 行 × ${cols} 列（产物未含单元格明细）`;
 }
 
+// ---- 左栏：切片结果（切片环节用）/ 右栏：兜底片、父片·孤儿与来源对照 ----
+
+/** 切片列表（仅切片详情有 chunks；其余环节恒空） */
+const chunkItems = computed<ChunkItem[]>(() => {
+  const value = detail.value;
+  return value !== null && 'chunks' in value ? (value.chunks ?? []) : [];
+});
+
+/** 片 ID → 片（左栏块键与右栏行键都是 chunkId） */
+const chunkByKey = computed(() => {
+  const map = new Map<string, ChunkItem>();
+  for (const chunk of chunkItems.value) {
+    if (chunk.chunkId) {
+      map.set(chunk.chunkId, chunk);
+    }
+  }
+  return map;
+});
+
+/** 父片 ID → 子片数（父片的说明列要报"128 个子片"） */
+const childCountByParent = computed(() => {
+  const counts = new Map<string, number>();
+  for (const chunk of chunkItems.value) {
+    const parentId = chunk.parentChunkId;
+    if (parentId) {
+      counts.set(parentId, (counts.get(parentId) ?? 0) + 1);
+    }
+  }
+  return counts;
+});
+
+/** 是否是被挂子片的父片 */
+function isParentChunk(chunk: ChunkItem): boolean {
+  return Boolean(chunk.chunkId) && childCountByParent.value.has(chunk.chunkId ?? '');
+}
+
+/** 是否是孤儿片（没有父片，本身也不是父片） */
+function isOrphanChunk(chunk: ChunkItem): boolean {
+  return !chunk.parentChunkId && !isParentChunk(chunk);
+}
+
+/**
+ * 按阅读序重排：父片锚点 → 其子片 → 孤儿片末尾。
+ *
+ * <p>产物里的顺序是"父片全部在前、子片随后、孤儿片最后"，属归档序；直接按它排版会让父片堆在文档开头。
+ */
+const readingChunks = computed<ChunkItem[]>(() => {
+  const chunks = chunkItems.value;
+  const childrenOf = new Map<string, ChunkItem[]>();
+  for (const chunk of chunks) {
+    const parentId = chunk.parentChunkId;
+    if (!parentId) {
+      continue;
+    }
+    const list = childrenOf.get(parentId) ?? [];
+    list.push(chunk);
+    childrenOf.set(parentId, list);
+  }
+  const ordered: ChunkItem[] = [];
+  const placed = new Set<string>();
+  for (const chunk of chunks) {
+    const parentId = chunk.parentChunkId;
+    if (!parentId || placed.has(parentId)) {
+      continue;
+    }
+    placed.add(parentId);
+    const parent = chunkByKey.value.get(parentId);
+    if (parent) {
+      ordered.push(parent);
+    }
+    ordered.push(...(childrenOf.get(parentId) ?? []));
+  }
+  // 没有子片的父片与孤儿片：末尾按归档序补齐
+  for (const chunk of chunks) {
+    if (chunk.parentChunkId || (chunk.chunkId && placed.has(chunk.chunkId))) {
+      continue;
+    }
+    ordered.push(chunk);
+  }
+  return ordered;
+});
+
+/** 左栏档位：全部 / 兜底片 / 父片 */
+type ChunkMode = 'all' | 'fallback' | 'parent';
+const chunkMode = ref<ChunkMode>('all');
+
+/** 左栏实际渲染的片（按档位过滤，只影响左栏） */
+const visibleChunks = computed<ChunkItem[]>(() => {
+  if (chunkMode.value === 'fallback') {
+    return readingChunks.value.filter((chunk) => (chunk.contentType ?? '') === 'FALLBACK');
+  }
+  if (chunkMode.value === 'parent') {
+    return readingChunks.value.filter((chunk) => isParentChunk(chunk));
+  }
+  return readingChunks.value;
+});
+
+/** 切片 → 文档块入参：序号 + 类型标签 + 说明列 */
+function chunkSourceOf(chunk: ChunkItem, index: number): DocSource {
+  const type = chunk.contentType ?? '';
+  const content = (chunk.content ?? '').trim();
+  const table = type === 'TABLE' ? parseMarkdownTable(content) : null;
+  return {
+    key: chunk.chunkId ?? `chunk-${index}`,
+    type,
+    text: content,
+    level: 1,
+    rows: table === null ? null : table.rows.length + (table.header === null ? 0 : 1),
+    cols: table === null ? null : (table.header ?? table.rows.at(0) ?? []).length,
+    caption: null,
+    cells: table === null ? [] : tableCellsOf(table),
+    dropped: false,
+    stateText: '',
+    badge: chunkBadgeOf(chunk),
+    seqText: `#${chunk.orderNo ?? index + 1}`,
+    meta: chunkMetaOf(chunk, table),
+    extraClass: chunkBlockClassOf(chunk),
+  };
+}
+
+/** 片的类型标签：父片 / 孤儿片单列，其余按内容类型 */
+function chunkBadgeOf(chunk: ChunkItem): string {
+  if (isParentChunk(chunk)) {
+    return '父片';
+  }
+  if (isOrphanChunk(chunk)) {
+    return '孤儿片';
+  }
+  return chunkTypeLabel(chunk.contentType);
+}
+
+/** 片的说明列：标题路径 · 字数 · 来源元素数（按片类型补兜底原因 / 子片数 / 表格行列） */
+function chunkMetaOf(chunk: ChunkItem, table: MarkdownTable | null): string {
+  const parts: string[] = [];
+  if (chunk.titlePath) {
+    parts.push(chunk.titlePath);
+  }
+  if (isParentChunk(chunk)) {
+    parts.push(`${childCountByParent.value.get(chunk.chunkId ?? '') ?? 0} 个子片`, '不产向量');
+  } else if ((chunk.contentType ?? '') === 'FALLBACK') {
+    parts.push(chunk.fallbackReason ?? '超长内容按兜底参数递归切分');
+  } else if (table !== null) {
+    parts.push(
+      `表头随片`,
+      `${table.rows.length} 行 × ${(table.header ?? table.rows.at(0) ?? []).length} 列`,
+    );
+  }
+  if (chunk.charCount !== null) {
+    parts.push(`${formatCount(chunk.charCount)} 字`);
+  }
+  if (chunk.sourceElementCount !== null) {
+    parts.push(`来源 ${chunk.sourceElementCount} 元素`);
+  }
+  return parts.join(' · ');
+}
+
+/** 片的块样式：父片 / 兜底片 / 表格片各一档边框色（其余用默认块样式） */
+function chunkBlockClassOf(chunk: ChunkItem): string {
+  if (isParentChunk(chunk)) {
+    return 'parse-drawer-doc-parent';
+  }
+  const type = chunk.contentType ?? '';
+  if (type === 'FALLBACK') {
+    return 'parse-drawer-doc-fallback';
+  }
+  return type === 'TABLE' ? 'parse-drawer-doc-table-chunk' : '';
+}
+
+/** Markdown 表格（表格片 content 的口径） */
+interface MarkdownTable {
+  header: string[] | null;
+  rows: string[][];
+}
+
+/**
+ * 解析表格片的 Markdown 内容（`| a | b |` + `|---|---|`）。
+ *
+ * <p>只认管道表格：解析不出表格时返回 null，块按普通文本渲染。
+ */
+function parseMarkdownTable(content: string): MarkdownTable | null {
+  if (content === '' || !content.includes('|')) {
+    return null;
+  }
+  const lines = content
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith('|'));
+  if (lines.length === 0) {
+    return null;
+  }
+  const cells = lines.map((line) => markdownCellsOf(line));
+  const isSeparator = (row: string[]): boolean => row.every((cell) => /^-{2,}$/.test(cell.trim()));
+  const header = cells.length > 1 && isSeparator(cells[1]) ? (cells[0] ?? null) : null;
+  const rows = cells.filter((row, index) => !isSeparator(row) && (index > 0 || header === null));
+  if (rows.length === 0 && header === null) {
+    return null;
+  }
+  return { header, rows };
+}
+
+/** Markdown 行 → 单元格文本（管道转义还原，两侧空段去掉） */
+function markdownCellsOf(line: string): string[] {
+  const trimmed = line.replace(/^\|/, '').replace(/\|$/, '');
+  return trimmed.split(/(?<!\\)\|/).map((cell) => cell.replace(/\\\|/g, '|').trim());
+}
+
+/** Markdown 表格 → 文档块的单元格（表头行标 isHeader，表格块按它渲染） */
+function tableCellsOf(table: MarkdownTable): StructureCellItem[] {
+  const cells: StructureCellItem[] = [];
+  const push = (row: string[], rowIndex: number, isHeader: boolean): void => {
+    row.forEach((text, colIndex) => {
+      cells.push({ row: rowIndex, col: colIndex, text, isHeader });
+    });
+  };
+  if (table.header !== null) {
+    push(table.header, 0, true);
+  }
+  table.rows.forEach((row, index) => push(row, index + (table.header === null ? 0 : 1), false));
+  return cells;
+}
+
+/** 片 ID → 集合内顺序号（换页要用它算，不按左栏阅读序） */
+function chunkOrderOf(key: string): number | null {
+  const chunk = chunkByKey.value.get(key);
+  return chunk?.orderNo ?? null;
+}
+
+/** 按过滤条件单独取数的切片页签（兜底片 / 父片 · 孤儿）：过滤与分页都在服务端做 */
+interface ChunkPane {
+  page: number;
+  items: StageContentItem[];
+  total: number;
+  loading: boolean;
+  error: string;
+  loaded: boolean;
+  load: () => Promise<void>;
+  go: (next: number) => void;
+  reset: () => void;
+}
+
+/** 建一个切片过滤页签的状态（两个页签各自翻页、各自按需取数） */
+function createChunkPane(filter: { fallback?: boolean; hasParent?: boolean }): ChunkPane {
+  const pane = reactive<ChunkPane>({
+    page: 1,
+    items: [],
+    total: 0,
+    loading: false,
+    error: '',
+    loaded: false,
+    load: async () => undefined,
+    go: () => undefined,
+    reset: () => undefined,
+  });
+  const pageCount = (): number => Math.max(1, Math.ceil(pane.total / PAGE_SIZE));
+  pane.load = async (): Promise<void> => {
+    pane.loading = true;
+    pane.error = '';
+    try {
+      const data = await getStageContent(props.fileResultId, props.stage, {
+        taskId: props.taskId,
+        ...filter,
+        page: pane.page,
+        limit: PAGE_SIZE,
+      });
+      pane.items = data.items ?? [];
+      pane.total = data.total ?? 0;
+      pane.loaded = true;
+    } catch {
+      // 失败提示已由接口层统一拦截处理
+      pane.items = [];
+      pane.total = 0;
+      pane.error = '切片内容加载失败';
+    } finally {
+      pane.loading = false;
+    }
+  };
+  pane.go = (next: number): void => {
+    const target = Math.min(Math.max(next, 1), pageCount());
+    if (target === pane.page) {
+      return;
+    }
+    pane.page = target;
+    void pane.load();
+  };
+  pane.reset = (): void => {
+    pane.page = 1;
+    pane.items = [];
+    pane.total = 0;
+    pane.error = '';
+    pane.loaded = false;
+  };
+  return pane;
+}
+
+/** 兜底片页签（只看 contentType=FALLBACK 的片） */
+const fallbackPane = createChunkPane({ fallback: true });
+
+/** 父片 · 孤儿页签（只看没有父片的片：父片与孤儿片都在其中） */
+const parentPane = createChunkPane({ hasParent: false });
+
+/** 页签角标数：优先用详情统计（不必先请求列表） */
+function chunkStatCount(key: string): number | null {
+  const stats = detail.value?.stageStats ?? null;
+  const value = stats?.[key];
+  return typeof value === 'number' ? value : null;
+}
+
+/** 当前选中的片（左栏点选或右栏点行都会更新；「来源对照」页签按它展示） */
+const selectedChunk = computed<ChunkItem | null>(() => {
+  const key = pickedKey.value || activeKey.value;
+  return key === '' ? null : (chunkByKey.value.get(key) ?? null);
+});
+
+/** 选中片的来源对照行 */
+const sourceRows = computed(() => {
+  const chunk = selectedChunk.value;
+  if (chunk === null) {
+    return [];
+  }
+  const rows = [
+    { label: '片号', value: chunk.chunkId ?? '—' },
+    { label: '类型', value: chunkTypeLabel(chunk.contentType) },
+    { label: '标题路径', value: chunk.titlePath ?? '—' },
+    {
+      label: '字符数',
+      value: chunk.charCount === null ? '—' : `${formatCount(chunk.charCount)} 字`,
+    },
+    {
+      label: '来源元素',
+      value: chunk.sourceElementCount === null ? '—' : `${chunk.sourceElementCount} 个`,
+    },
+  ];
+  if (isParentChunk(chunk)) {
+    rows.push({
+      label: '覆盖范围',
+      value: `${childCountByParent.value.get(chunk.chunkId ?? '') ?? 0} 个子片（不产向量）`,
+    });
+  }
+  if (chunk.pageRange) {
+    rows.push({ label: '页码范围', value: chunk.pageRange });
+  }
+  if (chunk.tableRef) {
+    rows.push({ label: '表格引用', value: chunk.tableRef });
+  }
+  if (chunk.fallbackReason) {
+    rows.push({ label: '兜底原因', value: chunk.fallbackReason });
+  }
+  return rows;
+});
+
+/** 当前激活的切片过滤页签（兜底片与父片·孤儿共用一套排版） */
+const activeChunkPane = computed<ChunkPane>(() =>
+  activeTab.value === 'parents' ? parentPane : fallbackPane,
+);
+
+/** 切片过滤页签的一行 */
+interface ChunkRow {
+  key: string;
+  seqText: string;
+  typeText: string;
+  meta: string;
+  text: string;
+}
+
+/** 过滤页签的行：类型标签与说明尽量取详情侧的片（来源元素数只在详情里有） */
+function chunkRowsOf(items: StageContentItem[]): ChunkRow[] {
+  return items.map((item, index) => {
+    const key = itemKeyOf(item, index);
+    const chunk = chunkByKey.value.get(key);
+    const extra = item.extra ?? {};
+    const order = statNumber(extra.orderNo as number | null);
+    if (chunk === undefined) {
+      return {
+        key,
+        seqText: order === null ? '' : `#${order}`,
+        typeText: elementTypeLabel(item.type),
+        meta: (item.display ?? '').trim() === '' ? '（无内容）' : '',
+        text: (item.display ?? '').trim(),
+      };
+    }
+    return {
+      key,
+      seqText: `#${chunk.orderNo ?? order ?? index + 1}`,
+      typeText: chunkBadgeOf(chunk),
+      meta: chunkMetaOf(chunk, null),
+      text: (chunk.content ?? item.display ?? '').trim(),
+    };
+  });
+}
+
+/** 过滤页签的行（按当前页签取数） */
+const activeChunkRows = computed<ChunkRow[]>(() => chunkRowsOf(activeChunkPane.value.items));
+
+/** 过滤页签的页码总数 */
+const activeChunkPanePages = computed(() =>
+  Math.max(1, Math.ceil(activeChunkPane.value.total / PAGE_SIZE)),
+);
+
+/** 过滤页签的空态文案 */
+const activeChunkEmptyText = computed(() =>
+  activeTab.value === 'parents'
+    ? '本次运行没有父片与孤儿片'
+    : '本次运行没有兜底片（未触发超长降级切分）',
+);
+
+/** 过滤页签的加载文案 */
+const activeChunkLoadingText = computed(() =>
+  activeTab.value === 'parents' ? '父片与孤儿片加载中…' : '兜底片加载中…',
+);
+
+/** 过滤页签翻页 */
+function goChunkPanePage(next: number): void {
+  activeChunkPane.value.go(next);
+}
+
 // ---- 左栏：清洗后的正文 / 右栏：剔除内容与字段（预处理环节用） ----
 
 /** 清洗后正文的档位：只看保留（默认）/ 看被剔除（被剔除的块灰化划线留在原位） */
@@ -1308,22 +1904,31 @@ const cleanedMode = ref<CleanedMode>('kept');
 /** 保留块数（清洗后正文的栏头计数） */
 const cleanedKeptCount = computed(() => docAllBlocks.value.length - docDroppedCount.value);
 
-/** 左栏是否是文档形态（组装后的文档与清洗后的正文共用一套排版与定位） */
+/** 左栏是否是文档形态（组装后的文档、清洗后的正文与切片结果共用一套排版与定位） */
 const isDocPane = computed(
-  () => leftPaneKind.value === 'assembly' || leftPaneKind.value === 'cleaned',
+  () =>
+    leftPaneKind.value === 'assembly' ||
+    leftPaneKind.value === 'cleaned' ||
+    leftPaneKind.value === 'chunks',
 );
 
 /** 文档形态左栏的加载文案 */
-const docLoadingText = computed(() =>
-  leftPaneKind.value === 'cleaned' ? '清洗结果加载中…' : '组装产物加载中…',
-);
+const docLoadingText = computed(() => {
+  if (leftPaneKind.value === 'cleaned') {
+    return '清洗结果加载中…';
+  }
+  return leftPaneKind.value === 'chunks' ? '切片结果加载中…' : '组装产物加载中…';
+});
 
 /** 文档形态左栏的空态文案 */
-const docEmptyText = computed(() =>
-  leftPaneKind.value === 'cleaned'
-    ? '本次运行没有可展示的清洗结果'
-    : '本次运行没有可展示的组装产物内容',
-);
+const docEmptyText = computed(() => {
+  if (leftPaneKind.value === 'cleaned') {
+    return '本次运行没有可展示的清洗结果';
+  }
+  return leftPaneKind.value === 'chunks'
+    ? '本次运行没有可展示的切片结果'
+    : '本次运行没有可展示的组装产物内容';
+});
 
 /** 剔除内容：页码与数据（与「清洗结果」各自独立取数） */
 const excludedPage = ref(1);
@@ -1591,13 +2196,15 @@ const conclusionText = computed(() => {
 });
 
 /** 解析环节的专属摘要字段（其余环节没有该字段） */
-function parseSummaryOf(value: ParseDetail | StructureDetail | PreprocessDetail): string | null {
+function parseSummaryOf(
+  value: ParseDetail | StructureDetail | PreprocessDetail | ChunkDetail,
+): string | null {
   return 'parseSummary' in value ? value.parseSummary : null;
 }
 
 /** 预处理详情（用只属于它的 elements 字段判别；其余环节为 null） */
 function preprocessDetailOf(
-  value: ParseDetail | StructureDetail | PreprocessDetail | null,
+  value: ParseDetail | StructureDetail | PreprocessDetail | ChunkDetail | null,
 ): PreprocessDetail | null {
   return value !== null && 'elements' in value ? value : null;
 }
@@ -1636,6 +2243,15 @@ function tabCount(key: ResultTabKey): number {
   }
   if (key === 'fields') {
     return fieldCount();
+  }
+  if (key === 'fallback') {
+    return chunkStatCount('fallbackCount') ?? fallbackPane.total;
+  }
+  if (key === 'parents') {
+    return (chunkStatCount('parentCount') ?? 0) + (chunkStatCount('orphanCount') ?? 0);
+  }
+  if (key === 'sources') {
+    return 0;
   }
   return steps.value.length;
 }
@@ -1909,7 +2525,15 @@ async function revealDocBlock(key: string): Promise<void> {
  */
 async function revealRightRow(key: string): Promise<void> {
   const onPage = rawItems.value.some((item, index) => itemKeyOf(item, index) === key);
-  if (!onPage && elementTotal.value === docAllBlocks.value.length) {
+  if (!onPage && leftPaneKind.value === 'chunks') {
+    // 切片：左栏按阅读序重排，行的页序与左栏位置不同，换页要用片自己的集合内顺序号算
+    const order = chunkOrderOf(key);
+    const targetPage = order === null ? page.value : Math.floor((order - 1) / PAGE_SIZE) + 1;
+    if (targetPage !== page.value) {
+      page.value = targetPage;
+      await loadItems();
+    }
+  } else if (!onPage && elementTotal.value === docAllBlocks.value.length) {
     const index = docAllBlocks.value.findIndex((block) => block.key === key);
     const targetPage = index < 0 ? page.value : Math.floor(index / PAGE_SIZE) + 1;
     if (targetPage !== page.value) {
@@ -2042,6 +2666,13 @@ watch(activeTab, (tab) => {
   }
 });
 
+// 切到切片过滤页签时按需取数（兜底片与父片·孤儿各自一份）
+watch(activeTab, (tab) => {
+  if ((tab === 'fallback' || tab === 'parents') && !activeChunkPane.value.loaded) {
+    void activeChunkPane.value.load();
+  }
+});
+
 /** 上一次已落到默认页签的环节（null = 抽屉当前没打开） */
 let tabStage: string | null = null;
 
@@ -2076,6 +2707,10 @@ watch(
     excludedTotal.value = 0;
     excludedError.value = '';
     excludedLoaded.value = false;
+    // 切片结果回到"全部"档；两个切片过滤页签重新按需取数
+    chunkMode.value = 'all';
+    fallbackPane.reset();
+    parentPane.reset();
     // 打开或换环节时落到该环节的默认页签；同一环节内换运行保留用户选的页签
     if (tabStage !== props.stage) {
       activeTab.value = defaultTab.value;
@@ -2636,6 +3271,14 @@ onBeforeUnmount(() => {
   color: var(--kb-text-3);
   font-size: 10px;
   font-weight: 600;
+}
+
+/* 切片行号（切片页签与两个过滤页签共用） */
+.parse-drawer-chunk-seq {
+  flex: none;
+  color: var(--kb-text-1);
+  font-size: 12px;
+  font-weight: 650;
 }
 
 /* 剔除内容行的正文：保留换行，长文本可读 */
