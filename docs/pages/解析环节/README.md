@@ -37,5 +37,6 @@
 - **索引页与评测页按 `knowledgeBaseId` 的接口尚未做归属校验**（见 `../知识库列表/README.md` 的待定项）。
 - **`CapabilitySnapshot.table` 无人写入**：产物字段、血缘 VO 与前端展示都已就位，但解析器只写 `parserName` / `parserVersion`，三个能力项（`ocr` / `layout` / `table`）恒为空；是否在接入能力前先补一个「未接入」显式取值尚未决定。
 - **`ParseElement.headerRepeated` 无赋值点**：字段与下游读取（组装环节续表判定）都在，目前没有任何解析器写它；是否补写或从契约中移除尚未决定。
-- **解析环节的模型能力暂不接入**：`CapabilityRegistry` 与三个 provider 接口是预留位，当前零实现，规则路径（`TableCandidateDetector` / `RuleLines`）是唯一在跑的实现；接入时机与形态（sidecar / 自研）尚未决定。
-- **解析阈值只存在于代码**：`ParseProperties` 的阈值（行容差、页级判定、表格四条）没有落到 `application.yml`，改阈值要改代码重发版；是否落配置项尚未决定。
+- **解析环节的模型能力暂不接入**：`CapabilityRegistry` 与三个 provider 接口是预留位，当前零实现，规则路径（`TableCandidateDetector` / `RuleLines` / `ProjectionPageLayoutAnalyzer`）是唯一在跑的实现；接入时机与形态（sidecar / 自研）尚未决定。
+- **分栏能力只到端口、没有实现选择**：`PageLayoutAnalyzer` 当前只有投影法规则实现，没有按开关切换实现的能力；是否补 `PageLayoutRegistry`（与 `CapabilityRegistry` / `StructureJudgeRegistry` 同范式）尚未决定。PDFBox 自带的文章线索（beads，仅当文件声明时存在）是否接入也尚未决定。
+- **解析阈值只存在于代码**：`ParseProperties` 的阈值（行容差、页级判定、表格四条、分栏六条）没有落到 `application.yml`，改阈值要改代码重发版；是否落配置项尚未决定。
