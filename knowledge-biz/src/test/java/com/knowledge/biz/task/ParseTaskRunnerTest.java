@@ -19,7 +19,7 @@ import com.knowledge.common.exception.KnowledgeException;
 import com.knowledge.filecenter.service.FileStorage;
 import com.knowledge.worker.parser.ParseContext;
 import com.knowledge.worker.parser.ParseProperties;
-import com.knowledge.worker.parser.impl.ParsePipeline;
+import com.knowledge.worker.parser.ParsePipeline;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

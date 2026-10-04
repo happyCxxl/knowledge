@@ -1,6 +1,5 @@
 package com.knowledge.worker.parser;
 
-import com.knowledge.worker.parser.layout.LayoutProperties;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
@@ -84,10 +83,4 @@ public class ParseProperties {
 
     /** 分栏：最大栏数 */
     private int columnMaxCount = 4;
-
-    /** 分栏与阅读顺序阈值（版面端口输入） */
-    public LayoutProperties layout() {
-        return new LayoutProperties(columnGutterMinWidth, columnGutterMaxCoverage, columnMinShare,
-                columnMinChars, columnMinPageChars, columnMaxCount);
-    }
 }
