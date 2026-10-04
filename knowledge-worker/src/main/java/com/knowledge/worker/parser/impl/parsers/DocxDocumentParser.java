@@ -68,7 +68,7 @@ public class DocxDocumentParser extends AbstractPoiDocumentParser {
             }
             // 页眉页脚部件（DOCX header/footer parts）：独立产出 HEADER/FOOTER 元素，处置归预处理环节
             appendDocxHeaderFooter(source, doc, fileId);
-            source.setUnitCount(1);
+            fillVirtualPageMetrics(source, context.getProperties().getOfficePageChars());
         } catch (Exception e) {
             log.warn("DOCX 解析失败, fileId={}", fileId, e);
             throw new IllegalStateException("DOCX 解析失败: " + e.getMessage(), e);

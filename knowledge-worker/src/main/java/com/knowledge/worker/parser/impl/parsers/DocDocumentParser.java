@@ -74,7 +74,7 @@ public class DocDocumentParser extends AbstractPoiDocumentParser {
                 source.getElements().add(toDocTableElement(table, tableIndex, fileId));
                 tableIndex++;
             }
-            source.setUnitCount(1);
+            fillVirtualPageMetrics(source, context.getProperties().getOfficePageChars());
         } catch (Exception e) {
             log.warn("DOC 解析失败, fileId={}", fileId, e);
             throw new IllegalStateException("DOC 解析失败: " + e.getMessage(), e);

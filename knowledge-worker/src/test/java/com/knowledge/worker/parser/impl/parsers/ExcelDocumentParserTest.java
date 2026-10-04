@@ -9,13 +9,18 @@ import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.util.CellRangeAddress;
+import org.apache.poi.xssf.usermodel.XSSFClientAnchor;
+import org.apache.poi.xssf.usermodel.XSSFDrawing;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.Test;
 
+import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.util.List;
+import javax.imageio.ImageIO;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -173,6 +178,52 @@ class ExcelDocumentParserTest {
             assertTrue(cellTexts(source).stream().noneMatch(text -> text.contains("WEBSERVICE")),
                     () -> "cells=" + cellTexts(source));
         }
+    }
+
+    @Test
+    void excelShouldFillSheetMetricsIncludingEmptySheet() throws Exception {
+        try (XSSFWorkbook workbook = new XSSFWorkbook()) {
+            Sheet first = workbook.createSheet("有数据");
+            Row header = first.createRow(0);
+            header.createCell(0).setCellValue("项目");
+            header.createCell(1).setCellValue("金额");
+            workbook.createSheet("空表");
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            workbook.write(out);
+
+            ParseSource source = parser.parse(context(out.toByteArray(), MIME_XLSX));
+
+            // 每 worksheet = 1 个判定单元；空 sheet 单元字符数为 0
+            assertEquals(2, source.getUnitCount());
+            assertTrue(source.getPageMetrics().get(0).getCharCount() > 0);
+            assertEquals(0, source.getPageMetrics().get(1).getCharCount());
+            assertEquals(0, source.getPageMetrics().get(1).getImageCount());
+        }
+    }
+
+    @Test
+    void sheetPictureShouldBeCountedInMetrics() throws Exception {
+        try (XSSFWorkbook workbook = new XSSFWorkbook()) {
+            Sheet sheet = workbook.createSheet("带图");
+            sheet.createRow(0).createCell(0).setCellValue("见图");
+            int pictureIndex = workbook.addPicture(pngBytes(), Workbook.PICTURE_TYPE_PNG);
+            XSSFDrawing drawing = (XSSFDrawing) sheet.createDrawingPatriarch();
+            drawing.createPicture(new XSSFClientAnchor(0, 0, 0, 0, 1, 1, 3, 5), pictureIndex);
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            workbook.write(out);
+
+            ParseSource source = parser.parse(context(out.toByteArray(), MIME_XLSX));
+
+            assertEquals(1, source.getPageMetrics().getFirst().getImageCount());
+        }
+    }
+
+    /** 8×8 PNG（图片单元用例的输入） */
+    private byte[] pngBytes() throws Exception {
+        BufferedImage image = new BufferedImage(8, 8, BufferedImage.TYPE_INT_RGB);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        ImageIO.write(image, "png", out);
+        return out.toByteArray();
     }
 
     @Test

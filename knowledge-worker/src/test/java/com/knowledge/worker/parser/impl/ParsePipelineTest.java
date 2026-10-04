@@ -130,13 +130,23 @@ class ParsePipelineTest {
         return metric;
     }
 
-    /** 文字极少页：有文本但少于扫描页门槛（疑似图片页，仅告警） */
+    /** 文字极少页：有文本但少于扫描页门槛且含图片（疑似图片单元，仅告警） */
     private PageMetric sparseTextPage(int page) {
         PageMetric metric = new PageMetric();
         metric.setPage(page);
         metric.setCharCount(10);
         metric.setGarbledRatio(0);
         metric.setTextAreaRatio(0.3);
+        metric.setImageCount(1);
+        return metric;
+    }
+
+    /** Office 图片单元：整单元无文本 + 内嵌图片（Word 全图档 / 只放图的 sheet） */
+    private PageMetric imageOnlyUnit(int unit) {
+        PageMetric metric = new PageMetric();
+        metric.setPage(unit);
+        metric.setCharCount(0);
+        metric.setImageCount(1);
         return metric;
     }
 
@@ -339,6 +349,28 @@ class ParsePipelineTest {
         assertEquals(PipelineTaskStatus.SUCCESS.name(), outcome.getSuggestedStatus());
         assertEquals(0, outcome.getFailedUnits());
         assertEquals("IMAGE_PAGE_SUSPECTED", outcome.getParseResult().getQuality().getWarnings().getFirst().getCode());
+    }
+
+    @Test
+    void officeImageOnlyUnitShouldFailScannedUnsupported() {
+        // Office 单元无文本但有图片：与扫描页同口径，计失败单元（OCR 未接入）
+        ParseOutcome outcome = pipeline(fakeParser(List.of(imageOnlyUnit(1)), List.of()))
+                .run(context("application/pdf"));
+
+        assertEquals(PipelineTaskStatus.FAILED.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskErrorCode.SCANNED_UNSUPPORTED.name(), outcome.getErrorCode());
+    }
+
+    @Test
+    void emptyUnitAmongSheetsShouldKeepGateEffective() {
+        // 3 个单元：1 个空 sheet + 2 个有内容 → 空白单元从分母剔除，其余正常判成功
+        List<PageMetric> metrics = List.of(blankPage(1), normalPage(2), normalPage(3));
+
+        ParseOutcome outcome = pipeline(fakeParser(metrics, List.of())).run(context("application/pdf"));
+
+        assertEquals(PipelineTaskStatus.SUCCESS.name(), outcome.getSuggestedStatus());
+        assertEquals(0, outcome.getFailedUnits());
+        assertEquals(1, outcome.getParseResult().getQuality().getBlankPages().size());
     }
 
     @Test

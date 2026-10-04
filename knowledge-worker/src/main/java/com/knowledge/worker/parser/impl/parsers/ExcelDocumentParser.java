@@ -13,8 +13,11 @@ import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.DataFormatter;
+import org.apache.poi.ss.usermodel.Drawing;
 import org.apache.poi.ss.usermodel.FormulaEvaluator;
+import org.apache.poi.ss.usermodel.Picture;
 import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Shape;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.util.CellRangeAddress;
@@ -23,8 +26,11 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Component;
 
 import java.io.ByteArrayInputStream;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Excel（XLS/XLSX）原生结构解析器（POI 路径）。
@@ -55,10 +61,15 @@ public class ExcelDocumentParser extends AbstractPoiDocumentParser {
             formatter.setUseCachedValuesForFormulaCells(true);
             FormulaEvaluator evaluator = workbook.getCreationHelper().createFormulaEvaluator();
             int sheetCount = workbook.getNumberOfSheets();
+            List<String> sheetTexts = new ArrayList<>();
+            List<Integer> sheetImages = new ArrayList<>();
             for (int s = 0; s < sheetCount; s++) {
-                source.getElements().add(toSheetTableElement(workbook, formatter, evaluator, s, fileId));
+                ParseElement tableElement = toSheetTableElement(workbook, formatter, evaluator, s, fileId);
+                source.getElements().add(tableElement);
+                sheetTexts.add(tableText(tableElement));
+                sheetImages.add(pictureCount(workbook.getSheetAt(s)));
             }
-            source.setUnitCount(sheetCount);
+            fillUnitMetrics(source, sheetTexts, sheetImages);
         } catch (Exception e) {
             log.warn("Excel 解析失败, fileId={}", fileId, e);
             throw new IllegalStateException("Excel 解析失败: " + e.getMessage(), e);
@@ -160,6 +171,29 @@ public class ExcelDocumentParser extends AbstractPoiDocumentParser {
                     cell.getAddress(), e);
             return "";
         }
+    }
+
+    /** sheet 已产出单元格的文本（单元指标输入） */
+    private static String tableText(ParseElement tableElement) {
+        return NullUtil.isNull(tableElement.getCells()) ? "" : tableElement.getCells().stream()
+                .map(ParseElement::getText)
+                .filter(StrUtil::isNotBlank)
+                .collect(Collectors.joining("\n"));
+    }
+
+    /** sheet 内嵌图片数（图形层里的图片形状；图表不计） */
+    private static int pictureCount(Sheet sheet) {
+        Drawing<?> drawing = sheet.getDrawingPatriarch();
+        if (NullUtil.isNull(drawing)) {
+            return 0;
+        }
+        int count = 0;
+        for (Shape shape : drawing) {
+            if (shape instanceof Picture) {
+                count++;
+            }
+        }
+        return count;
     }
 
     /** 行列坐标 → 单键（高 32 位行、低 32 位列）。 */

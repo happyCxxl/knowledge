@@ -24,4 +24,7 @@ public class PageMetric {
 
     /** 图片 bbox 面积 ÷ 页面面积（0~1；PDF 逐页统计，其余路径不填） */
     private double imageAreaRatio;
+
+    /** 内嵌图片数（Office 单元统计；PDF 的图片覆盖走 imageAreaRatio，两条口径互斥回填） */
+    private int imageCount;
 }

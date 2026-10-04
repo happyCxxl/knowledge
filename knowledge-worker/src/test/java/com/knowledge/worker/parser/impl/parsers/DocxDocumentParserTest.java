@@ -2,9 +2,11 @@ package com.knowledge.worker.parser.impl.parsers;
 import com.knowledge.common.domain.input.FileReference;
 import com.knowledge.common.domain.parse.ParseElement;
 import com.knowledge.common.domain.parse.ParseSource;
+import com.knowledge.common.domain.parse.signal.PageMetric;
 import com.knowledge.common.enums.parse.ElementType;
 import com.knowledge.worker.parser.ParseContext;
 import com.knowledge.worker.parser.ParseProperties;
+import org.apache.poi.util.Units;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.apache.poi.xwpf.usermodel.XWPFFooter;
 import org.apache.poi.xwpf.usermodel.XWPFHeader;
@@ -17,10 +19,12 @@ import org.junit.jupiter.api.Test;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTcPr;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STMerge;
 
+import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.math.BigInteger;
 import java.util.List;
+import javax.imageio.ImageIO;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -213,6 +217,57 @@ class DocxDocumentParserTest {
             assertNotNull(bodyElement);
             assertNotEquals(Boolean.TRUE, bodyElement.getTocCandidate());
         }
+    }
+
+    @Test
+    void docxShouldFillUnitMetrics() throws Exception {
+        ParseSource source = parser.parse(context(buildDocx()));
+
+        assertEquals(1, source.getUnitCount());
+        PageMetric metric = source.getPageMetrics().getFirst();
+        assertTrue(metric.getCharCount() > 0);
+        assertEquals(0, metric.getImageCount());
+        assertEquals(0.0, metric.getGarbledRatio());
+    }
+
+    @Test
+    void longDocxShouldSplitUnitsByCharBudget() throws Exception {
+        try (XWPFDocument doc = new XWPFDocument()) {
+            doc.createParagraph().createRun().setText("估".repeat(6001));
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            doc.write(out);
+
+            ParseSource source = parser.parse(context(out.toByteArray()));
+
+            // Azure 页单位口径：3000 字符 = 1 个判定单元 → 6001 字符 = 3 个单元
+            assertEquals(3, source.getUnitCount());
+            assertEquals(3, source.getPageMetrics().size());
+        }
+    }
+
+    @Test
+    void imageOnlyDocxShouldReportImageUnit() throws Exception {
+        try (XWPFDocument doc = new XWPFDocument()) {
+            XWPFRun run = doc.createParagraph().createRun();
+            run.addPicture(new ByteArrayInputStream(pngBytes()), XWPFDocument.PICTURE_TYPE_PNG, "p.png",
+                    Units.toEMU(80), Units.toEMU(80));
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            doc.write(out);
+
+            ParseSource source = parser.parse(context(out.toByteArray()));
+
+            PageMetric metric = source.getPageMetrics().getFirst();
+            assertEquals(0, metric.getCharCount());
+            assertEquals(1, metric.getImageCount());
+        }
+    }
+
+    /** 8×8 PNG（图片单元用例的输入） */
+    private byte[] pngBytes() throws Exception {
+        BufferedImage image = new BufferedImage(8, 8, BufferedImage.TYPE_INT_RGB);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        ImageIO.write(image, "png", out);
+        return out.toByteArray();
     }
 
     @Test

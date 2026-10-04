@@ -39,7 +39,9 @@
 - **`ParseElement.headerRepeated` 无赋值点**：字段与下游读取（组装环节续表判定）都在，目前没有任何解析器写它；是否补写或从契约中移除尚未决定。
 - **解析环节的模型能力暂不接入**：`CapabilityRegistry` 与三个 provider 接口是预留位，当前零实现，规则路径（`TableCandidateDetector` / `RuleLines` / `ProjectionPageLayoutAnalyzer`）是唯一在跑的实现；接入时机与形态（sidecar / 自研）尚未决定。
 - **分栏能力只到端口、没有实现选择**：`PageLayoutAnalyzer` 当前只有投影法规则实现，没有按开关切换实现的能力；是否补 `PageLayoutRegistry`（与 `CapabilityRegistry` / `StructureJudgeRegistry` 同范式）尚未决定。PDFBox 自带的文章线索（beads，仅当文件声明时存在）是否接入也尚未决定。
-- **解析阈值只存在于代码**：`ParseProperties` 的阈值（行容差、页级判定、表格四条、分栏六条、扫描页图片占比）没有落到 `application.yml`，改阈值要改代码重发版；是否落配置项尚未决定。
+- **解析阈值只存在于代码**：`ParseProperties` 的阈值（行容差、页级判定、表格四条、分栏六条、扫描页图片占比、Office 单元折算）没有落到 `application.yml`，改阈值要改代码重发版；是否落配置项尚未决定。
+- **PPT / PPTX 未接入解析**：`FileFormat` 已登记两种格式，但没有对应解析器（未进启用白名单）；接入后是否按 Azure 的 slide 页单位口径折算单元尚未决定。
+- **Word 虚拟单元与真实页不等价**：DOC / DOCX 按 3000 字符折算判定单元，页码与真实排版页对不上（OOXML 不存分页）；预览定位是否改用「段落序号」而非页码尚未决定。
 - **可打印 ASCII 乱码是盲区**：乱码判据只认替换字符 / 私用区 / 未分配码点，字体缺 ToUnicode 时错位出的 `ÿþ`、`¤` 这类合法码点会漏判；是否补「文档级字符集偏离」口径尚未决定。
 - **空白页与纯矢量页不区分**：无文本也无图片的页面一律按空白页处理（矢量图表页也在内）；是否用矢量覆盖再细分尚未决定。
 - **小文档门槛偏严**：1~3 页文档只要有 1 页不可读就落到 `RATIO_BELOW_THRESHOLD`（90% 比例在小分母上等价零容错）；是否对短文档单独放宽尚未决定。

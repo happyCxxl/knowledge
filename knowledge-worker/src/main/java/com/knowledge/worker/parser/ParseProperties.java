@@ -22,6 +22,9 @@ public class ParseProperties {
     /** 扫描页判定：图片覆盖面积占比门槛（整页无文本时，达到该值判扫描页，低于该值判空白页） */
     private double scanPageImageRatio = 0.5;
 
+    /** Office 单元折算：Word 每多少非空白字符 = 1 个判定单元（Azure 文档智能页单位口径：3000 字符/页） */
+    private int officePageChars = 3000;
+
     /** 乱码页判定：非 CJK/ASCII/常用中文标点字符占比 */
     private double garbledRateThreshold = 0.2;
 

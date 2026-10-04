@@ -1,13 +1,19 @@
 package com.knowledge.worker.parser.impl.parsers;
 
+import cn.hutool.core.util.StrUtil;
 import com.knowledge.common.domain.parse.ParseElement;
 import com.knowledge.common.domain.parse.ParseSource;
+import com.knowledge.common.domain.parse.signal.PageMetric;
 import com.knowledge.common.domain.parse.signal.ParseFact;
+import com.knowledge.common.enums.parse.ElementType;
 import com.knowledge.common.enums.parse.SignalType;
+import com.knowledge.common.utils.TextUtil;
 import com.knowledge.worker.parser.DocumentParserPort;
 import com.knowledge.worker.parser.ParseContext;
 
 import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * POI 系解析器基类（package-private，非 Spring Bean）：能力标识、parse 骨架
@@ -62,5 +68,80 @@ abstract class AbstractPoiDocumentParser implements DocumentParserPort {
         fact.setRegion(region);
         fact.setEvidence(evidence);
         return fact;
+    }
+
+    /**
+     * Word 系单元指标：整档正文文本按 pageChars 折算虚拟页（Azure 文档智能页单位口径），
+     * 逐单元回填字符数、乱码率与内嵌图片数（图片无页归属，统一记在首个单元）。
+     */
+    protected void fillVirtualPageMetrics(ParseSource source, int pageChars) {
+        String text = bodyText(source);
+        List<String> pages = new ArrayList<>();
+        StringBuilder page = new StringBuilder();
+        int budget = 0;
+        for (int i = 0; i < text.length(); ) {
+            int codePoint = text.codePointAt(i);
+            page.appendCodePoint(codePoint);
+            if (!Character.isWhitespace(codePoint) && ++budget >= pageChars) {
+                pages.add(page.toString());
+                page = new StringBuilder();
+                budget = 0;
+            }
+            i += Character.charCount(codePoint);
+        }
+        if (!page.isEmpty() || pages.isEmpty()) {
+            pages.add(page.toString());
+        }
+        List<Integer> imageCounts = new ArrayList<>();
+        for (int i = 0; i < pages.size(); i++) {
+            imageCounts.add(i == 0 ? imageCount(source) : 0);
+        }
+        fillUnitMetrics(source, pages, imageCounts);
+    }
+
+    /** 逐单元指标回填（Excel 每 worksheet = 1 单元）：单元数即判定单元数 */
+    protected void fillUnitMetrics(ParseSource source, List<String> unitTexts, List<Integer> unitImageCounts) {
+        List<PageMetric> metrics = new ArrayList<>();
+        for (int i = 0; i < unitTexts.size(); i++) {
+            String text = StrUtil.blankToDefault(unitTexts.get(i), "");
+            PageMetric metric = new PageMetric();
+            metric.setPage(i + 1);
+            metric.setCharCount(nonBlankCount(text));
+            metric.setGarbledRatio(TextUtil.garbledRatio(text));
+            metric.setImageCount(i < unitImageCounts.size() ? unitImageCounts.get(i) : 0);
+            metrics.add(metric);
+        }
+        source.setPageMetrics(metrics);
+        source.setUnitCount(metrics.size());
+    }
+
+    /** 正文文本：正文元素的文本按顺序拼接（页眉页脚不计入单元指标） */
+    protected static String bodyText(ParseSource source) {
+        return source.getElements().stream()
+                .filter(element -> !ElementType.HEADER.name().equals(element.getType())
+                        && !ElementType.FOOTER.name().equals(element.getType()))
+                .map(ParseElement::getText)
+                .filter(StrUtil::isNotBlank)
+                .collect(Collectors.joining("\n"));
+    }
+
+    /** 嵌入图片元素数 */
+    protected static int imageCount(ParseSource source) {
+        return (int) source.getElements().stream()
+                .filter(element -> ElementType.IMAGE.name().equals(element.getType()))
+                .count();
+    }
+
+    /** 非空白码点数 */
+    private static int nonBlankCount(String text) {
+        int count = 0;
+        for (int i = 0; i < text.length(); ) {
+            int codePoint = text.codePointAt(i);
+            if (!Character.isWhitespace(codePoint)) {
+                count++;
+            }
+            i += Character.charCount(codePoint);
+        }
+        return count;
     }
 }

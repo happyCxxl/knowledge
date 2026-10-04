@@ -1,6 +1,7 @@
 package com.knowledge.worker.parser.impl;
 
 import com.knowledge.common.domain.parse.ParseSource;
+import com.knowledge.common.domain.parse.signal.PageMetric;
 import com.knowledge.common.domain.parse.signal.ParseFact;
 import com.knowledge.common.domain.parse.signal.Signal;
 import com.knowledge.common.enums.parse.SignalSubtype;
@@ -32,29 +33,26 @@ public class SignalDetectorImpl implements SignalDetector {
         }
         ParseProperties p = context.getProperties();
 
-        // ① 页级指标 → 阈值信号（先便宜后贵：整页无文本 → 文字极少 → 乱码率 → 文字占比）
+        // ① 单元级指标 → 阈值信号（先便宜后贵：整单元无文本 → 文字极少/文字占比低 → 乱码率）
         if (NullUtil.isNotNull(nativeSource.getPageMetrics())) {
             for (var metric : nativeSource.getPageMetrics()) {
                 String page = "page " + metric.getPage();
+                String imageEvidence = imageEvidence(metric, p);
                 if (metric.getCharCount() <= 0) {
-                    // 整页无文本：按图片覆盖分流扫描页与空白页
-                    if (metric.getImageAreaRatio() >= p.getScanPageImageRatio()) {
+                    // 整单元无文本：按图片口径分流扫描单元与空白单元
+                    if (hasImage(metric, p)) {
                         signals.add(Signal.of(SignalType.OCR_TEXT, page,
-                                "整页无文本且图片覆盖高（扫描页）",
-                                String.format("image=%.2f≥%.2f", metric.getImageAreaRatio(), p.getScanPageImageRatio()),
-                                SignalSubtype.SCANNED));
+                                "整单元无文本且含图片（扫描单元）", imageEvidence, SignalSubtype.SCANNED));
                     } else {
                         signals.add(Signal.of(SignalType.OCR_TEXT, page,
-                                "整页无文本且无图片覆盖（空白页）",
-                                String.format("image=%.2f<%.2f", metric.getImageAreaRatio(), p.getScanPageImageRatio()),
-                                SignalSubtype.BLANK));
+                                "整单元无文本且无图片（空白单元）", imageEvidence, SignalSubtype.BLANK));
                     }
-                } else if (metric.getCharCount() < p.getScanPageMinChars()
-                        || metric.getTextAreaRatio() < p.getTextAreaRatioThreshold()) {
+                } else if ((metric.getTextAreaRatio() > 0
+                        && metric.getTextAreaRatio() < p.getTextAreaRatioThreshold())
+                        || (metric.getImageCount() > 0 && metric.getCharCount() < p.getScanPageMinChars())) {
                     signals.add(Signal.of(SignalType.OCR_IMAGE, page,
-                            "文字极少或文字占比低（疑似图片页）",
-                            metric.getCharCount() + "<" + p.getScanPageMinChars() + " 或 "
-                                    + String.format("%.2f<%.2f", metric.getTextAreaRatio(), p.getTextAreaRatioThreshold()),
+                            "文字极少或文字占比低（疑似图片单元）",
+                            "chars=" + metric.getCharCount() + "," + imageEvidence,
                             SignalSubtype.IMAGE_LOW_RATIO));
                 } else if (metric.getGarbledRatio() > p.getGarbledRateThreshold()) {
                     signals.add(Signal.of(SignalType.OCR_TEXT, page,
@@ -72,6 +70,20 @@ public class SignalDetectorImpl implements SignalDetector {
             }
         }
         return signals;
+    }
+
+    /**
+     * 单元是否按"图片单元"处理：PDF 看图片覆盖面积，Office 看内嵌图片数
+     * （两条口径由解析器互斥回填：PDF 只填面积、Office 只填图片数）。
+     */
+    private boolean hasImage(PageMetric metric, ParseProperties properties) {
+        return metric.getImageAreaRatio() >= properties.getScanPageImageRatio() || metric.getImageCount() > 0;
+    }
+
+    /** 图片口径证据文案（面积门槛与内嵌图片数） */
+    private String imageEvidence(PageMetric metric, ParseProperties properties) {
+        return String.format("imageArea=%.2f(≥%.2f),imageCount=%d",
+                metric.getImageAreaRatio(), properties.getScanPageImageRatio(), metric.getImageCount());
     }
 
     /** 解析事实类型 → 信号子类型（OCR_IMAGE 事实均为嵌入图片；无对应子类型返回 null）。 */
