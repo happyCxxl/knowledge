@@ -40,3 +40,5 @@
 - **解析环节的模型能力暂不接入**：`CapabilityRegistry` 与三个 provider 接口是预留位，当前零实现，规则路径（`TableCandidateDetector` / `RuleLines` / `ProjectionPageLayoutAnalyzer`）是唯一在跑的实现；接入时机与形态（sidecar / 自研）尚未决定。
 - **分栏能力只到端口、没有实现选择**：`PageLayoutAnalyzer` 当前只有投影法规则实现，没有按开关切换实现的能力；是否补 `PageLayoutRegistry`（与 `CapabilityRegistry` / `StructureJudgeRegistry` 同范式）尚未决定。PDFBox 自带的文章线索（beads，仅当文件声明时存在）是否接入也尚未决定。
 - **解析阈值只存在于代码**：`ParseProperties` 的阈值（行容差、页级判定、表格四条、分栏六条）没有落到 `application.yml`，改阈值要改代码重发版；是否落配置项尚未决定。
+- **Excel 公式的取值取向**：当前先求值、拿不到才回落文件里的缓存值，于是 `NOW()` / `RAND()` 这类易变函数给出的是重新计算值而非保存时的显示值；是否改为缓存值优先尚未决定。
+- **`.xls` 公式的缓存值无法辨别**：HSSF 的公式记录总带一个数值缓存（从未计算过就是 0），与真实结果区分不开；是否对旧格式一律求值尚未决定。

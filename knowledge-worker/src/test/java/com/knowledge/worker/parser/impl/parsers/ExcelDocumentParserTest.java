@@ -6,6 +6,7 @@ import com.knowledge.common.enums.parse.ElementType;
 import com.knowledge.worker.parser.ParseContext;
 import com.knowledge.worker.parser.ParseProperties;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
+import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.util.CellRangeAddress;
@@ -14,6 +15,7 @@ import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -62,6 +64,14 @@ class ExcelDocumentParserTest {
         }
     }
 
+    /** 全部表格单元格文本 */
+    private List<String> cellTexts(ParseSource source) {
+        return source.getElements().stream()
+                .filter(e -> ElementType.TABLE.name().equals(e.getType()))
+                .flatMap(e -> e.getCells().stream())
+                .map(ParseElement::getText).toList();
+    }
+
     @Test
     void xlsxShouldParseSheetTableWithMerges() throws Exception {
         ParseSource source = parser.parse(context(buildXlsx(), MIME_XLSX));
@@ -101,6 +111,67 @@ class ExcelDocumentParserTest {
             assertEquals(1, source.getUnitCount());
             assertEquals(1, source.getElements().size());
             assertTrue(source.getElements().getFirst().getCells().size() >= 2);
+        }
+    }
+
+    @Test
+    void formulaCellShouldUseCachedValueInsteadOfFormulaText() throws Exception {
+        try (XSSFWorkbook workbook = new XSSFWorkbook()) {
+            Sheet sheet = workbook.createSheet("S1");
+            Row header = sheet.createRow(0);
+            header.createCell(0).setCellValue("项目");
+            header.createCell(1).setCellValue("金额");
+            Row row = sheet.createRow(1);
+            row.createCell(0).setCellValue("合计");
+            Cell formula = row.createCell(1);
+            formula.setCellFormula("SUM(2,3)");
+            // 算一次写入缓存值，模拟 Excel 保存时的显示值
+            workbook.getCreationHelper().createFormulaEvaluator().evaluateFormulaCell(formula);
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            workbook.write(out);
+
+            ParseSource source = parser.parse(context(out.toByteArray(), MIME_XLSX));
+
+            assertTrue(cellTexts(source).contains("5"), () -> "cells=" + cellTexts(source));
+            assertTrue(cellTexts(source).stream().noneMatch(text -> text.contains("SUM")),
+                    () -> "cells=" + cellTexts(source));
+        }
+    }
+
+    @Test
+    void formulaWithoutCachedValueShouldBeEvaluated() throws Exception {
+        try (XSSFWorkbook workbook = new XSSFWorkbook()) {
+            Sheet sheet = workbook.createSheet("S1");
+            Row row = sheet.createRow(0);
+            row.createCell(0).setCellValue("合计");
+            row.createCell(1).setCellFormula("1+2");
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            workbook.write(out);
+
+            ParseSource source = parser.parse(context(out.toByteArray(), MIME_XLSX));
+
+            assertTrue(cellTexts(source).contains("3"), () -> "cells=" + cellTexts(source));
+        }
+    }
+
+    @Test
+    void unsupportedFormulaShouldFallBackToCachedValue() throws Exception {
+        try (XSSFWorkbook workbook = new XSSFWorkbook()) {
+            Sheet sheet = workbook.createSheet("S1");
+            Row row = sheet.createRow(0);
+            row.createCell(0).setCellValue("合计");
+            Cell formula = row.createCell(1);
+            // POI 求值不支持 WEBSERVICE，文件里的缓存值 7 是唯一可用来源
+            formula.setCellFormula("WEBSERVICE(\"http://example.com\")");
+            formula.setCellValue(7);
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            workbook.write(out);
+
+            ParseSource source = parser.parse(context(out.toByteArray(), MIME_XLSX));
+
+            assertTrue(cellTexts(source).contains("7"), () -> "cells=" + cellTexts(source));
+            assertTrue(cellTexts(source).stream().noneMatch(text -> text.contains("WEBSERVICE")),
+                    () -> "cells=" + cellTexts(source));
         }
     }
 

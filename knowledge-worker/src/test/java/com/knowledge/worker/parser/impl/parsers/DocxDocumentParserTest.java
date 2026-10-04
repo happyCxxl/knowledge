@@ -11,7 +11,11 @@ import org.apache.poi.xwpf.usermodel.XWPFHeader;
 import org.apache.poi.xwpf.usermodel.XWPFParagraph;
 import org.apache.poi.xwpf.usermodel.XWPFRun;
 import org.apache.poi.xwpf.usermodel.XWPFTable;
+import org.apache.poi.xwpf.usermodel.XWPFTableCell;
+import org.apache.poi.xwpf.usermodel.XWPFTableRow;
 import org.junit.jupiter.api.Test;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTcPr;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.STMerge;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -55,14 +59,18 @@ class DocxDocumentParserTest {
             XWPFParagraph body = doc.createParagraph();
             body.createRun().setText("投标保证金为人民币叁佰万元整。");
 
-            XWPFTable table = doc.createTable(2, 3);
-            table.getRow(0).getCell(0).setText("评分项");
-            // (0,1) 横向合并 (0,2)
-            table.getRow(0).getCell(1).getCTTc().addNewTcPr().addNewGridSpan().setVal(BigInteger.valueOf(2));
-            table.getRow(0).getCell(2).setText("被合并");
+            XWPFTable table = doc.createTable(2, 4);
+            XWPFTableRow header = table.getRow(0);
+            header.getCell(0).setText("评分项");
+            header.getCell(1).setText("评分标准");
+            // (0,1) 横向合并两列：真合并只对应一个 tc，占位 tc 不存在，其后 (0,3) 仍是真实单元格
+            header.getCell(1).getCTTc().addNewTcPr().addNewGridSpan().setVal(BigInteger.valueOf(2));
+            header.removeCell(2);
+            header.getCell(2).setText("备注");
             table.getRow(1).getCell(0).setText("A1 报价");
             table.getRow(1).getCell(1).setText("低于基准价 1% 以内得 30 分");
             table.getRow(1).getCell(2).setText("30");
+            table.getRow(1).getCell(3).setText("评分表");
 
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             doc.write(out);
@@ -90,15 +98,66 @@ class DocxDocumentParserTest {
                 .findFirst().orElse(null);
         assertNotNull(table);
         assertEquals(2, table.getRows());
-        assertEquals(3, table.getCols());
+        assertEquals(4, table.getCols());
         assertEquals(0, table.getHeaderRow());
-        // 5 个单元格：(0,0)(0,1 合并跨 2 列)(1,0)(1,1)(1,2)
-        assertEquals(5, table.getCells().size());
+        // 7 个单元格：(0,0)(0,1 跨 2 列)(0,3)(1,0..3)；合并格之后的真实单元格不丢
+        assertEquals(7, table.getCells().size());
         ParseElement merged = table.getCells().stream()
                 .filter(c -> c.getRow() == 0 && c.getCol() == 1)
                 .findFirst().orElse(null);
         assertNotNull(merged);
         assertEquals(2, merged.getColSpan());
+        assertEquals("备注", cellText(table, 0, 3));
+        assertEquals("30", cellText(table, 1, 2));
+        assertEquals("评分表", cellText(table, 1, 3));
+    }
+
+    @Test
+    void docxVerticalMergeShouldFillRowSpan() throws Exception {
+        try (XWPFDocument doc = new XWPFDocument()) {
+            XWPFTable table = doc.createTable(3, 2);
+            table.getRow(0).getCell(0).setText("评分项");
+            table.getRow(0).getCell(1).setText("分值");
+            table.getRow(1).getCell(0).setText("A1 报价");
+            table.getRow(1).getCell(1).setText("30");
+            // 第二行起纵向合并首列：行 1 restart、行 2 continue（continue 格不产出元素）
+            tcPr(table.getRow(1).getCell(0)).addNewVMerge().setVal(STMerge.RESTART);
+            table.getRow(2).getCell(1).setText("15");
+            tcPr(table.getRow(2).getCell(0)).addNewVMerge().setVal(STMerge.CONTINUE);
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            doc.write(out);
+
+            ParseSource source = parser.parse(context(out.toByteArray()));
+
+            ParseElement tableElement = source.getElements().stream()
+                    .filter(e -> ElementType.TABLE.name().equals(e.getType()))
+                    .findFirst().orElse(null);
+            assertNotNull(tableElement);
+            assertEquals(3, tableElement.getRows());
+            assertEquals(2, tableElement.getCols());
+            ParseElement mergedCell = cell(tableElement, 1, 0);
+            assertNotNull(mergedCell);
+            assertEquals(2, mergedCell.getRowSpan());
+            assertNull(cell(tableElement, 2, 0));
+            assertEquals("15", cellText(tableElement, 2, 1));
+        }
+    }
+
+    /** 取指定行列的单元格文本（不存在记 null） */
+    private String cellText(ParseElement table, int row, int col) {
+        ParseElement cell = cell(table, row, col);
+        return cell == null ? null : cell.getText();    }
+
+    /** 取指定行列的单元格元素（不存在记 null） */
+    private ParseElement cell(ParseElement table, int row, int col) {
+        return table.getCells().stream()
+                .filter(c -> c.getRow() == row && c.getCol() == col)
+                .findFirst().orElse(null);
+    }
+
+    /** 复用或新建单元格属性块 */
+    private CTTcPr tcPr(XWPFTableCell cell) {
+        return cell.getCTTc().isSetTcPr() ? cell.getCTTc().getTcPr() : cell.getCTTc().addNewTcPr();
     }
 
     @Test

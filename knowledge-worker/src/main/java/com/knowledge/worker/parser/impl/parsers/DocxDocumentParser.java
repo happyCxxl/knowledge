@@ -162,36 +162,23 @@ public class DocxDocumentParser extends AbstractPoiDocumentParser {
         }
     }
 
-    /** DOCX 表格元素：gridSpan 占位格跳过、vMerge 列内 continue 计数，结束回填 restart 单元格行跨度。 */
+    /**
+     * DOCX 表格元素：列号按 gridSpan 推进（横向合并格只对应一个 tc，其后仍是真实单元格）；
+     * vMerge 列内 continue 计数，结束回填 restart 单元格行跨度。
+     */
     private ParseElement toDocxTableElement(XWPFTable table, int tableIndex, String fileId) {
         ParseElement tableElement = ParseElement.of("t" + tableIndex, ElementType.TABLE);
         List<XWPFTableRow> rows = table.getRows();
         tableElement.setRows(rows.size());
-        int maxCols = rows.stream().mapToInt(r -> r.getTableCells().size()).max().orElse(0);
-        tableElement.setCols(maxCols);
+        tableElement.setCols(rows.stream().mapToInt(DocxDocumentParser::gridWidth).max().orElse(0));
         tableElement.setHeaderRow(0);
-        // vMerge：列内连续 continue 计数（行跨度）；gridSpan 横向合并的占位格跳过
         Map<Integer, Integer> columnMergePending = new HashMap<>();
         int rowIndex = 0;
         for (XWPFTableRow row : rows) {
-            List<XWPFTableCell> cells = row.getTableCells();
             int colIndex = 0;
-            int skipRemaining = 0;
-            for (XWPFTableCell cell : cells) {
-                CTTcPr tcPr = cell.getCTTc().getTcPr();
-                int gridSpan = ObjectUtil.isNotNull(tcPr) && ObjectUtil.isNotNull(tcPr.getGridSpan())
-                        ? tcPr.getGridSpan().getVal().intValue() : 1;
-                STMerge.Enum vMerge = ObjectUtil.isNotNull(tcPr) && ObjectUtil.isNotNull(tcPr.getVMerge())
-                        ? tcPr.getVMerge().getVal() : null;
-                if (skipRemaining > 0) {
-                    // 横向合并占位格：不产出元素（列号继续推进）
-                    skipRemaining--;
-                    if (STMerge.CONTINUE.equals(vMerge) && columnMergePending.containsKey(colIndex)) {
-                        columnMergePending.merge(colIndex, 1, Integer::sum);
-                    }
-                    colIndex += gridSpan;
-                    continue;
-                }
+            for (XWPFTableCell cell : row.getTableCells()) {
+                int gridSpan = gridSpan(cell);
+                STMerge.Enum vMerge = vMerge(cell);
                 if (ObjectUtil.isNull(vMerge) || STMerge.RESTART.equals(vMerge)) {
                     ParseElement cellElement = ParseElement.of("t" + tableIndex + "c" + rowIndex + "_" + colIndex,
                             ElementType.TABLE_CELL);
@@ -209,9 +196,6 @@ public class DocxDocumentParser extends AbstractPoiDocumentParser {
                 } else if (STMerge.CONTINUE.equals(vMerge) && columnMergePending.containsKey(colIndex)) {
                     columnMergePending.merge(colIndex, 1, Integer::sum);
                 }
-                if (gridSpan > 1) {
-                    skipRemaining = gridSpan - 1;
-                }
                 colIndex += gridSpan;
             }
             rowIndex++;
@@ -224,5 +208,28 @@ public class DocxDocumentParser extends AbstractPoiDocumentParser {
             }
         }
         return tableElement;
+    }
+
+    /** 行占的网格列数：各单元格 gridSpan 之和 */
+    private static int gridWidth(XWPFTableRow row) {
+        int width = 0;
+        for (XWPFTableCell cell : row.getTableCells()) {
+            width += gridSpan(cell);
+        }
+        return width;
+    }
+
+    /** 单元格横向跨度（无 gridSpan 记 1） */
+    private static int gridSpan(XWPFTableCell cell) {
+        CTTcPr tcPr = cell.getCTTc().getTcPr();
+        return ObjectUtil.isNotNull(tcPr) && ObjectUtil.isNotNull(tcPr.getGridSpan())
+                ? tcPr.getGridSpan().getVal().intValue() : 1;
+    }
+
+    /** 单元格纵向合并类型（无 vMerge 记 null） */
+    private static STMerge.Enum vMerge(XWPFTableCell cell) {
+        CTTcPr tcPr = cell.getCTTc().getTcPr();
+        return ObjectUtil.isNotNull(tcPr) && ObjectUtil.isNotNull(tcPr.getVMerge())
+                ? tcPr.getVMerge().getVal() : null;
     }
 }

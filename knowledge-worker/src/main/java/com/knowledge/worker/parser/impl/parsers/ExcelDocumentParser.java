@@ -11,11 +11,14 @@ import com.knowledge.worker.parser.ParseContext;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.DataFormatter;
+import org.apache.poi.ss.usermodel.FormulaEvaluator;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.util.CellRangeAddress;
+import org.apache.poi.xssf.usermodel.XSSFCell;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Component;
 
@@ -26,7 +29,7 @@ import java.util.Map;
 /**
  * Excel（XLS/XLSX）原生结构解析器（POI 路径）。
  * 每个 sheet 产出 TABLE 元素；定位 = sheet + 行列（无页码概念）；
- * 合并区域 origin 单元格记 span、其余跳过；DataFormatter 统一取值。
+ * 合并区域 origin 单元格记 span、其余跳过；公式格取缓存值。
  *
  * @author cxxl
  */
@@ -48,9 +51,12 @@ public class ExcelDocumentParser extends AbstractPoiDocumentParser {
         try (Workbook workbook = xlsx ? new XSSFWorkbook(new ByteArrayInputStream(data))
                 : new HSSFWorkbook(new ByteArrayInputStream(data))) {
             DataFormatter formatter = new DataFormatter();
+            // 公式格回落取缓存值时按缓存结果类型格式化，避免落成公式串
+            formatter.setUseCachedValuesForFormulaCells(true);
+            FormulaEvaluator evaluator = workbook.getCreationHelper().createFormulaEvaluator();
             int sheetCount = workbook.getNumberOfSheets();
             for (int s = 0; s < sheetCount; s++) {
-                source.getElements().add(toSheetTableElement(workbook, formatter, s, fileId));
+                source.getElements().add(toSheetTableElement(workbook, formatter, evaluator, s, fileId));
             }
             source.setUnitCount(sheetCount);
         } catch (Exception e) {
@@ -59,9 +65,9 @@ public class ExcelDocumentParser extends AbstractPoiDocumentParser {
         }
     }
 
-    /** 单 sheet 表格元素：合并区域 origin 单元格记 span、其余跳过；DataFormatter 统一取值。 */
-    private ParseElement toSheetTableElement(Workbook workbook, DataFormatter formatter, int sheetIndex,
-                                             String fileId) {
+    /** 单 sheet 表格元素：合并区域 origin 单元格记 span、其余跳过；取值走 cellText。 */
+    private ParseElement toSheetTableElement(Workbook workbook, DataFormatter formatter,
+                                             FormulaEvaluator evaluator, int sheetIndex, String fileId) {
         Sheet sheet = workbook.getSheetAt(sheetIndex);
         String sheetName = sheet.getSheetName();
         ParseElement tableElement = ParseElement.of("sheet" + sheetIndex, ElementType.TABLE);
@@ -98,7 +104,7 @@ public class ExcelDocumentParser extends AbstractPoiDocumentParser {
                 if (ObjectUtil.isNull(cell)) {
                     continue;
                 }
-                String text = formatter.formatCellValue(cell);
+                String text = cellText(cell, formatter, evaluator);
                 if (StrUtil.isBlank(text)) {
                     continue;
                 }
@@ -123,6 +129,37 @@ public class ExcelDocumentParser extends AbstractPoiDocumentParser {
         tableElement.setCols(hasData ? (int) sheet.getRow(sheet.getFirstRowNum()).getLastCellNum() : 0);
         tableElement.setHeaderRow(hasData ? 0 : null);
         return tableElement;
+    }
+
+    /**
+     * 单元格取值：普通格走 DataFormatter（含日期/百分比等显示格式）；
+     * 公式格先求值，求值不可用（未支持函数等）时回落到文件里的缓存值，两者都没有则留空（不落公式串）。
+     */
+    private String cellText(Cell cell, DataFormatter formatter, FormulaEvaluator evaluator) {
+        if (!CellType.FORMULA.equals(cell.getCellType())) {
+            return formatter.formatCellValue(cell);
+        }
+        String evaluated = evaluate(cell, formatter, evaluator);
+        if (StrUtil.isNotBlank(evaluated)) {
+            return evaluated;
+        }
+        return hasCachedValue(cell) ? formatter.formatCellValue(cell) : evaluated;
+    }
+
+    /** 缓存结果是否在文件里：xlsx 看 <v> 元素（缺失时 POI 的缓存类型仍报数值，取出来是 0）；xls 的公式记录总带数值缓存 */
+    private static boolean hasCachedValue(Cell cell) {
+        return !(cell instanceof XSSFCell xssfCell) || xssfCell.getCTCell().isSetV();
+    }
+
+    /** 公式求值（求值失败留空，由 cellText 回落缓存值） */
+    private String evaluate(Cell cell, DataFormatter formatter, FormulaEvaluator evaluator) {
+        try {
+            return formatter.formatCellValue(cell, evaluator);
+        } catch (RuntimeException e) {
+            log.debug("Excel 公式求值失败, sheet={}, cell={}", cell.getSheet().getSheetName(),
+                    cell.getAddress(), e);
+            return "";
+        }
     }
 
     /** 行列坐标 → 单键（高 32 位行、低 32 位列）。 */
