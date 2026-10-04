@@ -86,4 +86,36 @@ class DedupMergerImplTest {
         assertEquals(2, outcome.getElements().size());
         assertEquals(0, outcome.getMergePairs());
     }
+
+    @Test
+    void unknownSourceShouldRankLast() {
+        BBox box = new BBox(72, 100, 300, 20);
+        UnifiedElement unknown = element("x-1", "投标保证金为人民币叁佰万元整。", box, "mystery-route");
+        UnifiedElement nativeEl = element("n-1", "投标保证金为人民币叁佰万元整。",
+                new BBox(73, 101, 298, 19), "native");
+
+        MergeOutcome outcome = merger.merge(List.of(unknown, nativeEl), context());
+
+        assertEquals(1, outcome.getElements().size());
+        assertEquals("n-1", outcome.getElements().getFirst().getId());
+    }
+
+    @Test
+    void sameRouteDifferentProviderShouldNotBeCrossSource() {
+        BBox box = new BBox(72, 100, 300, 20);
+        UnifiedElement a = elementWithProvider("n-1", "段落一内容", box, "native", "pdfbox-3.0.4");
+        UnifiedElement b = elementWithProvider("n-2", "段落一内容", new BBox(73, 101, 298, 19),
+                "native", "pdfbox-2.0.0");
+
+        MergeOutcome outcome = merger.merge(List.of(a, b), context());
+
+        assertEquals(2, outcome.getElements().size());
+        assertEquals(0, outcome.getMergePairs());
+    }
+
+    private UnifiedElement elementWithProvider(String id, String text, BBox bbox, String source, String provider) {
+        UnifiedElement element = element(id, text, bbox, source);
+        element.setExtension(Map.of("source", source, "provider", provider));
+        return element;
+    }
 }

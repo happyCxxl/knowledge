@@ -8,6 +8,7 @@ import com.knowledge.worker.structure.AssembleContext;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -68,5 +69,33 @@ class NormalizerImplTest {
         UnifiedElement unifiedSecond = unifiedTable.getCells().get(2);
         assertEquals(1, unifiedSecond.getRow());
         assertEquals(1, unifiedSecond.getCol());
+    }
+
+    @Test
+    void extensionShouldCarrySourceRouteAndProvider() {
+        ParseElement paragraph = ParseElement.of("p1", ElementType.PARAGRAPH);
+        paragraph.setText("正文内容");
+        ParseSource source = ParseSource.nativeSource("pdfbox-3.0.4");
+        source.setElements(List.of(paragraph));
+
+        List<UnifiedElement> result = normalizer.normalize(List.of(source), new AssembleContext());
+
+        Map<String, Object> extension = result.getFirst().getExtension();
+        assertEquals("native", extension.get("source"));
+        assertEquals("pdfbox-3.0.4", extension.get("provider"));
+    }
+
+    @Test
+    void extensionShouldSkipProviderWhenSourceHasNone() {
+        ParseElement paragraph = ParseElement.of("p1", ElementType.PARAGRAPH);
+        paragraph.setText("正文内容");
+        ParseSource source = ParseSource.nativeSource(null);
+        source.setElements(List.of(paragraph));
+
+        List<UnifiedElement> result = normalizer.normalize(List.of(source), new AssembleContext());
+
+        Map<String, Object> extension = result.getFirst().getExtension();
+        assertEquals("native", extension.get("source"));
+        assertFalse(extension.containsKey("provider"));
     }
 }

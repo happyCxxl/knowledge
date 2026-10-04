@@ -28,7 +28,10 @@ import java.util.Set;
 @Component
 public class DedupMergerImpl implements DedupMerger {
 
-    /** 来源优先级：原生 > OCR/版面/表格模型 */
+    /**
+     * 来源顺序（临时口径）：原生 > OCR / 版面 / 表格模型。
+     * 接入第二路后改按证据裁决（该区域是否有文字层覆盖 + 质量信号），业界无公开的来源优先级表。
+     */
     private static final List<ParseSourceType> SOURCE_PRIORITY =
             List.of(ParseSourceType.NATIVE, ParseSourceType.OCR, ParseSourceType.LAYOUT, ParseSourceType.TABLE);
 
@@ -105,11 +108,18 @@ public class DedupMergerImpl implements DedupMerger {
     }
 
     private boolean isPrior(UnifiedElement a, UnifiedElement b) {
-        Object rawA = a.getExtension() == null ? null : a.getExtension().get(ElementExtensionKey.SOURCE.key());
-        Object rawB = b.getExtension() == null ? null : b.getExtension().get(ElementExtensionKey.SOURCE.key());
-        ParseSourceType sourceA = NullUtil.isNull(rawA) ? null : ParseSourceType.ofValue(String.valueOf(rawA));
-        ParseSourceType sourceB = NullUtil.isNull(rawB) ? null : ParseSourceType.ofValue(String.valueOf(rawB));
-        return SOURCE_PRIORITY.indexOf(sourceA) <= SOURCE_PRIORITY.indexOf(sourceB);
+        return priorityOf(a) <= priorityOf(b);
+    }
+
+    /** 来源顺序序号：来源缺失或不可识别时排最后，不参与优先（顺序表不接受 null 查询，空值先短路） */
+    private int priorityOf(UnifiedElement element) {
+        Object raw = element.getExtension() == null ? null : element.getExtension().get(ElementExtensionKey.SOURCE.key());
+        ParseSourceType source = NullUtil.isNull(raw) ? null : ParseSourceType.ofValue(String.valueOf(raw));
+        if (NullUtil.isNull(source)) {
+            return Integer.MAX_VALUE;
+        }
+        int index = SOURCE_PRIORITY.indexOf(source);
+        return index >= 0 ? index : Integer.MAX_VALUE;
     }
 
     private double iou(BBox a, BBox b) {

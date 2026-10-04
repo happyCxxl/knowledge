@@ -12,6 +12,9 @@ public enum ElementExtensionKey {
     /** 来源路名（ParseSourceType.value()） */
     SOURCE("source"),
 
+    /** 来源解析器/提供方（如 pdfbox-3.0.4、poi-5.4.0） */
+    PROVIDER("provider"),
+
     /** 原生样式名（Office 解析器写入） */
     STYLE("style"),
 

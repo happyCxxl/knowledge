@@ -34,7 +34,7 @@ public class NormalizerImpl implements ElementNormalizer {
         }
         for (ParseSource source : sources) {
             for (ParseElement element : source.getElements()) {
-                UnifiedElement unified = toUnified(element, source.getProvider());
+                UnifiedElement unified = toUnified(element, source);
                 if (NullUtil.isNotNull(unified)) {
                     result.add(unified);
                 }
@@ -43,7 +43,8 @@ public class NormalizerImpl implements ElementNormalizer {
         return result;
     }
 
-    private UnifiedElement toUnified(ParseElement element, String provider) {
+    private UnifiedElement toUnified(ParseElement element, ParseSource source) {
+        String provider = source.getProvider();
         UnifiedElementType type = mapType(element.getType());
         if (NullUtil.isNull(type)) {
             return null;
@@ -70,7 +71,7 @@ public class NormalizerImpl implements ElementNormalizer {
         if (NullUtil.isNotNull(element.getCells())) {
             List<UnifiedElement> cells = new ArrayList<>();
             for (ParseElement cell : element.getCells()) {
-                UnifiedElement cellUnified = toUnified(cell, provider);
+                UnifiedElement cellUnified = toUnified(cell, source);
                 if (NullUtil.isNotNull(cellUnified)) {
                     cells.add(cellUnified);
                 }
@@ -78,9 +79,13 @@ public class NormalizerImpl implements ElementNormalizer {
             unified.setCells(cells);
         }
 
-        // 扩展区：解析器特有字段透传（下游只依赖公共字段）
+        // 扩展区：解析器特有字段透传（下游只依赖公共字段）；source 键放来源路名，provider 键放解析器
         Map<String, Object> extension = new HashMap<>();
-        extension.put(ElementExtensionKey.SOURCE.key(), StrUtil.blankToDefault(provider, ParseSourceType.NATIVE.value()));
+        extension.put(ElementExtensionKey.SOURCE.key(),
+                StrUtil.blankToDefault(source.getSource(), ParseSourceType.NATIVE.value()));
+        if (StrUtil.isNotBlank(provider)) {
+            extension.put(ElementExtensionKey.PROVIDER.key(), provider);
+        }
         if (StrUtil.isNotBlank(element.getStyle())) {
             extension.put(ElementExtensionKey.STYLE.key(), element.getStyle());
         }
