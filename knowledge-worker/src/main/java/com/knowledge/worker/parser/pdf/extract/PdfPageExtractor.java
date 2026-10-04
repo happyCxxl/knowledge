@@ -6,10 +6,7 @@ import com.knowledge.common.utils.NullUtil;
 import com.knowledge.common.utils.TextUtil;
 import com.knowledge.worker.parser.ParseContext;
 import com.knowledge.worker.parser.pdf.detect.RuleLines;
-import com.knowledge.worker.parser.pdf.layout.PageLayoutAnalyzer.Options;
 import com.knowledge.worker.parser.pdf.layout.PageLayoutAnalyzer;
-import com.knowledge.worker.parser.pdf.layout.PageLayoutAnalyzer.Input;
-import com.knowledge.worker.parser.pdf.layout.PageLayoutAnalyzer.Result;
 import com.knowledge.worker.parser.pdf.model.CharInfo;
 import com.knowledge.worker.parser.pdf.model.PageContent;
 import com.knowledge.worker.parser.pdf.model.PageLine;
@@ -117,11 +114,11 @@ public class PdfPageExtractor {
 
     /** 栏沟检测：字符级投影交给版面端口（返回空即单栏） */
     private List<Double> detectGutters(List<CharInfo> chars, double pageWidth, double pageHeight,
-                                       PageLayoutAnalyzer.Options properties) {
+                                       PageLayoutAnalyzer.Options options) {
         List<PageLayoutAnalyzer.Box> boxes = chars.stream()
                 .map(c -> new PageLayoutAnalyzer.Box(c.x(), c.y(), c.width(), c.height()))
                 .toList();
-        return layoutAnalyzer.gutters(new PageLayoutAnalyzer.Input(pageWidth, pageHeight, boxes), properties);
+        return layoutAnalyzer.gutters(new PageLayoutAnalyzer.Input(pageWidth, pageHeight, boxes), options);
     }
 
     /** 按栏沟切行：整组字符横跨栏沟（跨栏行）时出一整行，其余按栏分组各出一行 */

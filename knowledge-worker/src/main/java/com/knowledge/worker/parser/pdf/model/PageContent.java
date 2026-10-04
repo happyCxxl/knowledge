@@ -2,7 +2,6 @@ package com.knowledge.worker.parser.pdf.model;
 
 import com.knowledge.common.domain.parse.signal.PageMetric;
 
-import com.knowledge.worker.parser.pdf.detect.RuleLines;
 import java.util.List;
 
 /**

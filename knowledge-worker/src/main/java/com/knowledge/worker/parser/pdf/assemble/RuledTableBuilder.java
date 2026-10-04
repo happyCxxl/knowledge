@@ -4,9 +4,7 @@ import com.knowledge.common.domain.parse.BBox;
 import com.knowledge.common.domain.parse.ParseElement;
 import com.knowledge.common.domain.parse.ParseSource;
 import com.knowledge.common.domain.parse.Provenance;
-import com.knowledge.common.domain.parse.signal.ParseFact;
 import com.knowledge.common.enums.parse.ElementType;
-import com.knowledge.common.enums.parse.SignalType;
 import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.parser.ParseProperties;
 import com.knowledge.worker.parser.pdf.detect.RuleLines;
@@ -52,8 +50,8 @@ public final class RuledTableBuilder {
             texts.put(rect, text);
             rowTexts.get(rect.row()).add(text);
         }
-        if (blankTable(rowTexts, properties)) {
-            degrade(run, page, elements, source, fileId, "空白率过高（疑似框线/表单区域）");
+        if (TableSupport.blankTable(rowTexts, properties)) {
+            TableSupport.degrade(run, page, elements, source, fileId, "空白率过高（疑似框线/表单区域）");
             return;
         }
         List<Double> rowFontSizes = new ArrayList<>();
@@ -178,32 +176,6 @@ public final class RuledTableBuilder {
     private static boolean inBand(PageLine line, double top, double bottom) {
         double center = line.y() + line.height() / 2;
         return center >= top && center < bottom;
-    }
-
-    /** 假表门限：非空单元格占比低于阈值即判为空白网格（弃表） */
-    private static boolean blankTable(List<List<String>> rowTexts, ParseProperties properties) {
-        int total = 0;
-        int filled = 0;
-        for (List<String> row : rowTexts) {
-            for (String text : row) {
-                total++;
-                if (NullUtil.isNotNull(text) && !text.isBlank()) {
-                    filled++;
-                }
-            }
-        }
-        return total > 0 && (double) filled / total < properties.getTableMinFilledRatio();
-    }
-
-    /** 表格规则失败：出 TABLE 事实并把区域降级为段落 */
-    private static void degrade(List<PageLine> run, PageContent page, List<ParseElement> elements,
-                                ParseSource source, String fileId, String evidence) {
-        ParseFact fact = new ParseFact();
-        fact.setType(SignalType.TABLE.name());
-        fact.setRegion("page " + page.pageNo());
-        fact.setEvidence(evidence);
-        source.getFacts().add(fact);
-        elements.add(PdfBodyAssembler.toParagraphElement(run, fileId));
     }
 
     /** 合并格矩形：起始行列 + 跨度 */

@@ -5,9 +5,7 @@ import com.knowledge.common.domain.parse.BBox;
 import com.knowledge.common.domain.parse.ParseElement;
 import com.knowledge.common.domain.parse.ParseSource;
 import com.knowledge.common.domain.parse.Provenance;
-import com.knowledge.common.domain.parse.signal.ParseFact;
 import com.knowledge.common.enums.parse.ElementType;
-import com.knowledge.common.enums.parse.SignalType;
 import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.parser.ParseProperties;
 import com.knowledge.worker.parser.pdf.detect.TableCandidateDetector;
@@ -44,7 +42,7 @@ public final class TextTableBuilder {
         List<Double> columnX = TableCandidateDetector.supportedColumns(tokenMatrix, minSupportRows);
         if (columnX.size() < TableCandidateDetector.MIN_TOKENS
                 || !TableCandidateDetector.enoughLinesCoverColumns(tokenMatrix, columnX)) {
-            degrade(block, page, elements, source, fileId, "列对齐聚类失败（疑似无边框/复杂表格）");
+            TableSupport.degrade(block, page, elements, source, fileId, "列对齐聚类失败（疑似无边框/复杂表格）");
             return;
         }
         // 每行列边界：行左边界 + 内部列起点 + 行右边界（覆盖整行，列对齐外的字符不丢）
@@ -60,8 +58,8 @@ public final class TextTableBuilder {
             rowBoundaries.add(boundaries);
             rowTexts.add(cellTexts(line, boundaries));
         }
-        if (blankTable(rowTexts, properties)) {
-            degrade(block, page, elements, source, fileId, "空白率过高（疑似框线/表单区域）");
+        if (TableSupport.blankTable(rowTexts, properties)) {
+            TableSupport.degrade(block, page, elements, source, fileId, "空白率过高（疑似框线/表单区域）");
             return;
         }
         Integer headerRow = detectHeaderRow(rowTexts, block.stream().map(PageLine::fontSize).toList(),
@@ -112,21 +110,6 @@ public final class TextTableBuilder {
         return texts;
     }
 
-    /** 假表门限：非空单元格占比低于阈值即判为空白网格（弃表） */
-    private static boolean blankTable(List<List<String>> rowTexts, ParseProperties properties) {
-        int total = 0;
-        int filled = 0;
-        for (List<String> row : rowTexts) {
-            for (String text : row) {
-                total++;
-                if (StrUtil.isNotBlank(text)) {
-                    filled++;
-                }
-            }
-        }
-        return total > 0 && (double) filled / total < properties.getTableMinFilledRatio();
-    }
-
     /** 表头行判定：首行含数字占比不超上限，且表体含数字（或首行字号大于表体最大字号） */
     public static Integer detectHeaderRow(List<List<String>> rowTexts, List<Double> rowFontSizes,
                                    double maxNumericRatio) {
@@ -153,16 +136,5 @@ public final class TextTableBuilder {
                 .filter(text -> StrUtil.isNotBlank(text) && text.matches(".*\\d.*"))
                 .count();
         return (double) numeric / cells.size();
-    }
-
-    /** 表格规则失败：出 TABLE 事实并把区域降级为段落 */
-    private static void degrade(List<PageLine> block, PageContent page, List<ParseElement> elements,
-                                ParseSource source, String fileId, String evidence) {
-        ParseFact fact = new ParseFact();
-        fact.setType(SignalType.TABLE.name());
-        fact.setRegion("page " + page.pageNo());
-        fact.setEvidence(evidence);
-        source.getFacts().add(fact);
-        elements.add(PdfBodyAssembler.toParagraphElement(block, fileId));
     }
 }
