@@ -1,8 +1,8 @@
 package com.knowledge.worker.input.impl.check;
 
-import cn.hutool.core.util.ObjectUtil;
 import com.knowledge.common.enums.input.FileCheckStepName;
 import com.knowledge.common.enums.input.FileValidationFailReason;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.input.check.FileCheck;
 import com.knowledge.worker.input.FileCheckContext;
 import com.knowledge.common.domain.input.FileCheckResult;
@@ -28,7 +28,7 @@ public class EmptyFileCheck implements FileCheck {
 
     @Override
     public FileCheckResult check(FileCheckContext context) {
-        if (ObjectUtil.isNotNull(context.getSize()) && context.getSize() == 0) {
+        if (NullUtil.isNotNull(context.getSize()) && context.getSize() == 0) {
             return FileCheckResult.fail(FileValidationFailReason.FILE_CORRUPTED);
         }
         return FileCheckResult.pass();

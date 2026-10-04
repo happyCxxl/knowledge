@@ -1,6 +1,5 @@
 package com.knowledge.auth.service.impl;
 
-import cn.hutool.core.util.ObjectUtil;
 import com.knowledge.auth.db.UserDbService;
 import com.knowledge.auth.service.AuthService;
 import com.knowledge.auth.service.support.LoginAttemptGuard;
@@ -15,6 +14,7 @@ import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.ThrowUtil;
 import com.knowledge.common.utils.AvatarUrlUtil;
 import com.knowledge.common.utils.ClientIpUtil;
+import com.knowledge.common.utils.NullUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -46,7 +46,7 @@ public class AuthServiceImpl implements AuthService {
         ThrowUtil.throwIf(loginAttemptGuard.isLocked(request.getUsername(), ip),
                 ErrorCode.LOGIN_TOO_FREQUENT);
         User user = userDbService.findActiveByUsername(request.getUsername());
-        boolean credentialsMatch = ObjectUtil.isNotNull(user)
+        boolean credentialsMatch = NullUtil.isNotNull(user)
                 && passwordEncoder.matches(request.getPassword(), user.getPassword());
         ThrowUtil.throwIf(!credentialsMatch, ErrorCode.LOGIN_FAILED,
                 () -> loginAttemptGuard.recordFailure(request.getUsername(), ip));

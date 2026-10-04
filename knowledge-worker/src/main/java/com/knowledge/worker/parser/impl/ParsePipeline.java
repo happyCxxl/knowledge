@@ -1,6 +1,5 @@
 package com.knowledge.worker.parser.impl;
 
-import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.knowledge.common.domain.parse.CapabilitySnapshot;
 import com.knowledge.common.domain.parse.ParseOutcome;
@@ -14,6 +13,7 @@ import com.knowledge.common.enums.parse.SignalSubtype;
 import com.knowledge.common.enums.task.PipelineTaskErrorCode;
 import com.knowledge.common.enums.task.PipelineTaskStatus;
 import com.knowledge.common.enums.task.StepStatus;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.parser.DocumentParserPort;
 import com.knowledge.worker.parser.ParseContext;
 import com.knowledge.worker.parser.ParseProperties;
@@ -60,7 +60,7 @@ public class ParsePipeline {
                 .filter(p -> p.supports(mimeType))
                 .findFirst()
                 .orElse(null);
-        if (ObjectUtil.isNull(parser)) {
+        if (NullUtil.isNull(parser)) {
             log.warn("===> ParsePipeline 无匹配解析器, fileResultId={}, mimeType={}",
                     context.getFileResultId(), mimeType);
             routeLog.setStatus(StepStatus.FAILED.name());
@@ -147,7 +147,7 @@ public class ParsePipeline {
     /** 内置降级处置：按信号子类型查找 handler 执行（不依赖 evidence 文案）；返回该信号计入的失败单元数 */
     private int applyFallback(Signal signal, QualityInfo quality) {
         SignalSubtype subtype = parseSubtype(signal);
-        if (ObjectUtil.isNull(subtype)) {
+        if (NullUtil.isNull(subtype)) {
             return 0;
         }
         return fallbackHandlers.stream()
@@ -175,7 +175,7 @@ public class ParsePipeline {
      * 分母用**内容单元**（单元数 − 空白页数）：空白页无内容可解析，既不算成功也不算失败。
      */
     private void evaluate(ParseOutcome outcome, ParseSource nativeSource, int failedUnits, QualityInfo quality) {
-        int unitCount = ObjectUtil.isNull(nativeSource.getUnitCount()) ? 0 : nativeSource.getUnitCount();
+        int unitCount = NullUtil.isNull(nativeSource.getUnitCount()) ? 0 : nativeSource.getUnitCount();
         outcome.setUnitCount(unitCount);
         outcome.setFailedUnits(failedUnits);
         if (unitCount <= 0) {

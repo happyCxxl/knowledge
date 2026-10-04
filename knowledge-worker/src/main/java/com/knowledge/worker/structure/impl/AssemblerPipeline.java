@@ -12,6 +12,7 @@ import com.knowledge.common.enums.parse.QualityWarningCode;
 import com.knowledge.common.enums.task.PipelineTaskErrorCode;
 import com.knowledge.common.enums.task.PipelineTaskStatus;
 import com.knowledge.common.enums.task.StepStatus;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.pipeline.StepLogHelper;
 import com.knowledge.worker.structure.AssembleContext;
 import com.knowledge.worker.structure.DocumentAssemblerPort;
@@ -61,7 +62,7 @@ public class AssemblerPipeline implements DocumentAssemblerPort {
     @Override
     public AssembleOutcome assemble(ParseResult parseResult, AssembleContext context) {
         AssembleOutcome outcome = new AssembleOutcome();
-        if (ObjectUtil.isNull(parseResult) || ObjectUtil.isNull(parseResult.getFile())) {
+        if (NullUtil.isNull(parseResult) || NullUtil.isNull(parseResult.getFile())) {
             outcome.fail(PipelineTaskErrorCode.STRUCTURE_UPSTREAM_UNREADABLE.name(), "上游解析产物缺失");
             return outcome;
         }
@@ -151,7 +152,7 @@ public class AssemblerPipeline implements DocumentAssemblerPort {
         int total = elements.size();
         int traceable = 0;
         for (UnifiedElement element : elements) {
-            if (ObjectUtil.isNotNull(element.getProvenance())
+            if (NullUtil.isNotNull(element.getProvenance())
                     && StrUtil.isNotBlank(element.getProvenance().getFile())
                     && StrUtil.isNotBlank(element.getProvenance().getPath())) {
                 traceable++;
@@ -180,11 +181,11 @@ public class AssemblerPipeline implements DocumentAssemblerPort {
 
     private List<UnifiedPage> buildPages(ParseResult parseResult) {
         List<UnifiedPage> pages = new ArrayList<>();
-        if (ObjectUtil.isNull(parseResult.getSources())) {
+        if (NullUtil.isNull(parseResult.getSources())) {
             return pages;
         }
         for (ParseSource source : parseResult.getSources()) {
-            if (ObjectUtil.isNull(source.getPageDimensions())) {
+            if (NullUtil.isNull(source.getPageDimensions())) {
                 continue;
             }
             for (PageDimension dimension : source.getPageDimensions()) {

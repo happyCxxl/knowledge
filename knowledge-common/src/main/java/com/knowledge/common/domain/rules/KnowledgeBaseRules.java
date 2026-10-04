@@ -8,6 +8,7 @@ import com.knowledge.common.enums.user.UserRole;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
 import com.knowledge.common.security.KnowledgeUser;
+import com.knowledge.common.utils.NullUtil;
 
 /**
  * 知识库规则：状态两态（启用/停用）迁移校验 + 可见范围（归属）。
@@ -83,7 +84,7 @@ public final class KnowledgeBaseRules {
         if (isAdmin(user)) {
             return;
         }
-        if (ObjectUtil.isNull(kb) || ObjectUtil.isNull(kb.getUserId())
+        if (NullUtil.isNull(kb) || NullUtil.isNull(kb.getUserId())
                 || !ObjectUtil.equal(kb.getUserId(), user.getId())) {
             throw new KnowledgeException(ErrorCode.KB_NOT_FOUND);
         }
@@ -91,20 +92,20 @@ public final class KnowledgeBaseRules {
 
     /** 登录上下文校验：缺失（含用户 ID 为空）即拒绝，避免退化成"不过滤" */
     private static void requireLogin(KnowledgeUser user) {
-        if (ObjectUtil.isNull(user) || ObjectUtil.isNull(user.getId())) {
+        if (NullUtil.isNull(user) || NullUtil.isNull(user.getId())) {
             throw new KnowledgeException(ErrorCode.UNAUTHORIZED);
         }
     }
 
     /** 是否管理员（角色缺失时按普通用户处理，取最保守语义） */
     private static boolean isAdmin(KnowledgeUser user) {
-        return ObjectUtil.isNotNull(user) && UserRole.ADMIN == user.getRole();
+        return NullUtil.isNotNull(user) && UserRole.ADMIN == user.getRole();
     }
 
     /** 状态闸门公共实现：状态缺失或非预期即抛对应错误码 */
     private static void requireStatus(KnowledgeBase kb, KnowledgeBaseStatus expected, ErrorCode errorCode,
                                       String message) {
-        if (ObjectUtil.isNull(kb.getStatus()) || !ObjectUtil.equal(kb.getStatus(), expected.getCode())) {
+        if (NullUtil.isNull(kb.getStatus()) || !ObjectUtil.equal(kb.getStatus(), expected.getCode())) {
             if (message == null) {
                 throw new KnowledgeException(errorCode);
             }

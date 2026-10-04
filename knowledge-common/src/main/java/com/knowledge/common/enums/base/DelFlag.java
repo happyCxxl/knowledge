@@ -1,6 +1,6 @@
 package com.knowledge.common.enums.base;
 
-import cn.hutool.core.util.ObjectUtil;
+import com.knowledge.common.utils.NullUtil;
 import lombok.Getter;
 
 /**
@@ -54,7 +54,7 @@ public enum DelFlag {
      * 这里**不抛异常**：del_flag 是基础设施列，脏值不该把读路径打挂。
      */
     public static DelFlag of(String code) {
-        if (ObjectUtil.isNull(code)) {
+        if (NullUtil.isNull(code)) {
             return null;
         }
         for (DelFlag item : values()) {

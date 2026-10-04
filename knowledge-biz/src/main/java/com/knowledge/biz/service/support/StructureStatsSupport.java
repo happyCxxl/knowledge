@@ -12,6 +12,7 @@ import com.knowledge.common.enums.structure.ElementMark;
 import com.knowledge.common.enums.structure.PageMark;
 import com.knowledge.common.enums.structure.RelationType;
 import com.knowledge.common.enums.structure.UnifiedElementType;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.filecenter.service.FileStorage;
 
 import java.time.LocalDateTime;
@@ -113,7 +114,7 @@ public final class StructureStatsSupport {
      */
     public static Map<String, Object> stats(LocalDateTime startedAt, LocalDateTime finishedAt,
                                             UnifiedDocument document) {
-        if (ObjectUtil.isNull(document)) {
+        if (NullUtil.isNull(document)) {
             return null;
         }
         List<UnifiedElement> elements = ObjectUtil.defaultIfNull(document.getElements(), List.of());
@@ -132,7 +133,7 @@ public final class StructureStatsSupport {
             if (UnifiedElementType.TITLE.name().equals(element.getType())) {
                 titleCount++;
                 Integer level = element.getLevel();
-                if (ObjectUtil.isNull(level) || level <= 1) {
+                if (NullUtil.isNull(level) || level <= 1) {
                     chapterCount++;
                     level1++;
                 } else if (level == 2) {
@@ -171,7 +172,7 @@ public final class StructureStatsSupport {
 
         // 阅读顺序口径：产物里没有"是否重排"的标记，用"无坐标元素数"表达 ——
         // 有坐标的元素按坐标排、无坐标的按原序追加，两者共同决定阅读顺序
-        long withoutBbox = elements.stream().filter(element -> ObjectUtil.isNull(element.getBbox())).count();
+        long withoutBbox = elements.stream().filter(element -> NullUtil.isNull(element.getBbox())).count();
         stats.put(KEY_WITHOUT_BBOX_COUNT, withoutBbox);
 
         // 重复与噪声：从元素 marks 与页 marks 现算（标记由组装环节写入产物）
@@ -186,7 +187,7 @@ public final class StructureStatsSupport {
 
         // 产物 schema 语义化版本（文档信息里落库，卡片身份行展示）
         DocumentInfo info = document.getDocumentInfo();
-        if (ObjectUtil.isNotNull(info) && StrUtil.isNotBlank(info.getSchemaVersion())) {
+        if (NullUtil.isNotNull(info) && StrUtil.isNotBlank(info.getSchemaVersion())) {
             stats.put(KEY_SCHEMA_VERSION, info.getSchemaVersion());
         }
         return stats;
@@ -195,14 +196,14 @@ public final class StructureStatsSupport {
     /** 元素 marks 里含指定标记的数量 */
     private static int countMarks(List<UnifiedElement> elements, String mark) {
         return (int) elements.stream()
-                .filter(element -> ObjectUtil.isNotNull(element.getMarks()) && element.getMarks().contains(mark))
+                .filter(element -> NullUtil.isNotNull(element.getMarks()) && element.getMarks().contains(mark))
                 .count();
     }
 
     /** 页 marks 里含指定标记的页数 */
     private static int countPageMarks(List<UnifiedPage> pages, String mark) {
         return (int) pages.stream()
-                .filter(page -> ObjectUtil.isNotNull(page.getMarks()) && page.getMarks().contains(mark))
+                .filter(page -> NullUtil.isNotNull(page.getMarks()) && page.getMarks().contains(mark))
                 .count();
     }
 
@@ -221,7 +222,7 @@ public final class StructureStatsSupport {
             }
             for (String value : new String[] { relation.getFrom(), relation.getTo() }) {
                 Integer page = pageOfRelationRef(value);
-                if (ObjectUtil.isNotNull(page)) {
+                if (NullUtil.isNotNull(page)) {
                     min = Math.min(min, page);
                     max = Math.max(max, page);
                 }
@@ -266,7 +267,7 @@ public final class StructureStatsSupport {
 
     /** 组装统计陈述：统计缺失（产物不可读）时不陈述结论；空树与各项异常逐条陈述 */
     private static String structureSummaryBody(Map<String, Object> stats) {
-        if (ObjectUtil.isNull(stats)) {
+        if (NullUtil.isNull(stats)) {
             return null;
         }
         if (intOf(stats.get(KEY_ELEMENT_COUNT)) == 0) {
@@ -295,7 +296,7 @@ public final class StructureStatsSupport {
     /** 元素是否带完整溯源（文件引用 + 定位路径齐备） */
     private static boolean isTraced(UnifiedElement element) {
         Provenance provenance = element.getProvenance();
-        return ObjectUtil.isNotNull(provenance)
+        return NullUtil.isNotNull(provenance)
                 && StrUtil.isNotBlank(provenance.getFile())
                 && StrUtil.isNotBlank(provenance.getPath());
     }

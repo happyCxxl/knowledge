@@ -1,9 +1,9 @@
 package com.knowledge.worker.chunking.impl.table;
 
-import cn.hutool.core.util.ObjectUtil;
 import com.knowledge.common.domain.chunk.Chunk;
 import com.knowledge.common.domain.preprocess.ViewElement;
 import com.knowledge.common.enums.chunk.ChunkRoute;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.chunking.SliceContext;
 import com.knowledge.worker.chunking.slice.SliceStrategy;
 import com.knowledge.worker.chunking.strategy.ChunkRouteConfig;
@@ -21,7 +21,7 @@ public abstract class AbstractTableSliceStrategy implements SliceStrategy {
     @Override
     public final List<Chunk> slice(ViewElement element, SliceContext context) {
         TableMarkdownSupport.TablePrep prep = TableMarkdownSupport.prepare(element, context);
-        if (ObjectUtil.isNull(prep)) {
+        if (NullUtil.isNull(prep)) {
             return List.of();
         }
         return slicePrepared(prep, element, context);

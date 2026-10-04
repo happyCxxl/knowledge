@@ -1,7 +1,7 @@
 package com.knowledge.worker.parser.impl.parsers.pdf;
 
-import cn.hutool.core.util.ObjectUtil;
 
+import com.knowledge.common.utils.NullUtil;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -73,7 +73,7 @@ public final class TableCandidateDetector {
         for (double column : clusterColumns(tokenMatrix)) {
             int support = 0;
             for (List<Token> line : tokenMatrix) {
-                if (ObjectUtil.isNotNull(findTokenInColumn(line, column))) {
+                if (NullUtil.isNotNull(findTokenInColumn(line, column))) {
                     support++;
                 }
             }
@@ -90,7 +90,7 @@ public final class TableCandidateDetector {
         for (List<Token> line : tokenMatrix) {
             boolean covers = true;
             for (double col : columns) {
-                if (ObjectUtil.isNull(findTokenInColumn(line, col))) {
+                if (NullUtil.isNull(findTokenInColumn(line, col))) {
                     covers = false;
                     break;
                 }
@@ -107,7 +107,7 @@ public final class TableCandidateDetector {
         Token best = null;
         for (Token token : tokens) {
             if (Math.abs(token.xStart() - columnX) <= COLUMN_TOLERANCE) {
-                if (ObjectUtil.isNull(best)) {
+                if (NullUtil.isNull(best)) {
                     best = token;
                 }
             }

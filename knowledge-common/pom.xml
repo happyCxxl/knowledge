@@ -95,6 +95,15 @@
             <version>5.8.22</version>
         </dependency>
 
+        <!-- 空值注解（编译期可见、不进产物）：NullUtil 的参数标注 @Nullable，
+             SpotBugs 才能识别 hutool 判空方法接受的 null 值 -->
+        <dependency>
+            <groupId>com.github.spotbugs</groupId>
+            <artifactId>spotbugs-annotations</artifactId>
+            <version>4.8.6</version>
+            <scope>provided</scope>
+        </dependency>
+
         <!-- Jackson 序列化注解（VO 雪花 ID Long→String，zlzx 字段级 ToStringSerializer 惯例） -->
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>

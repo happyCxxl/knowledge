@@ -1,7 +1,6 @@
 package com.knowledge.biz.service.impl;
 
 import cn.hutool.core.collection.CollUtil;
-import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -56,6 +55,7 @@ import com.knowledge.common.enums.task.RowStatus;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.ThrowUtil;
 import com.knowledge.common.security.KnowledgeUser;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.common.utils.SecurityUtil;
 import com.knowledge.common.utils.JsonUtil;
 
@@ -468,7 +468,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
 
         // ① 幂等：同一请求重复到达返回已有记录
         KbSubmitLog existing = submitLogDbService.getByRequestId(request.getRequestId());
-        if (ObjectUtil.isNotNull(existing)) {
+        if (NullUtil.isNotNull(existing)) {
             log.info("===> KnowledgeBaseServiceImpl submit 幂等回放, requestId={}", request.getRequestId());
             return inputVoAssembler.toSubmitResponse(existing, findParseTaskId(existing.getFileResultId()));
         }
@@ -518,7 +518,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             // 并发下同一 requestId 已被处理：回滚本事务，回放已有记录
             markRollbackOnly();
             KbSubmitLog raced = submitLogDbService.getByRequestId(request.getRequestId());
-            if (ObjectUtil.isNull(raced)) {
+            if (NullUtil.isNull(raced)) {
                 log.warn("===> KnowledgeBaseServiceImpl submit 幂等冲突重查为空, requestId={}（唯一键冲突但未查到已有记录）",
                         request.getRequestId());
                 throw e;
@@ -592,7 +592,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             List<StageStatusVO> statuses = new ArrayList<>();
             for (String statusStage : statusStages) {
                 KbPipelineTask task = stageTaskMaps.get(statusStage).get(vo.getId());
-                if (ObjectUtil.isNotNull(task)) {
+                if (NullUtil.isNotNull(task)) {
                     statuses.add(taskVoAssembler.toStageStatusVO(task));
                 }
             }
@@ -607,7 +607,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     private KbSourceFile findOrCreateSourceFile(FileSubmitRequest request, FileValidationResult validationResult,
                                                 FileMetadata metadata, Long userId) {
         KbSourceFile sourceFile = sourceFileDbService.findByFileId(request.getFileId());
-        if (ObjectUtil.isNotNull(sourceFile)) {
+        if (NullUtil.isNotNull(sourceFile)) {
             log.info("===> KnowledgeBaseServiceImpl submit 复用来源文件, fileId={}, sourceFileId={}",
                     request.getFileId(), sourceFile.getId());
             return sourceFile;
@@ -624,7 +624,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             sourceFileDbService.save(sourceFile);
         } catch (DuplicateKeyException e) {
             KbSourceFile raced = sourceFileDbService.findByFileId(request.getFileId());
-            if (ObjectUtil.isNull(raced)) {
+            if (NullUtil.isNull(raced)) {
                 throw e;
             }
             log.info("===> KnowledgeBaseServiceImpl submit 并发复用来源文件, fileId={}, sourceFileId={}",
@@ -807,11 +807,11 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
 
     /** 查文件结果已有的 PARSE 任务 ID（幂等回放响应用；fileResultId 为空或尚无任务返回 null）。 */
     private Long findParseTaskId(Long fileResultId) {
-        if (ObjectUtil.isNull(fileResultId)) {
+        if (NullUtil.isNull(fileResultId)) {
             return null;
         }
         KbPipelineTask task = pipelineTaskDbService.getByFileResultIdAndStage(fileResultId, PipelineStage.PARSE.name());
-        return ObjectUtil.isNull(task) ? null : task.getId();
+        return NullUtil.isNull(task) ? null : task.getId();
     }
 
     /**

@@ -1,6 +1,5 @@
 package com.knowledge.biz.service.db.impl;
 
-import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
@@ -10,6 +9,7 @@ import com.knowledge.biz.service.db.KbChunkDbService;
 import com.knowledge.common.domain.entity.KbChunk;
 import com.knowledge.common.dto.request.stage.ChunkContentFilter;
 import com.knowledge.common.enums.chunk.ChunkContentType;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.infra.persistence.InfraDbServiceImpl;
 import org.springframework.stereotype.Service;
 
@@ -44,7 +44,7 @@ public class KbChunkDbServiceImpl extends InfraDbServiceImpl<KbChunkMapper, KbCh
 
     /** 过滤条件下推：类型等同、兜底按内容类型判定、有无父片按 parent_chunk_id 判定 */
     private void applyFilter(LambdaQueryWrapper<KbChunk> queryWrapper, ChunkContentFilter filter) {
-        if (ObjectUtil.isNull(filter)) {
+        if (NullUtil.isNull(filter)) {
             return;
         }
         if (StrUtil.isNotBlank(filter.contentType())) {

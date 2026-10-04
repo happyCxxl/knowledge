@@ -13,6 +13,7 @@ import com.knowledge.common.dto.response.preprocess.PreprocessFieldVO;
 import com.knowledge.common.dto.response.preprocess.PreprocessSummaryVO;
 import com.knowledge.common.dto.response.preprocess.PreprocessTraceVO;
 import com.knowledge.common.enums.preprocess.ViewElementStatus;
+import com.knowledge.common.utils.NullUtil;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -61,17 +62,17 @@ public class PreprocessVoAssembler {
         vo.setRawText(element.getRawText());
         vo.setDisplayText(element.getDisplayText());
         vo.setNormalizedText(element.getNormalizedText());
-        if (ObjectUtil.isNotNull(element.getNormalizedFields())) {
+        if (NullUtil.isNotNull(element.getNormalizedFields())) {
             vo.setFields(element.getNormalizedFields().stream().map(this::toFieldVO).toList());
         }
         // 处理轨迹只透传非 KEEP 条目（KEEP=未命中改写，前端差异化展示用不到）
-        if (ObjectUtil.isNotNull(element.getPreprocessTrace())) {
+        if (NullUtil.isNotNull(element.getPreprocessTrace())) {
             vo.setTrace(element.getPreprocessTrace().stream()
                     .filter(entry -> !TraceEntry.ACTION_KEEP.equals(entry.getAction()))
                     .map(this::toTraceVO)
                     .toList());
         }
-        if (ObjectUtil.isNotNull(element.getCells())) {
+        if (NullUtil.isNotNull(element.getCells())) {
             vo.setCells(element.getCells().stream().map(this::toCellVO).toList());
         }
         return vo;

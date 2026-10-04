@@ -1,9 +1,9 @@
 package com.knowledge.biz.config;
 
-import cn.hutool.core.util.ObjectUtil;
 import com.baomidou.mybatisplus.core.handlers.MetaObjectHandler;
 import com.knowledge.common.enums.base.DelFlag;
 import com.knowledge.common.security.KnowledgeUser;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.common.utils.SecurityUtil;
 import org.apache.ibatis.reflection.MetaObject;
 import org.springframework.context.annotation.Configuration;
@@ -39,7 +39,7 @@ public class KnowledgeMetaObjectHandler implements MetaObjectHandler {
     @Override
     public void updateFill(MetaObject metaObject) {
         String operator = currentOperator();
-        if (ObjectUtil.isNotNull(operator)) {
+        if (NullUtil.isNotNull(operator)) {
             this.fillStrategy(metaObject, "updateBy", operator);
         }
         this.fillStrategy(metaObject, "updateTime", LocalDateTime.now());
@@ -67,6 +67,6 @@ public class KnowledgeMetaObjectHandler implements MetaObjectHandler {
      */
     private String currentOperator() {
         KnowledgeUser user = SecurityUtil.getUser();
-        return ObjectUtil.isNull(user) ? null : user.getUsername();
+        return NullUtil.isNull(user) ? null : user.getUsername();
     }
 }

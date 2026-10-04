@@ -1,6 +1,5 @@
 package com.knowledge.common.utils;
 
-import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 
 /**
@@ -30,7 +29,7 @@ public final class AvatarUrlUtil {
      * @return 形如 {@code /user/avatar/123?v=a3f9c2d1}；key 为空时返回 null
      */
     public static String readUrl(Long userId, String key) {
-        if (ObjectUtil.isNull(userId) || StrUtil.isBlank(key)) {
+        if (NullUtil.isNull(userId) || StrUtil.isBlank(key)) {
             return null;
         }
         return PATH_PREFIX + userId + "?v=" + version(key);

@@ -1,6 +1,6 @@
 package com.knowledge.common.enums.knowledge;
 
-import cn.hutool.core.util.ObjectUtil;
+import com.knowledge.common.utils.NullUtil;
 import lombok.Getter;
 
 /**
@@ -33,7 +33,7 @@ public enum StrategyBindingSwitch {
      * 开关是可选列，脏数据不该把读路径打挂。
      */
     public static StrategyBindingSwitch of(Integer code) {
-        if (ObjectUtil.isNull(code)) {
+        if (NullUtil.isNull(code)) {
             return null;
         }
         for (StrategyBindingSwitch item : values()) {

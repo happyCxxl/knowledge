@@ -196,7 +196,14 @@
 - **`/knowledge-base`、`/home`、`/user` 既是 SPA 路由又是接口前缀**，靠 `bypass` 按 `Accept` 头区分：含 `text/html` 的导航请求交回 SPA 回退，接口请求才转发后端。
 - 新增接口前缀必须同时加代理。漏加时代理不生效：请求落到 SPA 回退，前端拿到 HTML、页面数据全空，**控制台不报错**。
 
-### 九、待补
+### 九、空值判定口径
+
+- 后端判空统一走 `NullUtil.isNull/isNotNull`（`../knowledge-common/src/main/java/com/knowledge/common/utils/NullUtil.java`）：参数标注可空、内部转发 Hutool `ObjectUtil`，语义与 Hutool 完全一致。
+- **不写裸 `== null` / `!= null`，也不直接调 `ObjectUtil.isNull/isNotNull`**：Hutool 判空方法的参数没有可空注解，SpotBugs 把"被静态证明为 null"的判空误报为空指针类告警（`NP_NONNULL_PARAM_VIOLATION` / `NP_LOAD_OF_KNOWN_NULL_VALUE`）；走 `NullUtil` 后这类告警不再出现。
+- **`tools/backend/spotbugs-exclude.xml` 不接受新增 `NP_*` 豁免**：撞上这类告警就改判空写法，别往豁免清单加条目。
+- 其它判空语义（`ObjectUtil.isEmpty` / `isNotEmpty` / `defaultIfNull` 等）不属于本口径，按原样使用。
+
+### 十、待补
 
 梳理后续页面时一旦遇到就回填本文档：
 

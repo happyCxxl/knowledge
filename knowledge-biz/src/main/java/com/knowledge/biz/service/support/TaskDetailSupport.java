@@ -1,6 +1,5 @@
 package com.knowledge.biz.service.support;
 
-import cn.hutool.core.util.ObjectUtil;
 import com.knowledge.biz.service.db.KbPipelineProductDbService;
 import com.knowledge.biz.service.db.KbPipelineStepLogDbService;
 import com.knowledge.biz.service.db.KbPipelineTaskDbService;
@@ -11,6 +10,7 @@ import com.knowledge.common.dto.response.task.StepLogVO;
 import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
+import com.knowledge.common.utils.NullUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -34,11 +34,11 @@ public class TaskDetailSupport {
      * @param stageLabel 环节中文名（错误提示用）
      */
     public KbPipelineTask resolveTask(Long fileResultId, PipelineStage stage, Long taskId, String stageLabel) {
-        if (ObjectUtil.isNull(taskId)) {
+        if (NullUtil.isNull(taskId)) {
             return pipelineTaskDbService.getByFileResultIdAndStage(fileResultId, stage.name());
         }
         KbPipelineTask task = pipelineTaskDbService.getById(taskId);
-        if (ObjectUtil.isNull(task)
+        if (NullUtil.isNull(task)
                 || !fileResultId.equals(task.getFileResultId())
                 || !stage.name().equals(task.getStage())) {
             throw new KnowledgeException(ErrorCode.PARAM_INVALID, "任务不存在或不属于该文件的" + stageLabel + "任务");
@@ -56,7 +56,7 @@ public class TaskDetailSupport {
      */
     public <T extends StageDetailVO> T withTask(T vo, Long fileResultId, KbPipelineTask task) {
         vo.setFileResultId(fileResultId);
-        if (ObjectUtil.isNotNull(task)) {
+        if (NullUtil.isNotNull(task)) {
             vo.applyFrom(task);
             vo.setSteps(stepLogDbService.listByTaskId(task.getId()).stream().map(StepLogVO::of).toList());
         }
@@ -67,7 +67,7 @@ public class TaskDetailSupport {
      * 该次运行的产物：按 {@code task.productId} 取；无任务或无产物时返回 null（各环节据此留空）。
      */
     public KbPipelineProduct productOfTask(KbPipelineTask task) {
-        return ObjectUtil.isNull(task) || task.getProductId() == null ? null
+        return NullUtil.isNull(task) || task.getProductId() == null ? null
                 : pipelineProductDbService.getById(task.getProductId());
     }
 

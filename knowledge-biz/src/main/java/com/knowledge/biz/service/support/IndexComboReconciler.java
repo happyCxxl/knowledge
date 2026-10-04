@@ -10,6 +10,7 @@ import com.knowledge.common.domain.embed.EmbeddingSet;
 import com.knowledge.common.domain.entity.KbChunkSet;
 import com.knowledge.common.domain.entity.KbEmbeddingSet;
 import com.knowledge.common.domain.entity.KbFileResult;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.indexing.ComboSnapshot;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -61,7 +62,7 @@ public class IndexComboReconciler {
     public record ComboProducts(KbChunkSet chunkRow, KbEmbeddingSet embedRow, String gap) {
 
         public boolean complete() {
-            return ObjectUtil.isNull(gap);
+            return NullUtil.isNull(gap);
         }
     }
 
@@ -125,7 +126,7 @@ public class IndexComboReconciler {
                                              Map<String, KbEmbeddingSet> latestEmbed) {
         KbChunkSet chunkRow = latestChunk.get(fileResultId + "#" + combo.getChunkStrategy());
         KbEmbeddingSet embedRow = latestEmbed.get(fileResultId + "#" + combo.getEmbedStrategy());
-        if (ObjectUtil.isNull(chunkRow) || ObjectUtil.isNull(embedRow)) {
+        if (NullUtil.isNull(chunkRow) || NullUtil.isNull(embedRow)) {
             return new ComboProducts(null, null, "文件 " + fileResultId + " 缺少组合产物（切片策略 "
                     + combo.getChunkStrategy() + " / 向量策略 " + combo.getEmbedStrategy() + "）");
         }
@@ -139,7 +140,7 @@ public class IndexComboReconciler {
     /** 计算组合对账期望（实时重算口径） */
     public ComboExpectation computeExpected(Long kbId, ComboSnapshot combo) {
         // 对账不变量：组合必须携带三环节策略维度（缺失即坏数据，已在快照读取处显式拒绝）
-        if (ObjectUtil.isNull(combo) || !combo.hasCompleteStageStrategies()) {
+        if (NullUtil.isNull(combo) || !combo.hasCompleteStageStrategies()) {
             return new ComboExpectation(Set.of(), 0, 0, false,
                     "组合缺失环节策略维度（需废弃重灌）", true, null, null, null);
         }
@@ -148,7 +149,7 @@ public class IndexComboReconciler {
             filesById.put(file.getId(), file);
         }
         List<Long> scope;
-        if (combo.isListScope() && ObjectUtil.isNotNull(combo.getFileResultIds())) {
+        if (combo.isListScope() && NullUtil.isNotNull(combo.getFileResultIds())) {
             scope = combo.getFileResultIds();
         } else {
             scope = new ArrayList<>(filesById.keySet());
@@ -178,7 +179,7 @@ public class IndexComboReconciler {
             }
             dims.add(ObjectUtil.defaultIfNull(products.embedRow().getDimension(), 0));
             EmbeddingSet embedSet = indexRowAssembler.readEmbeddingSet(products.embedRow().getArtifactId());
-            if (ObjectUtil.isNull(embedSet) || ObjectUtil.isNull(embedSet.getRecords())) {
+            if (NullUtil.isNull(embedSet) || NullUtil.isNull(embedSet.getRecords())) {
                 return new ComboExpectation(Set.of(), 0, 0, false,
                         "文件 " + fileId + " 向量产物读取失败", true, null, null, null);
             }
@@ -187,13 +188,13 @@ public class IndexComboReconciler {
                     continue;
                 }
                 chunkIds.add(record.getChunkId());
-                if (ObjectUtil.isNotNull(record.getVector()) && !record.getVector().isEmpty()) {
+                if (NullUtil.isNotNull(record.getVector()) && !record.getVector().isEmpty()) {
                     vectorCount++;
-                    if (ObjectUtil.isNull(sampleVector)) {
+                    if (NullUtil.isNull(sampleVector)) {
                         sampleVector = record.getVector();
                     }
                 }
-                if (ObjectUtil.isNull(sampleKeyword) && StrUtil.isNotBlank(record.getInputText())) {
+                if (NullUtil.isNull(sampleKeyword) && StrUtil.isNotBlank(record.getInputText())) {
                     sampleKeyword = StrUtil.maxLength(record.getInputText(), 6);
                 }
             }

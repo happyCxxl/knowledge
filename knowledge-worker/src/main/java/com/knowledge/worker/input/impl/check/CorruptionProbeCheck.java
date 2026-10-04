@@ -1,8 +1,8 @@
 package com.knowledge.worker.input.impl.check;
 
-import cn.hutool.core.util.ObjectUtil;
 import com.knowledge.common.enums.input.FileCheckStepName;
 import com.knowledge.common.enums.input.FileValidationFailReason;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.input.check.FileCheck;
 import com.knowledge.worker.input.FileCheckContext;
 import com.knowledge.common.domain.input.FileCheckResult;
@@ -58,7 +58,7 @@ public class CorruptionProbeCheck implements FileCheck {
     private boolean isEncryptedException(Exception e) {
         Throwable t = e;
         int depth = 0;
-        while (ObjectUtil.isNotNull(t) && depth++ < 10) {
+        while (NullUtil.isNotNull(t) && depth++ < 10) {
             String message = String.valueOf(t.getMessage()).toLowerCase(Locale.ROOT);
             if (message.contains("encrypt") || message.contains("password")) {
                 return true;

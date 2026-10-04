@@ -1,6 +1,5 @@
 package com.knowledge.biz.service.impl;
 
-import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.knowledge.biz.service.EmbedControlService;
 import com.knowledge.biz.service.db.KbEmbeddingRecordDbService;
@@ -26,6 +25,7 @@ import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.ThrowUtil;
 import com.knowledge.common.utils.JsonUtil;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.chunking.ChunkProperties;
 import com.knowledge.worker.chunking.strategy.ChunkStrategy;
 import com.knowledge.worker.chunking.strategy.ChunkStrategyParser;
@@ -73,7 +73,7 @@ public class EmbedControlServiceImpl implements EmbedControlService {
 
         // 上游切片产物：可选指定，缺省取最新
         KbPipelineProduct chunkProduct = requireChunkProduct(fileResultId, upstreamProductId);
-        ThrowUtil.throwIf(ObjectUtil.isNull(chunkProduct), ErrorCode.EMBED_UPSTREAM_MISSING);
+        ThrowUtil.throwIf(NullUtil.isNull(chunkProduct), ErrorCode.EMBED_UPSTREAM_MISSING);
 
         // 窗口前置校验：切片策略最大片长 ≤ 模型窗口（不兼容即报错，不做兜底）
         precheckWindow(chunkProduct, strategy);
@@ -91,7 +91,7 @@ public class EmbedControlServiceImpl implements EmbedControlService {
         EmbedDetailVO vo = new EmbedDetailVO();
         vo.setFileResultId(fileResultId);
         vo.setRecords(new ArrayList<>());
-        if (ObjectUtil.isNotNull(task)) {
+        if (NullUtil.isNotNull(task)) {
             vo.setTaskId(task.getId());
             vo.setStage(task.getStage());
             vo.setTaskStatus(task.getStatus());
@@ -103,11 +103,11 @@ public class EmbedControlServiceImpl implements EmbedControlService {
         }
 
         // 集合摘要/记录：按 task.productId → 产物 → artifactId 精确取该次运行的集合（历史任务同样可展示自己的集合；无任务/无产物留空）
-        KbPipelineProduct product = ObjectUtil.isNull(task) || task.getProductId() == null ? null
+        KbPipelineProduct product = NullUtil.isNull(task) || task.getProductId() == null ? null
                 : pipelineProductDbService.getById(task.getProductId());
-        if (ObjectUtil.isNotNull(product)) {
+        if (NullUtil.isNotNull(product)) {
             KbEmbeddingSet embeddingSet = embeddingSetDbService.getByArtifactId(product.getArtifactId());
-            if (ObjectUtil.isNotNull(embeddingSet)) {
+            if (NullUtil.isNotNull(embeddingSet)) {
                 List<KbEmbeddingRecord> records = embeddingRecordDbService.listByEmbeddingSetId(embeddingSet.getId());
                 vo.setSummary(voAssembler.toSummary(embeddingSet, records));
                 vo.setRecords(voAssembler.toRecordItemVOs(records));
@@ -136,11 +136,11 @@ public class EmbedControlServiceImpl implements EmbedControlService {
 
     /** 上游切片产物校验：指定 id 则校验存在/环节/归属；缺省取该文件结果最新 CHUNK 产物。 */
     private KbPipelineProduct requireChunkProduct(Long fileResultId, Long productId) {
-        if (ObjectUtil.isNull(productId)) {
+        if (NullUtil.isNull(productId)) {
             return pipelineProductDbService.getByFileResultIdAndStage(fileResultId, PipelineStage.CHUNK.name());
         }
         KbPipelineProduct product = pipelineProductDbService.getById(productId);
-        ThrowUtil.throwIf(ObjectUtil.isNull(product), ErrorCode.FILE_RESULT_NOT_FOUND, "指定上游产物不存在");
+        ThrowUtil.throwIf(NullUtil.isNull(product), ErrorCode.FILE_RESULT_NOT_FOUND, "指定上游产物不存在");
         ThrowUtil.throwIf(!PipelineStage.CHUNK.name().equals(product.getStage()), ErrorCode.FILE_RESULT_NOT_FOUND,
                 "指定产物环节不匹配：期望 CHUNK");
         ThrowUtil.throwIf(!fileResultId.equals(product.getFileResultId()), ErrorCode.FILE_RESULT_NOT_FOUND,
@@ -159,7 +159,7 @@ public class EmbedControlServiceImpl implements EmbedControlService {
     private EmbedStrategy resolveStrategy(KbFileResult fileResult, Long strategyVersionId) {
         KbPipelineStrategyVersion row = strategySupport.resolve(
                 fileResult, strategyVersionId, EmbedStrategy.TYPE, "EmbedControlServiceImpl 向量化");
-        return ObjectUtil.isNull(row) ? strategyParser.defaultStrategy() : toStrategy(row);
+        return NullUtil.isNull(row) ? strategyParser.defaultStrategy() : toStrategy(row);
     }
 
     private EmbedStrategy toStrategy(KbPipelineStrategyVersion row) {

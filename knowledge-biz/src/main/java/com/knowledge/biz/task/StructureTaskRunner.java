@@ -1,6 +1,5 @@
 package com.knowledge.biz.task;
 
-import cn.hutool.core.util.ObjectUtil;
 import com.knowledge.biz.service.db.KbPipelineProductDbService;
 import com.knowledge.biz.service.db.KbPipelineTaskDbService;
 import com.knowledge.common.domain.entity.KbPipelineProduct;
@@ -11,6 +10,7 @@ import com.knowledge.common.domain.structure.UnifiedDocument;
 import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.enums.task.PipelineTaskErrorCode;
 import com.knowledge.common.utils.JsonUtil;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.filecenter.service.FileStorage;
 import com.knowledge.worker.structure.AssembleContext;
 import com.knowledge.worker.structure.DocumentAssemblerPort;
@@ -48,7 +48,7 @@ public class StructureTaskRunner {
      */
     public void run(Long taskId) {
         KbPipelineTask task = TaskRunnerSupport.claim(pipelineTaskDbService, taskId);
-        if (ObjectUtil.isNull(task)) {
+        if (NullUtil.isNull(task)) {
             return;
         }
         log.info("===> StructureTaskRunner 领取组装任务, taskId={}, fileResultId={}",
@@ -56,7 +56,7 @@ public class StructureTaskRunner {
         try {
             // 上游解析产物：优先任务指定值，缺省回退最新
             KbPipelineProduct parseProduct = resolveParseProduct(task);
-            if (ObjectUtil.isNull(parseProduct)) {
+            if (NullUtil.isNull(parseProduct)) {
                 log.warn("===> StructureTaskRunner 组装失败：上游解析产物缺失, taskId={}, fileResultId={}",
                         taskId, task.getFileResultId());
                 finishFailed(taskId, PipelineTaskErrorCode.STRUCTURE_UPSTREAM_UNREADABLE.name(),
@@ -73,7 +73,7 @@ public class StructureTaskRunner {
                         "上游解析产物读取失败: " + e.getMessage());
                 return;
             }
-            if (ObjectUtil.isNull(parseResult)) {
+            if (NullUtil.isNull(parseResult)) {
                 log.warn("===> StructureTaskRunner 组装失败：上游解析产物反序列化失败, taskId={}, artifactId={}",
                         taskId, parseProduct.getArtifactId());
                 finishFailed(taskId, PipelineTaskErrorCode.STRUCTURE_UPSTREAM_UNREADABLE.name(),

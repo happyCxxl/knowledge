@@ -8,6 +8,7 @@ import com.knowledge.common.domain.preprocess.TraceEntry;
 import com.knowledge.common.domain.preprocess.ViewElement;
 import com.knowledge.common.domain.rules.PreprocessViewRules;
 import com.knowledge.common.enums.preprocess.ViewElementStatus;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.filecenter.service.FileStorage;
 
 import java.time.LocalDateTime;
@@ -112,7 +113,7 @@ public final class PreprocessStatsSupport {
      */
     public static Map<String, Object> stats(LocalDateTime startedAt, LocalDateTime finishedAt,
                                             PreprocessView view) {
-        if (ObjectUtil.isNull(view)) {
+        if (NullUtil.isNull(view)) {
             return null;
         }
         List<ViewElement> elements = ObjectUtil.defaultIfNull(view.getElements(), List.of());
@@ -154,7 +155,7 @@ public final class PreprocessStatsSupport {
 
     /** 视图统计陈述：统计缺失时不陈述结论；空视图与各异常项逐条陈述 */
     private static String viewSummaryBody(Map<String, Object> stats) {
-        if (ObjectUtil.isNull(stats)) {
+        if (NullUtil.isNull(stats)) {
             return null;
         }
         if (intOf(stats.get(KEY_ELEMENT_COUNT)) == 0) {
@@ -249,7 +250,7 @@ public final class PreprocessStatsSupport {
         int min = Integer.MAX_VALUE;
         int max = Integer.MIN_VALUE;
         for (ViewElement element : elements) {
-            if (!affected(element) || ObjectUtil.isNull(element.getPage())) {
+            if (!affected(element) || NullUtil.isNull(element.getPage())) {
                 continue;
             }
             min = Math.min(min, element.getPage());

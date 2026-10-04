@@ -1,6 +1,6 @@
 package com.knowledge.common.enums.knowledge;
 
-import cn.hutool.core.util.ObjectUtil;
+import com.knowledge.common.utils.NullUtil;
 import lombok.Getter;
 
 /**
@@ -28,7 +28,7 @@ public enum KnowledgeBaseStatus {
      * 按码值转枚举；未知码值抛异常（防御脏数据）。
      */
     public static KnowledgeBaseStatus of(Integer code) {
-        if (ObjectUtil.isNull(code)) {
+        if (NullUtil.isNull(code)) {
             return null;
         }
         for (KnowledgeBaseStatus status : values()) {

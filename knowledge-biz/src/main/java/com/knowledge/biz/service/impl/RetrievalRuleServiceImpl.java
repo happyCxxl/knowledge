@@ -1,6 +1,5 @@
 package com.knowledge.biz.service.impl;
 
-import cn.hutool.core.util.ObjectUtil;
 import com.knowledge.biz.service.RetrievalRuleService;
 import com.knowledge.biz.service.StrategyVersionService;
 import com.knowledge.biz.service.db.KbAuditLogDbService;
@@ -17,6 +16,7 @@ import com.knowledge.common.enums.knowledge.AuditActionType;
 import com.knowledge.common.enums.knowledge.AuditObjectType;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.ThrowUtil;
+import com.knowledge.common.utils.NullUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -59,14 +59,14 @@ public class RetrievalRuleServiceImpl implements RetrievalRuleService {
     @Transactional(rollbackFor = Exception.class)
     public RetrievalRulePublishVO publishDefaultRule(Long knowledgeBaseId, RetrievalRulePublishDto dto) {
         KbIndexVersion version = indexVersionDbService.getById(dto.getVersionId());
-        ThrowUtil.throwIf(ObjectUtil.isNull(version), ErrorCode.INDEX_VERSION_NOT_FOUND);
+        ThrowUtil.throwIf(NullUtil.isNull(version), ErrorCode.INDEX_VERSION_NOT_FOUND);
         KbIndexSet set = indexSetDbService.getById(version.getIndexSetId());
-        ThrowUtil.throwIf(ObjectUtil.isNull(set)
+        ThrowUtil.throwIf(NullUtil.isNull(set)
                         || !Objects.equals(set.getKnowledgeBaseId(), knowledgeBaseId),
                 ErrorCode.INDEX_VERSION_NOT_FOUND, "版本行不属于该知识库");
 
         KbPipelineStrategyVersion rule = strategyVersionDbService.getById(dto.getRuleId());
-        ThrowUtil.throwIf(ObjectUtil.isNull(rule) || !"RETRIEVAL".equals(rule.getType()),
+        ThrowUtil.throwIf(NullUtil.isNull(rule) || !"RETRIEVAL".equals(rule.getType()),
                 ErrorCode.RETRIEVAL_RULE_NOT_FOUND);
 
         Long oldRuleId = version.getDefaultRuleId();

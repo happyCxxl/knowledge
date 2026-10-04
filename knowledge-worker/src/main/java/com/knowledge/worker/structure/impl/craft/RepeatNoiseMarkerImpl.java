@@ -7,6 +7,7 @@ import com.knowledge.common.domain.structure.UnifiedPage;
 import com.knowledge.common.enums.structure.ElementMark;
 import com.knowledge.common.enums.structure.PageMark;
 import com.knowledge.common.enums.structure.UnifiedElementType;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.common.utils.TextUtil;
 import com.knowledge.worker.structure.StructureProperties;
 import com.knowledge.worker.structure.craft.MarkOutcome;
@@ -52,12 +53,12 @@ public class RepeatNoiseMarkerImpl implements RepeatNoiseMarker {
 
     private void markRepeatedPages(UnifiedDocument document, MarkOutcome outcome) {
         List<UnifiedPage> pages = document.getPages();
-        if (ObjectUtil.isNull(pages) || pages.isEmpty()) {
+        if (NullUtil.isNull(pages) || pages.isEmpty()) {
             return;
         }
         Map<Integer, String> pageText = new HashMap<>();
         for (UnifiedElement element : document.getElements()) {
-            if (ObjectUtil.isNotNull(element.getPage()) && StrUtil.isNotBlank(element.getText())) {
+            if (NullUtil.isNotNull(element.getPage()) && StrUtil.isNotBlank(element.getText())) {
                 pageText.merge(element.getPage(), element.getText(), String::concat);
             }
         }
@@ -113,12 +114,12 @@ public class RepeatNoiseMarkerImpl implements RepeatNoiseMarker {
 
     private void markNoisePages(UnifiedDocument document, List<UnifiedElement> elements, MarkOutcome outcome) {
         List<UnifiedPage> pages = document.getPages();
-        if (ObjectUtil.isNull(pages) || pages.isEmpty()) {
+        if (NullUtil.isNull(pages) || pages.isEmpty()) {
             return;
         }
         Map<Integer, List<UnifiedElement>> byPage = new HashMap<>();
         for (UnifiedElement element : elements) {
-            if (ObjectUtil.isNotNull(element.getPage())) {
+            if (NullUtil.isNotNull(element.getPage())) {
                 byPage.computeIfAbsent(element.getPage(), k -> new ArrayList<>()).add(element);
             }
         }

@@ -1,10 +1,10 @@
 package com.knowledge.biz.service.support;
 
-import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.knowledge.common.dto.response.lineage.LineageNodeVO;
 import com.knowledge.common.enums.task.PipelineTaskStatus;
 import com.knowledge.common.utils.JsonUtil;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.filecenter.service.FileStorage;
 
 import java.nio.charset.StandardCharsets;
@@ -40,7 +40,7 @@ public final class StatsSupport {
         }
         try {
             byte[] content = fileStorage.getObject(artifactId);
-            if (ObjectUtil.isNull(content)) {
+            if (NullUtil.isNull(content)) {
                 return null;
             }
             return JsonUtil.toObject(new String(content, StandardCharsets.UTF_8), type);
@@ -72,7 +72,7 @@ public final class StatsSupport {
 
     /** 本次运行耗时：起止时间齐全时相减，缺失返回 null */
     public static Long durationMs(LocalDateTime startedAt, LocalDateTime finishedAt) {
-        if (ObjectUtil.isNull(startedAt) || ObjectUtil.isNull(finishedAt)) {
+        if (NullUtil.isNull(startedAt) || NullUtil.isNull(finishedAt)) {
             return null;
         }
         return Duration.between(startedAt, finishedAt).toMillis();
@@ -90,10 +90,10 @@ public final class StatsSupport {
      */
     public static void mergeNodeStats(LineageNodeVO node, Map<String, Object> stats, String summary) {
         node.setStageSummary(summary);
-        if (ObjectUtil.isNull(stats)) {
+        if (NullUtil.isNull(stats)) {
             return;
         }
-        Map<String, Object> merged = ObjectUtil.isNull(node.getStats())
+        Map<String, Object> merged = NullUtil.isNull(node.getStats())
                 ? new LinkedHashMap<>() : new LinkedHashMap<>(node.getStats());
         merged.putAll(stats);
         node.setStats(merged);

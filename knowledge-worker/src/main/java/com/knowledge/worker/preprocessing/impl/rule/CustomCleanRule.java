@@ -1,8 +1,8 @@
 package com.knowledge.worker.preprocessing.impl.rule;
 
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.preprocessing.impl.TextBase;
 
-import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.knowledge.common.domain.preprocess.TraceEntry;
 import com.knowledge.common.domain.preprocess.ViewCell;
@@ -67,7 +67,7 @@ public class CustomCleanRule implements CleanRule {
                 changed++;
             }
         }
-        if (ObjectUtil.isNotNull(element.getCells())) {
+        if (NullUtil.isNotNull(element.getCells())) {
             for (ViewCell cell : element.getCells()) {
                 if (StrUtil.isBlank(cell.getNormalizedText())) {
                     continue;

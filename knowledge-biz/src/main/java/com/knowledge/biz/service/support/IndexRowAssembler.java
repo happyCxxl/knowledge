@@ -1,6 +1,5 @@
 package com.knowledge.biz.service.support;
 
-import cn.hutool.core.util.ObjectUtil;
 import com.knowledge.common.domain.chunk.Chunk;
 import com.knowledge.common.domain.chunk.ChunkSet;
 import com.knowledge.common.domain.embed.EmbeddingRecord;
@@ -8,6 +7,7 @@ import com.knowledge.common.domain.embed.EmbeddingSet;
 import com.knowledge.common.domain.entity.KbChunkSet;
 import com.knowledge.common.domain.entity.KbEmbeddingSet;
 import com.knowledge.common.utils.JsonUtil;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.filecenter.service.FileStorage;
 import com.knowledge.worker.indexing.IndexRow;
 import lombok.RequiredArgsConstructor;
@@ -40,7 +40,7 @@ public class IndexRowAssembler {
      */
     public List<IndexRow> assemble(Long fileResultId, String owner, KbChunkSet chunkRow, KbEmbeddingSet embedRow) {
         EmbeddingSet embedSet = readEmbeddingSet(embedRow.getArtifactId());
-        if (ObjectUtil.isNull(embedSet) || ObjectUtil.isNull(embedSet.getRecords())) {
+        if (NullUtil.isNull(embedSet) || NullUtil.isNull(embedSet.getRecords())) {
             log.warn("===> IndexRowAssembler 向量产物缺失或记录为空, artifactId={}", embedRow.getArtifactId());
             return null;
         }
@@ -50,7 +50,7 @@ public class IndexRowAssembler {
             if (!"SUCCESS".equals(record.getStatus()) && !"CACHED".equals(record.getStatus())) {
                 continue;
             }
-            Chunk chunk = ObjectUtil.isNull(chunkById) ? null : chunkById.get(record.getChunkId());
+            Chunk chunk = NullUtil.isNull(chunkById) ? null : chunkById.get(record.getChunkId());
             IndexRow row = new IndexRow();
             row.setChunkId(record.getChunkId());
             row.setDocumentId(fileResultId);
@@ -58,8 +58,8 @@ public class IndexRowAssembler {
             row.setContentType(record.getContentType());
             row.setParentChunkId(record.getParentChunkId());
             row.setContent(record.getInputText());
-            row.setTitlePath(ObjectUtil.isNull(chunk) ? null : chunk.getTitlePath());
-            row.setSourceElementIds(ObjectUtil.isNull(chunk) || ObjectUtil.isNull(chunk.getSourceElementIds())
+            row.setTitlePath(NullUtil.isNull(chunk) ? null : chunk.getTitlePath());
+            row.setSourceElementIds(NullUtil.isNull(chunk) || NullUtil.isNull(chunk.getSourceElementIds())
                     ? null : JsonUtil.toJsonStr(chunk.getSourceElementIds()));
             row.setVector(record.getVector());
             rows.add(row);
@@ -71,7 +71,7 @@ public class IndexRowAssembler {
     public EmbeddingSet readEmbeddingSet(String artifactId) {
         try {
             byte[] content = fileStorage.getObject(artifactId);
-            if (ObjectUtil.isNull(content)) {
+            if (NullUtil.isNull(content)) {
                 return null;
             }
             return JsonUtil.toObject(new String(content, StandardCharsets.UTF_8), EmbeddingSet.class);
@@ -85,11 +85,11 @@ public class IndexRowAssembler {
     public Map<String, Chunk> readChunkIndex(String artifactId) {
         try {
             byte[] content = fileStorage.getObject(artifactId);
-            if (ObjectUtil.isNull(content)) {
+            if (NullUtil.isNull(content)) {
                 return null;
             }
             ChunkSet chunkSet = JsonUtil.toObject(new String(content, StandardCharsets.UTF_8), ChunkSet.class);
-            if (ObjectUtil.isNull(chunkSet) || ObjectUtil.isNull(chunkSet.getChunks())) {
+            if (NullUtil.isNull(chunkSet) || NullUtil.isNull(chunkSet.getChunks())) {
                 return null;
             }
             Map<String, Chunk> index = new HashMap<>();

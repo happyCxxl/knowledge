@@ -1,6 +1,5 @@
 package com.knowledge.biz.service.impl;
 
-import cn.hutool.core.util.ObjectUtil;
 import com.knowledge.biz.service.StructureControlService;
 import com.knowledge.biz.service.db.KbPipelineProductDbService;
 import com.knowledge.biz.service.support.FileResultAccessGuard;
@@ -17,6 +16,7 @@ import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.ThrowUtil;
 import com.knowledge.common.utils.JsonUtil;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.filecenter.service.FileStorage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -58,7 +58,7 @@ public class StructureControlServiceImpl implements StructureControlService {
         accessGuard.requireExisting(fileResultId);
         // 可选指定上游解析产物；缺省取最新
         KbPipelineProduct parseProduct = requireParseProduct(fileResultId, upstreamProductId);
-        ThrowUtil.throwIf(ObjectUtil.isNull(parseProduct), ErrorCode.FILE_RESULT_NOT_FOUND,
+        ThrowUtil.throwIf(NullUtil.isNull(parseProduct), ErrorCode.FILE_RESULT_NOT_FOUND,
                 "解析产物不存在，请先触发解析");
         return triggerSupport.trigger(fileResultId, PipelineStage.STRUCTURE, parseProduct.getId(), null, "组装", false);
     }
@@ -77,7 +77,7 @@ public class StructureControlServiceImpl implements StructureControlService {
         vo.setOutline(new ArrayList<>());
         UnifiedDocument document = null;
         KbPipelineProduct product = detailSupport.productOfTask(task);
-        if (ObjectUtil.isNotNull(product)) {
+        if (NullUtil.isNotNull(product)) {
             detailSupport.withProductRef(vo, product);
             document = readDocument(product.getArtifactId(), vo);
         }
@@ -91,11 +91,11 @@ public class StructureControlServiceImpl implements StructureControlService {
 
     /** 上游解析产物校验：指定 id 则校验存在/环节/归属；缺省取该文件结果最新 PARSE 产物。 */
     private KbPipelineProduct requireParseProduct(Long fileResultId, Long productId) {
-        if (ObjectUtil.isNull(productId)) {
+        if (NullUtil.isNull(productId)) {
             return pipelineProductDbService.getByFileResultIdAndStage(fileResultId, PipelineStage.PARSE.name());
         }
         KbPipelineProduct product = pipelineProductDbService.getById(productId);
-        ThrowUtil.throwIf(ObjectUtil.isNull(product), ErrorCode.FILE_RESULT_NOT_FOUND, "指定上游产物不存在");
+        ThrowUtil.throwIf(NullUtil.isNull(product), ErrorCode.FILE_RESULT_NOT_FOUND, "指定上游产物不存在");
         ThrowUtil.throwIf(!PipelineStage.PARSE.name().equals(product.getStage()), ErrorCode.FILE_RESULT_NOT_FOUND,
                 "指定产物环节不匹配：期望 PARSE");
         ThrowUtil.throwIf(!fileResultId.equals(product.getFileResultId()), ErrorCode.FILE_RESULT_NOT_FOUND,
@@ -113,7 +113,7 @@ public class StructureControlServiceImpl implements StructureControlService {
             byte[] content = fileStorage.getObject(artifactId);
             UnifiedDocument document = JsonUtil.toObject(
                     new String(content, StandardCharsets.UTF_8), UnifiedDocument.class);
-            if (ObjectUtil.isNull(document)) {
+            if (NullUtil.isNull(document)) {
                 return null;
             }
             vo.setSummary(voAssembler.toSummary(document));

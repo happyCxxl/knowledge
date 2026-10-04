@@ -1,6 +1,5 @@
 package com.knowledge.biz.task;
 
-import cn.hutool.core.util.ObjectUtil;
 import com.knowledge.biz.service.db.KbPipelineTaskDbService;
 import com.knowledge.common.domain.entity.KbPipelineTask;
 import com.knowledge.common.dto.response.task.StageTriggerVO;
@@ -8,6 +7,7 @@ import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.enums.task.PipelineTaskStatus;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.ThrowUtil;
+import com.knowledge.common.utils.NullUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -41,7 +41,7 @@ public class TaskTriggerSupport {
     public StageTriggerVO trigger(Long fileResultId, PipelineStage stage, Long upstreamProductId,
                                   String strategySnapshot, String stageLabel, boolean banOnSuccess) {
         KbPipelineTask existing = pipelineTaskDbService.getByFileResultIdAndStage(fileResultId, stage.name());
-        if (ObjectUtil.isNotNull(existing)) {
+        if (NullUtil.isNotNull(existing)) {
             ThrowUtil.throwIf(PipelineTaskStatus.RUNNING.name().equals(existing.getStatus()),
                     ErrorCode.TASK_ALREADY_PENDING, stageLabel + "任务进行中，请勿重复触发");
             if (PipelineTaskStatus.QUEUED.name().equals(existing.getStatus())) {

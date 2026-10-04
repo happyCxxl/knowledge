@@ -1,6 +1,5 @@
 package com.knowledge.worker.parser.impl.parsers;
 
-import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.knowledge.common.domain.parse.FontInfo;
 import com.knowledge.common.domain.parse.ParseElement;
@@ -8,6 +7,7 @@ import com.knowledge.common.domain.parse.ParseSource;
 import com.knowledge.common.domain.parse.Provenance;
 import com.knowledge.common.enums.parse.ElementType;
 import com.knowledge.common.enums.input.FileFormat;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.parser.ParseContext;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.hwpf.HWPFDocument;
@@ -50,7 +50,7 @@ public class DocDocumentParser extends AbstractPoiDocumentParser {
                     continue; // 表格内容由 TableIterator 统一输出
                 }
                 ParseElement element = toDocParagraphElement(paragraph, paragraphIndex, fileId);
-                if (ObjectUtil.isNotNull(element)) {
+                if (NullUtil.isNotNull(element)) {
                     source.getElements().add(element);
                 }
                 paragraphIndex++;

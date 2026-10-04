@@ -16,6 +16,7 @@ import com.knowledge.common.enums.chunk.ChunkKind;
 import com.knowledge.common.enums.structure.UnifiedElementType;
 import com.knowledge.common.enums.task.PipelineTaskErrorCode;
 import com.knowledge.common.enums.task.PipelineTaskStatus;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.chunking.ChunkContext;
 import com.knowledge.worker.chunking.ChunkerPort;
 import com.knowledge.worker.chunking.SliceContext;
@@ -68,7 +69,7 @@ public class ChunkPipeline implements ChunkerPort {
     public ChunkOutcome chunk(ChunkContext context) {
         ChunkOutcome outcome = new ChunkOutcome();
         PreprocessView view = context.getView();
-        if (ObjectUtil.isNull(view) || ObjectUtil.isNull(view.getElements()) || view.getElements().isEmpty()) {
+        if (NullUtil.isNull(view) || NullUtil.isNull(view.getElements()) || view.getElements().isEmpty()) {
             outcome.fail(PipelineTaskErrorCode.CHUNK_EMPTY.name(), "上游预处理视图无任何可切内容");
             return outcome;
         }
@@ -301,7 +302,7 @@ public class ChunkPipeline implements ChunkerPort {
         if (StrUtil.isBlank(titleText)) {
             return;
         }
-        int targetLevel = ObjectUtil.isNull(level) ? 1 : Math.max(1, level);
+        int targetLevel = NullUtil.isNull(level) ? 1 : Math.max(1, level);
         while (stack.size() >= targetLevel) {
             stack.pollLast();
         }

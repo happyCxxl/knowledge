@@ -9,6 +9,7 @@ import com.knowledge.common.domain.preprocess.ViewElement;
 import com.knowledge.common.domain.rules.PreprocessViewRules;
 import com.knowledge.common.enums.chunk.ChunkContentType;
 import com.knowledge.common.enums.chunk.ChunkRoute;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.filecenter.service.FileStorage;
 import com.knowledge.worker.chunking.strategy.ChunkRouteConfig;
 import com.knowledge.worker.chunking.strategy.ChunkStrategy;
@@ -135,7 +136,7 @@ public final class ChunkStatsSupport {
      */
     public static Map<String, Object> stats(LocalDateTime startedAt, LocalDateTime finishedAt, ChunkSet chunkSet,
                                             ChunkStrategy strategy, PreprocessView upstreamView) {
-        if (ObjectUtil.isNull(chunkSet)) {
+        if (NullUtil.isNull(chunkSet)) {
             return null;
         }
         List<Chunk> chunks = ObjectUtil.defaultIfNull(chunkSet.getChunks(), List.of());
@@ -166,7 +167,7 @@ public final class ChunkStatsSupport {
 
     /** 集合统计陈述：统计缺失时不陈述结论；空集合与各异常形态逐条陈述 */
     private static String chunkSummaryBody(Map<String, Object> stats) {
-        if (ObjectUtil.isNull(stats)) {
+        if (NullUtil.isNull(stats)) {
             return null;
         }
         if (intOf(stats.get(KEY_CHUNK_COUNT)) == 0) {
@@ -234,7 +235,7 @@ public final class ChunkStatsSupport {
 
     /** 进入切片 / 跳过元素数：口径取上游视图（跳过 = 预处理剔除态与重复份） */
     private static void putRoutingStats(Map<String, Object> stats, PreprocessView upstreamView) {
-        if (ObjectUtil.isNull(upstreamView)) {
+        if (NullUtil.isNull(upstreamView)) {
             return;
         }
         List<ViewElement> elements = ObjectUtil.defaultIfNull(upstreamView.getElements(), List.of());
@@ -245,11 +246,11 @@ public final class ChunkStatsSupport {
 
     /** 策略参数（片长上限与兜底切分参数）：策略不可解析时不下发这几个口径 */
     private static void putStrategyParams(Map<String, Object> stats, List<Chunk> chunks, ChunkStrategy strategy) {
-        if (ObjectUtil.isNull(strategy)) {
+        if (NullUtil.isNull(strategy)) {
             return;
         }
         ChunkRouteConfig body = strategy.route(ChunkRoute.BODY);
-        if (ObjectUtil.isNotNull(body)) {
+        if (NullUtil.isNotNull(body)) {
             int targetMaxLen = body.intParam(PARAM_TARGET_MAX_LEN, 0);
             int softMaxLen = body.intParam(PARAM_SOFT_MAX_LEN, 0);
             stats.put(KEY_TARGET_MAX_LEN, targetMaxLen);
@@ -258,7 +259,7 @@ public final class ChunkStatsSupport {
             stats.put(KEY_OVER_SOFT_MAX_COUNT, countOver(chunks, softMaxLen));
         }
         ChunkRouteConfig fallback = strategy.route(ChunkRoute.FALLBACK);
-        if (ObjectUtil.isNotNull(fallback)) {
+        if (NullUtil.isNotNull(fallback)) {
             stats.put(KEY_FALLBACK_LEN, fallback.intParam(PARAM_FALLBACK_LEN, 0));
             stats.put(KEY_FALLBACK_OVERLAP, fallback.intParam(PARAM_FALLBACK_OVERLAP, 0));
         }

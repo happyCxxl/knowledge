@@ -1,6 +1,5 @@
 package com.knowledge.worker.parser.impl.parsers;
 
-import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.knowledge.common.domain.parse.*;
 import com.knowledge.common.domain.parse.signal.PageMetric;
@@ -8,6 +7,7 @@ import com.knowledge.common.domain.parse.signal.ParseFact;
 import com.knowledge.common.enums.input.FileFormat;
 import com.knowledge.common.enums.parse.ElementType;
 import com.knowledge.common.enums.parse.SignalType;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.common.utils.TextUtil;
 import com.knowledge.worker.parser.DocumentParserPort;
 import com.knowledge.worker.parser.ParseContext;
@@ -33,7 +33,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.ToDoubleFunction;
 
@@ -252,11 +251,11 @@ public class PdfBoxDocumentParser implements DocumentParserPort {
             if (Character.isWhitespace(c.codePoint())) {
                 continue;
             }
-            if (ObjectUtil.isNull(prev)) {
+            if (NullUtil.isNull(prev)) {
                 tokenStart = c.x();
             }
-            double gap = ObjectUtil.isNull(prev) ? 0 : c.x() - (prev.x() + prev.width());
-            if (ObjectUtil.isNotNull(prev) && gap > TOKEN_GAP_RATIO * Math.max(c.fontSize(), 1)) {
+            double gap = NullUtil.isNull(prev) ? 0 : c.x() - (prev.x() + prev.width());
+            if (NullUtil.isNotNull(prev) && gap > TOKEN_GAP_RATIO * Math.max(c.fontSize(), 1)) {
                 tokens.add(new Token(tokenText.toString(), tokenStart, tokenEnd));
                 tokenText = new StringBuilder();
                 tokenStart = c.x();
@@ -285,7 +284,7 @@ public class PdfBoxDocumentParser implements DocumentParserPort {
             if (Character.isWhitespace(current.codePoint())) {
                 appendSpace(text);
             } else {
-                if (ObjectUtil.isNotNull(prev) && prev.wordEnd() && current.wordStart()
+                if (NullUtil.isNotNull(prev) && prev.wordEnd() && current.wordStart()
                         && !(isCjk(prev.codePoint()) && isCjk(current.codePoint()))) {
                     appendSpace(text);
                 }
@@ -463,7 +462,7 @@ public class PdfBoxDocumentParser implements DocumentParserPort {
         if (run.isEmpty()) {
             return;
         }
-        if (ObjectUtil.isNotNull(region)) {
+        if (NullUtil.isNotNull(region)) {
             flushRuledTable(run, region, page, elements, source, fileId, properties);
             return;
         }
@@ -478,8 +477,8 @@ public class PdfBoxDocumentParser implements DocumentParserPort {
         PageLine prev = null;
         for (PageLine line : run) {
             // 行序回跳 = 进入下一栏或下一带：段落与表格块都不跨栏、不跨带
-            boolean movedUp = Objects.nonNull(prev) && line.y() < prev.y();
-            if (movedUp || (Objects.nonNull(prev)
+            boolean movedUp = NullUtil.isNotNull(prev) && line.y() < prev.y();
+            if (movedUp || (NullUtil.isNotNull(prev)
                     && verticalGap(prev, line) > paragraphGapThreshold(prev, properties))) {
                 // 行距超阈值：先结算段落；表格候选块允许更大行距（表格行距可达数倍行高），
                 // 仅当新行不再具备宽列距（非表格候选）时才结算表格块
@@ -580,7 +579,7 @@ public class PdfBoxDocumentParser implements DocumentParserPort {
                 cell.setText(texts.get(c));
                 cell.setRow(r);
                 cell.setCol(c);
-                cell.setIsHeader(ObjectUtil.isNotNull(headerRow) && r == headerRow);
+                cell.setIsHeader(NullUtil.isNotNull(headerRow) && r == headerRow);
                 // 单元格 bbox：列 x 范围 × 行带高度（组装环节续表列宽模式放宽规则输入）
                 double cellX = boundaries.get(c);
                 double cellWidth = boundaries.get(c + 1) - cellX;
@@ -598,7 +597,7 @@ public class PdfBoxDocumentParser implements DocumentParserPort {
                                  List<ParseElement> elements, ParseSource source, String fileId,
                                  ParseProperties properties) {
         RuleLines.Grid grid = RuleLines.fit(page.segments(), region, properties.getTableLineCoverRatio());
-        if (ObjectUtil.isNull(grid)) {
+        if (NullUtil.isNull(grid)) {
             flushTextRun(run, page, elements, source, fileId, properties);
             return;
         }
@@ -652,7 +651,7 @@ public class PdfBoxDocumentParser implements DocumentParserPort {
             if (rect.colSpan() > 1) {
                 cell.setColSpan(rect.colSpan());
             }
-            cell.setIsHeader(ObjectUtil.isNotNull(headerRow) && rect.row() == headerRow);
+            cell.setIsHeader(NullUtil.isNotNull(headerRow) && rect.row() == headerRow);
             double cellLeft = grid.columns().get(rect.col());
             double cellRight = grid.columns().get(rect.col() + rect.colSpan());
             double cellTop = grid.rows().get(rect.row());
@@ -725,7 +724,7 @@ public class PdfBoxDocumentParser implements DocumentParserPort {
             if (piece.isEmpty()) {
                 continue;
             }
-            if (Objects.nonNull(previous)) {
+            if (NullUtil.isNotNull(previous)) {
                 text.append(lineSeparator(previous, piece));
             }
             text.append(piece);
@@ -833,7 +832,7 @@ public class PdfBoxDocumentParser implements DocumentParserPort {
         StringBuilder paragraph = new StringBuilder();
         PageLine prevLine = null;
         for (PageLine line : lines) {
-            if (Objects.nonNull(prevLine)) {
+            if (NullUtil.isNotNull(prevLine)) {
                 paragraph.append(lineSeparator(prevLine, line));
             }
             paragraph.append(line.text());
@@ -869,7 +868,7 @@ public class PdfBoxDocumentParser implements DocumentParserPort {
         @Override
         protected void writeString(String text, List<TextPosition> textPositions) {
             List<TextPosition> positions = textPositions.stream()
-                    .filter(tp -> ObjectUtil.isNotNull(tp.getUnicode()))
+                    .filter(tp -> NullUtil.isNotNull(tp.getUnicode()))
                     .toList();
             int total = positions.stream()
                     .mapToInt(tp -> tp.getUnicode().codePointCount(0, tp.getUnicode().length()))

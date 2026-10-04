@@ -1,11 +1,11 @@
 package com.knowledge.worker.parser.impl;
 
-import cn.hutool.core.util.ObjectUtil;
 import com.knowledge.common.domain.parse.ParseSource;
 import com.knowledge.common.domain.parse.signal.ParseFact;
 import com.knowledge.common.domain.parse.signal.Signal;
 import com.knowledge.common.enums.parse.SignalSubtype;
 import com.knowledge.common.enums.parse.SignalType;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.parser.ParseContext;
 import com.knowledge.worker.parser.ParseProperties;
 import com.knowledge.worker.parser.signal.SignalDetector;
@@ -27,13 +27,13 @@ public class SignalDetectorImpl implements SignalDetector {
     @Override
     public List<Signal> detect(ParseSource nativeSource, ParseContext context) {
         List<Signal> signals = new ArrayList<>();
-        if (ObjectUtil.isNull(nativeSource) || ObjectUtil.isNull(context.getProperties())) {
+        if (NullUtil.isNull(nativeSource) || NullUtil.isNull(context.getProperties())) {
             return signals;
         }
         ParseProperties p = context.getProperties();
 
         // ① 页级指标 → 阈值信号（先便宜后贵：整页无文本 → 文字极少 → 乱码率 → 文字占比）
-        if (ObjectUtil.isNotNull(nativeSource.getPageMetrics())) {
+        if (NullUtil.isNotNull(nativeSource.getPageMetrics())) {
             for (var metric : nativeSource.getPageMetrics()) {
                 String page = "page " + metric.getPage();
                 if (metric.getCharCount() <= 0) {
@@ -65,7 +65,7 @@ public class SignalDetectorImpl implements SignalDetector {
         }
 
         // ② 解析事实 → 信号（表格规则失败 / 版面异常 / 结构缺口；子类型按事实类型推导）
-        if (ObjectUtil.isNotNull(nativeSource.getFacts())) {
+        if (NullUtil.isNotNull(nativeSource.getFacts())) {
             for (ParseFact fact : nativeSource.getFacts()) {
                 signals.add(Signal.of(SignalType.valueOf(fact.getType()), fact.getRegion(), fact.getEvidence(), "-",
                         subtypeOfFact(fact.getType())));

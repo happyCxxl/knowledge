@@ -1,6 +1,5 @@
 package com.knowledge.biz.task;
 
-import cn.hutool.core.util.ObjectUtil;
 import com.knowledge.biz.service.db.KbChunkDbService;
 import com.knowledge.biz.service.db.KbChunkSetDbService;
 import com.knowledge.biz.service.db.KbFileResultDbService;
@@ -21,6 +20,7 @@ import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.enums.task.PipelineTaskErrorCode;
 import com.knowledge.common.enums.task.RowStatus;
 import com.knowledge.common.utils.JsonUtil;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.filecenter.service.FileStorage;
 import com.knowledge.worker.chunking.ChunkContext;
 import com.knowledge.worker.chunking.ChunkProperties;
@@ -67,21 +67,21 @@ public class ChunkTaskRunner {
      */
     public void run(Long taskId) {
         KbPipelineTask task = TaskRunnerSupport.claim(pipelineTaskDbService, taskId);
-        if (ObjectUtil.isNull(task)) {
+        if (NullUtil.isNull(task)) {
             return;
         }
         log.info("===> ChunkTaskRunner 领取切片任务, taskId={}, fileResultId={}",
                 taskId, task.getFileResultId());
         try {
             KbFileResult fileResult = fileResultDbService.getById(task.getFileResultId());
-            if (ObjectUtil.isNull(fileResult)) {
+            if (NullUtil.isNull(fileResult)) {
                 finishFailed(taskId, PipelineTaskErrorCode.CHUNK_FAILED.name(),
                         "文件结果不存在: " + task.getFileResultId());
                 return;
             }
             // 上游预处理视图产物：优先任务指定值，缺省回退最新
             KbPipelineProduct preprocessProduct = resolvePreprocessProduct(task);
-            if (ObjectUtil.isNull(preprocessProduct)) {
+            if (NullUtil.isNull(preprocessProduct)) {
                 finishFailed(taskId, PipelineTaskErrorCode.CHUNK_EMPTY.name(),
                         ChunkRules.UPSTREAM_PREPROCESS_MISSING);
                 return;
@@ -98,7 +98,7 @@ public class ChunkTaskRunner {
                         "上游预处理视图产物读取失败: " + e.getMessage());
                 return;
             }
-            if (ObjectUtil.isNull(view)) {
+            if (NullUtil.isNull(view)) {
                 log.warn("===> ChunkTaskRunner 切片失败：上游预处理视图产物反序列化失败, taskId={}, artifactId={}",
                         taskId, preprocessProduct.getArtifactId());
                 finishFailed(taskId, PipelineTaskErrorCode.CHUNK_EMPTY.name(), "上游预处理视图产物反序列化失败");
@@ -131,13 +131,13 @@ public class ChunkTaskRunner {
 
     /** 结构参照：PREPROCESS 产物上游的 STRUCTURE 产物（缺失不阻断，titlePath/图注降级） */
     private UnifiedDocument readStructureDocument(KbPipelineProduct preprocessProduct) {
-        if (ObjectUtil.isNull(preprocessProduct.getUpstreamProductId())) {
+        if (NullUtil.isNull(preprocessProduct.getUpstreamProductId())) {
             return null;
         }
         try {
             KbPipelineProduct structureProduct = pipelineProductDbService
                     .getById(preprocessProduct.getUpstreamProductId());
-            if (ObjectUtil.isNull(structureProduct)) {
+            if (NullUtil.isNull(structureProduct)) {
                 return null;
             }
             byte[] content = fileStorage.getObject(structureProduct.getArtifactId());
@@ -200,7 +200,7 @@ public class ChunkTaskRunner {
 
     /** 页码范围落库：null → null；单页 "3"；连续 "1-3"；非连续压缩连续段逗号连接（无损等价，不截断） */
     static String formatPageRange(List<Integer> pages) {
-        if (ObjectUtil.isNull(pages) || pages.isEmpty()) {
+        if (NullUtil.isNull(pages) || pages.isEmpty()) {
             return null;
         }
         List<Integer> distinct = pages.stream().distinct().sorted().toList();

@@ -1,6 +1,5 @@
 package com.knowledge.common.utils;
 
-import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONConfig;
 import cn.hutool.json.JSONUtil;
@@ -28,7 +27,7 @@ public final class JsonUtil {
      * 对象转 JSON 字符串；入参为 null 时返回 null。
      */
     public static String toJsonStr(Object obj) {
-        if (ObjectUtil.isNull(obj)) {
+        if (NullUtil.isNull(obj)) {
             return null;
         }
         return JSONUtil.toJsonStr(obj, DEFAULT_CONFIG);

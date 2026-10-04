@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <!-- SpotBugs 排除清单：以下豁免均有评审口径，逐条说明 -->
+<!-- 判空口径：项目统一走 NullUtil（参数可空注解的内部实现转发 Hutool），空指针类告警不再需要按方法豁免；
+     新增代码遇到 NP_* 告警时改判空写法，不要往本清单加条目 -->
 <FindBugsFilter>
     <!-- Lombok 生成访问器与 Spring 容器注入字段对外暴露可变对象：项目通用模式（DTO/Bean），
          防御性拷贝与 Lombok 风格冲突且无实际收益，按评审口径整体豁免 -->
@@ -23,23 +25,6 @@
     <Match>
         <Class name="com.knowledge.biz.task.ParseTaskConsumer"/>
         <Bug pattern="IS2_INCONSISTENT_SYNC,UWF_FIELD_NOT_INITIALIZED_IN_CONSTRUCTOR"/>
-    </Match>
-    <!-- Hutool ObjectUtil 判空为项目统一风格：SpotBugs 无法识别其 null 语义，将循环递推变量的判空
-         误报为空指针类告警；判空语义与原生 null 比较运行时等价，按评审口径方法级豁免 -->
-    <Match>
-        <Class name="com.knowledge.worker.parser.impl.parsers.PdfBoxDocumentParser"/>
-        <Method name="buildLine"/>
-        <Bug pattern="NP_ALWAYS_NULL,NP_LOAD_OF_KNOWN_NULL_VALUE,NP_NONNULL_PARAM_VIOLATION"/>
-    </Match>
-    <Match>
-        <Class name="com.knowledge.worker.parser.impl.parsers.PdfBoxDocumentParser"/>
-        <Method name="assemblePageElements"/>
-        <Bug pattern="NP_LOAD_OF_KNOWN_NULL_VALUE,NP_NONNULL_PARAM_VIOLATION"/>
-    </Match>
-    <Match>
-        <Class name="com.knowledge.worker.structure.impl.craft.StructureAssemblerImpl"/>
-        <Method name="buildOrderRelations"/>
-        <Bug pattern="NP_LOAD_OF_KNOWN_NULL_VALUE,NP_NONNULL_PARAM_VIOLATION"/>
     </Match>
     <!-- 分页查询 DTO 的页码兜底：字段由 Spring 数据绑定器反射写入、不靠构造器初始化，
          判空走 Hutool ObjectUtil.isNull（项目统一风格），SpotBugs 不识别其 null 语义，

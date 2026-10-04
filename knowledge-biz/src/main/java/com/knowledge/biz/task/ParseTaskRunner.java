@@ -1,6 +1,5 @@
 package com.knowledge.biz.task;
 
-import cn.hutool.core.util.ObjectUtil;
 import com.knowledge.biz.service.db.KbFileResultDbService;
 import com.knowledge.biz.service.db.KbPipelineTaskDbService;
 import com.knowledge.biz.service.db.KbSourceFileDbService;
@@ -16,6 +15,7 @@ import com.knowledge.common.enums.task.PipelineTaskErrorCode;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
 import com.knowledge.common.utils.JsonUtil;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.filecenter.service.FileStorage;
 import com.knowledge.worker.parser.ParseContext;
 import com.knowledge.worker.parser.ParseProperties;
@@ -53,18 +53,18 @@ public class ParseTaskRunner {
      */
     public void run(Long taskId) {
         KbPipelineTask task = TaskRunnerSupport.claim(pipelineTaskDbService, taskId);
-        if (ObjectUtil.isNull(task)) {
+        if (NullUtil.isNull(task)) {
             return;
         }
         try {
             KbFileResult fileResult = fileResultDbService.getById(task.getFileResultId());
-            if (ObjectUtil.isNull(fileResult)) {
+            if (NullUtil.isNull(fileResult)) {
                 finishFailed(taskId, PipelineTaskErrorCode.PARSE_FAILED.name(),
                         "文件结果不存在: " + task.getFileResultId());
                 return;
             }
             KbSourceFile sourceFile = sourceFileDbService.getById(fileResult.getSourceFileId());
-            if (ObjectUtil.isNull(sourceFile)) {
+            if (NullUtil.isNull(sourceFile)) {
                 finishFailed(taskId, PipelineTaskErrorCode.PARSE_FAILED.name(),
                         "来源文件不存在: " + fileResult.getSourceFileId());
                 return;

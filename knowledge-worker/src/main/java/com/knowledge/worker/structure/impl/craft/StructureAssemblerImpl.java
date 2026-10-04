@@ -10,6 +10,7 @@ import com.knowledge.common.enums.input.FileFormat;
 import com.knowledge.common.enums.structure.ElementExtensionKey;
 import com.knowledge.common.enums.structure.RelationType;
 import com.knowledge.common.enums.structure.UnifiedElementType;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.structure.AssembleContext;
 import com.knowledge.worker.structure.StructureProperties;
 import com.knowledge.worker.structure.craft.StructureAssembler;
@@ -104,13 +105,13 @@ public class StructureAssemblerImpl implements StructureAssembler {
     private TitleDecision decideByRules(List<TitleRule> rules, TitleRuleContext ruleContext) {
         for (TitleRule rule : rules) {
             TitleDecision decision = rule.tryMatch(ruleContext);
-            if (ObjectUtil.isNotNull(decision)) {
+            if (NullUtil.isNotNull(decision)) {
                 return decision;
             }
         }
         // 模型兜底：规则拿不准 → 开关开且有实现才调用
         var judge = judgeRegistry.active();
-        if (ObjectUtil.isNotNull(judge) && ruleContext.shortText()) {
+        if (NullUtil.isNotNull(judge) && ruleContext.shortText()) {
             TitleJudgeContext judgeContext = new TitleJudgeContext();
             judgeContext.setCandidateText(ruleContext.text());
             judgeContext.setFontSize(ruleContext.fontSize());
@@ -118,7 +119,7 @@ public class StructureAssemblerImpl implements StructureAssembler {
                     ? null : ruleContext.element().getFont().getBold());
             judgeContext.setNumberingPattern(null);
             TitleJudgeResult result = judge.judgeTitle(judgeContext);
-            if (ObjectUtil.isNotNull(result) && Boolean.TRUE.equals(result.getIsTitle())) {
+            if (NullUtil.isNotNull(result) && Boolean.TRUE.equals(result.getIsTitle())) {
                 TitleEvidence evidence = TitleDecision.evidence("model", ruleContext.fontSize(),
                         ruleContext.bold(), null);
                 evidence.setModelEvidence(result.getModel() + "@" + result.getVersion()
@@ -132,7 +133,7 @@ public class StructureAssemblerImpl implements StructureAssembler {
     private double medianFontSize(List<UnifiedElement> elements) {
         List<Double> sizes = elements.stream()
                 .filter(e -> UnifiedElementType.PARAGRAPH.name().equals(e.getType()))
-                .map(e -> ObjectUtil.isNull(e.getFont()) ? null : e.getFont().getSize())
+                .map(e -> NullUtil.isNull(e.getFont()) ? null : e.getFont().getSize())
                 .filter(ObjectUtil::isNotNull)
                 .sorted()
                 .toList();
@@ -144,11 +145,11 @@ public class StructureAssemblerImpl implements StructureAssembler {
     }
 
     private String extensionString(UnifiedElement element, String key) {
-        if (ObjectUtil.isNull(element.getExtension())) {
+        if (NullUtil.isNull(element.getExtension())) {
             return null;
         }
         Object value = element.getExtension().get(key);
-        return ObjectUtil.isNull(value) ? null : String.valueOf(value);
+        return NullUtil.isNull(value) ? null : String.valueOf(value);
     }
 
     // ---------------- 章节树 / 归属 / 顺序 ----------------
@@ -227,7 +228,7 @@ public class StructureAssemblerImpl implements StructureAssembler {
             if (UnifiedElementType.HEADER.name().equals(type) || UnifiedElementType.FOOTER.name().equals(type)) {
                 continue; // 页眉页脚排除正文流（仍在树内）
             }
-            if (ObjectUtil.isNotNull(previous)) {
+            if (NullUtil.isNotNull(previous)) {
                 relations.add(new DocumentRelation(RelationType.NEXT.name(), previous.getId(), element.getId(), null));
                 relations.add(new DocumentRelation(RelationType.PREVIOUS.name(), element.getId(), previous.getId(), null));
             }
@@ -240,7 +241,7 @@ public class StructureAssemblerImpl implements StructureAssembler {
         List<DocumentRelation> relations = new ArrayList<>();
         for (UnifiedElement element : elements) {
             if (UnifiedElementType.TABLE.name().equals(element.getType())
-                    && ObjectUtil.isNotNull(element.getCells())) {
+                    && NullUtil.isNotNull(element.getCells())) {
                 for (UnifiedElement cell : element.getCells()) {
                     relations.add(new DocumentRelation(RelationType.TABLE_CELL_OF.name(),
                             cell.getId(), element.getId(), null));

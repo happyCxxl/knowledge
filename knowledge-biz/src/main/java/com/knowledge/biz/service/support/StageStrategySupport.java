@@ -1,6 +1,5 @@
 package com.knowledge.biz.service.support;
 
-import cn.hutool.core.util.ObjectUtil;
 import com.knowledge.biz.service.db.KbPipelineStrategyVersionDbService;
 import com.knowledge.biz.service.db.KbStrategyBindingDbService;
 import com.knowledge.biz.service.db.KnowledgeBaseDbService;
@@ -12,6 +11,7 @@ import com.knowledge.common.domain.rules.KnowledgeBaseRules;
 import com.knowledge.common.enums.task.RowStatus;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.ThrowUtil;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.StageStrategy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -47,11 +47,11 @@ public class StageStrategySupport {
      */
     public KbPipelineStrategyVersion resolve(KbFileResult fileResult, Long strategyVersionId,
                                              String type, String stageLabel) {
-        if (ObjectUtil.isNotNull(strategyVersionId)) {
+        if (NullUtil.isNotNull(strategyVersionId)) {
             return requireExplicit(strategyVersionId, type);
         }
         KbPipelineStrategyVersion bound = resolveBound(fileResult, type, stageLabel);
-        return ObjectUtil.isNotNull(bound) ? bound : strategyVersionDbService.getLatestEnabledByType(type);
+        return NullUtil.isNotNull(bound) ? bound : strategyVersionDbService.getLatestEnabledByType(type);
     }
 
     /**
@@ -62,7 +62,7 @@ public class StageStrategySupport {
      */
     public KbPipelineStrategyVersion requireExplicit(Long strategyVersionId, String type) {
         KbPipelineStrategyVersion row = strategyVersionDbService.getById(strategyVersionId);
-        ThrowUtil.throwIf(ObjectUtil.isNull(row), ErrorCode.STRATEGY_VERSION_NOT_FOUND);
+        ThrowUtil.throwIf(NullUtil.isNull(row), ErrorCode.STRATEGY_VERSION_NOT_FOUND);
         ThrowUtil.throwIf(!type.equals(row.getType()),
                 ErrorCode.STRATEGY_VERSION_NOT_FOUND, "策略类型不匹配：期望 " + type);
         ThrowUtil.throwIf(!RowStatus.ACTIVE.name().equals(row.getStatus()),
@@ -85,11 +85,11 @@ public class StageStrategySupport {
         }
         KbStrategyBinding binding = strategyBindingDbService
                 .getByKbAndType(fileResult.getKnowledgeBaseId(), type);
-        if (ObjectUtil.isNull(binding)) {
+        if (NullUtil.isNull(binding)) {
             return null;
         }
         KbPipelineStrategyVersion bound = strategyVersionDbService.getById(binding.getStrategyVersionId());
-        if (ObjectUtil.isNotNull(bound) && RowStatus.ACTIVE.name().equals(bound.getStatus())) {
+        if (NullUtil.isNotNull(bound) && RowStatus.ACTIVE.name().equals(bound.getStatus())) {
             return bound;
         }
         log.warn(BINDING_INVALID_LOG, stageLabel, fileResult.getId(), binding.getId());

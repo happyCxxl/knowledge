@@ -1,6 +1,5 @@
 package com.knowledge.biz.service.impl;
 
-import cn.hutool.core.util.ObjectUtil;
 import com.knowledge.biz.service.ParseControlService;
 import com.knowledge.biz.service.db.KbPipelineProductDbService;
 import com.knowledge.biz.service.support.FileResultAccessGuard;
@@ -13,6 +12,7 @@ import com.knowledge.common.domain.parse.ParseResult;
 import com.knowledge.common.dto.response.parse.ParseDetailVO;
 import com.knowledge.common.dto.response.task.StageTriggerVO;
 import com.knowledge.common.enums.task.PipelineStage;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.filecenter.service.FileStorage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -69,7 +69,7 @@ public class ParseControlServiceImpl implements ParseControlService {
         // 解析的统计结构固定（LineageParseStatsVO），走 parseStats；通用 stageStats 只给没有专属结构的环节
         vo.setWarnings(new ArrayList<>());
         KbPipelineProduct product = detailSupport.productOfTask(task);
-        if (ObjectUtil.isNotNull(product)) {
+        if (NullUtil.isNotNull(product)) {
             detailSupport.withProductRef(vo, product);
             ParseResult parseResult = ParseStatsSupport.readArtifact(fileStorage, product.getArtifactId());
             vo.setWarnings(warningsOf(parseResult));
@@ -81,7 +81,7 @@ public class ParseControlServiceImpl implements ParseControlService {
 
     /** 产物本体 → 告警文案（展示用；无产物或无告警返回空列表） */
     private List<String> warningsOf(ParseResult parseResult) {
-        if (ObjectUtil.isNull(parseResult) || ObjectUtil.isNull(parseResult.getQuality())) {
+        if (NullUtil.isNull(parseResult) || NullUtil.isNull(parseResult.getQuality())) {
             return new ArrayList<>();
         }
         return parseResult.getQuality().getWarnings().stream()

@@ -16,6 +16,7 @@ import com.knowledge.common.enums.embed.EmbeddingModel;
 import com.knowledge.common.enums.embed.EmbedRecordStatus;
 import com.knowledge.common.enums.task.PipelineTaskErrorCode;
 import com.knowledge.common.enums.task.PipelineTaskStatus;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.model.gateway.ModelGatewayPort;
 import com.knowledge.worker.chunking.strategy.ChunkStrategy;
 import com.knowledge.worker.embedding.EmbedContext;
@@ -74,7 +75,7 @@ public class EmbedPipeline implements EmbedderPort {
 
         // ② 筛选 + ③ 编码
         ChunkSet chunkSet = context.getChunkSet();
-        if (ObjectUtil.isNull(chunkSet) || chunkSet.getChunks().isEmpty()) {
+        if (NullUtil.isNull(chunkSet) || chunkSet.getChunks().isEmpty()) {
             outcome.fail(PipelineTaskErrorCode.EMBED_EMPTY.name(), "上游切片产物为空，请先触发切片");
             return outcome;
         }

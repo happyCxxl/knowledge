@@ -8,6 +8,7 @@ import com.knowledge.common.domain.structure.UnifiedElement;
 import com.knowledge.common.enums.structure.ElementExtensionKey;
 import com.knowledge.common.enums.structure.RelationType;
 import com.knowledge.common.enums.structure.UnifiedElementType;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.common.utils.TextUtil;
 import com.knowledge.worker.structure.AssembleContext;
 import com.knowledge.worker.structure.craft.ContinuationOutcome;
@@ -46,11 +47,11 @@ public class TableContinuationResolverImpl implements TableContinuationResolver 
             if (isNotPdfTable(a) || isNotPdfTable(b) || !isCutAtPageBottom(a)) {
                 continue;
             }
-            if (ObjectUtil.isNull(b.getPage()) || ObjectUtil.isNull(a.getPage())
+            if (NullUtil.isNull(b.getPage()) || NullUtil.isNull(a.getPage())
                     || b.getPage() != a.getPage() + 1) {
                 continue;
             }
-            if (ObjectUtil.isNull(b.getBbox()) || b.getBbox().getY() >= context.getProperties().getPageTopThreshold()) {
+            if (NullUtil.isNull(b.getBbox()) || b.getBbox().getY() >= context.getProperties().getPageTopThreshold()) {
                 continue; // 下一页表格不在页首
             }
             if (!Objects.equals(a.getCols(), b.getCols())) {
@@ -67,9 +68,9 @@ public class TableContinuationResolverImpl implements TableContinuationResolver 
                 if (widthPattern) {
                     // 放宽规则：疑似接续；模型兜底可介入，无实现按规则接续
                     var judge = judgeRegistry.active();
-                    if (ObjectUtil.isNotNull(judge)) {
+                    if (NullUtil.isNotNull(judge)) {
                         ContinuationJudgeResult result = judge.judgeContinuation(judgeContext(a, b));
-                        merged = ObjectUtil.isNull(result) || Boolean.TRUE.equals(result.getIsContinuation());
+                        merged = NullUtil.isNull(result) || Boolean.TRUE.equals(result.getIsContinuation());
                     } else {
                         merged = true;
                     }
@@ -98,27 +99,27 @@ public class TableContinuationResolverImpl implements TableContinuationResolver 
 
     private void mergeTables(UnifiedElement a, UnifiedElement b) {
         // 表头继承：B 的表头行（row=0）是重复表头，丢弃；B 其余行拼接到 A
-        List<UnifiedElement> mergedCells = new ArrayList<>(ObjectUtil.isNull(a.getCells()) ? List.of() : a.getCells());
-        if (ObjectUtil.isNotNull(b.getCells())) {
+        List<UnifiedElement> mergedCells = new ArrayList<>(NullUtil.isNull(a.getCells()) ? List.of() : a.getCells());
+        if (NullUtil.isNotNull(b.getCells())) {
             for (UnifiedElement cell : b.getCells()) {
                 if (ObjectUtil.equals(cell.getRow(), b.getHeaderRow())) {
                     continue; // 重复表头行
                 }
-                cell.setRow(ObjectUtil.isNull(a.getRows())
+                cell.setRow(NullUtil.isNull(a.getRows())
                         ? cell.getRow() : a.getRows() + cell.getRow() - 1);
                 mergedCells.add(cell);
             }
         }
         a.setCells(mergedCells);
-        a.setRows(ObjectUtil.isNull(a.getRows()) ? b.getRows()
+        a.setRows(NullUtil.isNull(a.getRows()) ? b.getRows()
                 : a.getRows() + b.getRows() - 1);
         a.setHeaderInherited(true);
         a.setPageRange(List.of(a.getPage(), b.getPage()));
         List<ElementBBox> bboxes = new ArrayList<>();
-        if (ObjectUtil.isNotNull(a.getBbox())) {
+        if (NullUtil.isNotNull(a.getBbox())) {
             bboxes.add(new ElementBBox(a.getPage(), a.getBbox()));
         }
-        if (ObjectUtil.isNotNull(b.getBbox())) {
+        if (NullUtil.isNotNull(b.getBbox())) {
             bboxes.add(new ElementBBox(b.getPage(), b.getBbox()));
         }
         a.setBboxes(bboxes);
@@ -129,11 +130,11 @@ public class TableContinuationResolverImpl implements TableContinuationResolver 
     /** 是否非 PDF 表格（非 TABLE 类型或无页码；接续判定只针对 PDF 表格） */
     private boolean isNotPdfTable(UnifiedElement element) {
         return !UnifiedElementType.TABLE.name().equals(element.getType())
-                || !ObjectUtil.isNotNull(element.getPage());
+                || !NullUtil.isNotNull(element.getPage());
     }
 
     private boolean isCutAtPageBottom(UnifiedElement element) {
-        Object flag = ObjectUtil.isNull(element.getExtension()) ? null
+        Object flag = NullUtil.isNull(element.getExtension()) ? null
                 : element.getExtension().get(ElementExtensionKey.CUT_AT_PAGE_BOTTOM.key());
         return Boolean.TRUE.equals(flag);
     }
@@ -150,7 +151,7 @@ public class TableContinuationResolverImpl implements TableContinuationResolver 
 
     /** 指定行单元格：按 row 过滤 + 按 col 排序（rowTexts/rowWidths 共用口径） */
     private List<UnifiedElement> rowCells(UnifiedElement table, Integer row) {
-        if (ObjectUtil.isNull(table.getCells()) || ObjectUtil.isNull(row)) {
+        if (NullUtil.isNull(table.getCells()) || NullUtil.isNull(row)) {
             return List.of();
         }
         return table.getCells().stream()
@@ -177,7 +178,7 @@ public class TableContinuationResolverImpl implements TableContinuationResolver 
 
     private List<Double> rowWidths(UnifiedElement table, Integer row) {
         return rowCells(table, row).stream()
-                .map(c -> ObjectUtil.isNull(c.getBbox()) ? 0d : c.getBbox().getWidth())
+                .map(c -> NullUtil.isNull(c.getBbox()) ? 0d : c.getBbox().getWidth())
                 .toList();
     }
 

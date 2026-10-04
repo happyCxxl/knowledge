@@ -1,6 +1,5 @@
 package com.knowledge.biz.task;
 
-import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.knowledge.biz.service.IndexSetService;
 import com.knowledge.biz.service.db.KbChunkSetDbService;
@@ -23,6 +22,7 @@ import com.knowledge.common.domain.entity.KbPipelineTask;
 import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.enums.task.PipelineTaskErrorCode;
 import com.knowledge.common.utils.JsonUtil;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.filecenter.service.FileStorage;
 import com.knowledge.worker.chunking.ChunkProperties;
 import com.knowledge.worker.chunking.strategy.ChunkStrategy;
@@ -76,21 +76,21 @@ public class EmbedTaskRunner {
      */
     public void run(Long taskId) {
         KbPipelineTask task = TaskRunnerSupport.claim(pipelineTaskDbService, taskId);
-        if (ObjectUtil.isNull(task)) {
+        if (NullUtil.isNull(task)) {
             return;
         }
         log.info("===> EmbedTaskRunner 领取向量化任务, taskId={}, fileResultId={}",
                 taskId, task.getFileResultId());
         try {
             KbFileResult fileResult = fileResultDbService.getById(task.getFileResultId());
-            if (ObjectUtil.isNull(fileResult)) {
+            if (NullUtil.isNull(fileResult)) {
                 finishFailed(taskId, PipelineTaskErrorCode.EMBED_FAILED.name(),
                         "文件结果不存在: " + task.getFileResultId());
                 return;
             }
             // 上游切片产物：优先任务指定值，缺省回退最新
             KbPipelineProduct chunkProduct = resolveChunkProduct(task);
-            if (ObjectUtil.isNull(chunkProduct)) {
+            if (NullUtil.isNull(chunkProduct)) {
                 finishFailed(taskId, PipelineTaskErrorCode.EMBED_EMPTY.name(), "切片产物不存在，请先触发切片");
                 return;
             }
@@ -106,7 +106,7 @@ public class EmbedTaskRunner {
                         "上游切片产物读取失败: " + e.getMessage());
                 return;
             }
-            if (ObjectUtil.isNull(chunkSet) || chunkSet.getChunks().isEmpty()) {
+            if (NullUtil.isNull(chunkSet) || chunkSet.getChunks().isEmpty()) {
                 finishFailed(taskId, PipelineTaskErrorCode.EMBED_EMPTY.name(), "上游切片产物为空");
                 return;
             }
@@ -164,7 +164,7 @@ public class EmbedTaskRunner {
 
     private Long latestChunkSetRef(Long fileResultId) {
         KbChunkSet chunkSet = chunkSetDbService.getLatestByFileResultId(fileResultId);
-        return ObjectUtil.isNull(chunkSet) ? null : chunkSet.getId();
+        return NullUtil.isNull(chunkSet) ? null : chunkSet.getId();
     }
 
     private ChunkStrategy resolveChunkStrategy(String snapshot) {

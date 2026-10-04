@@ -1,6 +1,5 @@
 package com.knowledge.biz.service.impl;
 
-import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -24,6 +23,7 @@ import com.knowledge.common.enums.strategy.StrategyType;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
 import com.knowledge.common.security.KnowledgeUser;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.common.utils.SecurityUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -92,7 +92,7 @@ public class KnowledgeHomeServiceImpl implements KnowledgeHomeService {
         long current = query.currentOrDefault();
         long size = query.sizeOrDefault();
         KnowledgeUser user = SecurityUtil.getUser();
-        if (ObjectUtil.isNull(user)) {
+        if (NullUtil.isNull(user)) {
             // 该接口本身要求认证；走到这里说明安全上下文缺失，宁可不给数据也不放全量
             throw new KnowledgeException(ErrorCode.UNAUTHORIZED);
         }
@@ -121,9 +121,9 @@ public class KnowledgeHomeServiceImpl implements KnowledgeHomeService {
         vo.setId(row.getId());
         vo.setFileName(row.getFileName());
         vo.setKnowledgeBaseId(row.getKnowledgeBaseId());
-        KnowledgeBase kb = ObjectUtil.isNull(row.getKnowledgeBaseId())
+        KnowledgeBase kb = NullUtil.isNull(row.getKnowledgeBaseId())
                 ? null : kbById.get(row.getKnowledgeBaseId());
-        vo.setKnowledgeBaseName(ObjectUtil.isNotNull(kb)
+        vo.setKnowledgeBaseName(NullUtil.isNotNull(kb)
                 ? kb.getName() : "知识库 " + row.getKnowledgeBaseId());
         vo.setFileType(resolveFileType(row.getFileId(), mimeTypeByFileId));
         vo.setStatus(row.getStatus());
@@ -142,14 +142,14 @@ public class KnowledgeHomeServiceImpl implements KnowledgeHomeService {
     private String resolveFileType(String fileId, Map<String, String> mimeTypeByFileId) {
         String mimeType = StrUtil.isBlank(fileId) ? null : mimeTypeByFileId.get(fileId);
         FileFormat format = StrUtil.isBlank(mimeType) ? null : FileFormat.ofMimeType(mimeType);
-        return ObjectUtil.isNull(format) ? null : format.name();
+        return NullUtil.isNull(format) ? null : format.name();
     }
 
     /** 收集本页提交记录涉及的知识库 ID → 实体 */
     private Map<Long, KnowledgeBase> loadKnowledgeBases(List<KbSubmitLog> rows) {
         Set<Long> ids = new HashSet<>();
         for (KbSubmitLog row : rows) {
-            if (ObjectUtil.isNotNull(row.getKnowledgeBaseId())) {
+            if (NullUtil.isNotNull(row.getKnowledgeBaseId())) {
                 ids.add(row.getKnowledgeBaseId());
             }
         }

@@ -1,11 +1,11 @@
 package com.knowledge.biz.service.support;
 
-import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
 import com.knowledge.common.exception.ThrowUtil;
 import com.knowledge.common.utils.JsonUtil;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.retrieval.RetrievalCapability;
 import com.knowledge.worker.retrieval.RetrievalRuleSpec;
 import lombok.RequiredArgsConstructor;
@@ -123,7 +123,7 @@ public class RetrievalRuleResolver {
 
     @SuppressWarnings("unchecked")
     private void checkNested(Object value, Set<String> allowed, String scope) {
-        if (ObjectUtil.isNull(value)) {
+        if (NullUtil.isNull(value)) {
             return;
         }
         ThrowUtil.throwIf(!(value instanceof Map), ErrorCode.PARAM_INVALID, scope + " 必须为对象");

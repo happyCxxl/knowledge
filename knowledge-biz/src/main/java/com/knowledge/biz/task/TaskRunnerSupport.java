@@ -1,6 +1,5 @@
 package com.knowledge.biz.task;
 
-import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.knowledge.biz.service.db.KbPipelineProductDbService;
 import com.knowledge.biz.service.db.KbPipelineTaskDbService;
@@ -9,6 +8,7 @@ import com.knowledge.common.domain.entity.KbPipelineTask;
 import com.knowledge.common.domain.task.StageOutcome;
 import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.enums.task.PipelineTaskStatus;
+import com.knowledge.common.utils.NullUtil;
 
 /**
  * 环节任务执行器共用助手：**领任务的准入判断**、**上游产物解析**、**终态收尾**三件事各环节完全同构，
@@ -36,7 +36,7 @@ public final class TaskRunnerSupport {
      */
     public static KbPipelineTask claim(KbPipelineTaskDbService pipelineTaskDbService, Long taskId) {
         KbPipelineTask task = pipelineTaskDbService.getById(taskId);
-        if (ObjectUtil.isNull(task)
+        if (NullUtil.isNull(task)
                 || !PipelineTaskStatus.QUEUED.name().equals(task.getStatus())) {
             return null;
         }
@@ -53,9 +53,9 @@ public final class TaskRunnerSupport {
      */
     public static KbPipelineProduct resolveUpstreamProduct(KbPipelineProductDbService productDbService,
                                                            KbPipelineTask task, PipelineStage stage) {
-        KbPipelineProduct product = ObjectUtil.isNull(task.getUpstreamProductId()) ? null
+        KbPipelineProduct product = NullUtil.isNull(task.getUpstreamProductId()) ? null
                 : productDbService.getById(task.getUpstreamProductId());
-        return ObjectUtil.isNull(product)
+        return NullUtil.isNull(product)
                 ? productDbService.getByFileResultIdAndStage(task.getFileResultId(), stage.name())
                 : product;
     }

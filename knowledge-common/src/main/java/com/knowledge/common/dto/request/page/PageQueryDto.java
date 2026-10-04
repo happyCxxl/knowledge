@@ -1,6 +1,6 @@
 package com.knowledge.common.dto.request.page;
 
-import cn.hutool.core.util.ObjectUtil;
+import com.knowledge.common.utils.NullUtil;
 import lombok.Data;
 
 import java.io.Serial;
@@ -33,11 +33,11 @@ public class PageQueryDto implements Serializable {
 
     /** 页码兜底：未传或小于 1 时取默认值 */
     public long currentOrDefault() {
-        return ObjectUtil.isNull(current) || current < 1 ? DEFAULT_CURRENT : current;
+        return NullUtil.isNull(current) || current < 1 ? DEFAULT_CURRENT : current;
     }
 
     /** 每页条数兜底：未传或小于 1 时取默认值 */
     public long sizeOrDefault() {
-        return ObjectUtil.isNull(size) || size < 1 ? DEFAULT_SIZE : size;
+        return NullUtil.isNull(size) || size < 1 ? DEFAULT_SIZE : size;
     }
 }

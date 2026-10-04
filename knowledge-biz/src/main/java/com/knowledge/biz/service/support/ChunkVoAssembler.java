@@ -8,6 +8,7 @@ import com.knowledge.common.domain.entity.KbChunkSet;
 import com.knowledge.common.dto.response.chunk.ChunkItemVO;
 import com.knowledge.common.dto.response.chunk.ChunkSummaryVO;
 import com.knowledge.common.enums.chunk.ChunkContentType;
+import com.knowledge.common.utils.NullUtil;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -44,7 +45,7 @@ public class ChunkVoAssembler {
         vo.setParentChunkCount(parentCount);
         vo.setChildChunkCount(childCount);
         int chunkCount = ObjectUtil.defaultIfNull(chunkSet.getChunkCount(), 0);
-        vo.setAvgChars(chunkCount > 0 && ObjectUtil.isNotNull(chunkSet.getTotalChars())
+        vo.setAvgChars(chunkCount > 0 && NullUtil.isNotNull(chunkSet.getTotalChars())
                 ? (int) Math.round((double) chunkSet.getTotalChars() / chunkCount)
                 : 0);
         vo.setTypeCounts(typeCounts);
@@ -80,7 +81,7 @@ public class ChunkVoAssembler {
         vo.setOrderNo(chunk.getOrderNo());
         vo.setCharCount(chunk.getCharCount());
         vo.setTokenCount(chunk.getTokenCount());
-        if (ObjectUtil.isNotNull(productChunk)) {
+        if (NullUtil.isNotNull(productChunk)) {
             vo.setSourceElementCount(ObjectUtil.defaultIfNull(productChunk.getSourceElementIds(),
                     new ArrayList<String>()).size());
             vo.setFallbackReason(productChunk.getFallbackReason());

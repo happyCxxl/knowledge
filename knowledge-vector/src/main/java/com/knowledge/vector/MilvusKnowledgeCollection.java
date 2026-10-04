@@ -7,6 +7,7 @@ import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
+import com.knowledge.common.utils.NullUtil;
 import io.milvus.common.clientenum.FunctionType;
 import io.milvus.v2.client.MilvusClientV2;
 import io.milvus.v2.common.ConsistencyLevel;
@@ -180,7 +181,7 @@ public class MilvusKnowledgeCollection implements KnowledgeCollectionPort {
             }
             for (QueryResp.QueryResult result : results) {
                 Object id = result.getEntity().get("id");
-                if (ObjectUtil.isNotNull(id)) {
+                if (NullUtil.isNotNull(id)) {
                     ids.add(String.valueOf(id));
                 }
             }
@@ -370,11 +371,11 @@ public class MilvusKnowledgeCollection implements KnowledgeCollectionPort {
     }
 
     private String str(Object value) {
-        return ObjectUtil.isNull(value) ? null : String.valueOf(value);
+        return NullUtil.isNull(value) ? null : String.valueOf(value);
     }
 
     private Long longOf(Object value) {
-        if (ObjectUtil.isNull(value)) {
+        if (NullUtil.isNull(value)) {
             return null;
         }
         if (value instanceof Number number) {

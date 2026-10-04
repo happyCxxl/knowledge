@@ -1,6 +1,5 @@
 package com.knowledge.common.utils;
 
-import cn.hutool.core.util.ObjectUtil;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
@@ -24,7 +23,7 @@ public final class ClientIpUtil {
     public static String getClientIp() {
         ServletRequestAttributes attributes =
                 (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
-        if (ObjectUtil.isNull(attributes)) {
+        if (NullUtil.isNull(attributes)) {
             return UNKNOWN;
         }
         return attributes.getRequest().getRemoteAddr();

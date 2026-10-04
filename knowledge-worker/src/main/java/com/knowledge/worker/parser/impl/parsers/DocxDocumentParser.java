@@ -1,6 +1,5 @@
 package com.knowledge.worker.parser.impl.parsers;
 
-import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.knowledge.common.domain.parse.FontInfo;
 import com.knowledge.common.domain.parse.ParseElement;
@@ -8,6 +7,7 @@ import com.knowledge.common.domain.parse.ParseSource;
 import com.knowledge.common.domain.parse.Provenance;
 import com.knowledge.common.enums.parse.ElementType;
 import com.knowledge.common.enums.input.FileFormat;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.parser.ParseContext;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.xwpf.usermodel.IBodyElement;
@@ -55,7 +55,7 @@ public class DocxDocumentParser extends AbstractPoiDocumentParser {
             for (IBodyElement bodyElement : bodyElements) {
                 if (bodyElement instanceof XWPFParagraph paragraph) {
                     ParseElement element = toDocxParagraphElement(paragraph, paragraphIndex, fileId);
-                    if (ObjectUtil.isNotNull(element)) {
+                    if (NullUtil.isNotNull(element)) {
                         source.getElements().add(element);
                     }
                     // 段落内嵌图片：仅记引用 + needsOcr（OCR 预留）
@@ -126,14 +126,14 @@ public class DocxDocumentParser extends AbstractPoiDocumentParser {
         element.setTocCandidate(TocLineFeature.isTocLine(text));
         // 字体事实：取首个有数据的 run（无样式标题也只输出事实，层级归组装环节）
         for (XWPFRun run : paragraph.getRuns()) {
-            if (ObjectUtil.isNull(run)) {
+            if (NullUtil.isNull(run)) {
                 continue;
             }
             FontInfo font = new FontInfo();
             font.setName(run.getFontFamily());
             Double size = run.getFontSizeAsDouble();
-            font.setSize(ObjectUtil.isNotNull(size) && size > 0 ? size : null);
-            font.setBold(ObjectUtil.isNotNull(run.isBold()) ? run.isBold() : null);
+            font.setSize(NullUtil.isNotNull(size) && size > 0 ? size : null);
+            font.setBold(NullUtil.isNotNull(run.isBold()) ? run.isBold() : null);
             element.setFont(font);
             break;
         }
@@ -145,7 +145,7 @@ public class DocxDocumentParser extends AbstractPoiDocumentParser {
     private void appendDocxPictures(ParseSource source, XWPFParagraph paragraph, int index, String fileId) {
         int pictureIndex = 0;
         for (XWPFRun run : paragraph.getRuns()) {
-            if (ObjectUtil.isNull(run) || run.getEmbeddedPictures().isEmpty()) {
+            if (NullUtil.isNull(run) || run.getEmbeddedPictures().isEmpty()) {
                 continue;
             }
             for (XWPFPicture picture : run.getEmbeddedPictures()) {
@@ -179,7 +179,7 @@ public class DocxDocumentParser extends AbstractPoiDocumentParser {
             for (XWPFTableCell cell : row.getTableCells()) {
                 int gridSpan = gridSpan(cell);
                 STMerge.Enum vMerge = vMerge(cell);
-                if (ObjectUtil.isNull(vMerge) || STMerge.RESTART.equals(vMerge)) {
+                if (NullUtil.isNull(vMerge) || STMerge.RESTART.equals(vMerge)) {
                     ParseElement cellElement = ParseElement.of("t" + tableIndex + "c" + rowIndex + "_" + colIndex,
                             ElementType.TABLE_CELL);
                     cellElement.setText(cell.getText());
@@ -203,7 +203,7 @@ public class DocxDocumentParser extends AbstractPoiDocumentParser {
         // 回填 vMerge 行跨度（restart 单元格）
         for (ParseElement cell : tableElement.getCells()) {
             Integer pending = columnMergePending.get(cell.getCol());
-            if (ObjectUtil.isNotNull(pending) && pending > 1) {
+            if (NullUtil.isNotNull(pending) && pending > 1) {
                 cell.setRowSpan(pending);
             }
         }
@@ -222,14 +222,14 @@ public class DocxDocumentParser extends AbstractPoiDocumentParser {
     /** 单元格横向跨度（无 gridSpan 记 1） */
     private static int gridSpan(XWPFTableCell cell) {
         CTTcPr tcPr = cell.getCTTc().getTcPr();
-        return ObjectUtil.isNotNull(tcPr) && ObjectUtil.isNotNull(tcPr.getGridSpan())
+        return NullUtil.isNotNull(tcPr) && NullUtil.isNotNull(tcPr.getGridSpan())
                 ? tcPr.getGridSpan().getVal().intValue() : 1;
     }
 
     /** 单元格纵向合并类型（无 vMerge 记 null） */
     private static STMerge.Enum vMerge(XWPFTableCell cell) {
         CTTcPr tcPr = cell.getCTTc().getTcPr();
-        return ObjectUtil.isNotNull(tcPr) && ObjectUtil.isNotNull(tcPr.getVMerge())
+        return NullUtil.isNotNull(tcPr) && NullUtil.isNotNull(tcPr.getVMerge())
                 ? tcPr.getVMerge().getVal() : null;
     }
 }

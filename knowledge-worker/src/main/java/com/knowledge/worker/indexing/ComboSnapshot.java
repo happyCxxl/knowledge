@@ -1,11 +1,11 @@
 package com.knowledge.worker.indexing;
 
-import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.knowledge.common.enums.index.IndexShape;
 import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
+import com.knowledge.common.utils.NullUtil;
 import lombok.Data;
 
 import java.io.Serial;
@@ -67,7 +67,7 @@ public class ComboSnapshot implements Serializable {
 
     /** 格式断言（非抛）：预处理/切片/向量三环节策略维度齐全且非空 */
     public boolean hasCompleteStageStrategies() {
-        return ObjectUtil.isNotNull(stageStrategies)
+        return NullUtil.isNotNull(stageStrategies)
                 && StrUtil.isNotBlank(strategyOf(PipelineStage.PREPROCESS.name()))
                 && StrUtil.isNotBlank(strategyOf(PipelineStage.CHUNK.name()))
                 && StrUtil.isNotBlank(strategyOf(PipelineStage.EMBED.name()));

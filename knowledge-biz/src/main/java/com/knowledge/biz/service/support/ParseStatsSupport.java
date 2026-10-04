@@ -8,6 +8,7 @@ import com.knowledge.common.domain.parse.ParseSource;
 import com.knowledge.common.domain.parse.QualityInfo;
 import com.knowledge.common.dto.response.lineage.LineageParseStatsVO;
 import com.knowledge.common.enums.parse.ElementType;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.filecenter.service.FileStorage;
 
 import java.time.LocalDateTime;
@@ -50,7 +51,7 @@ public final class ParseStatsSupport {
      */
     public static LineageParseStatsVO stats(LocalDateTime startedAt, LocalDateTime finishedAt,
                                             ParseResult parseResult) {
-        if (ObjectUtil.isNull(parseResult)) {
+        if (NullUtil.isNull(parseResult)) {
             return null;
         }
         List<ParseSource> sources = ObjectUtil.defaultIfNull(parseResult.getSources(), List.of());
@@ -98,11 +99,11 @@ public final class ParseStatsSupport {
 
     /** 解析统计陈述：统计缺失（产物不可读）时不陈述结论，无异常的断言只在统计到手时成立 */
     private static String parseSummaryBody(LineageParseStatsVO stats) {
-        if (ObjectUtil.isNull(stats)) {
+        if (NullUtil.isNull(stats)) {
             return null;
         }
         Integer failedUnitCount = stats.getFailedUnitCount();
-        if (ObjectUtil.isNull(failedUnitCount) || failedUnitCount == 0) {
+        if (NullUtil.isNull(failedUnitCount) || failedUnitCount == 0) {
             return "无异常";
         }
         return failedUnitCount + " 单元未解析出内容（第 " + stats.getFailedFrom()
@@ -114,7 +115,7 @@ public final class ParseStatsSupport {
         if (unitCount > 0) {
             return unitCount;
         }
-        if (ObjectUtil.isNull(parseResult.getFile())) {
+        if (NullUtil.isNull(parseResult.getFile())) {
             return null;
         }
         Integer pageCount = parseResult.getFile().getPageCount();
@@ -123,7 +124,7 @@ public final class ParseStatsSupport {
 
     /** 问题单元清单：去重升序，供始末单元号取值 */
     private static List<Integer> failedUnits(QualityInfo quality) {
-        if (ObjectUtil.isNull(quality)) {
+        if (NullUtil.isNull(quality)) {
             return List.of();
         }
         return ObjectUtil.defaultIfNull(quality.getFailedPages(), List.<Integer>of()).stream()

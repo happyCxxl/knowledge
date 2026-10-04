@@ -7,6 +7,7 @@ import com.knowledge.common.domain.preprocess.ViewCell;
 import com.knowledge.common.domain.preprocess.ViewElement;
 import com.knowledge.common.domain.structure.UnifiedElement;
 import com.knowledge.common.enums.chunk.ChunkContentType;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.chunking.SliceContext;
 
 import java.util.ArrayList;
@@ -48,7 +49,7 @@ public final class TableMarkdownSupport {
     /** 表格切片准备：结构表 + 表头映射 + 数据行（无可切单元格返回 null）。 */
     public static TablePrep prepare(ViewElement element, SliceContext context) {
         UnifiedElement table = context.getById().get(element.getElementId());
-        if (ObjectUtil.isNull(table) || ObjectUtil.isNull(table.getCells()) || table.getCells().isEmpty()) {
+        if (NullUtil.isNull(table) || NullUtil.isNull(table.getCells()) || table.getCells().isEmpty()) {
             return null;
         }
         Map<String, String> textByCell = textByCell(element);
@@ -60,7 +61,7 @@ public final class TableMarkdownSupport {
     /** 视图单元格检索文本索引（cellId → normalizedText） */
     public static Map<String, String> textByCell(ViewElement element) {
         Map<String, String> map = new HashMap<>();
-        if (ObjectUtil.isNotNull(element.getCells())) {
+        if (NullUtil.isNotNull(element.getCells())) {
             for (ViewCell cell : element.getCells()) {
                 if (StrUtil.isNotBlank(cell.getCellId())) {
                     map.put(cell.getCellId(), cell.getNormalizedText());
@@ -74,7 +75,7 @@ public final class TableMarkdownSupport {
     public static Map<Integer, String> headerByCol(UnifiedElement table, Map<String, String> textByCell) {
         Map<Integer, String> headerByCol = new HashMap<>();
         for (UnifiedElement cell : table.getCells()) {
-            if (Boolean.TRUE.equals(cell.getIsHeader()) && ObjectUtil.isNotNull(cell.getCol())) {
+            if (Boolean.TRUE.equals(cell.getIsHeader()) && NullUtil.isNotNull(cell.getCol())) {
                 String headerText = cellText(cell, textByCell);
                 if (StrUtil.isNotBlank(headerText)) {
                     headerByCol.putIfAbsent(cell.getCol(), headerText);
@@ -88,7 +89,7 @@ public final class TableMarkdownSupport {
     public static TableRows prepareRows(UnifiedElement table, Map<String, String> textByCell) {
         Map<Integer, List<UnifiedElement>> grouped = new LinkedHashMap<>();
         for (UnifiedElement cell : table.getCells()) {
-            if (Boolean.TRUE.equals(cell.getIsHeader()) || ObjectUtil.isNull(cell.getRow())) {
+            if (Boolean.TRUE.equals(cell.getIsHeader()) || NullUtil.isNull(cell.getRow())) {
                 continue;
             }
             grouped.computeIfAbsent(cell.getRow(), k -> new ArrayList<>()).add(cell);
@@ -284,9 +285,9 @@ public final class TableMarkdownSupport {
     }
 
     private static List<Integer> pageRangeOf(UnifiedElement table) {
-        if (ObjectUtil.isNotNull(table.getPageRange()) && !table.getPageRange().isEmpty()) {
+        if (NullUtil.isNotNull(table.getPageRange()) && !table.getPageRange().isEmpty()) {
             return new ArrayList<>(table.getPageRange());
         }
-        return ObjectUtil.isNotNull(table.getPage()) ? List.of(table.getPage()) : null;
+        return NullUtil.isNotNull(table.getPage()) ? List.of(table.getPage()) : null;
     }
 }

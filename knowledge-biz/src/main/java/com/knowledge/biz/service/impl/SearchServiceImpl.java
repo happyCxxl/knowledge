@@ -1,6 +1,5 @@
 package com.knowledge.biz.service.impl;
 
-import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.knowledge.biz.service.SearchService;
 import com.knowledge.biz.service.db.KbIndexSetDbService;
@@ -25,6 +24,7 @@ import com.knowledge.common.enums.index.IndexVersionStatus;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.ThrowUtil;
 import com.knowledge.common.utils.JsonUtil;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.model.gateway.ModelGatewayPort;
 import com.knowledge.worker.embedding.strategy.EmbedStrategy;
 import com.knowledge.worker.embedding.strategy.EmbedStrategyParser;
@@ -86,8 +86,8 @@ public class SearchServiceImpl implements SearchService {
     @Override
     public SearchVO search(Long knowledgeBaseId, SearchRequest request) {
         long start = System.currentTimeMillis();
-        boolean bench = ObjectUtil.isNotNull(request.getVersionId()) || ObjectUtil.isNotNull(request.getRuleId());
-        ThrowUtil.throwIf(bench && (ObjectUtil.isNull(request.getVersionId()) || ObjectUtil.isNull(request.getRuleId())),
+        boolean bench = NullUtil.isNotNull(request.getVersionId()) || NullUtil.isNotNull(request.getRuleId());
+        ThrowUtil.throwIf(bench && (NullUtil.isNull(request.getVersionId()) || NullUtil.isNull(request.getRuleId())),
                 ErrorCode.PARAM_INVALID, "测试台检索需同时指定 versionId 与 ruleId");
 
         // ① 版本 + 规则（生产=在线+回退链；测试台=显式）
@@ -111,7 +111,7 @@ public class SearchServiceImpl implements SearchService {
         }
         if (!RetrievalRuleSpec.CHANNEL_FULLTEXT.equals(spec.getChannel())) {
             List<Float> queryVector = embedQuery(version, request.getQuery());
-            if (ObjectUtil.isNotNull(queryVector)) {
+            if (NullUtil.isNotNull(queryVector)) {
                 vectorHits = milvusIndexPort.searchVector(collectionName, VectorQuery.builder()
                         .vector(queryVector)
                         .topK(spec.getFusion().getPerChannelLimit())
@@ -131,7 +131,7 @@ public class SearchServiceImpl implements SearchService {
         }
 
         // ⑤ Top-K（请求覆盖规则）
-        int topK = ObjectUtil.isNotNull(request.getTopK()) ? request.getTopK() : spec.getTopK();
+        int topK = NullUtil.isNotNull(request.getTopK()) ? request.getTopK() : spec.getTopK();
         ordered = ordered.stream().limit(topK).toList();
 
         SearchVO vo = new SearchVO();
@@ -208,30 +208,30 @@ public class SearchServiceImpl implements SearchService {
     private KbIndexVersion resolveVersion(Long knowledgeBaseId, SearchRequest request, boolean bench) {
         if (bench) {
             KbIndexVersion version = indexVersionDbService.getById(request.getVersionId());
-            ThrowUtil.throwIf(ObjectUtil.isNull(version), ErrorCode.INDEX_VERSION_NOT_FOUND);
+            ThrowUtil.throwIf(NullUtil.isNull(version), ErrorCode.INDEX_VERSION_NOT_FOUND);
             ThrowUtil.throwIf(!Set.of(IndexVersionStatus.READY.name(), IndexVersionStatus.ONLINE.name())
                             .contains(version.getStatus()),
                     ErrorCode.INDEX_BUILDING_CONFLICT, "仅就绪/在线版本可检索");
             return version;
         }
         KbIndexSet set = indexSetDbService.getByKb(knowledgeBaseId);
-        ThrowUtil.throwIf(ObjectUtil.isNull(set) || ObjectUtil.isNull(set.getCurrentPublishedVersionId()),
+        ThrowUtil.throwIf(NullUtil.isNull(set) || NullUtil.isNull(set.getCurrentPublishedVersionId()),
                 ErrorCode.INDEX_NOT_PUBLISHED);
         KbIndexVersion version = indexVersionDbService.getById(set.getCurrentPublishedVersionId());
-        ThrowUtil.throwIf(ObjectUtil.isNull(version), ErrorCode.INDEX_NOT_PUBLISHED);
+        ThrowUtil.throwIf(NullUtil.isNull(version), ErrorCode.INDEX_NOT_PUBLISHED);
         return version;
     }
 
     /** 规则解析：显式 ruleId → 版本行默认 → kb 默认 → 引擎基线（不落库常量） */
     private KbPipelineStrategyVersion resolveRuleRow(Long knowledgeBaseId, KbIndexVersion version, Long explicitRuleId) {
-        Long ruleId = ObjectUtil.isNotNull(explicitRuleId) ? explicitRuleId : version.getDefaultRuleId();
-        if (ObjectUtil.isNull(ruleId)) {
+        Long ruleId = NullUtil.isNotNull(explicitRuleId) ? explicitRuleId : version.getDefaultRuleId();
+        if (NullUtil.isNull(ruleId)) {
             KnowledgeBase kb = knowledgeBaseDbService.getById(knowledgeBaseId);
-            ruleId = ObjectUtil.isNull(kb) ? null : kb.getDefaultRuleId();
+            ruleId = NullUtil.isNull(kb) ? null : kb.getDefaultRuleId();
         }
-        if (ObjectUtil.isNotNull(ruleId)) {
+        if (NullUtil.isNotNull(ruleId)) {
             KbPipelineStrategyVersion row = strategyVersionDbService.getById(ruleId);
-            ThrowUtil.throwIf(ObjectUtil.isNull(row) || !"RETRIEVAL".equals(row.getType()),
+            ThrowUtil.throwIf(NullUtil.isNull(row) || !"RETRIEVAL".equals(row.getType()),
                     ErrorCode.RETRIEVAL_RULE_NOT_FOUND);
             return row;
         }
@@ -246,13 +246,13 @@ public class SearchServiceImpl implements SearchService {
     /** 查询向量化：跟随集合 EMBED 策略（模型 + queryTemplate）；网关失败 → null（该通道降级为空） */
     private List<Float> embedQuery(KbIndexVersion version, String query) {
         ComboSnapshot combo = JsonUtil.toObject(version.getComboSnapshot(), ComboSnapshot.class);
-        if (ObjectUtil.isNull(combo) || !combo.hasCompleteStageStrategies()) {
+        if (NullUtil.isNull(combo) || !combo.hasCompleteStageStrategies()) {
             log.warn("===> SearchServiceImpl 查询向量化中止：组合快照缺失环节策略维度, versionId={}", version.getId());
             return null;
         }
         KbPipelineStrategyVersion row = strategyVersionDbService.getByTypeAndNameAndVersion(
                 "EMBED", strategyNameOf(combo.getEmbedStrategy()), strategyVersionOf(combo.getEmbedStrategy()));
-        if (ObjectUtil.isNull(row)) {
+        if (NullUtil.isNull(row)) {
             log.warn("===> SearchServiceImpl 查询向量化中止：EMBED 策略版本行不存在, strategy={}",
                     combo.getEmbedStrategy());
             return null;
@@ -267,7 +267,7 @@ public class SearchServiceImpl implements SearchService {
         request.setRequestId(UUID.randomUUID().toString());
         try {
             EmbeddingResult result = modelGatewayPort.embed(request);
-            if (ObjectUtil.isNull(result) || ObjectUtil.isNull(result.getEmbeddings())
+            if (NullUtil.isNull(result) || NullUtil.isNull(result.getEmbeddings())
                     || result.getEmbeddings().isEmpty()) {
                 return null;
             }
@@ -303,7 +303,7 @@ public class SearchServiceImpl implements SearchService {
             List<SearchHitVO> ordered = new ArrayList<>(fused.size());
             for (RrfFusion.FusedHit fusedHit : fused) {
                 VectorHit vectorHit = vectorByChunk.get(fusedHit.chunkId());
-                if (ObjectUtil.isNotNull(vectorHit)) {
+                if (NullUtil.isNotNull(vectorHit)) {
                     ordered.add(toVO(vectorHit, fusedHit.score()));
                 } else {
                     ordered.add(toVO(fullTextByChunk.get(fusedHit.chunkId()), fusedHit.score()));
@@ -334,11 +334,11 @@ public class SearchServiceImpl implements SearchService {
         Map<String, SearchHitVO> deduped = new LinkedHashMap<>();
         for (SearchHitVO hit : ordered) {
             IndexRow parent = StrUtil.isBlank(hit.getParentChunkId()) ? null : parentRows.get(hit.getParentChunkId());
-            String dedupeKey = ObjectUtil.isNull(parent) ? hit.getChunkId() : parent.getChunkId();
+            String dedupeKey = NullUtil.isNull(parent) ? hit.getChunkId() : parent.getChunkId();
             if (deduped.containsKey(dedupeKey)) {
                 continue; // 同父片多子片命中 → 保留最高融合分（已按序遍历）
             }
-            if (ObjectUtil.isNotNull(parent)) {
+            if (NullUtil.isNotNull(parent)) {
                 hit.setContent(parent.getContent());
                 hit.setTitlePath(parent.getTitlePath());
                 hit.setChunkId(parent.getChunkId());

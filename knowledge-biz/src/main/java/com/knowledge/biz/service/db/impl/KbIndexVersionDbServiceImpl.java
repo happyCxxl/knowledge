@@ -1,12 +1,12 @@
 package com.knowledge.biz.service.db.impl;
 
-import cn.hutool.core.util.ObjectUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.knowledge.biz.mapper.KbIndexVersionMapper;
 import com.knowledge.biz.service.db.KbIndexVersionDbService;
 import com.knowledge.common.domain.entity.KbIndexVersion;
+import com.knowledge.common.utils.NullUtil;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -36,7 +36,7 @@ public class KbIndexVersionDbServiceImpl extends ServiceImpl<KbIndexVersionMappe
         queryWrapper.select("IFNULL(MAX(CAST(SUBSTRING(version_no, 2) AS UNSIGNED)), 0)")
                 .eq("index_set_id", indexSetId);
         List<Object> result = baseMapper.selectObjs(queryWrapper);
-        long max = ObjectUtil.isNull(result) || result.isEmpty() || ObjectUtil.isNull(result.getFirst())
+        long max = NullUtil.isNull(result) || result.isEmpty() || NullUtil.isNull(result.getFirst())
                 ? 0L : ((Number) result.getFirst()).longValue();
         return "v" + (max + 1);
     }

@@ -4,6 +4,7 @@ import cn.hutool.core.util.ObjectUtil;
 import com.knowledge.common.enums.input.FileCheckStepName;
 import com.knowledge.common.enums.input.FileFormat;
 import com.knowledge.common.enums.input.FileValidationFailReason;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.input.check.FileCheck;
 import com.knowledge.worker.input.FileCheckContext;
 import com.knowledge.common.domain.input.FileCheckResult;
@@ -55,7 +56,7 @@ public class MagicTypeCheck implements FileCheck {
             return FileCheckResult.fail(FileValidationFailReason.IMAGE_OCR_RESERVED);
         }
         FileFormat format = mapFormat(mediaType);
-        if (ObjectUtil.isNull(format) || !isEnabled(format, context)) {
+        if (NullUtil.isNull(format) || !isEnabled(format, context)) {
             return FileCheckResult.fail(FileValidationFailReason.FORMAT_NOT_ALLOWED);
         }
         context.setMediaType(mediaType);
@@ -65,12 +66,12 @@ public class MagicTypeCheck implements FileCheck {
 
     /** Office OOXML 受保护文档判定（Tika detect 返回 x-tika-ooxml-protected）。 */
     private boolean isProtected(String mediaType) {
-        return ObjectUtil.isNotNull(mediaType) && mediaType.contains("ooxml-protected");
+        return NullUtil.isNotNull(mediaType) && mediaType.contains("ooxml-protected");
     }
 
     /** JPG/PNG/TIFF/BMP 可识别但 OCR 未开放。 */
     private boolean isReservedImage(String mediaType) {
-        if (ObjectUtil.isNull(mediaType)) {
+        if (NullUtil.isNull(mediaType)) {
             return false;
         }
         return switch (mediaType) {
@@ -81,7 +82,7 @@ public class MagicTypeCheck implements FileCheck {
 
     /** Tika 媒体类型 → FileFormat 字典映射（魔数真实识别结果）；未知类型返回 null。 */
     private FileFormat mapFormat(String mediaType) {
-        if (ObjectUtil.isNull(mediaType)) {
+        if (NullUtil.isNull(mediaType)) {
             return null;
         }
         return FileFormat.ofMimeType(mediaType);

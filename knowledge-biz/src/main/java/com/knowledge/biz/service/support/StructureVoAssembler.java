@@ -10,6 +10,7 @@ import com.knowledge.common.dto.response.structure.StructureConflictVO;
 import com.knowledge.common.dto.response.structure.StructureOutlineVO;
 import com.knowledge.common.dto.response.structure.StructureSummaryVO;
 import com.knowledge.common.enums.structure.UnifiedElementType;
+import com.knowledge.common.utils.NullUtil;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -42,7 +43,7 @@ public class StructureVoAssembler {
 
     /** 质量告警 → 展示文本列表（level + code + message）。 */
     public List<String> toWarningTexts(DocumentQuality quality) {
-        if (ObjectUtil.isNull(quality) || ObjectUtil.isNull(quality.getWarnings())) {
+        if (NullUtil.isNull(quality) || NullUtil.isNull(quality.getWarnings())) {
             return new ArrayList<>();
         }
         return quality.getWarnings().stream()
@@ -52,7 +53,7 @@ public class StructureVoAssembler {
 
     /** 冲突记录 → 冲突 VO 列表。 */
     public List<StructureConflictVO> toConflicts(DocumentQuality quality) {
-        if (ObjectUtil.isNull(quality) || ObjectUtil.isNull(quality.getConflicts())) {
+        if (NullUtil.isNull(quality) || NullUtil.isNull(quality.getConflicts())) {
             return new ArrayList<>();
         }
         return quality.getConflicts().stream().map(this::toConflictVO).toList();
@@ -93,7 +94,7 @@ public class StructureVoAssembler {
         vo.setCols(element.getCols());
         vo.setConflictStatus(element.getConflictStatus());
         vo.setCaption(element.getCaption());
-        if (ObjectUtil.isNotNull(element.getCells())) {
+        if (NullUtil.isNotNull(element.getCells())) {
             vo.setCells(element.getCells().stream().map(this::toCellVO).toList());
         }
         return vo;

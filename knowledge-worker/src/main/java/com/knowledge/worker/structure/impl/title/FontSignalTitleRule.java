@@ -1,6 +1,6 @@
 package com.knowledge.worker.structure.impl.title;
 
-import cn.hutool.core.util.ObjectUtil;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.structure.title.TitleDecision;
 import com.knowledge.worker.structure.title.TitleRule;
 import com.knowledge.worker.structure.title.TitleRuleContext;
@@ -23,7 +23,7 @@ public class FontSignalTitleRule implements TitleRule {
     @Override
     public TitleDecision tryMatch(TitleRuleContext context) {
         Double size = context.fontSize();
-        if (!context.shortText() || !context.bold() || ObjectUtil.isNull(size)
+        if (!context.shortText() || !context.bold() || NullUtil.isNull(size)
                 || context.medianSize() <= 0 || size < context.medianSize() * 1.15) {
             return null;
         }

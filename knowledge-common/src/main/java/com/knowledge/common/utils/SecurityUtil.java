@@ -1,6 +1,5 @@
 package com.knowledge.common.utils;
 
-import cn.hutool.core.util.ObjectUtil;
 import com.knowledge.common.security.KnowledgeUser;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -20,7 +19,7 @@ public final class SecurityUtil {
      */
     public static KnowledgeUser getUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (ObjectUtil.isNotNull(authentication) && authentication.getPrincipal() instanceof KnowledgeUser) {
+        if (NullUtil.isNotNull(authentication) && authentication.getPrincipal() instanceof KnowledgeUser) {
             return (KnowledgeUser) authentication.getPrincipal();
         }
         return null;

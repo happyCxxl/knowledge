@@ -1,6 +1,5 @@
 package com.knowledge.biz.service.db.impl;
 
-import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
@@ -11,6 +10,7 @@ import com.knowledge.common.domain.entity.KnowledgeBase;
 import com.knowledge.common.enums.knowledge.KnowledgeBaseSort;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.ThrowUtil;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.infra.persistence.InfraDbServiceImpl;
 import org.springframework.stereotype.Service;
 
@@ -73,7 +73,7 @@ public class KnowledgeBaseDbServiceImpl extends InfraDbServiceImpl<KnowledgeBase
     @Override
     public KnowledgeBase getActiveById(Long id) {
         KnowledgeBase kb = getById(id);
-        ThrowUtil.throwIf(ObjectUtil.isNull(kb), ErrorCode.KB_NOT_FOUND);
+        ThrowUtil.throwIf(NullUtil.isNull(kb), ErrorCode.KB_NOT_FOUND);
         return kb;
     }
 }

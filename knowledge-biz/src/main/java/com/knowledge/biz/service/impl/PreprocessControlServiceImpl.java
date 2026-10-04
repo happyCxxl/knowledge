@@ -1,6 +1,5 @@
 package com.knowledge.biz.service.impl;
 
-import cn.hutool.core.util.ObjectUtil;
 import com.knowledge.biz.service.PreprocessControlService;
 import com.knowledge.biz.service.db.KbPipelineProductDbService;
 import com.knowledge.biz.service.support.PreprocessStatsSupport;
@@ -21,6 +20,7 @@ import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.ThrowUtil;
 import com.knowledge.common.utils.JsonUtil;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.filecenter.service.FileStorage;
 import com.knowledge.worker.preprocessing.strategy.PreprocessStrategy;
 import com.knowledge.worker.preprocessing.strategy.PreprocessStrategyParser;
@@ -68,7 +68,7 @@ public class PreprocessControlServiceImpl implements PreprocessControlService {
 
         // 可选指定上游组装产物；缺省取最新
         KbPipelineProduct structureProduct = requireStructureProduct(fileResultId, upstreamProductId);
-        ThrowUtil.throwIf(ObjectUtil.isNull(structureProduct), ErrorCode.FILE_RESULT_NOT_FOUND,
+        ThrowUtil.throwIf(NullUtil.isNull(structureProduct), ErrorCode.FILE_RESULT_NOT_FOUND,
                 "统一结构产物不存在，请先触发组装");
 
         StageTriggerVO triggered = triggerSupport.trigger(fileResultId, PipelineStage.PREPROCESS,
@@ -88,7 +88,7 @@ public class PreprocessControlServiceImpl implements PreprocessControlService {
         vo.setElements(new ArrayList<>());
         PreprocessView view = null;
         KbPipelineProduct product = detailSupport.productOfTask(task);
-        if (ObjectUtil.isNotNull(product)) {
+        if (NullUtil.isNotNull(product)) {
             detailSupport.withProductRef(vo, product);
             view = readView(product.getArtifactId(), vo);
         }
@@ -109,7 +109,7 @@ public class PreprocessControlServiceImpl implements PreprocessControlService {
             byte[] content = fileStorage.getObject(artifactId);
             PreprocessView view = JsonUtil.toObject(
                     new String(content, StandardCharsets.UTF_8), PreprocessView.class);
-            if (ObjectUtil.isNull(view)) {
+            if (NullUtil.isNull(view)) {
                 log.debug("预处理视图产物反序列化为空, artifactId={}", artifactId);
                 return null;
             }
@@ -126,16 +126,16 @@ public class PreprocessControlServiceImpl implements PreprocessControlService {
     private PreprocessStrategy resolveStrategy(KbFileResult fileResult, Long strategyVersionId) {
         KbPipelineStrategyVersion row = strategySupport.resolve(
                 fileResult, strategyVersionId, PreprocessStrategy.TYPE, "PreprocessControlServiceImpl 预处理");
-        return ObjectUtil.isNull(row) ? strategyParser.defaultStrategy() : toStrategy(row);
+        return NullUtil.isNull(row) ? strategyParser.defaultStrategy() : toStrategy(row);
     }
 
     /** 上游组装产物校验：指定 id 则校验存在/环节/归属；缺省取该文件结果最新 STRUCTURE 产物。 */
     private KbPipelineProduct requireStructureProduct(Long fileResultId, Long productId) {
-        if (ObjectUtil.isNull(productId)) {
+        if (NullUtil.isNull(productId)) {
             return pipelineProductDbService.getByFileResultIdAndStage(fileResultId, PipelineStage.STRUCTURE.name());
         }
         KbPipelineProduct product = pipelineProductDbService.getById(productId);
-        ThrowUtil.throwIf(ObjectUtil.isNull(product), ErrorCode.FILE_RESULT_NOT_FOUND, "指定上游产物不存在");
+        ThrowUtil.throwIf(NullUtil.isNull(product), ErrorCode.FILE_RESULT_NOT_FOUND, "指定上游产物不存在");
         ThrowUtil.throwIf(!PipelineStage.STRUCTURE.name().equals(product.getStage()), ErrorCode.FILE_RESULT_NOT_FOUND,
                 "指定产物环节不匹配：期望 STRUCTURE");
         ThrowUtil.throwIf(!fileResultId.equals(product.getFileResultId()), ErrorCode.FILE_RESULT_NOT_FOUND,

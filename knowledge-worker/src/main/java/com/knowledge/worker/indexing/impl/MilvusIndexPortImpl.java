@@ -1,7 +1,7 @@
 package com.knowledge.worker.indexing.impl;
 
-import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.vector.CollectionRow;
 import com.knowledge.vector.KnowledgeCollectionPort;
 import com.knowledge.vector.MilvusKnowledgeCollection;
@@ -140,7 +140,7 @@ public class MilvusIndexPortImpl implements MilvusIndexPort {
     /** 业务过滤表达式（document_id 数值、owner/content_type 字符串；空段跳过） */
     private String buildFilter(Long documentId, String owner, String contentType) {
         List<String> parts = new ArrayList<>();
-        if (ObjectUtil.isNotNull(documentId)) {
+        if (NullUtil.isNotNull(documentId)) {
             parts.add("document_id == " + documentId);
         }
         if (StrUtil.isNotBlank(owner)) {

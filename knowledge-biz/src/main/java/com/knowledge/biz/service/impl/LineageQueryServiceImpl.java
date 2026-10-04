@@ -31,6 +31,7 @@ import com.knowledge.common.dto.response.lineage.LineageParseStatsVO;
 import com.knowledge.common.dto.response.lineage.LineageVO;
 import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.utils.JsonUtil;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.filecenter.service.FileStorage;
 import com.knowledge.worker.chunking.strategy.ChunkStrategyParser;
 import lombok.RequiredArgsConstructor;
@@ -224,7 +225,7 @@ public class LineageQueryServiceImpl implements LineageQueryService {
             }
             Long upstreamTaskId = taskIdByProductId.get(task.getUpstreamProductId());
             PreprocessView view = upstreamTaskId == null ? null : viewByTaskId.get(upstreamTaskId);
-            if (ObjectUtil.isNotNull(view)) {
+            if (NullUtil.isNotNull(view)) {
                 views.put(task.getId(), view);
             }
         }
@@ -254,7 +255,7 @@ public class LineageQueryServiceImpl implements LineageQueryService {
                 continue;
             }
             T body = reader.apply(product.getArtifactId());
-            if (ObjectUtil.isNotNull(body)) {
+            if (NullUtil.isNotNull(body)) {
                 result.put(task.getId(), body);
             } else {
                 log.warn("{}产物读取失败, taskId={}, artifactId={}", label, task.getId(), product.getArtifactId());
@@ -275,7 +276,7 @@ public class LineageQueryServiceImpl implements LineageQueryService {
         Map<String, Object> stats =
                 StructureStatsSupport.stats(task.getStartedAt(), task.getFinishedAt(), document);
         node.setStageSummary(StructureStatsSupport.summary(node.getErrorMsg(), stats, task.getStatus()));
-        if (ObjectUtil.isNotNull(stats)) {
+        if (NullUtil.isNotNull(stats)) {
             node.setStats(stats);
         }
     }

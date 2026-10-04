@@ -1,11 +1,11 @@
 package com.knowledge.biz.controller;
 
-import cn.hutool.core.util.ObjectUtil;
 import com.knowledge.biz.service.StageContentQueryService;
 import com.knowledge.common.dto.request.stage.ChunkContentFilter;
 import com.knowledge.common.dto.request.stage.StageDetailQueryDto;
 import com.knowledge.common.dto.response.R;
 import com.knowledge.common.dto.response.stagecontent.StageContentVO;
+import com.knowledge.common.utils.NullUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -77,6 +77,6 @@ public class KnowledgeFileStageController {
      */
     private Long docPageOf(StageDetailQueryDto query) {
         Integer docPage = query.getDocPage();
-        return ObjectUtil.isNull(docPage) || docPage < 1 ? null : docPage.longValue();
+        return NullUtil.isNull(docPage) || docPage < 1 ? null : docPage.longValue();
     }
 }

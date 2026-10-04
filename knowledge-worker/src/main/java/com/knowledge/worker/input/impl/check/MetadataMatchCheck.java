@@ -1,8 +1,8 @@
 package com.knowledge.worker.input.impl.check;
 
-import cn.hutool.core.util.ObjectUtil;
 import com.knowledge.common.enums.input.FileCheckStepName;
 import com.knowledge.common.enums.input.FileValidationFailReason;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.input.check.FileCheck;
 import com.knowledge.worker.input.FileCheckContext;
 import com.knowledge.common.domain.input.FileCheckResult;
@@ -33,7 +33,7 @@ public class MetadataMatchCheck implements FileCheck {
     public FileCheckResult check(FileCheckContext context) {
         Long metadataSize = context.getMetadata().getFileSize();
         // 成功静默（降噪）；不一致时打完整比对数值
-        if (ObjectUtil.isNotNull(metadataSize) && !metadataSize.equals(context.getSize())) {
+        if (NullUtil.isNotNull(metadataSize) && !metadataSize.equals(context.getSize())) {
             log.warn("===> MetadataMatchCheck 双源不一致, fileId={}, metadataSize={}, streamSize={}",
                     context.getFileId(), metadataSize, context.getSize());
             return FileCheckResult.fail(FileValidationFailReason.METADATA_MISMATCH);

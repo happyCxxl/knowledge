@@ -33,6 +33,7 @@ import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.ThrowUtil;
 import com.knowledge.common.utils.JsonUtil;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.filecenter.service.FileStorage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -88,20 +89,20 @@ public class StageContentQueryServiceImpl implements StageContentQueryService {
         vo.setFileResultId(fileResultId);
         vo.setStage(stage);
         vo.setLatest(false);
-        vo.setDocPage(ObjectUtil.isNull(docPage) || docPage < 1 ? null : docPage.intValue());
+        vo.setDocPage(NullUtil.isNull(docPage) || docPage < 1 ? null : docPage.intValue());
         vo.setItems(new ArrayList<>());
         vo.setTotal(0);
         vo.setPage(pageNo);
         vo.setLimit(pageSize);
         vo.setTruncated(false);
-        if (ObjectUtil.isNull(task)) {
+        if (NullUtil.isNull(task)) {
             return vo;
         }
         vo.setTaskId(task.getId());
         // latest = 该次运行产物内容是否可用：按 task.productId 精确取产物（历史任务同样可展示自己的内容）
-        KbPipelineProduct product = ObjectUtil.isNull(task) || task.getProductId() == null ? null
+        KbPipelineProduct product = NullUtil.isNull(task) || task.getProductId() == null ? null
                 : pipelineProductDbService.getById(task.getProductId());
-        if (ObjectUtil.isNull(product) || StrUtil.isBlank(product.getArtifactId())) {
+        if (NullUtil.isNull(product) || StrUtil.isBlank(product.getArtifactId())) {
             return vo;
         }
         vo.setLatest(true);
@@ -130,12 +131,12 @@ public class StageContentQueryServiceImpl implements StageContentQueryService {
 
     /** 页码归一：非正数或空按第 1 页 */
     private int resolvePage(Integer page) {
-        return ObjectUtil.isNull(page) || page < 1 ? 1 : page;
+        return NullUtil.isNull(page) || page < 1 ? 1 : page;
     }
 
     /** 每页条数归一：空/非正按默认上限，超过上限按上限截断 */
     private int resolveLimit(Integer limit) {
-        if (ObjectUtil.isNull(limit) || limit < 1) {
+        if (NullUtil.isNull(limit) || limit < 1) {
             return DEFAULT_LIMIT;
         }
         return Math.min(limit, MAX_LIMIT);
@@ -185,7 +186,7 @@ public class StageContentQueryServiceImpl implements StageContentQueryService {
     private List<StageContentItemVO> parseItems(String artifactId) {
         ParseResult result = readArtifact(artifactId, ParseResult.class);
         List<StageContentItemVO> items = new ArrayList<>();
-        if (ObjectUtil.isNull(result) || ObjectUtil.isNull(result.getSources())) {
+        if (NullUtil.isNull(result) || NullUtil.isNull(result.getSources())) {
             return items;
         }
         int seq = 1;
@@ -227,19 +228,19 @@ public class StageContentQueryServiceImpl implements StageContentQueryService {
         if (StrUtil.isNotBlank(element.getSheetName())) {
             extra.put("sheetName", element.getSheetName());
         }
-        if (ObjectUtil.isNotNull(element.getRow())) {
+        if (NullUtil.isNotNull(element.getRow())) {
             extra.put("row", element.getRow());
         }
-        if (ObjectUtil.isNotNull(element.getCol())) {
+        if (NullUtil.isNotNull(element.getCol())) {
             extra.put("col", element.getCol());
         }
-        if (ObjectUtil.isNotNull(element.getRowSpan())) {
+        if (NullUtil.isNotNull(element.getRowSpan())) {
             extra.put("rowSpan", element.getRowSpan());
         }
-        if (ObjectUtil.isNotNull(element.getColSpan())) {
+        if (NullUtil.isNotNull(element.getColSpan())) {
             extra.put("colSpan", element.getColSpan());
         }
-        if (ObjectUtil.isNotNull(element.getIsHeader())) {
+        if (NullUtil.isNotNull(element.getIsHeader())) {
             extra.put("isHeader", element.getIsHeader());
         }
     }
@@ -249,7 +250,7 @@ public class StageContentQueryServiceImpl implements StageContentQueryService {
     private List<StageContentItemVO> structureItems(String artifactId) {
         UnifiedDocument document = readArtifact(artifactId, UnifiedDocument.class);
         List<StageContentItemVO> items = new ArrayList<>();
-        if (ObjectUtil.isNull(document) || ObjectUtil.isNull(document.getElements())) {
+        if (NullUtil.isNull(document) || NullUtil.isNull(document.getElements())) {
             return items;
         }
         int seq = 1;
@@ -296,7 +297,7 @@ public class StageContentQueryServiceImpl implements StageContentQueryService {
      * <p>单位点（pt）、左上角原点，与解析产物里的 bbox 同口径；元素无坐标时不下发该字段。
      */
     private void putBbox(Map<String, Object> extra, BBox bbox) {
-        if (ObjectUtil.isNull(bbox)) {
+        if (NullUtil.isNull(bbox)) {
             return;
         }
         Map<String, Object> box = new LinkedHashMap<>();
@@ -309,7 +310,7 @@ public class StageContentQueryServiceImpl implements StageContentQueryService {
 
     /** 元素的文档页码：解析/组装走 extra.page，其余环节无页概念返回 null */
     private Long docPageOf(StageContentItemVO item) {
-        Object value = ObjectUtil.isNull(item.getExtra()) ? null : item.getExtra().get("page");
+        Object value = NullUtil.isNull(item.getExtra()) ? null : item.getExtra().get("page");
         return value instanceof Number number ? number.longValue() : null;
     }
 
@@ -320,7 +321,7 @@ public class StageContentQueryServiceImpl implements StageContentQueryService {
      * 直接比会因类型不同永远不相等。
      */
     private List<StageContentItemVO> filterByDocPage(List<StageContentItemVO> all, Long docPage) {
-        if (ObjectUtil.isNull(docPage) || docPage < 1) {
+        if (NullUtil.isNull(docPage) || docPage < 1) {
             return all;
         }
         return all.stream()
@@ -355,7 +356,7 @@ public class StageContentQueryServiceImpl implements StageContentQueryService {
     private List<StageContentItemVO> preprocessItems(String artifactId) {
         PreprocessView view = readArtifact(artifactId, PreprocessView.class);
         List<StageContentItemVO> items = new ArrayList<>();
-        if (ObjectUtil.isNull(view) || ObjectUtil.isNull(view.getElements())) {
+        if (NullUtil.isNull(view) || NullUtil.isNull(view.getElements())) {
             return items;
         }
         int seq = 1;
@@ -371,7 +372,7 @@ public class StageContentQueryServiceImpl implements StageContentQueryService {
             if (StrUtil.isNotBlank(element.getRawText())) {
                 extra.put("rawText", element.getRawText());
             }
-            if (ObjectUtil.isNotNull(element.getMarks()) && !element.getMarks().isEmpty()) {
+            if (NullUtil.isNotNull(element.getMarks()) && !element.getMarks().isEmpty()) {
                 extra.put("marks", element.getMarks());
             }
             if (element.getNormalizedFields() != null && !element.getNormalizedFields().isEmpty()) {
@@ -411,7 +412,7 @@ public class StageContentQueryServiceImpl implements StageContentQueryService {
     private void fillChunkPage(StageContentVO vo, String artifactId, ChunkContentFilter filter,
                                int pageNo, int pageSize) {
         KbChunkSet chunkSet = chunkSetDbService.getByArtifactId(artifactId);
-        if (ObjectUtil.isNull(chunkSet)) {
+        if (NullUtil.isNull(chunkSet)) {
             return;
         }
         IPage<KbChunk> chunkPage = chunkDbService.pageByChunkSetId(chunkSet.getId(), filter, pageNo, pageSize);
@@ -436,7 +437,7 @@ public class StageContentQueryServiceImpl implements StageContentQueryService {
 
     private List<StageContentItemVO> embedItemsBySet(KbEmbeddingSet embeddingSet) {
         List<StageContentItemVO> items = new ArrayList<>();
-        if (ObjectUtil.isNull(embeddingSet)) {
+        if (NullUtil.isNull(embeddingSet)) {
             return items;
         }
         int seq = 1;
@@ -488,7 +489,7 @@ public class StageContentQueryServiceImpl implements StageContentQueryService {
 
     private <T> T readArtifact(String artifactId, Class<T> clazz) {
         byte[] content = fileStorage.getObject(artifactId);
-        if (ObjectUtil.isNull(content)) {
+        if (NullUtil.isNull(content)) {
             return null;
         }
         return JsonUtil.toObject(new String(content, StandardCharsets.UTF_8), clazz);

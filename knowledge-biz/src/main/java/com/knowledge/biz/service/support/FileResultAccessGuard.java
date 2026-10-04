@@ -1,6 +1,5 @@
 package com.knowledge.biz.service.support;
 
-import cn.hutool.core.util.ObjectUtil;
 import com.knowledge.biz.service.db.KbFileResultDbService;
 import com.knowledge.biz.service.db.KnowledgeBaseDbService;
 import com.knowledge.common.domain.entity.KbFileResult;
@@ -9,6 +8,7 @@ import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
 import com.knowledge.common.exception.ThrowUtil;
 import com.knowledge.common.security.KnowledgeUser;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.common.utils.SecurityUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -53,7 +53,7 @@ public class FileResultAccessGuard {
     public KbFileResult require(Long fileResultId, KnowledgeUser user) {
         // 先定登录上下文：无登录不进入"按 ID 取数"的路径
         KnowledgeBaseRules.visibleOwnerId(user);
-        KbFileResult fileResult = ObjectUtil.isNull(fileResultId) ? null : fileResultDbService.getById(fileResultId);
+        KbFileResult fileResult = NullUtil.isNull(fileResultId) ? null : fileResultDbService.getById(fileResultId);
         check(fileResult, user);
         return fileResult;
     }
@@ -69,7 +69,7 @@ public class FileResultAccessGuard {
      */
     public KbFileResult requireExisting(Long fileResultId) {
         KbFileResult fileResult = fileResultDbService.getById(fileResultId);
-        ThrowUtil.throwIf(ObjectUtil.isNull(fileResult), ErrorCode.FILE_RESULT_NOT_FOUND);
+        ThrowUtil.throwIf(NullUtil.isNull(fileResult), ErrorCode.FILE_RESULT_NOT_FOUND);
         check(fileResult);
         return fileResult;
     }
@@ -93,7 +93,7 @@ public class FileResultAccessGuard {
      */
     public void check(KbFileResult fileResult, KnowledgeUser user) {
         KnowledgeBaseRules.visibleOwnerId(user);
-        if (ObjectUtil.isNull(fileResult)) {
+        if (NullUtil.isNull(fileResult)) {
             throw new KnowledgeException(ErrorCode.KB_NOT_FOUND);
         }
         // 库不存在/已删除（40401）或非本人可访问（40401）

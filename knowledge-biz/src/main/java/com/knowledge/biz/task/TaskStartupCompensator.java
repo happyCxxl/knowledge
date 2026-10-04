@@ -1,11 +1,11 @@
 package com.knowledge.biz.task;
 
-import cn.hutool.core.util.ObjectUtil;
 import com.knowledge.biz.config.TaskQueueProperties;
 import com.knowledge.biz.service.db.KbPipelineTaskDbService;
 import com.knowledge.common.domain.entity.KbPipelineTask;
 import com.knowledge.common.enums.task.PipelineTaskErrorCode;
 import com.knowledge.common.enums.task.PipelineTaskStatus;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.infra.redis.RedisLock;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -74,7 +74,7 @@ public class TaskStartupCompensator {
             int recovered = 0;
             for (KbPipelineTask task : stale) {
                 Duration stageTimeout = properties.timeoutOf(task.getStage());
-                if (ObjectUtil.isNotNull(task.getStartedAt())
+                if (NullUtil.isNotNull(task.getStartedAt())
                         && task.getStartedAt().isBefore(LocalDateTime.now().minus(stageTimeout))) {
                     pipelineTaskDbService.finish(task.getId(), PipelineTaskStatus.FAILED.name(),
                             PipelineTaskErrorCode.EXECUTOR_TIMEOUT.name(), "孤儿任务恢复：RUNNING 超过环节超时阈值");

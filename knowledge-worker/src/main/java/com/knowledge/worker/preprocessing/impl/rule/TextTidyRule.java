@@ -1,12 +1,12 @@
 package com.knowledge.worker.preprocessing.impl.rule;
 
-import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.knowledge.common.domain.preprocess.TraceEntry;
 import com.knowledge.common.domain.preprocess.ViewCell;
 import com.knowledge.common.domain.preprocess.ViewElement;
 import com.knowledge.common.enums.preprocess.PreprocessParam;
 import com.knowledge.common.enums.preprocess.PreprocessRule;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.preprocessing.PreprocessProperties;
 import com.knowledge.worker.preprocessing.impl.TextBase;
 import com.knowledge.worker.preprocessing.rule.CleanRule;
@@ -73,7 +73,7 @@ public class TextTidyRule implements CleanRule {
                 changed = true;
             }
         }
-        boolean hasCells = ObjectUtil.isNotNull(element.getCells()) && !element.getCells().isEmpty();
+        boolean hasCells = NullUtil.isNotNull(element.getCells()) && !element.getCells().isEmpty();
         if (hasCells) {
             for (ViewCell cell : element.getCells()) {
                 if (StrUtil.isNotBlank(cell.getNormalizedText())) {

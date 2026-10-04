@@ -1,7 +1,6 @@
 package com.knowledge.biz.task;
 
 import com.knowledge.common.enums.knowledge.StrategyBindingSwitch;
-import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.knowledge.biz.service.IndexSetService;
 import com.knowledge.biz.service.db.KbFileResultDbService;
@@ -21,6 +20,7 @@ import com.knowledge.common.enums.index.IndexVersionStatus;
 import com.knowledge.common.enums.task.PipelineTaskErrorCode;
 import com.knowledge.common.enums.task.PipelineTaskStatus;
 import com.knowledge.common.utils.JsonUtil;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.indexing.BuildOrder;
 import com.knowledge.worker.indexing.ComboSnapshot;
 import com.knowledge.worker.indexing.IndexRow;
@@ -61,18 +61,18 @@ public class IndexBuildTaskRunner {
     /** 执行单个索引构建任务（由消费循环提交，外层看门狗负责超时）。 */
     public void run(Long taskId) {
         KbPipelineTask task = TaskRunnerSupport.claim(pipelineTaskDbService, taskId);
-        if (ObjectUtil.isNull(task)) {
+        if (NullUtil.isNull(task)) {
             return;
         }
         try {
             KbIndexVersion version = indexVersionDbService.getByTaskId(taskId);
-            if (ObjectUtil.isNull(version)) {
+            if (NullUtil.isNull(version)) {
                 finishFailed(taskId, PipelineTaskErrorCode.INDEX_BUILD_FAILED.name(), "索引版本行不存在");
                 return;
             }
             BuildOrder order = JsonUtil.toObject(task.getStrategySnapshot(), BuildOrder.class);
-            if (ObjectUtil.isNull(order) || ObjectUtil.isNull(order.getComboSnapshot())
-                    || ObjectUtil.isNull(order.getKnowledgeBaseId())) {
+            if (NullUtil.isNull(order) || NullUtil.isNull(order.getComboSnapshot())
+                    || NullUtil.isNull(order.getKnowledgeBaseId())) {
                 markFailed(version, "构建命令缺失");
                 finishFailed(taskId, PipelineTaskErrorCode.INDEX_BUILD_FAILED.name(), "构建命令缺失");
                 return;
@@ -82,7 +82,7 @@ public class IndexBuildTaskRunner {
             log.error("索引构建任务执行异常, taskId={}", taskId, e);
             try {
                 KbIndexVersion version = indexVersionDbService.getByTaskId(taskId);
-                if (ObjectUtil.isNotNull(version)
+                if (NullUtil.isNotNull(version)
                         && !IndexVersionStatus.READY.name().equals(version.getStatus())
                         && !IndexVersionStatus.ONLINE.name().equals(version.getStatus())) {
                     markFailed(version, "执行异常: " + truncate(String.valueOf(e.getMessage())));
@@ -171,7 +171,7 @@ public class IndexBuildTaskRunner {
      */
     private void backfillFrozenScope(ComboSnapshot combo, String collectionName) {
         List<Long> scope = combo.getFileResultIds();
-        if (ObjectUtil.isNull(scope) || scope.isEmpty()) {
+        if (NullUtil.isNull(scope) || scope.isEmpty()) {
             return;
         }
         Map<String, KbChunkSet> latestChunk = indexComboReconciler.latestChunkMap(scope);
@@ -186,9 +186,9 @@ public class IndexBuildTaskRunner {
             }
             KbFileResult file = fileResultDbService.getById(fileId);
             List<IndexRow> rows = indexRowAssembler.assemble(fileId,
-                    ObjectUtil.isNull(file) ? "" : StrUtil.blankToDefault(file.getOwner(), ""),
+                    NullUtil.isNull(file) ? "" : StrUtil.blankToDefault(file.getOwner(), ""),
                     products.chunkRow(), products.embedRow());
-            if (ObjectUtil.isNull(rows) || rows.isEmpty()) {
+            if (NullUtil.isNull(rows) || rows.isEmpty()) {
                 continue;
             }
             milvusIndexPort.append(collectionName, rows);
@@ -207,7 +207,7 @@ public class IndexBuildTaskRunner {
         }
         if (IndexBuildTrigger.INCREMENT.name().equals(trigger)) {
             KnowledgeBase kb = knowledgeBaseDbService.getById(kbId);
-            return ObjectUtil.isNull(kb) || StrategyBindingSwitch.isOn(kb.getStrategyBindingEnabled());
+            return NullUtil.isNull(kb) || StrategyBindingSwitch.isOn(kb.getStrategyBindingEnabled());
         }
         return false;
     }

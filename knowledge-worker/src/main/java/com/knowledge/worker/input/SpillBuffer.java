@@ -1,6 +1,6 @@
 package com.knowledge.worker.input;
 
-import cn.hutool.core.util.ObjectUtil;
+import com.knowledge.common.utils.NullUtil;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.BufferedInputStream;
@@ -46,7 +46,7 @@ public class SpillBuffer {
     /** 写入缓冲：更新摘要；内存缓冲超阈值时先落内存再续写临时文件。 */
     public void write(byte[] buffer, int offset, int length) throws IOException {
         digest.update(buffer, offset, length);
-        if (ObjectUtil.isNotNull(tempFile)) {
+        if (NullUtil.isNotNull(tempFile)) {
             target.write(buffer, offset, length);
             return;
         }
@@ -63,7 +63,7 @@ public class SpillBuffer {
 
     /** 重开读取流：溢写场景必须先 flush 落盘再开流。 */
     public InputStream openStream() throws IOException {
-        if (ObjectUtil.isNull(tempFile)) {
+        if (NullUtil.isNull(tempFile)) {
             return new ByteArrayInputStream(memory.toByteArray());
         }
         // 溢写缓冲必须落盘后再开读流
@@ -83,14 +83,14 @@ public class SpillBuffer {
 
     /** 关闭目标流并删除临时文件；删除失败注册 deleteOnExit 兜底（不影响校验结果）。 */
     public void close() {
-        if (ObjectUtil.isNotNull(target)) {
+        if (NullUtil.isNotNull(target)) {
             try {
                 target.close();
             } catch (IOException ignored) {
                 // 关闭失败不影响校验结果，临时文件删除兜底
             }
         }
-        if (ObjectUtil.isNotNull(tempFile)) {
+        if (NullUtil.isNotNull(tempFile)) {
             try {
                 Files.deleteIfExists(tempFile);
             } catch (IOException e) {

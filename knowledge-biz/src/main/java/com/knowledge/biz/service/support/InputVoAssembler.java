@@ -1,12 +1,12 @@
 package com.knowledge.biz.service.support;
 
-import cn.hutool.core.util.ObjectUtil;
 import com.knowledge.common.domain.entity.KbFileResult;
 import com.knowledge.common.domain.entity.KbSourceFile;
 import com.knowledge.common.domain.entity.KbSubmitLog;
 import com.knowledge.common.dto.response.input.FileResultVO;
 import com.knowledge.common.dto.response.input.FileSubmitResponse;
 import com.knowledge.common.dto.response.input.SubmitLogVO;
+import com.knowledge.common.utils.NullUtil;
 import org.springframework.stereotype.Component;
 
 /**
@@ -65,7 +65,7 @@ public class InputVoAssembler {
         vo.setKnowledgeBaseId(result.getKnowledgeBaseId());
         vo.setSourceFileId(result.getSourceFileId());
         vo.setCreateTime(result.getCreateTime());
-        if (ObjectUtil.isNotNull(sourceFile)) {
+        if (NullUtil.isNotNull(sourceFile)) {
             vo.setFileId(sourceFile.getFileId());
             vo.setFileName(sourceFile.getFileName());
             vo.setFileSize(sourceFile.getFileSize());

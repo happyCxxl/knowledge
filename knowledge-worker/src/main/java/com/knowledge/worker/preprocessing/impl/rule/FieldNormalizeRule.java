@@ -1,6 +1,5 @@
 package com.knowledge.worker.preprocessing.impl.rule;
 
-import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.knowledge.common.domain.preprocess.NormalizedField;
 import com.knowledge.common.domain.preprocess.TraceEntry;
@@ -9,6 +8,7 @@ import com.knowledge.common.domain.preprocess.ViewElement;
 import com.knowledge.common.enums.preprocess.PreprocessFieldType;
 import com.knowledge.common.enums.preprocess.PreprocessParam;
 import com.knowledge.common.enums.preprocess.PreprocessRule;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.preprocessing.rule.CleanRule;
 import com.knowledge.worker.preprocessing.rule.RuleContext;
 import com.knowledge.worker.preprocessing.rule.RuleOutcome;
@@ -105,7 +105,7 @@ public class FieldNormalizeRule implements CleanRule {
                     outcome.getTraces(), outcome.getFields(), changed, strategy));
         }
         boolean cellMatched = false;
-        if (ObjectUtil.isNotNull(element.getCells())) {
+        if (NullUtil.isNotNull(element.getCells())) {
             for (ViewCell cell : element.getCells()) {
                 if (StrUtil.isBlank(cell.getNormalizedText())) {
                     continue;

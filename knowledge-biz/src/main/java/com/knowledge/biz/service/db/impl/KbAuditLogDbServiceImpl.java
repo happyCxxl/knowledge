@@ -1,12 +1,12 @@
 package com.knowledge.biz.service.db.impl;
 
-import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.knowledge.biz.mapper.KbAuditLogMapper;
 import com.knowledge.biz.service.db.KbAuditLogDbService;
 import com.knowledge.common.domain.entity.KbAuditLog;
 import com.knowledge.common.enums.knowledge.AuditActionType;
 import com.knowledge.common.security.KnowledgeUser;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.common.utils.SecurityUtil;
 import com.knowledge.infra.persistence.InfraDbServiceImpl;
 import lombok.extern.slf4j.Slf4j;
@@ -34,14 +34,14 @@ public class KbAuditLogDbServiceImpl extends InfraDbServiceImpl<KbAuditLogMapper
         audit.setObjectId(String.valueOf(objectId));
         audit.setBeforeSummary(beforeJson);
         audit.setAfterSummary(afterJson);
-        audit.setUserId(ObjectUtil.isNull(user) ? null : user.getId());
+        audit.setUserId(NullUtil.isNull(user) ? null : user.getId());
         audit.setCreateBy(operatorOf(user));
         save(audit);
     }
 
     /** 审计操作人：登录用户名优先；无认证上下文回退 system */
     private String operatorOf(KnowledgeUser user) {
-        if (ObjectUtil.isNotNull(user) && StrUtil.isNotBlank(user.getUsername())) {
+        if (NullUtil.isNotNull(user) && StrUtil.isNotBlank(user.getUsername())) {
             return user.getUsername();
         }
         return FALLBACK_OPERATOR;

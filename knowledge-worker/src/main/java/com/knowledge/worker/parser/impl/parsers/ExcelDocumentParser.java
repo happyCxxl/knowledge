@@ -1,12 +1,12 @@
 package com.knowledge.worker.parser.impl.parsers;
 
-import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.knowledge.common.domain.parse.ParseElement;
 import com.knowledge.common.domain.parse.ParseSource;
 import com.knowledge.common.domain.parse.Provenance;
 import com.knowledge.common.enums.parse.ElementType;
 import com.knowledge.common.enums.input.FileFormat;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.parser.ParseContext;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
@@ -93,7 +93,7 @@ public class ExcelDocumentParser extends AbstractPoiDocumentParser {
         boolean hasData = false;
         for (int r = firstRow; r <= lastRow; r++) {
             Row row = sheet.getRow(r);
-            if (ObjectUtil.isNull(row)) {
+            if (NullUtil.isNull(row)) {
                 continue;
             }
             for (int c = row.getFirstCellNum(); c < row.getLastCellNum(); c++) {
@@ -101,7 +101,7 @@ public class ExcelDocumentParser extends AbstractPoiDocumentParser {
                     continue;
                 }
                 Cell cell = row.getCell(c);
-                if (ObjectUtil.isNull(cell)) {
+                if (NullUtil.isNull(cell)) {
                     continue;
                 }
                 String text = cellText(cell, formatter, evaluator);
@@ -116,7 +116,7 @@ public class ExcelDocumentParser extends AbstractPoiDocumentParser {
                 cellElement.setCol(c);
                 cellElement.setIsHeader(r == firstRow);
                 int[] span = mergeSpans.get(key(r, c));
-                if (ObjectUtil.isNotNull(span)) {
+                if (NullUtil.isNotNull(span)) {
                     cellElement.setRowSpan(span[0] > 1 ? span[0] : null);
                     cellElement.setColSpan(span[1] > 1 ? span[1] : null);
                 }

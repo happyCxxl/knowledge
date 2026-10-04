@@ -1,9 +1,9 @@
 package com.knowledge.worker.structure.title;
 
-import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.knowledge.common.domain.structure.UnifiedElement;
 import com.knowledge.common.enums.structure.ElementExtensionKey;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.structure.StructureProperties;
 
 /**
@@ -26,25 +26,25 @@ public record TitleRuleContext(UnifiedElement element, double medianSize, Struct
 
     /** 原生样式（Heading1~9 等；无 → null） */
     public String style() {
-        if (ObjectUtil.isNull(element.getExtension())) {
+        if (NullUtil.isNull(element.getExtension())) {
             return null;
         }
         Object value = element.getExtension().get(ElementExtensionKey.STYLE.key());
-        return ObjectUtil.isNull(value) ? null : String.valueOf(value);
+        return NullUtil.isNull(value) ? null : String.valueOf(value);
     }
 
     /** 字号（无 → null） */
     public Double fontSize() {
-        return ObjectUtil.isNotNull(element.getFont()) ? element.getFont().getSize() : null;
+        return NullUtil.isNotNull(element.getFont()) ? element.getFont().getSize() : null;
     }
 
     /** 是否加粗 */
     public boolean bold() {
-        return ObjectUtil.isNotNull(element.getFont()) && Boolean.TRUE.equals(element.getFont().getBold());
+        return NullUtil.isNotNull(element.getFont()) && Boolean.TRUE.equals(element.getFont().getBold());
     }
 
     /** 字号佐证：加粗，或字号不低于文档中位数 1.05 倍 */
     public boolean fontBacked() {
-        return bold() || (ObjectUtil.isNotNull(fontSize()) && medianSize > 0 && fontSize() >= medianSize * 1.05);
+        return bold() || (NullUtil.isNotNull(fontSize()) && medianSize > 0 && fontSize() >= medianSize * 1.05);
     }
 }

@@ -1,10 +1,10 @@
 package com.knowledge.biz.service.support;
 
-import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.knowledge.biz.service.db.KbPipelineProductDbService;
 import com.knowledge.common.domain.entity.KbPipelineProduct;
 import com.knowledge.common.utils.JsonUtil;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.preprocessing.strategy.PreprocessStrategy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,17 +31,17 @@ public class IndexLineageResolver {
      * 产物缺失/快照为空/解析失败 → null（血统不完整，不参与组合枚举与构建）。
      */
     public String resolvePreprocessStrategy(Long upstreamProductId) {
-        if (ObjectUtil.isNull(upstreamProductId)) {
+        if (NullUtil.isNull(upstreamProductId)) {
             return null;
         }
         KbPipelineProduct product = productDbService.getById(upstreamProductId);
-        if (ObjectUtil.isNull(product) || StrUtil.isBlank(product.getCapabilitySnapshot())) {
+        if (NullUtil.isNull(product) || StrUtil.isBlank(product.getCapabilitySnapshot())) {
             log.warn("===> IndexLineageResolver 预处理产物缺失或快照为空, upstreamProductId={}", upstreamProductId);
             return null;
         }
         try {
             PreprocessStrategy strategy = JsonUtil.toObject(product.getCapabilitySnapshot(), PreprocessStrategy.class);
-            if (ObjectUtil.isNull(strategy) || StrUtil.isBlank(strategy.getName())) {
+            if (NullUtil.isNull(strategy) || StrUtil.isBlank(strategy.getName())) {
                 log.warn("===> IndexLineageResolver 预处理策略快照结构缺失, upstreamProductId={}", upstreamProductId);
                 return null;
             }

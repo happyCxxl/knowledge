@@ -1,13 +1,13 @@
 package com.knowledge.biz.task;
 
 import cn.hutool.core.thread.ThreadFactoryBuilder;
-import cn.hutool.core.util.ObjectUtil;
 import com.knowledge.biz.config.TaskQueueProperties;
 import com.knowledge.biz.service.db.KbPipelineTaskDbService;
 import com.knowledge.common.domain.entity.KbPipelineTask;
 import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.enums.task.PipelineTaskErrorCode;
 import com.knowledge.common.enums.task.PipelineTaskStatus;
+import com.knowledge.common.utils.NullUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -79,7 +79,7 @@ public class ParseTaskConsumer {
             try {
                 // 阻塞叫醒；超时返回 null = 未被叫醒 → 继续等待，不扫库（无消息零开销）
                 String wakeup = taskQueue.blockingPop();
-                if (ObjectUtil.isNull(wakeup)) {
+                if (NullUtil.isNull(wakeup)) {
                     continue;
                 }
                 // 消息内容仅参考（DB 是唯一账本）：被叫醒才扫库领批

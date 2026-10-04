@@ -1,12 +1,12 @@
 package com.knowledge.worker.structure.impl.craft;
 
-import cn.hutool.core.util.ObjectUtil;
 import com.knowledge.common.domain.parse.BBox;
 import com.knowledge.common.domain.structure.ConflictRecord;
 import com.knowledge.common.domain.structure.UnifiedElement;
 import com.knowledge.common.enums.parse.ParseSourceType;
 import com.knowledge.common.enums.structure.ConflictStatus;
 import com.knowledge.common.enums.structure.ElementExtensionKey;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.common.utils.TextUtil;
 import com.knowledge.worker.structure.AssembleContext;
 import com.knowledge.worker.structure.craft.DedupMerger;
@@ -97,18 +97,18 @@ public class DedupMergerImpl implements DedupMerger {
     private boolean isCrossSource(UnifiedElement a, UnifiedElement b) {
         Object sourceA = a.getExtension() == null ? null : a.getExtension().get(ElementExtensionKey.SOURCE.key());
         Object sourceB = b.getExtension() == null ? null : b.getExtension().get(ElementExtensionKey.SOURCE.key());
-        return ObjectUtil.isNotNull(sourceA) && ObjectUtil.isNotNull(sourceB) && !sourceA.equals(sourceB);
+        return NullUtil.isNotNull(sourceA) && NullUtil.isNotNull(sourceB) && !sourceA.equals(sourceB);
     }
 
     private boolean bothHaveBBox(UnifiedElement a, UnifiedElement b) {
-        return ObjectUtil.isNotNull(a.getBbox()) && ObjectUtil.isNotNull(b.getBbox());
+        return NullUtil.isNotNull(a.getBbox()) && NullUtil.isNotNull(b.getBbox());
     }
 
     private boolean isPrior(UnifiedElement a, UnifiedElement b) {
         Object rawA = a.getExtension() == null ? null : a.getExtension().get(ElementExtensionKey.SOURCE.key());
         Object rawB = b.getExtension() == null ? null : b.getExtension().get(ElementExtensionKey.SOURCE.key());
-        ParseSourceType sourceA = ObjectUtil.isNull(rawA) ? null : ParseSourceType.ofValue(String.valueOf(rawA));
-        ParseSourceType sourceB = ObjectUtil.isNull(rawB) ? null : ParseSourceType.ofValue(String.valueOf(rawB));
+        ParseSourceType sourceA = NullUtil.isNull(rawA) ? null : ParseSourceType.ofValue(String.valueOf(rawA));
+        ParseSourceType sourceB = NullUtil.isNull(rawB) ? null : ParseSourceType.ofValue(String.valueOf(rawB));
         return SOURCE_PRIORITY.indexOf(sourceA) <= SOURCE_PRIORITY.indexOf(sourceB);
     }
 

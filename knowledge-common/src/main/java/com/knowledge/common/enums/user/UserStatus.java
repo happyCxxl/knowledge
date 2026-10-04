@@ -1,6 +1,6 @@
 package com.knowledge.common.enums.user;
 
-import cn.hutool.core.util.ObjectUtil;
+import com.knowledge.common.utils.NullUtil;
 import lombok.Getter;
 
 /**
@@ -31,7 +31,7 @@ public enum UserStatus {
      * @return 匹配的状态；无法识别返回 null
      */
     public static UserStatus of(Integer code) {
-        if (ObjectUtil.isNull(code)) {
+        if (NullUtil.isNull(code)) {
             return null;
         }
         for (UserStatus status : values()) {

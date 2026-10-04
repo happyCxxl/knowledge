@@ -1,8 +1,8 @@
 package com.knowledge.worker.structure.impl.craft;
 
-import cn.hutool.core.util.ObjectUtil;
 import com.knowledge.common.domain.parse.BBox;
 import com.knowledge.common.domain.structure.UnifiedElement;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.structure.AssembleContext;
 import com.knowledge.worker.structure.craft.ReadingOrderResolver;
 import org.springframework.stereotype.Component;
@@ -29,7 +29,7 @@ public class ReadingOrderResolverImpl implements ReadingOrderResolver {
         List<UnifiedElement> withBBox = new ArrayList<>();
         List<UnifiedElement> withoutBBox = new ArrayList<>();
         for (UnifiedElement element : elements) {
-            if (ObjectUtil.isNotNull(element.getBbox()) && ObjectUtil.isNotNull(element.getPage())) {
+            if (NullUtil.isNotNull(element.getBbox()) && NullUtil.isNotNull(element.getPage())) {
                 withBBox.add(element);
             } else {
                 withoutBBox.add(element);
@@ -125,9 +125,9 @@ public class ReadingOrderResolverImpl implements ReadingOrderResolver {
 
     private double lineHeight(UnifiedElement element) {
         BBox bbox = element.getBbox();
-        double height = ObjectUtil.isNull(bbox) ? 0 : bbox.getHeight();
-        double fontHeight = ObjectUtil.isNotNull(element.getFont())
-                && ObjectUtil.isNotNull(element.getFont().getSize())
+        double height = NullUtil.isNull(bbox) ? 0 : bbox.getHeight();
+        double fontHeight = NullUtil.isNotNull(element.getFont())
+                && NullUtil.isNotNull(element.getFont().getSize())
                 ? element.getFont().getSize() * 1.2 : 0;
         return Math.max(height, fontHeight);
     }

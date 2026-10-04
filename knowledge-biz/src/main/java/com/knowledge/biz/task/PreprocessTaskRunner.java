@@ -1,6 +1,5 @@
 package com.knowledge.biz.task;
 
-import cn.hutool.core.util.ObjectUtil;
 import com.knowledge.biz.service.db.KbFileResultDbService;
 import com.knowledge.biz.service.db.KbPipelineProductDbService;
 import com.knowledge.biz.service.db.KbPipelineTaskDbService;
@@ -12,6 +11,7 @@ import com.knowledge.common.domain.structure.UnifiedDocument;
 import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.enums.task.PipelineTaskErrorCode;
 import com.knowledge.common.utils.JsonUtil;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.filecenter.service.FileStorage;
 import com.knowledge.worker.preprocessing.PreprocessContext;
 import com.knowledge.worker.preprocessing.PreprocessProperties;
@@ -52,21 +52,21 @@ public class PreprocessTaskRunner {
      */
     public void run(Long taskId) {
         KbPipelineTask task = TaskRunnerSupport.claim(pipelineTaskDbService, taskId);
-        if (ObjectUtil.isNull(task)) {
+        if (NullUtil.isNull(task)) {
             return;
         }
         log.info("===> PreprocessTaskRunner 领取预处理任务, taskId={}, fileResultId={}",
                 taskId, task.getFileResultId());
         try {
             KbFileResult fileResult = fileResultDbService.getById(task.getFileResultId());
-            if (ObjectUtil.isNull(fileResult)) {
+            if (NullUtil.isNull(fileResult)) {
                 finishFailed(taskId, PipelineTaskErrorCode.PREPROCESS_FAILED.name(),
                         "文件结果不存在: " + task.getFileResultId());
                 return;
             }
             // 上游组装产物：优先任务指定值，缺省回退最新
             KbPipelineProduct structureProduct = resolveStructureProduct(task);
-            if (ObjectUtil.isNull(structureProduct)) {
+            if (NullUtil.isNull(structureProduct)) {
                 finishFailed(taskId, PipelineTaskErrorCode.PREPROCESS_EMPTY.name(),
                         "统一结构产物不存在，请先触发组装");
                 return;
@@ -83,7 +83,7 @@ public class PreprocessTaskRunner {
                         "上游统一结构产物读取失败: " + e.getMessage());
                 return;
             }
-            if (ObjectUtil.isNull(document)) {
+            if (NullUtil.isNull(document)) {
                 log.warn("===> PreprocessTaskRunner 预处理失败：上游统一结构产物反序列化失败, taskId={}, artifactId={}",
                         taskId, structureProduct.getArtifactId());
                 finishFailed(taskId, PipelineTaskErrorCode.PREPROCESS_EMPTY.name(), "上游统一结构产物反序列化失败");

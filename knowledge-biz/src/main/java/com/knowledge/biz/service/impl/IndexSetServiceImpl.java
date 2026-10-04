@@ -44,6 +44,7 @@ import com.knowledge.common.enums.task.PipelineTaskStatus;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.ThrowUtil;
 import com.knowledge.common.utils.JsonUtil;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.indexing.BuildOrder;
 import com.knowledge.worker.indexing.ComboSnapshot;
 import com.knowledge.worker.indexing.IndexRow;
@@ -108,7 +109,7 @@ public class IndexSetServiceImpl implements IndexSetService {
     @Override
     public void onFileProductsReady(Long fileResultId) {
         KbFileResult file = fileResultDbService.getById(fileResultId);
-        if (ObjectUtil.isNull(file)) {
+        if (NullUtil.isNull(file)) {
             log.warn("===> IndexSetServiceImpl 文件产物就绪回调但文件结果不存在, fileResultId={}", fileResultId);
             return;
         }
@@ -116,7 +117,7 @@ public class IndexSetServiceImpl implements IndexSetService {
 
         // ① 血缘解析：文件最新产物的组合（规则一：追加目标按产物实际组合决定，不按当前在线/绑定）
         ProductCombo product = resolveProductCombo(fileResultId);
-        if (ObjectUtil.isNull(product)) {
+        if (NullUtil.isNull(product)) {
             log.info("===> IndexSetServiceImpl 产物血统不完整，跳过追加, fileResultId={}", fileResultId);
             return;
         }
@@ -126,8 +127,8 @@ public class IndexSetServiceImpl implements IndexSetService {
         KbIndexVersion version = registerComboCollection(kbId, product.combo(), product.dimension());
         List<IndexRow> rows = indexRowAssembler.assemble(fileResultId,
                 StrUtil.blankToDefault(file.getOwner(), ""), product.chunkRow(), product.embedRow());
-        if (ObjectUtil.isNotNull(version)) {
-            if (ObjectUtil.isNull(rows)) {
+        if (NullUtil.isNotNull(version)) {
+            if (NullUtil.isNull(rows)) {
                 markFailed(version, "文件 " + fileResultId + " 向量产物读取失败");
                 return;
             }
@@ -151,7 +152,7 @@ public class IndexSetServiceImpl implements IndexSetService {
         maybeBackfillToOnline(kbId, fileResultId, product.combo());
 
         // ⑥ 评测冻结集路由：范围内文件的活跃 LIST 版本同步追加（冻结语义：只认 fileResultIds）
-        if (ObjectUtil.isNotNull(rows) && !rows.isEmpty()) {
+        if (NullUtil.isNotNull(rows) && !rows.isEmpty()) {
             appendToFrozenScopes(kbId, fileResultId, product.combo(), rows);
         }
     }
@@ -164,12 +165,12 @@ public class IndexSetServiceImpl implements IndexSetService {
     private ProductCombo resolveProductCombo(Long fileResultId) {
         List<KbEmbeddingSet> embedSets = embeddingSetDbService.listByFileResultIds(List.of(fileResultId));
         KbEmbeddingSet embedRow = embedSets.stream().max(Comparator.comparing(KbEmbeddingSet::getId)).orElse(null);
-        if (ObjectUtil.isNull(embedRow)) {
+        if (NullUtil.isNull(embedRow)) {
             return null;
         }
-        KbChunkSet chunkRow = ObjectUtil.isNull(embedRow.getChunkSetRef())
+        KbChunkSet chunkRow = NullUtil.isNull(embedRow.getChunkSetRef())
                 ? null : chunkSetDbService.getById(embedRow.getChunkSetRef());
-        if (ObjectUtil.isNull(chunkRow)) {
+        if (NullUtil.isNull(chunkRow)) {
             return null;
         }
         String preprocess = lineageResolver.resolvePreprocessStrategy(chunkRow.getUpstreamProductId());
@@ -190,7 +191,7 @@ public class IndexSetServiceImpl implements IndexSetService {
         KbIndexSet set = indexSetDbService.getOrCreateByKb(kbId);
         String comboJson = JsonUtil.toJsonStr(combo);
         KbIndexVersion active = findActiveVersion(set.getId(), comboJson);
-        if (ObjectUtil.isNotNull(active)) {
+        if (NullUtil.isNotNull(active)) {
             return active;
         }
         if (bindingDisabled(kbId)) {
@@ -229,7 +230,7 @@ public class IndexSetServiceImpl implements IndexSetService {
     private void updateLedger(KbIndexVersion version, List<IndexRow> rows) {
         version.setChunkCount(ObjectUtil.defaultIfNull(version.getChunkCount(), 0) + rows.size());
         int vectors = (int) rows.stream()
-                .filter(r -> ObjectUtil.isNotNull(r.getVector()) && !r.getVector().isEmpty()).count();
+                .filter(r -> NullUtil.isNotNull(r.getVector()) && !r.getVector().isEmpty()).count();
         version.setVectorCount(ObjectUtil.defaultIfNull(version.getVectorCount(), 0) + vectors);
         version.setBuildError(null);
         indexVersionDbService.updateById(version);
@@ -260,7 +261,7 @@ public class IndexSetServiceImpl implements IndexSetService {
             return;
         }
         ComboSnapshot bound = indexComboService.resolveBoundCombo(kbId);
-        if (ObjectUtil.isNull(bound) || !comboEquals(bound, combo)) {
+        if (NullUtil.isNull(bound) || !comboEquals(bound, combo)) {
             return;
         }
         try {
@@ -278,7 +279,7 @@ public class IndexSetServiceImpl implements IndexSetService {
     private void appendToFrozenScopes(Long kbId, Long fileResultId, ComboSnapshot productCombo,
                                       List<IndexRow> rows) {
         KbIndexSet set = indexSetDbService.getByKb(kbId);
-        if (ObjectUtil.isNull(set)) {
+        if (NullUtil.isNull(set)) {
             return;
         }
         for (KbIndexVersion version : indexVersionDbService.listByIndexSetId(set.getId())) {
@@ -288,8 +289,8 @@ public class IndexSetServiceImpl implements IndexSetService {
                 continue;
             }
             ComboSnapshot combo = JsonUtil.toObject(version.getComboSnapshot(), ComboSnapshot.class);
-            if (ObjectUtil.isNull(combo) || !combo.isListScope()
-                    || ObjectUtil.isNull(combo.getFileResultIds())
+            if (NullUtil.isNull(combo) || !combo.isListScope()
+                    || NullUtil.isNull(combo.getFileResultIds())
                     || !combo.getFileResultIds().contains(fileResultId)) {
                 continue;
             }
@@ -315,7 +316,7 @@ public class IndexSetServiceImpl implements IndexSetService {
      */
     private ComboSnapshot requireVersionCombo(KbIndexVersion version) {
         ComboSnapshot combo = JsonUtil.toObject(version.getComboSnapshot(), ComboSnapshot.class);
-        ThrowUtil.throwIf(ObjectUtil.isNull(combo), ErrorCode.PARAM_INVALID, "版本组合快照缺失");
+        ThrowUtil.throwIf(NullUtil.isNull(combo), ErrorCode.PARAM_INVALID, "版本组合快照缺失");
         combo.requireStageStrategies();
         return combo;
     }
@@ -323,21 +324,21 @@ public class IndexSetServiceImpl implements IndexSetService {
     /** 按 id 取版本行（不存在 40441）：发布/回退/验证/回收共用入口校验 */
     private KbIndexVersion requireVersion(Long versionId) {
         KbIndexVersion version = indexVersionDbService.getById(versionId);
-        ThrowUtil.throwIf(ObjectUtil.isNull(version), ErrorCode.INDEX_VERSION_NOT_FOUND);
+        ThrowUtil.throwIf(NullUtil.isNull(version), ErrorCode.INDEX_VERSION_NOT_FOUND);
         return version;
     }
 
     /** 版本行所属索引集合（缺失同样按 40441 处理，与版本不存在对外不可区分） */
     private KbIndexSet requireSetOf(KbIndexVersion version) {
         KbIndexSet set = indexSetDbService.getById(version.getIndexSetId());
-        ThrowUtil.throwIf(ObjectUtil.isNull(set), ErrorCode.INDEX_VERSION_NOT_FOUND);
+        ThrowUtil.throwIf(NullUtil.isNull(set), ErrorCode.INDEX_VERSION_NOT_FOUND);
         return set;
     }
 
     /** 规则三：产物组合 ≠ 在线组合 → 按在线组合全链补齐该文件（从缺失的最上游环节投递） */
     private void maybeBackfillToOnline(Long kbId, Long fileResultId, ComboSnapshot productCombo) {
         KbIndexVersion online = currentPublished(kbId);
-        if (ObjectUtil.isNull(online)) {
+        if (NullUtil.isNull(online)) {
             return;
         }
         ComboSnapshot onlineCombo = requireVersionCombo(online);
@@ -359,7 +360,7 @@ public class IndexSetServiceImpl implements IndexSetService {
                 targetPreprocess.equals(lineageResolver.resolvePreprocessStrategy(s.getUpstreamProductId())));
         if (!preprocessOk) {
             KbPipelineStrategyVersion strategyRow = strategyRowOf(PipelineStage.PREPROCESS.name(), targetPreprocess);
-            if (ObjectUtil.isNull(strategyRow)) {
+            if (NullUtil.isNull(strategyRow)) {
                 log.warn("===> IndexSetServiceImpl 补齐中止：目标预处理策略不存在, strategy={}", targetPreprocess);
                 return;
             }
@@ -377,12 +378,12 @@ public class IndexSetServiceImpl implements IndexSetService {
                         && targetPreprocess.equals(lineageResolver.resolvePreprocessStrategy(s.getUpstreamProductId())));
         if (!chunkOk) {
             KbPipelineStrategyVersion strategyRow = strategyRowOf(PipelineStage.CHUNK.name(), target.getChunkStrategy());
-            if (ObjectUtil.isNull(strategyRow)) {
+            if (NullUtil.isNull(strategyRow)) {
                 log.warn("===> IndexSetServiceImpl 补齐中止：目标切片策略不存在, strategy={}", target.getChunkStrategy());
                 return;
             }
             Long upstreamProductId = preprocessProductIdOf(fileResultId, targetPreprocess);
-            if (ObjectUtil.isNull(upstreamProductId)) {
+            if (NullUtil.isNull(upstreamProductId)) {
                 log.warn("===> IndexSetServiceImpl 补齐中止：匹配预处理产物不存在, fileResultId={}, strategy={}",
                         fileResultId, targetPreprocess);
                 return;
@@ -419,7 +420,7 @@ public class IndexSetServiceImpl implements IndexSetService {
             }
             try {
                 PreprocessStrategy strategy = JsonUtil.toObject(product.getCapabilitySnapshot(), PreprocessStrategy.class);
-                if (ObjectUtil.isNotNull(strategy) && targetPreprocess.equals(strategy.fullVersion())) {
+                if (NullUtil.isNotNull(strategy) && targetPreprocess.equals(strategy.fullVersion())) {
                     return product.getId();
                 }
             } catch (Exception e) {
@@ -439,16 +440,16 @@ public class IndexSetServiceImpl implements IndexSetService {
 
     @Override
     public IndexBuildTriggerVO buildCandidate(BuildOrder order) {
-        ThrowUtil.throwIf(ObjectUtil.isNull(order) || ObjectUtil.isNull(order.getKnowledgeBaseId())
-                        || ObjectUtil.isNull(order.getComboSnapshot()),
+        ThrowUtil.throwIf(NullUtil.isNull(order) || NullUtil.isNull(order.getKnowledgeBaseId())
+                        || NullUtil.isNull(order.getComboSnapshot()),
                 ErrorCode.PARAM_INVALID, "构建命令缺失");
         Long kbId = order.getKnowledgeBaseId();
-        ThrowUtil.throwIf(ObjectUtil.isNull(knowledgeBaseDbService.getById(kbId)), ErrorCode.KB_NOT_FOUND);
+        ThrowUtil.throwIf(NullUtil.isNull(knowledgeBaseDbService.getById(kbId)), ErrorCode.KB_NOT_FOUND);
         ComboSnapshot combo = order.getComboSnapshot();
         // 范围口径：LIST = 评测冻结集（文件列表非空且全属本 KB）；ALL = 范围字段归一化
         if (combo.isListScope()) {
             List<Long> fileIds = combo.getFileResultIds();
-            ThrowUtil.throwIf(ObjectUtil.isNull(fileIds) || fileIds.isEmpty(),
+            ThrowUtil.throwIf(NullUtil.isNull(fileIds) || fileIds.isEmpty(),
                     ErrorCode.PARAM_INVALID, "指定文件构建（LIST）需提供文件列表");
             Set<Long> kbFileIds = fileResultDbService.listByKb(kbId).stream()
                     .map(KbFileResult::getId).collect(Collectors.toSet());
@@ -461,7 +462,7 @@ public class IndexSetServiceImpl implements IndexSetService {
         // 绑定开=按 KB 绑定策略集合：前端只传数据范围/形态时由后端解析绑定组合补齐策略口径
         if (!combo.hasCompleteStageStrategies()) {
             ComboSnapshot bound = indexComboService.resolveBoundCombo(kbId);
-            ThrowUtil.throwIf(ObjectUtil.isNull(bound), ErrorCode.INDEX_COMBO_INCOMPLETE,
+            ThrowUtil.throwIf(NullUtil.isNull(bound), ErrorCode.INDEX_COMBO_INCOMPLETE,
                     "知识库绑定策略不齐全，无法按绑定策略构建");
             combo.setStageStrategies(bound.getStageStrategies());
         }
@@ -501,29 +502,29 @@ public class IndexSetServiceImpl implements IndexSetService {
         indexVersionDbService.updateById(version);
 
         KnowledgeBase kb = knowledgeBaseDbService.getById(set.getKnowledgeBaseId());
-        if (ObjectUtil.isNotNull(kb) && ObjectUtil.isNull(kb.getPublishedIndexSetId())) {
+        if (NullUtil.isNotNull(kb) && NullUtil.isNull(kb.getPublishedIndexSetId())) {
             kb.setPublishedIndexSetId(set.getId());
             knowledgeBaseDbService.updateById(kb);
         }
 
         kbAuditLogDbService.saveAudit(AuditActionType.PUBLISH_INDEX, AUDIT_OBJECT_TYPE, versionId,
-                ObjectUtil.isNull(old) ? null : old.getVersionNo(), version.getVersionNo());
+                NullUtil.isNull(old) ? null : old.getVersionNo(), version.getVersionNo());
         log.info("===> IndexSetServiceImpl 索引发布完成, kbId={}, versionId={}, versionNo={}, oldVersionNo={}",
                 set.getKnowledgeBaseId(), versionId, version.getVersionNo(),
-                ObjectUtil.isNull(old) ? null : old.getVersionNo());
+                NullUtil.isNull(old) ? null : old.getVersionNo());
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void rollback(Long versionId) {
         KbIndexVersion target = indexVersionDbService.getById(versionId);
-        ThrowUtil.throwIf(ObjectUtil.isNull(target), ErrorCode.INDEX_VERSION_NOT_FOUND);
+        ThrowUtil.throwIf(NullUtil.isNull(target), ErrorCode.INDEX_VERSION_NOT_FOUND);
         KbIndexSet set = indexSetDbService.getById(target.getIndexSetId());
-        ThrowUtil.throwIf(ObjectUtil.isNull(set), ErrorCode.INDEX_VERSION_NOT_FOUND);
+        ThrowUtil.throwIf(NullUtil.isNull(set), ErrorCode.INDEX_VERSION_NOT_FOUND);
         ComboSnapshot targetCombo = requireVersionCombo(target);
         ThrowUtil.throwIf(targetCombo.isListScope(), ErrorCode.INDEX_FROZEN_SCOPE_PUBLISH_FORBIDDEN);
         Long currentId = set.getCurrentPublishedVersionId();
-        ThrowUtil.throwIf(ObjectUtil.isNull(currentId), ErrorCode.INDEX_NOT_PUBLISHED, "当前无在线版本，无法回退");
+        ThrowUtil.throwIf(NullUtil.isNull(currentId), ErrorCode.INDEX_NOT_PUBLISHED, "当前无在线版本，无法回退");
         ThrowUtil.throwIf(Objects.equals(currentId, versionId), ErrorCode.PARAM_INVALID, "目标版本即当前在线版本");
         ThrowUtil.throwIf(IndexVersionStatus.BUILDING.name().equals(target.getStatus()),
                 ErrorCode.INDEX_BUILDING_CONFLICT, "目标版本构建中，无法回退");
@@ -539,17 +540,17 @@ public class IndexSetServiceImpl implements IndexSetService {
         indexVersionDbService.updateById(target);
 
         kbAuditLogDbService.saveAudit(AuditActionType.ROLLBACK_INDEX, AUDIT_OBJECT_TYPE, versionId,
-                ObjectUtil.isNull(current) ? null : current.getVersionNo(), target.getVersionNo());
+                NullUtil.isNull(current) ? null : current.getVersionNo(), target.getVersionNo());
         log.info("===> IndexSetServiceImpl 索引回退完成（指针切回）, kbId={}, targetVersionNo={}, oldVersionNo={}",
                 set.getKnowledgeBaseId(), target.getVersionNo(),
-                ObjectUtil.isNull(current) ? null : current.getVersionNo());
+                NullUtil.isNull(current) ? null : current.getVersionNo());
         compensate(set, target);
     }
 
     /** 当前发布版本（versionNo → 集合名 kb_{kbId}_{versionNo} 直连检索）；无 → null */
     public KbIndexVersion currentPublished(Long knowledgeBaseId) {
         KbIndexSet set = indexSetDbService.getByKb(knowledgeBaseId);
-        if (ObjectUtil.isNull(set) || ObjectUtil.isNull(set.getCurrentPublishedVersionId())) {
+        if (NullUtil.isNull(set) || NullUtil.isNull(set.getCurrentPublishedVersionId())) {
             return null;
         }
         return indexVersionDbService.getById(set.getCurrentPublishedVersionId());
@@ -579,7 +580,7 @@ public class IndexSetServiceImpl implements IndexSetService {
     @Override
     public List<IndexVersionVO> listVersions(Long knowledgeBaseId) {
         KbIndexSet set = indexSetDbService.getByKb(knowledgeBaseId);
-        if (ObjectUtil.isNull(set)) {
+        if (NullUtil.isNull(set)) {
             return List.of();
         }
         return indexVersionDbService.listByIndexSetId(set.getId()).stream()
@@ -590,9 +591,9 @@ public class IndexSetServiceImpl implements IndexSetService {
     @Override
     public IndexVersionVO versionDetail(Long knowledgeBaseId, Long versionId) {
         KbIndexSet set = indexSetDbService.getByKb(knowledgeBaseId);
-        ThrowUtil.throwIf(ObjectUtil.isNull(set), ErrorCode.INDEX_VERSION_NOT_FOUND);
+        ThrowUtil.throwIf(NullUtil.isNull(set), ErrorCode.INDEX_VERSION_NOT_FOUND);
         KbIndexVersion version = indexVersionDbService.getById(versionId);
-        ThrowUtil.throwIf(ObjectUtil.isNull(version) || !Objects.equals(set.getId(), version.getIndexSetId()),
+        ThrowUtil.throwIf(NullUtil.isNull(version) || !Objects.equals(set.getId(), version.getIndexSetId()),
                 ErrorCode.INDEX_VERSION_NOT_FOUND);
         return toVersionVO(version, Objects.equals(versionId, set.getCurrentPublishedVersionId()));
     }
@@ -602,7 +603,7 @@ public class IndexSetServiceImpl implements IndexSetService {
         // 组合 × 成员口径（测评模式构建弹窗数据源）：候选三元组 = 范围内各文件各策略历史的并集；
         // 成员 = 该组合下有完整成功产物链的文件（selectComboProducts 单一取数口径，与构建对账同口径）。
         // 注意：与生产路径 enumerateCombos 的"全库交集"口径不同（本方法按成员子集返回，交集口径不动）。
-        boolean scoped = ObjectUtil.isNotNull(fileResultIds) && !fileResultIds.isEmpty();
+        boolean scoped = NullUtil.isNotNull(fileResultIds) && !fileResultIds.isEmpty();
         List<Long> fileIds = scoped ? new ArrayList<>(fileResultIds)
                 : fileResultDbService.listByKb(knowledgeBaseId).stream().map(KbFileResult::getId).toList();
         if (fileIds.isEmpty()) {
@@ -680,7 +681,7 @@ public class IndexSetServiceImpl implements IndexSetService {
 
         boolean vectorPassed = false;
         String vectorDetail = "无可用样本向量";
-        if (consistent && ObjectUtil.isNotNull(expectation.sampleVector())) {
+        if (consistent && NullUtil.isNotNull(expectation.sampleVector())) {
             List<VectorHit> vectorHits = milvusIndexPort.searchVector(collectionName,
                     VectorQuery.builder().vector(expectation.sampleVector()).topK(5).build());
             vectorPassed = !vectorHits.isEmpty();
@@ -710,7 +711,7 @@ public class IndexSetServiceImpl implements IndexSetService {
         vo.setVersionNo(version.getVersionNo());
         if (StrUtil.isNotBlank(version.getComboSnapshot())) {
             ComboSnapshot combo = JsonUtil.toObject(version.getComboSnapshot(), ComboSnapshot.class);
-            if (ObjectUtil.isNotNull(combo)) {
+            if (NullUtil.isNotNull(combo)) {
                 vo.setFileScopeMode(combo.getFileScopeMode());
                 vo.setFileResultIds(combo.getFileResultIds());
                 vo.setChunkStrategy(combo.getChunkStrategy());
@@ -737,7 +738,7 @@ public class IndexSetServiceImpl implements IndexSetService {
     /** 知识库策略绑定开关：关闭（0）→ true；开启/null 视为开启 → false */
     private boolean bindingDisabled(Long kbId) {
         KnowledgeBase kb = knowledgeBaseDbService.getById(kbId);
-        return ObjectUtil.isNotNull(kb) && StrategyBindingSwitch.isOff(kb.getStrategyBindingEnabled());
+        return NullUtil.isNotNull(kb) && StrategyBindingSwitch.isOff(kb.getStrategyBindingEnabled());
     }
 
     /** 版本行失败回写（buildError 截断 1024） */
@@ -749,8 +750,8 @@ public class IndexSetServiceImpl implements IndexSetService {
 
     /** 退役在线版本（已退役跳过）；返回该版本行（无 → null；retiredBy 占位 null） */
     private KbIndexVersion retireVersion(Long versionId, LocalDateTime now) {
-        KbIndexVersion version = ObjectUtil.isNull(versionId) ? null : indexVersionDbService.getById(versionId);
-        if (ObjectUtil.isNotNull(version) && !IndexVersionStatus.RETIRED.name().equals(version.getStatus())) {
+        KbIndexVersion version = NullUtil.isNull(versionId) ? null : indexVersionDbService.getById(versionId);
+        if (NullUtil.isNotNull(version) && !IndexVersionStatus.RETIRED.name().equals(version.getStatus())) {
             version.setStatus(IndexVersionStatus.RETIRED.name());
             version.setRetiredAt(now);
             indexVersionDbService.updateById(version);
@@ -768,7 +769,7 @@ public class IndexSetServiceImpl implements IndexSetService {
         KbIndexSet set = indexSetDbService.getOrCreateByKb(kbId);
         String comboJson = JsonUtil.toJsonStr(combo);
         KbIndexVersion active = findActiveVersion(set.getId(), comboJson);
-        if (ObjectUtil.isNotNull(active)) {
+        if (NullUtil.isNotNull(active)) {
             boolean buildingLike = IndexVersionStatus.CREATED.name().equals(active.getStatus())
                     || IndexVersionStatus.BUILDING.name().equals(active.getStatus());
             ThrowUtil.throwIf(explicit, ErrorCode.INDEX_BUILDING_CONFLICT, "该组合已有活跃版本");
@@ -874,7 +875,7 @@ public class IndexSetServiceImpl implements IndexSetService {
     }
 
     private List<Long> scopeFileIds(Long kbId, ComboSnapshot combo) {
-        if ("LIST".equals(combo.getFileScopeMode()) && ObjectUtil.isNotNull(combo.getFileResultIds())) {
+        if ("LIST".equals(combo.getFileScopeMode()) && NullUtil.isNotNull(combo.getFileResultIds())) {
             return combo.getFileResultIds();
         }
         return fileResultDbService.listByKb(kbId).stream().map(KbFileResult::getId).toList();

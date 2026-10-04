@@ -1,6 +1,5 @@
 package com.knowledge.biz.service.impl;
 
-import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.knowledge.biz.service.StrategyVersionService;
 import com.knowledge.biz.service.db.KbPipelineStrategyVersionDbService;
@@ -15,6 +14,7 @@ import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
 import com.knowledge.common.exception.ThrowUtil;
 import com.knowledge.common.utils.JsonUtil;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.model.catalog.ModelCatalogPort;
 import com.knowledge.worker.chunking.strategy.ChunkAlgorithmSpec;
 import com.knowledge.worker.embedding.strategy.EmbedAlgorithmSpec;
@@ -118,7 +118,7 @@ public class StrategyVersionServiceImpl implements StrategyVersionService {
 
     private KbPipelineStrategyVersion requireById(Long id) {
         KbPipelineStrategyVersion row = strategyVersionDbService.getById(id);
-        ThrowUtil.throwIf(ObjectUtil.isNull(row), ErrorCode.STRATEGY_VERSION_NOT_FOUND);
+        ThrowUtil.throwIf(NullUtil.isNull(row), ErrorCode.STRATEGY_VERSION_NOT_FOUND);
         return row;
     }
 

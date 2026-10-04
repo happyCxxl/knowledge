@@ -1,7 +1,6 @@
 package com.knowledge.biz.service.impl;
 
 import com.knowledge.common.enums.knowledge.StrategyBindingSwitch;
-import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.knowledge.biz.service.IndexComboService;
 import com.knowledge.biz.service.db.KbFileResultDbService;
@@ -14,6 +13,7 @@ import com.knowledge.common.domain.entity.KbPipelineStrategyVersion;
 import com.knowledge.common.domain.entity.KbStrategyBinding;
 import com.knowledge.common.domain.entity.KnowledgeBase;
 import com.knowledge.common.enums.task.PipelineStage;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.indexing.ComboSnapshot;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -57,11 +57,11 @@ public class IndexComboServiceImpl implements IndexComboService {
     /** 单环节绑定策略解析：绑定缺失/版本行缺失 → null */
     private String boundStrategyOf(Long knowledgeBaseId, String type) {
         KbStrategyBinding binding = strategyBindingDbService.getByKbAndType(knowledgeBaseId, type);
-        if (ObjectUtil.isNull(binding)) {
+        if (NullUtil.isNull(binding)) {
             return null;
         }
         KbPipelineStrategyVersion version = strategyVersionDbService.getById(binding.getStrategyVersionId());
-        if (ObjectUtil.isNull(version)) {
+        if (NullUtil.isNull(version)) {
             return null;
         }
         return version.getName() + "-" + version.getVersion();
@@ -83,7 +83,7 @@ public class IndexComboServiceImpl implements IndexComboService {
      * 只返回「范围内每个文件都完整」的三元组（fileResultIds 空 → 空列表）。
      */
     public List<ComboSnapshot> enumerateCombos(List<Long> fileResultIds) {
-        if (ObjectUtil.isNull(fileResultIds) || fileResultIds.isEmpty()) {
+        if (NullUtil.isNull(fileResultIds) || fileResultIds.isEmpty()) {
             return List.of();
         }
         // 候选三元组 = 去重后的（预处理策略 × 切片策略）对 × 向量策略（目录批量取数，单一口径）；

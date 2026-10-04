@@ -1,7 +1,7 @@
 package com.knowledge.worker.parser.impl.fallback;
 
-import cn.hutool.core.util.ObjectUtil;
 import com.knowledge.common.domain.parse.QualityInfo;
+import com.knowledge.common.utils.NullUtil;
 
 /**
  * 信号降级公共口径（package-private，各 handler 共用）：
@@ -26,21 +26,21 @@ final class FallbackSupport {
 
     /** 失败页登记（参与 90% 门槛）。 */
     static void addFailedPage(QualityInfo quality, Integer page) {
-        if (ObjectUtil.isNotNull(page)) {
+        if (NullUtil.isNotNull(page)) {
             quality.getFailedPages().add(page);
         }
     }
 
     /** 扫描页登记（失败单元与整任务判定共用）。 */
     static void addScannedPage(QualityInfo quality, Integer page) {
-        if (ObjectUtil.isNotNull(page)) {
+        if (NullUtil.isNotNull(page)) {
             quality.getScannedPages().add(page);
         }
     }
 
     /** 空白页登记（从成功占比分母里剔除）。 */
     static void addBlankPage(QualityInfo quality, Integer page) {
-        if (ObjectUtil.isNotNull(page)) {
+        if (NullUtil.isNotNull(page)) {
             quality.getBlankPages().add(page);
         }
     }

@@ -1,11 +1,11 @@
 package com.knowledge.worker.chunking.impl.image;
 
-import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.knowledge.common.domain.chunk.Chunk;
 import com.knowledge.common.enums.chunk.ChunkContentType;
 import com.knowledge.common.domain.preprocess.ViewElement;
 import com.knowledge.common.domain.structure.UnifiedElement;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.chunking.SliceContext;
 import com.knowledge.worker.chunking.slice.SliceStrategy;
 import com.knowledge.common.enums.chunk.ChunkAlgorithm;
@@ -31,7 +31,7 @@ public class ImageCaptionSliceStrategy implements SliceStrategy {
     @Override
     public List<Chunk> slice(ViewElement element, SliceContext context) {
         UnifiedElement unified = context.getById().get(element.getElementId());
-        String caption = ObjectUtil.isNull(unified) ? null : unified.getCaption();
+        String caption = NullUtil.isNull(unified) ? null : unified.getCaption();
 
         String content = "图片说明：[图片内文字未识别（OCR 暂未接入，仅保留引用）]";
         if (StrUtil.isNotBlank(caption)) {
@@ -43,9 +43,9 @@ public class ImageCaptionSliceStrategy implements SliceStrategy {
         chunk.setContentType(ChunkContentType.IMAGE.name());
         chunk.setTitlePath(String.join(" > ", context.getTitlePath()));
         chunk.setSourceElementIds(new ArrayList<>(List.of(element.getElementId())));
-        if (ObjectUtil.isNotNull(element.getPage())) {
+        if (NullUtil.isNotNull(element.getPage())) {
             chunk.setPageRange(List.of(element.getPage()));
-        } else if (ObjectUtil.isNotNull(unified) && ObjectUtil.isNotNull(unified.getPageRange())
+        } else if (NullUtil.isNotNull(unified) && NullUtil.isNotNull(unified.getPageRange())
                 && !unified.getPageRange().isEmpty()) {
             chunk.setPageRange(new ArrayList<>(unified.getPageRange()));
         }
