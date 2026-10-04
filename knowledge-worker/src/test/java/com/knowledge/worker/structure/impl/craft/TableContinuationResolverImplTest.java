@@ -13,6 +13,8 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -155,5 +157,111 @@ class TableContinuationResolverImplTest {
         assertEquals(2, outcome.getElements().size());
         assertEquals(1, outcome.getContinuationCount());
         assertEquals(List.of(2, 3), outcome.getElements().getFirst().getPageRange());
+    }
+
+    /** 多行表格：headerRowNumber 为 null 表示表头未判定 */
+    private UnifiedElement multiRowTable(int page, double y, boolean cutAtBottom, Integer headerRowNumber,
+                                         List<List<String>> rows) {
+        UnifiedElement table = new UnifiedElement();
+        table.setId("t-" + page);
+        table.setType(UnifiedElementType.TABLE.name());
+        table.setPage(page);
+        table.setBbox(new BBox(72, y, 400, 100));
+        table.setCols(rows.getFirst().size());
+        table.setHeaderRow(headerRowNumber);
+        table.setRows(rows.size());
+        table.setExtension(Map.of("cutAtPageBottom", cutAtBottom));
+        List<UnifiedElement> cells = new ArrayList<>();
+        for (int r = 0; r < rows.size(); r++) {
+            for (int c = 0; c < rows.get(r).size(); c++) {
+                UnifiedElement cell = new UnifiedElement();
+                cell.setId("tc-" + page + "-" + r + "-" + c);
+                cell.setType(UnifiedElementType.TABLE_CELL.name());
+                cell.setRow(r);
+                cell.setCol(c);
+                cell.setIsHeader(headerRowNumber != null && r == headerRowNumber);
+                cell.setText(rows.get(r).get(c));
+                cell.setBbox(new BBox(72 + c * 100, y + r * 20, 100, 20));
+                cells.add(cell);
+            }
+        }
+        table.setCells(cells);
+        return table;
+    }
+
+    private UnifiedElement cellOf(UnifiedElement table, int row, int col) {
+        return table.getCells().stream()
+                .filter(c -> Integer.valueOf(row).equals(c.getRow()) && Integer.valueOf(col).equals(c.getCol()))
+                .findFirst().orElse(null);
+    }
+
+    @Test
+    void noHeaderContinuationShouldRenumberRowsWithoutOverlap() {
+        // 两侧表头都判不出：空对空相似度命中主规则 → 合并；B 没有可丢弃的表头行
+        UnifiedElement a = multiRowTable(2, 700, true, null,
+                List.of(List.of("甲", "10"), List.of("乙", "20"), List.of("丙", "30")));
+        UnifiedElement b = multiRowTable(3, 20, false, null,
+                List.of(List.of("丁", "40"), List.of("戊", "50")));
+
+        ContinuationOutcome outcome = resolver.joinContinuations(new ArrayList<>(List.of(a, b)), context());
+
+        assertEquals(1, outcome.getElements().size());
+        UnifiedElement merged = outcome.getElements().getFirst();
+        assertEquals(5, merged.getRows());
+        assertNotNull(cellOf(merged, 3, 0));
+        assertEquals("丁", cellOf(merged, 3, 0).getText());
+        assertEquals("戊", cellOf(merged, 4, 0).getText());
+        Set<String> positions = merged.getCells().stream()
+                .map(c -> c.getRow() + "-" + c.getCol())
+                .collect(Collectors.toSet());
+        assertEquals(merged.getCells().size(), positions.size()); // 无 (row,col) 重叠
+    }
+
+    @Test
+    void headerRowZeroContinuationShouldKeepRowNumbering() {
+        UnifiedElement a = multiRowTable(2, 700, true, 0,
+                List.of(List.of("评分项", "分值"), List.of("甲", "10"), List.of("乙", "20")));
+        UnifiedElement b = multiRowTable(3, 20, false, 0,
+                List.of(List.of("评分项", "分值"), List.of("丙", "30"), List.of("丁", "40")));
+
+        ContinuationOutcome outcome = resolver.joinContinuations(new ArrayList<>(List.of(a, b)), context());
+
+        UnifiedElement merged = outcome.getElements().getFirst();
+        assertEquals(5, merged.getRows());
+        assertEquals("丙", cellOf(merged, 3, 0).getText());
+        assertEquals("丁", cellOf(merged, 4, 0).getText());
+        assertTrue(merged.getCells().stream().noneMatch(c -> "tc-3-0-0".equals(c.getId()))); // B 表头行已丢弃
+    }
+
+    @Test
+    void headerRowNotFirstShouldDropOnlyHeaderRow() {
+        UnifiedElement a = multiRowTable(2, 700, true, 0,
+                List.of(List.of("评分项", "分值"), List.of("甲", "10")));
+        UnifiedElement b = multiRowTable(3, 20, false, 1,
+                List.of(List.of("说明", "备注"), List.of("评分项", "分值"), List.of("乙", "20")));
+
+        ContinuationOutcome outcome = resolver.joinContinuations(new ArrayList<>(List.of(a, b)), context());
+
+        assertEquals(1, outcome.getElements().size());
+        UnifiedElement merged = outcome.getElements().getFirst();
+        assertEquals(4, merged.getRows()); // A 两行 + B 保留两行（其表头行在第 1 行）
+        assertEquals("说明", cellOf(merged, 2, 0).getText());
+        assertEquals("乙", cellOf(merged, 3, 0).getText());
+        assertTrue(merged.getCells().stream().noneMatch(c -> "tc-3-1-0".equals(c.getId())));
+    }
+
+    @Test
+    void missingRowsFieldShouldFallBackToCellRows() {
+        UnifiedElement a = multiRowTable(2, 700, true, 0,
+                List.of(List.of("评分项", "分值"), List.of("甲", "10")));
+        a.setRows(null);
+        UnifiedElement b = multiRowTable(3, 20, false, 0,
+                List.of(List.of("评分项", "分值"), List.of("乙", "20")));
+
+        ContinuationOutcome outcome = resolver.joinContinuations(new ArrayList<>(List.of(a, b)), context());
+
+        UnifiedElement merged = outcome.getElements().getFirst();
+        assertEquals(3, merged.getRows()); // A 侧按单元格最大行号 + 1 = 2，B 保留一行
+        assertEquals("乙", cellOf(merged, 2, 0).getText());
     }
 }

@@ -19,7 +19,9 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -109,25 +111,72 @@ public class TableContinuationResolverImpl implements TableContinuationResolver 
     }
 
     private void mergeTables(UnifiedElement a, UnifiedElement b) {
-        // 表头继承：B 的表头行（row=0）是重复表头，丢弃；B 其余行拼接到 A
+        // 表头继承：B 的表头行是重复表头，丢弃；其余行按保留行序号重编号后拼接到 A
         List<UnifiedElement> mergedCells = new ArrayList<>(NullUtil.isNull(a.getCells()) ? List.of() : a.getCells());
-        if (NullUtil.isNotNull(b.getCells())) {
-            for (UnifiedElement cell : b.getCells()) {
-                if (ObjectUtil.equals(cell.getRow(), b.getHeaderRow())) {
-                    continue; // 重复表头行
-                }
-                cell.setRow(NullUtil.isNull(a.getRows())
-                        ? cell.getRow() : a.getRows() + cell.getRow() - 1);
-                mergedCells.add(cell);
-            }
-        }
+        int baseRows = baseRowsOf(a);
+        int droppedRows = appendRows(mergedCells, b, baseRows);
         a.setCells(mergedCells);
-        a.setRows(NullUtil.isNull(a.getRows()) ? b.getRows()
-                : a.getRows() + b.getRows() - 1);
+        a.setRows(baseRows + declaredRowsOf(b) - droppedRows);
         a.setHeaderInherited(true);
         // 跨页位置以列表承载：pageRange/bboxes 逐页累积；首页的 page 与 bbox 保留在元素上
         a.setPageRange(appendPageRange(a, b));
         a.setBboxes(appendBboxes(a, b));
+    }
+
+    /** A 侧既有行数：rows 缺失时按单元格行数兜底，续页行号不与既有单元格重叠 */
+    private int baseRowsOf(UnifiedElement a) {
+        return NullUtil.isNotNull(a.getRows()) ? a.getRows() : cellRowsOf(a);
+    }
+
+    /** 表格声明行数：rows 缺失时按单元格行数兜底 */
+    private int declaredRowsOf(UnifiedElement table) {
+        return NullUtil.isNotNull(table.getRows()) ? table.getRows() : cellRowsOf(table);
+    }
+
+    /** 单元格覆盖的行数（最大行号 + 1；无行号信息时为 0） */
+    private int cellRowsOf(UnifiedElement table) {
+        if (NullUtil.isNull(table.getCells())) {
+            return 0;
+        }
+        return table.getCells().stream()
+                .map(UnifiedElement::getRow)
+                .filter(NullUtil::isNotNull)
+                .mapToInt(Integer::intValue)
+                .max()
+                .orElse(-1) + 1;
+    }
+
+    /** 拼接续页单元格：丢弃重复表头行，其余行按保留行序号重编号；返回实际丢弃的表头行数 */
+    private int appendRows(List<UnifiedElement> mergedCells, UnifiedElement b, int baseRows) {
+        if (NullUtil.isNull(b.getCells())) {
+            return 0;
+        }
+        List<Integer> cellRows = b.getCells().stream()
+                .map(UnifiedElement::getRow)
+                .filter(NullUtil::isNotNull)
+                .distinct()
+                .sorted()
+                .toList();
+        List<Integer> keptRows = cellRows.stream().filter(row -> !isHeaderRow(b, row)).toList();
+        Map<Integer, Integer> rowNumbers = new HashMap<>();
+        for (int i = 0; i < keptRows.size(); i++) {
+            rowNumbers.put(keptRows.get(i), baseRows + i);
+        }
+        for (UnifiedElement cell : b.getCells()) {
+            if (NullUtil.isNotNull(cell.getRow())) {
+                if (isHeaderRow(b, cell.getRow())) {
+                    continue; // 重复表头行不再拼接
+                }
+                cell.setRow(rowNumbers.get(cell.getRow()));
+            }
+            mergedCells.add(cell);
+        }
+        return cellRows.size() - keptRows.size();
+    }
+
+    /** 该行是否 B 的表头行：表头未判定（headerRow 为空）时不丢任何行 */
+    private boolean isHeaderRow(UnifiedElement b, Integer row) {
+        return NullUtil.isNotNull(b.getHeaderRow()) && ObjectUtil.equals(row, b.getHeaderRow());
     }
 
     /** 页码范围累积：首次合并写入首页，其后逐页追加（同一页不重复） */
