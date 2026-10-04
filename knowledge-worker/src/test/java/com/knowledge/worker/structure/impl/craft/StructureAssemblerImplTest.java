@@ -21,6 +21,8 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -156,5 +158,62 @@ class StructureAssemblerImplTest {
         assertTrue(outcome.getRelations().stream().anyMatch(r ->
                 "PARENT_CHILD".equals(r.getType()) && section.getId().equals(r.getFrom())
                         && "t-1".equals(r.getTo())));
+    }
+
+    private static final String XLSX_MIME =
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+    private UnifiedElement sheetTable(String id, String sheetName) {
+        UnifiedElement table = new UnifiedElement();
+        table.setId(id);
+        table.setType(UnifiedElementType.TABLE.name());
+        table.setText(sheetName + " 数据");
+        table.setExtension(Map.of("sheetName", sheetName));
+        return table;
+    }
+
+    @Test
+    void excelSectionsShouldInterleaveWithTheirSheets() {
+        TreeOutcome outcome = assembler.assembleTree(
+                new ArrayList<>(List.of(sheetTable("t-1", "评分表"), sheetTable("t-2", "报价表"))),
+                context(XLSX_MIME));
+
+        List<String> order = outcome.getElements().stream().map(UnifiedElement::getText).toList();
+        assertEquals(List.of("评分表", "评分表 数据", "报价表", "报价表 数据"), order);
+    }
+
+    @Test
+    void excelSectionsShouldBeSiblingsAndOwnTheirTables() {
+        TreeOutcome outcome = assembler.assembleTree(
+                new ArrayList<>(List.of(sheetTable("t-1", "评分表"), sheetTable("t-2", "报价表"))),
+                context(XLSX_MIME));
+
+        List<UnifiedElement> elements = outcome.getElements();
+        List<DocumentRelation> parentChild = outcome.getRelations().stream()
+                .filter(r -> "PARENT_CHILD".equals(r.getType()))
+                .toList();
+        assertEquals(2, parentChild.size());
+        assertEquals(Set.of(elements.get(0).getId(), elements.get(2).getId()),
+                parentChild.stream().map(DocumentRelation::getFrom).collect(Collectors.toSet()));
+        assertEquals(Set.of("t-1", "t-2"),
+                parentChild.stream().map(DocumentRelation::getTo).collect(Collectors.toSet()));
+    }
+
+    @Test
+    void excelNextChainShouldFollowInterleavedOrder() {
+        TreeOutcome outcome = assembler.assembleTree(
+                new ArrayList<>(List.of(sheetTable("t-1", "评分表"), sheetTable("t-2", "报价表"))),
+                context(XLSX_MIME));
+
+        List<UnifiedElement> elements = outcome.getElements();
+        List<String> expected = List.of(
+                elements.get(0).getId() + "->" + elements.get(1).getId(),
+                elements.get(1).getId() + "->" + elements.get(2).getId(),
+                elements.get(2).getId() + "->" + elements.get(3).getId());
+        List<String> chain = outcome.getRelations().stream()
+                .filter(r -> "NEXT".equals(r.getType()))
+                .map(r -> r.getFrom() + "->" + r.getTo())
+                .toList();
+        assertEquals(expected, chain);
     }
 }
