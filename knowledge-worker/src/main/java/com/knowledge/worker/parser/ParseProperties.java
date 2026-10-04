@@ -25,6 +25,9 @@ public class ParseProperties {
     /** Office 单元折算：Word 每多少非空白字符 = 1 个判定单元（Azure 文档智能页单位口径：3000 字符/页） */
     private int officePageChars = 3000;
 
+    /** PDF 图片元素门槛：图片占页面积达到该比例才产 IMAGE 元素与事实（Docling bitmap_area_threshold 口径：0.05） */
+    private double imageMinAreaRatio = 0.05;
+
     /** 乱码页判定：非 CJK/ASCII/常用中文标点字符占比 */
     private double garbledRateThreshold = 0.2;
 

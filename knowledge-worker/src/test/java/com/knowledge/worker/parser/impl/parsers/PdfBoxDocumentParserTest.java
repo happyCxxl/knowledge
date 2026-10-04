@@ -663,6 +663,56 @@ class PdfBoxDocumentParserTest {
         assertTrue(metric.getImageAreaRatio() > 0.5, () -> "image=" + metric.getImageAreaRatio());
     }
 
+    @Test
+    void pageImageShouldEmitImageElementAndFact() throws Exception {
+        ParseSource source = parser.parse(context(buildFullPageImagePdf()));
+
+        ParseElement image = source.getElements().stream()
+                .filter(e -> ElementType.IMAGE.name().equals(e.getType()))
+                .findFirst().orElse(null);
+        assertNotNull(image, () -> "elements=" + source.getElements());
+        assertEquals(1, image.getPage());
+        assertTrue(image.getNeedsOcr());
+        assertNotNull(image.getBbox());
+        assertTrue(image.getProvenance().getPath().contains("/image[0]"));
+        assertTrue(source.getFacts().stream().anyMatch(f -> "OCR_IMAGE".equals(f.getType())));
+    }
+
+    @Test
+    void smallPageImageShouldNotEmitElement() throws Exception {
+        ParseSource source = parser.parse(context(buildSmallImagePdf()));
+
+        // 30×30pt 小图占页面积约 0.2%，低于图片元素门槛
+        assertTrue(source.getElements().stream()
+                .noneMatch(e -> ElementType.IMAGE.name().equals(e.getType())));
+        assertTrue(source.getFacts().isEmpty(), () -> "facts=" + source.getFacts());
+    }
+
+    /** 造一页：正文 + 小图（小图不产图片元素） */
+    private byte[] buildSmallImagePdf() throws Exception {
+        try (PDDocument doc = new PDDocument()) {
+            PDPage page = new PDPage(new PDRectangle(595, 842));
+            doc.addPage(page);
+            PDImageXObject xobject = LosslessFactory.createFromImage(doc, sampleImage());
+            try (PDPageContentStream cs = new PDPageContentStream(doc, page)) {
+                cs.setFont(new PDType1Font(Standard14Fonts.FontName.HELVETICA), 10);
+                cs.beginText();
+                cs.newLineAtOffset(72, 700);
+                cs.showText("body text for small image page");
+                cs.endText();
+                cs.drawImage(xobject, 72, 100, 30, 30);
+            }
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            doc.save(out);
+            return out.toByteArray();
+        }
+    }
+
+    /** 8×8 图片（用例图片输入） */
+    private BufferedImage sampleImage() {
+        return new BufferedImage(8, 8, BufferedImage.TYPE_INT_RGB);
+    }
+
     /** 造一页整页图片、无文本的 PDF */
     private byte[] buildFullPageImagePdf() throws Exception {
         try (PDDocument doc = new PDDocument()) {

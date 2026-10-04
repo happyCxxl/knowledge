@@ -91,18 +91,21 @@ public final class RuleLines {
         return new Graphics(collector.segments, collector.imageBoxes);
     }
 
-    /** 图片覆盖面积占比：各图片矩形面积之和 ÷ 页面面积（超出页面的部分截掉，上限 1） */
+    /** 单张图片的覆盖面积（超出页面的部分截掉，小于 0 记 0） */
+    public static double imageArea(Region box, double pageWidth, double pageHeight) {
+        double width = Math.min(box.right(), pageWidth) - Math.max(box.left(), 0);
+        double height = Math.min(box.bottom(), pageHeight) - Math.max(box.top(), 0);
+        return width > 0 && height > 0 ? width * height : 0;
+    }
+
+    /** 图片覆盖面积占比：各图片矩形面积之和 ÷ 页面面积（上限 1） */
     public static double imageAreaRatio(List<Region> imageBoxes, double pageWidth, double pageHeight) {
         if (imageBoxes.isEmpty() || pageWidth <= 0 || pageHeight <= 0) {
             return 0;
         }
         double area = 0;
         for (Region box : imageBoxes) {
-            double width = Math.min(box.right(), pageWidth) - Math.max(box.left(), 0);
-            double height = Math.min(box.bottom(), pageHeight) - Math.max(box.top(), 0);
-            if (width > 0 && height > 0) {
-                area += width * height;
-            }
+            area += imageArea(box, pageWidth, pageHeight);
         }
         return Math.min(area / (pageWidth * pageHeight), 1);
     }

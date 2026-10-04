@@ -106,10 +106,11 @@ public class PdfBoxDocumentParser implements DocumentParserPort {
             Set<String> headers = HeaderFooterDetector.detectHeaders(pages, context);
             HeaderFooterDetector.FooterKeys footers = HeaderFooterDetector.detectFooters(pages, context);
 
-            // ③ 逐页组装元素：段落聚合 + 表格启发式（按 y 顺序保持阅读顺序）
+            // ③ 逐页组装元素：段落聚合 + 表格启发式（按 y 顺序保持阅读顺序）+ 页内图片
             List<ParseElement> elements = new ArrayList<>();
             for (PageContent page : pages) {
                 assemblePageElements(page, headers, footers, elements, source, fileId, context.getProperties());
+                appendPageImages(page, elements, source, fileId, context.getProperties());
             }
             source.setElements(elements);
         } catch (Exception e) {
@@ -189,7 +190,8 @@ public class PdfBoxDocumentParser implements DocumentParserPort {
         }
         metric.setTextAreaRatio(pageWidth * pageHeight > 0 ? textArea / (pageWidth * pageHeight) : 0);
 
-        return new PageContent(pageNo, pageWidth, pageHeight, metric, lines, graphics.segments());
+        return new PageContent(pageNo, pageWidth, pageHeight, metric, lines, graphics.segments(),
+                graphics.imageBoxes());
     }
 
     /** 栏沟检测：字符级投影交给版面端口（返回空即单栏） */
@@ -441,6 +443,44 @@ public class PdfBoxDocumentParser implements DocumentParserPort {
             run.add(line);
         }
         flushRun(run, runRegion, page, elements, source, fileId, properties);
+    }
+
+    /**
+     * 页内图片元素与事实：面积占比达门槛的图片产 IMAGE 元素（仅引用 + needsOcr + bbox 定位），
+     * 逐张产 OCR_IMAGE 事实（仅告警）；元素按页内自上而下追加在本页正文之后。
+     */
+    private void appendPageImages(PageContent page, List<ParseElement> elements, ParseSource source,
+                                  String fileId, ParseProperties properties) {
+        if (page.imageBoxes().isEmpty()) {
+            return;
+        }
+        double pageArea = page.pageWidth() * page.pageHeight();
+        if (pageArea <= 0) {
+            return;
+        }
+        List<RuleLines.Region> boxes = page.imageBoxes().stream()
+                .filter(box -> RuleLines.imageArea(box, page.pageWidth(), page.pageHeight())
+                        >= pageArea * properties.getImageMinAreaRatio())
+                .sorted(Comparator.comparingDouble(RuleLines.Region::top))
+                .toList();
+        int index = 0;
+        for (RuleLines.Region box : boxes) {
+            double ratio = RuleLines.imageArea(box, page.pageWidth(), page.pageHeight()) / pageArea;
+            ParseElement image = ParseElement.of("p" + page.pageNo() + "img" + index, ElementType.IMAGE);
+            image.setPage(page.pageNo());
+            image.setAssetRef("page" + page.pageNo() + "-image" + index);
+            image.setNeedsOcr(true);
+            image.setBbox(new BBox(box.left(), box.top(), box.right() - box.left(), box.bottom() - box.top()));
+            image.setProvenance(new Provenance(fileId,
+                    "pdf#page(" + page.pageNo() + ")/image[" + index + "]"));
+            elements.add(image);
+            ParseFact fact = new ParseFact();
+            fact.setType(SignalType.OCR_IMAGE.name());
+            fact.setRegion("page " + page.pageNo() + " image " + index);
+            fact.setEvidence("嵌入图片仅引用无文字（占页面积 " + String.format("%.2f", ratio) + "）");
+            source.getFacts().add(fact);
+            index++;
+        }
     }
 
     /** 行归属的线框区域：行中心落在区域内即归属；无归属返回 null */
