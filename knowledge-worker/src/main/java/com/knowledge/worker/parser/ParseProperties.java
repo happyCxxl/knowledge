@@ -36,8 +36,8 @@ public class ParseProperties {
     /** 段落聚合：行间距与行高的比值上限（超过则分段；待样本标定） */
     private double paragraphGapRatio = 1.5;
 
-    /** 页眉判定：文本重复出现的最小页数 */
-    private int headerMinPages = 2;
+    /** 页眉/页脚判定：同文本重复出现的最小页数（按不同页计） */
+    private int runningTextMinPages = 2;
 
     /** 页眉候选区域：页面顶部高度占比 */
     private double headerAreaRatio = 0.08;

@@ -91,11 +91,11 @@ class PdfBoxDocumentParserTest {
         assertTrue(source.getPageMetrics().getFirst().getCharCount() > 0);
         assertTrue(source.getPageMetrics().getFirst().getGarbledRatio() < 0.2);
 
-        // HEADER：两页同位置重复文本
+        // HEADER：两页同位置重复文本，每页各一条
         List<ParseElement> headers = source.getElements().stream()
                 .filter(e -> ElementType.HEADER.name().equals(e.getType()))
                 .toList();
-        assertEquals(1, headers.size());
+        assertEquals(2, headers.size());
         assertEquals("XX Project Header", headers.getFirst().getText());
 
         // 段落：正文（页眉除外）
@@ -197,9 +197,11 @@ class PdfBoxDocumentParserTest {
             List<ParseElement> footers = source.getElements().stream()
                     .filter(e -> ElementType.FOOTER.name().equals(e.getType()))
                     .toList();
-            assertEquals(2, footers.size(), () -> "footers=" + footers + " all=" + source.getElements());
+            // 页脚文本每页一条 + 页码每页一条（两页页码同址，跨页判定通过）
+            assertEquals(4, footers.size(), () -> "footers=" + footers + " all=" + source.getElements());
             assertTrue(footers.stream().anyMatch(f -> "XXProjectFooter".equals(f.getText())));
             assertTrue(footers.stream().anyMatch(f -> "1".equals(f.getText())), () -> "footers=" + footers);
+            assertTrue(footers.stream().anyMatch(f -> "2".equals(f.getText())), () -> "footers=" + footers);
             // 页脚不进正文流
             List<ParseElement> paragraphs = source.getElements().stream()
                     .filter(e -> ElementType.PARAGRAPH.name().equals(e.getType()))
@@ -237,8 +239,10 @@ class PdfBoxDocumentParserTest {
             List<ParseElement> footers = source.getElements().stream()
                     .filter(e -> ElementType.FOOTER.name().equals(e.getType()))
                     .toList();
-            assertEquals(1, footers.size(), () -> "footers=" + footers);
-            assertEquals("XXProjectFooter", footers.getFirst().getText());
+            // 页脚与页码同行：每页各一条，文本取该页原行
+            assertEquals(2, footers.size(), () -> "footers=" + footers);
+            assertEquals("XXProjectFooter 1", footers.getFirst().getText());
+            assertEquals("XXProjectFooter 2", footers.getLast().getText());
             // 页脚不进正文流
             List<ParseElement> paragraphs = source.getElements().stream()
                     .filter(e -> ElementType.PARAGRAPH.name().equals(e.getType()))
@@ -539,6 +543,123 @@ class PdfBoxDocumentParserTest {
         cs.moveTo(x1, y1);
         cs.lineTo(x2, y2);
         cs.stroke();
+    }
+
+    @Test
+    void bodyLineEqualToHeaderTextShouldStayInBody() throws Exception {
+        ParseSource source = parser.parse(context(
+                buildPages(List.of(List.of(), List.of()), "XX Project Header", "XX Project Header")));
+
+        List<ParseElement> headers = source.getElements().stream()
+                .filter(e -> ElementType.HEADER.name().equals(e.getType()))
+                .toList();
+        assertEquals(2, headers.size());
+        // 页眉带之外的正文同文本行保留在正文流
+        assertTrue(source.getElements().stream()
+                        .filter(e -> ElementType.PARAGRAPH.name().equals(e.getType()))
+                        .anyMatch(e -> "XX Project Header".equals(e.getText())),
+                () -> "elements=" + source.getElements());
+    }
+
+    @Test
+    void bottomNumberOnSinglePageShouldStayInBody() throws Exception {
+        ParseSource source = parser.parse(context(
+                buildPages(List.of(List.of(new BottomNumber("2024", 100))), null, "Body text")));
+
+        assertEquals(0, source.getElements().stream()
+                .filter(e -> ElementType.FOOTER.name().equals(e.getType())).count());
+        assertTrue(source.getElements().stream()
+                        .filter(e -> ElementType.PARAGRAPH.name().equals(e.getType()))
+                        .anyMatch(e -> e.getText().contains("2024")),
+                () -> "elements=" + source.getElements());
+    }
+
+    @Test
+    void pageNumberShouldRequireSamePositionAcrossPages() throws Exception {
+        ParseSource source = parser.parse(context(buildPages(List.of(
+                List.of(new BottomNumber("1", 290)),
+                List.of(new BottomNumber("2", 290))), null, "Body text")));
+
+        List<String> footers = source.getElements().stream()
+                .filter(e -> ElementType.FOOTER.name().equals(e.getType()))
+                .map(ParseElement::getText).toList();
+        assertEquals(2, footers.size(), () -> "footers=" + footers);
+        assertTrue(footers.contains("1"));
+        assertTrue(footers.contains("2"));
+    }
+
+    @Test
+    void pageNumberAtDifferentPositionsShouldStayInBody() throws Exception {
+        ParseSource source = parser.parse(context(buildPages(List.of(
+                List.of(new BottomNumber("1", 500)),
+                List.of(new BottomNumber("2", 100))), null, "Body text")));
+
+        assertEquals(0, source.getElements().stream()
+                .filter(e -> ElementType.FOOTER.name().equals(e.getType())).count());
+        List<String> paragraphs = source.getElements().stream()
+                .filter(e -> ElementType.PARAGRAPH.name().equals(e.getType()))
+                .map(ParseElement::getText).toList();
+        assertTrue(paragraphs.contains("1"), () -> "paragraphs=" + paragraphs);
+        assertTrue(paragraphs.contains("2"), () -> "paragraphs=" + paragraphs);
+    }
+
+    @Test
+    void multipleBottomNumbersOnSamePageShouldNotBePageNumbers() throws Exception {
+        ParseSource source = parser.parse(context(buildPages(List.of(
+                List.of(new BottomNumber("10", 100), new BottomNumber("20", 400))), null, "Body text")));
+
+        assertEquals(0, source.getElements().stream()
+                .filter(e -> ElementType.FOOTER.name().equals(e.getType())).count());
+        assertTrue(source.getElements().stream()
+                        .filter(e -> ElementType.PARAGRAPH.name().equals(e.getType()))
+                        .anyMatch(e -> e.getText().contains("10") && e.getText().contains("20")),
+                () -> "elements=" + source.getElements());
+    }
+
+    /** 页底数字（文本 + x 位置） */
+    private record BottomNumber(String text, float x) {
+    }
+
+    /**
+     * 造 PDF：每页写入可选的页眉与正文，以及该页给定的页底纯数字行（同页多条按 y 错开成不同行）。
+     *
+     * @param bottomNumbers 每页的页底数字（空列表表示该页无页底数字）
+     * @param headerText    页眉文本（null 表示不写）
+     * @param bodyText      正文文本（null 表示不写）
+     */
+    private byte[] buildPages(List<List<BottomNumber>> bottomNumbers, String headerText,
+                              String bodyText) throws Exception {
+        try (PDDocument doc = new PDDocument()) {
+            for (int pageIndex = 0; pageIndex < bottomNumbers.size(); pageIndex++) {
+                PDPage page = new PDPage(new PDRectangle(595, 842));
+                doc.addPage(page);
+                try (PDPageContentStream cs = new PDPageContentStream(doc, page)) {
+                    cs.setFont(new PDType1Font(Standard14Fonts.FontName.HELVETICA), 10);
+                    if (headerText != null) {
+                        cs.beginText();
+                        cs.newLineAtOffset(72, 800);
+                        cs.showText(headerText);
+                        cs.endText();
+                    }
+                    if (bodyText != null) {
+                        cs.beginText();
+                        cs.newLineAtOffset(72, 400);
+                        cs.showText(bodyText);
+                        cs.endText();
+                    }
+                    List<BottomNumber> numbers = bottomNumbers.get(pageIndex);
+                    for (int i = 0; i < numbers.size(); i++) {
+                        cs.beginText();
+                        cs.newLineAtOffset(numbers.get(i).x(), 30 + i * 12);
+                        cs.showText(numbers.get(i).text());
+                        cs.endText();
+                    }
+                }
+            }
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            doc.save(out);
+            return out.toByteArray();
+        }
     }
 
     /** 造一个词的字符序列：词内 x 连续，首末码点带词边界标记 */

@@ -28,6 +28,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.ToDoubleFunction;
 
 /**
@@ -90,9 +91,9 @@ public class PdfBoxDocumentParser implements DocumentParserPort {
                         pageContent.pageWidth(), pageContent.pageHeight()));
             }
 
-            // ② HEADER/FOOTER 识别：页顶/页底多页同位置重复文本（先算，正文聚合时排除）
-            Map<String, HeaderFooterDetector.HeaderLine> headers = HeaderFooterDetector.detectHeaders(pages, context);
-            Map<String, HeaderFooterDetector.HeaderLine> footers = HeaderFooterDetector.detectFooters(pages, context);
+            // ② HEADER/FOOTER 识别：页顶/页底区域内跨页重复文本与页码模式（先算，正文聚合时排除）
+            Set<String> headers = HeaderFooterDetector.detectHeaders(pages, context);
+            HeaderFooterDetector.FooterKeys footers = HeaderFooterDetector.detectFooters(pages, context);
 
             // ③ 逐页组装元素：段落聚合 + 表格启发式（按 y 顺序保持阅读顺序）
             List<ParseElement> elements = new ArrayList<>();
@@ -328,47 +329,49 @@ public class PdfBoxDocumentParser implements DocumentParserPort {
     }
 
     /**
-     * 单页元素组装：页眉/页脚元素 → 正文按 y 顺序推进（表格候选块与段落互斥结算）。
+     * 单页元素组装：页眉/页脚元素（每页各一条） → 正文按 y 顺序推进（表格候选块与段落互斥结算）。
      */
-    private void assemblePageElements(PageContent page, Map<String, HeaderFooterDetector.HeaderLine> headers,
-                                      Map<String, HeaderFooterDetector.HeaderLine> footers,
+    private void assemblePageElements(PageContent page, Set<String> headers,
+                                      HeaderFooterDetector.FooterKeys footers,
                                       List<ParseElement> elements, ParseSource source, String fileId,
                                       ParseProperties properties) {
-        // 页首 HEADER 元素（按本页首见顺序）
+        double headerBandY = page.pageHeight() * properties.getHeaderAreaRatio();
+        double footerBandY = page.pageHeight() * (1 - properties.getFooterAreaRatio());
+
+        // 页首 HEADER 元素：本页页眉带内命中键的行各产一条（文本取原行）
         for (PageLine line : page.lines()) {
             String key = HeaderFooterDetector.normalizeKey(line.text());
-            if (headers.containsKey(key) && headers.get(key).pending()) {
-                HeaderFooterDetector.HeaderLine header = headers.get(key);
+            if (line.y() < headerBandY && headers.contains(key)) {
                 elements.add(bandElement(
                         "h" + page.pageNo() + "_" + Integer.toHexString(key.hashCode()),
                         ElementType.HEADER, line.text().trim(), "pdf#top-area", page.pageNo(), line, fileId));
-                header.markEmitted();
             }
         }
 
-        // 页底 FOOTER 元素（多页重复文本按首见产出；页码模式全文一条；文本取基础文本）
+        // 页底 FOOTER 元素：本页页底带内命中页脚键或页码位置的行各产一条（文本取原行）
         for (PageLine line : page.lines()) {
-            String key = HeaderFooterDetector.normalizeKey(line.text());
-            String footerKey = HeaderFooterDetector.footerBase(key);
-            HeaderFooterDetector.HeaderLine footer = footers.get(footerKey);
-            if (footer != null && footer.pending()) {
+            if (line.y() + line.height() < footerBandY) {
+                continue;
+            }
+            String footerKey = HeaderFooterDetector.footerBase(HeaderFooterDetector.normalizeKey(line.text()));
+            if (footers.matches(footerKey, line)) {
                 elements.add(bandElement(
                         "f" + page.pageNo() + "_" + Integer.toHexString(footerKey.hashCode()),
-                        ElementType.FOOTER,
-                        HeaderFooterDetector.PAGE_NUMBER_KEY.equals(footerKey) ? line.text().trim() : footerKey,
-                        "pdf#bottom-area", page.pageNo(), line, fileId));
-                footer.markEmitted();
+                        ElementType.FOOTER, line.text().trim(), "pdf#bottom-area", page.pageNo(), line, fileId));
             }
         }
 
-        // 正文：按 y 顺序推进；多 token 连续行尝试表格块，其余行按段落聚合
-        double footerBandY = page.pageHeight() * (1 - properties.getFooterAreaRatio());
+        // 正文：页眉带内的命中行与页底带内的页脚行不进正文（内容已由上面的元素承载）
         List<PageLine> bodyLines = page.lines().stream()
-                .filter(line -> !headers.containsKey(HeaderFooterDetector.normalizeKey(line.text())))
+                .filter(line -> line.y() >= headerBandY
+                        || !headers.contains(HeaderFooterDetector.normalizeKey(line.text())))
                 .filter(line -> {
-                    boolean inFooterBand = line.y() + line.height() >= footerBandY;
-                    return !(inFooterBand && footers.containsKey(HeaderFooterDetector.footerBase(
-                            HeaderFooterDetector.normalizeKey(line.text()))));
+                    if (line.y() + line.height() < footerBandY) {
+                        return true;
+                    }
+                    String footerKey = HeaderFooterDetector.footerBase(
+                            HeaderFooterDetector.normalizeKey(line.text()));
+                    return !footers.matches(footerKey, line);
                 })
                 .sorted(Comparator.comparingDouble(PageLine::y))
                 .toList();
