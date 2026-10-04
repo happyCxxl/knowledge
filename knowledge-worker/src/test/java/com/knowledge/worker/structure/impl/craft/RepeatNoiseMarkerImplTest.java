@@ -156,4 +156,20 @@ class RepeatNoiseMarkerImplTest {
         assertEquals(0, outcome.getRepeatPageCount());
         assertEquals(0, outcome.getNoisePageCount());
     }
+
+    @Test
+    void pageCoveredByContinuationPageRangeShouldNotMarkNoise() {
+        List<UnifiedElement> elements = new ArrayList<>();
+        elements.add(element("p1", UnifiedElementType.PARAGRAPH.name(), 1, "第一页正文内容用于确认页级判定基线，文本长度足够且全部为常用字符。"));
+        // 跨页表：首页在页 2，pageRange 覆盖 2..3（页 3 上只有这张表的续段）
+        UnifiedElement table = element("t-2", UnifiedElementType.TABLE.name(), 2, "评分项 评分标准 分值");
+        table.setPageRange(List.of(2, 3));
+        elements.add(table);
+        UnifiedDocument document = document(elements, pages(1, 2, 3));
+
+        var outcome = marker.mark(document);
+
+        assertEquals(0, outcome.getNoisePageCount(), outcome.getWarnings().toString());
+        assertNull(document.getPages().get(2).getMarks()); // 页3 由跨页表的 pageRange 覆盖，不判空白
+    }
 }

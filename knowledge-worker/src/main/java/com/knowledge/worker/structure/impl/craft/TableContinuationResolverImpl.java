@@ -24,9 +24,10 @@ import java.util.Objects;
 
 /**
  * 跨页续表接续实现（仅 PDF 表格）：
- * 主规则四条件：相邻页 + 页尾/页首 + 表头一致 + 列数相同；
+ * 主规则四条件：相邻页 + 页尾/页首 + 表头一致 + 列数相同（相邻性按当前末页比较，同一张表可链式跨任意页数）；
  * 放宽规则：列数相同 + 列宽模式一致（表头不一致/无表头）→ 疑似接续（标告警，模型兜底可介入）；
  * 第二页自带表头 = 两张独立表（主规则表头一致除外）。
+ * 合并结果保留首页的 page 与 bbox，跨页位置由 pageRange/bboxes 逐页累积承载。
  *
  * @author cxxl
  */
@@ -34,7 +35,17 @@ import java.util.Objects;
 @RequiredArgsConstructor
 public class TableContinuationResolverImpl implements TableContinuationResolver {
 
+    private static final ContinuationDecision NOT_MERGED = new ContinuationDecision(false, false);
+
+    private static final ContinuationDecision MERGED = new ContinuationDecision(true, false);
+
+    private static final ContinuationDecision SUSPECTED = new ContinuationDecision(true, true);
+
     private final StructureJudgeRegistry judgeRegistry;
+
+    /** 接续判定结果（是否合并 + 是否属放宽规则的疑似接续） */
+    private record ContinuationDecision(boolean merged, boolean suspected) {
+    }
 
     @Override
     public ContinuationOutcome joinContinuations(List<UnifiedElement> ordered, AssembleContext context) {
@@ -42,59 +53,59 @@ public class TableContinuationResolverImpl implements TableContinuationResolver 
         List<UnifiedElement> elements = new ArrayList<>(ordered);
 
         for (int i = 0; i < elements.size() - 1; i++) {
-            UnifiedElement a = elements.get(i);
-            UnifiedElement b = elements.get(i + 1);
-            if (isNotPdfTable(a) || isNotPdfTable(b) || !isCutAtPageBottom(a)) {
-                continue;
-            }
-            if (NullUtil.isNull(b.getPage()) || NullUtil.isNull(a.getPage())
-                    || b.getPage() != a.getPage() + 1) {
-                continue;
-            }
-            if (NullUtil.isNull(b.getBbox()) || b.getBbox().getY() >= context.getProperties().getPageTopThreshold()) {
-                continue; // 下一页表格不在页首
-            }
-            if (!Objects.equals(a.getCols(), b.getCols())) {
-                continue; // 列数不同
-            }
-
-            boolean headerSimilar = headerSimilarity(a, b) >= context.getProperties().getContinuationHeaderSimilarity();
-            boolean merged;
-            boolean suspected = false;
-            if (headerSimilar) {
-                merged = true; // 主规则
-            } else {
-                boolean widthPattern = columnWidthPatternMatch(a, b, context);
-                if (widthPattern) {
-                    // 放宽规则：疑似接续；模型兜底可介入，无实现按规则接续
-                    var judge = judgeRegistry.active();
-                    if (NullUtil.isNotNull(judge)) {
-                        ContinuationJudgeResult result = judge.judgeContinuation(judgeContext(a, b));
-                        merged = NullUtil.isNull(result) || Boolean.TRUE.equals(result.getIsContinuation());
-                    } else {
-                        merged = true;
-                    }
-                    suspected = true;
-                } else {
-                    merged = false;
+            // 链式推进：合并结果留在原位继续与后一条比较，同一张表可跨任意页数
+            while (i + 1 < elements.size()) {
+                ContinuationDecision decision = decide(elements.get(i), elements.get(i + 1), context);
+                if (!decision.merged()) {
+                    break;
                 }
-            }
-            if (!merged) {
-                continue;
-            }
-
-            mergeTables(a, b);
-            outcome.getRelations().add(new DocumentRelation(RelationType.CONTINUATION_OF.name(),
-                    a.getId() + "#p" + b.getPage(), a.getId() + "#p" + a.getPage(),
-                    (suspected ? "疑似续表（放宽规则）" : "续表四条件命中") + "，表头继承"));
-            elements.remove(i + 1);
-            outcome.setContinuationCount(outcome.getContinuationCount() + 1);
-            if (suspected) {
-                outcome.setSuspectedCount(outcome.getSuspectedCount() + 1);
+                UnifiedElement a = elements.get(i);
+                UnifiedElement b = elements.get(i + 1);
+                int firstPage = firstPageOf(a);
+                int nextPage = b.getPage();
+                mergeTables(a, b);
+                outcome.getRelations().add(new DocumentRelation(RelationType.CONTINUATION_OF.name(),
+                        a.getId() + "#p" + nextPage, a.getId() + "#p" + firstPage,
+                        (decision.suspected() ? "疑似续表（放宽规则）" : "续表四条件命中") + "，表头继承"));
+                elements.remove(i + 1);
+                outcome.setContinuationCount(outcome.getContinuationCount() + 1);
+                if (decision.suspected()) {
+                    outcome.setSuspectedCount(outcome.getSuspectedCount() + 1);
+                }
             }
         }
         outcome.setElements(elements);
         return outcome;
+    }
+
+    /** 接续判定（四条件 + 表头一致或列宽模式放宽规则）；页码相邻性按当前末页比较 */
+    private ContinuationDecision decide(UnifiedElement a, UnifiedElement b, AssembleContext context) {
+        if (isNotPdfTable(a) || isNotPdfTable(b) || !isCutAtPageBottom(a)) {
+            return NOT_MERGED;
+        }
+        if (NullUtil.isNull(b.getPage()) || NullUtil.isNull(lastPageOf(a))
+                || !Objects.equals(b.getPage(), lastPageOf(a) + 1)) {
+            return NOT_MERGED;
+        }
+        if (NullUtil.isNull(b.getBbox()) || b.getBbox().getY() >= context.getProperties().getPageTopThreshold()) {
+            return NOT_MERGED; // 下一页表格不在页首
+        }
+        if (!Objects.equals(a.getCols(), b.getCols())) {
+            return NOT_MERGED; // 列数不同
+        }
+        if (headerSimilarity(a, b) >= context.getProperties().getContinuationHeaderSimilarity()) {
+            return MERGED; // 主规则
+        }
+        if (!columnWidthPatternMatch(a, b, context)) {
+            return NOT_MERGED;
+        }
+        // 放宽规则：疑似接续；模型兜底可介入，无实现按规则接续
+        var judge = judgeRegistry.active();
+        if (NullUtil.isNull(judge)) {
+            return SUSPECTED;
+        }
+        ContinuationJudgeResult result = judge.judgeContinuation(judgeContext(a, b));
+        return NullUtil.isNull(result) || Boolean.TRUE.equals(result.getIsContinuation()) ? SUSPECTED : NOT_MERGED;
     }
 
     private void mergeTables(UnifiedElement a, UnifiedElement b) {
@@ -114,17 +125,49 @@ public class TableContinuationResolverImpl implements TableContinuationResolver 
         a.setRows(NullUtil.isNull(a.getRows()) ? b.getRows()
                 : a.getRows() + b.getRows() - 1);
         a.setHeaderInherited(true);
-        a.setPageRange(List.of(a.getPage(), b.getPage()));
+        // 跨页位置以列表承载：pageRange/bboxes 逐页累积；首页的 page 与 bbox 保留在元素上
+        a.setPageRange(appendPageRange(a, b));
+        a.setBboxes(appendBboxes(a, b));
+    }
+
+    /** 页码范围累积：首次合并写入首页，其后逐页追加（同一页不重复） */
+    private List<Integer> appendPageRange(UnifiedElement a, UnifiedElement b) {
+        List<Integer> range = new ArrayList<>();
+        if (NullUtil.isNotNull(a.getPageRange())) {
+            range.addAll(a.getPageRange());
+        } else if (NullUtil.isNotNull(a.getPage())) {
+            range.add(a.getPage());
+        }
+        if (NullUtil.isNotNull(b.getPage()) && !range.contains(b.getPage())) {
+            range.add(b.getPage());
+        }
+        return range;
+    }
+
+    /** 分段框累积：首页框与各续页框按页序保留 */
+    private List<ElementBBox> appendBboxes(UnifiedElement a, UnifiedElement b) {
         List<ElementBBox> bboxes = new ArrayList<>();
-        if (NullUtil.isNotNull(a.getBbox())) {
+        if (NullUtil.isNotNull(a.getBboxes())) {
+            bboxes.addAll(a.getBboxes());
+        } else if (NullUtil.isNotNull(a.getBbox()) && NullUtil.isNotNull(a.getPage())) {
             bboxes.add(new ElementBBox(a.getPage(), a.getBbox()));
         }
-        if (NullUtil.isNotNull(b.getBbox())) {
+        if (NullUtil.isNotNull(b.getBbox()) && NullUtil.isNotNull(b.getPage())) {
             bboxes.add(new ElementBBox(b.getPage(), b.getBbox()));
         }
-        a.setBboxes(bboxes);
-        a.setBbox(null);
-        a.setPage(null);
+        return bboxes;
+    }
+
+    /** 首页页码：合并结果的首页在 pageRange 首位，未合并时即 page 本身 */
+    private Integer firstPageOf(UnifiedElement element) {
+        List<Integer> pageRange = element.getPageRange();
+        return NullUtil.isNotNull(pageRange) && !pageRange.isEmpty() ? pageRange.getFirst() : element.getPage();
+    }
+
+    /** 末页页码：合并结果的末页在 pageRange 末尾，未合并时即 page 本身 */
+    private Integer lastPageOf(UnifiedElement element) {
+        List<Integer> pageRange = element.getPageRange();
+        return NullUtil.isNotNull(pageRange) && !pageRange.isEmpty() ? pageRange.getLast() : element.getPage();
     }
 
     /** 是否非 PDF 表格（非 TABLE 类型或无页码；接续判定只针对 PDF 表格） */

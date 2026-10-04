@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -105,5 +106,54 @@ class TableContinuationResolverImplTest {
 
         assertEquals(2, outcome.getElements().size());
         assertEquals(0, outcome.getContinuationCount());
+    }
+
+    @Test
+    void threePageTableShouldMergeIntoOneChain() {
+        UnifiedElement a = table(2, 700, true, "评分项", "评分标准", "分值");
+        UnifiedElement b = table(3, 20, true, "评分项", "评分标准", "分值");
+        UnifiedElement c = table(4, 20, false, "评分项", "评分标准", "分值");
+
+        ContinuationOutcome outcome = resolver.joinContinuations(new ArrayList<>(List.of(a, b, c)), context());
+
+        assertEquals(1, outcome.getElements().size());
+        assertEquals(2, outcome.getContinuationCount());
+        assertEquals(0, outcome.getSuspectedCount());
+        UnifiedElement merged = outcome.getElements().getFirst();
+        assertEquals(List.of(2, 3, 4), merged.getPageRange());
+        assertEquals(3, merged.getBboxes().size());
+        assertEquals(2, merged.getPage());
+        assertNotNull(merged.getBbox());
+        assertEquals(4, merged.getRows());
+        assertEquals(3, merged.getCells().size());
+    }
+
+    @Test
+    void chainedRelationShouldCarryRealPageNumbers() {
+        UnifiedElement a = table(2, 700, true, "评分项", "评分标准", "分值");
+        UnifiedElement b = table(3, 20, true, "评分项", "评分标准", "分值");
+        UnifiedElement c = table(4, 20, false, "评分项", "评分标准", "分值");
+
+        String firstId = a.getId();
+        ContinuationOutcome outcome = resolver.joinContinuations(new ArrayList<>(List.of(a, b, c)), context());
+
+        List<String> relations = outcome.getRelations().stream()
+                .filter(r -> "CONTINUATION_OF".equals(r.getType()))
+                .map(r -> r.getFrom() + "->" + r.getTo())
+                .toList();
+        assertEquals(List.of(firstId + "#p3->" + firstId + "#p2", firstId + "#p4->" + firstId + "#p2"), relations);
+    }
+
+    @Test
+    void chainShouldStopAtNonAdjacentPage() {
+        UnifiedElement a = table(2, 700, true, "评分项", "评分标准", "分值");
+        UnifiedElement b = table(3, 20, true, "评分项", "评分标准", "分值");
+        UnifiedElement c = table(6, 20, false, "评分项", "评分标准", "分值");
+
+        ContinuationOutcome outcome = resolver.joinContinuations(new ArrayList<>(List.of(a, b, c)), context());
+
+        assertEquals(2, outcome.getElements().size());
+        assertEquals(1, outcome.getContinuationCount());
+        assertEquals(List.of(2, 3), outcome.getElements().getFirst().getPageRange());
     }
 }

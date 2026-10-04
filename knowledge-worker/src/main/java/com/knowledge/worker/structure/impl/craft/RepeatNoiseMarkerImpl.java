@@ -27,7 +27,7 @@ import java.util.Set;
  * 重复页——PDF 页文本聚合与前面页面比较 > repeatPageJaccard（除首份外标 REPEATED_PAGE）；
  * 重复段——文本元素（排除 HEADER/FOOTER）与前面元素比较 > repeatSegmentSimilarity
  * 且长度 ≥ repeatSegmentMinLen（除首份外标 REPEATED_SEGMENT）；
- * 噪声页——无元素页/仅图片页/乱码率 > noiseGarbledRatio（标 NOISE_PAGE）。
+ * 噪声页——无元素页/仅图片页/乱码率 > noiseGarbledRatio（标 NOISE_PAGE）；页覆盖范围按 pageRange 计，跨页表覆盖到的页不判空白。
  * Word（无页概念）跳过页级、重复段照做；标记只增不改结构。
  *
  * @author cxxl
@@ -58,6 +58,7 @@ public class RepeatNoiseMarkerImpl implements RepeatNoiseMarker {
         }
         Map<Integer, String> pageText = new HashMap<>();
         for (UnifiedElement element : document.getElements()) {
+            // 重复页指纹只取元素自身页码：跨页元素的同一段文字计入其覆盖的每一页，会让这些页互判重复
             if (NullUtil.isNotNull(element.getPage()) && StrUtil.isNotBlank(element.getText())) {
                 pageText.merge(element.getPage(), element.getText(), String::concat);
             }
@@ -104,6 +105,15 @@ public class RepeatNoiseMarkerImpl implements RepeatNoiseMarker {
         }
     }
 
+    /** 元素覆盖的页码集合：跨页元素的覆盖范围由 pageRange 表达，单页元素即 page 本身 */
+    private List<Integer> pagesOf(UnifiedElement element) {
+        List<Integer> pageRange = element.getPageRange();
+        if (NullUtil.isNotNull(pageRange) && !pageRange.isEmpty()) {
+            return pageRange;
+        }
+        return NullUtil.isNotNull(element.getPage()) ? List.of(element.getPage()) : List.of();
+    }
+
     /** 文本元素：PARAGRAPH/TITLE（排除 HEADER/FOOTER——页眉页脚有独立处置路径） */
     private boolean isTextElement(UnifiedElement element) {
         String type = element.getType();
@@ -119,8 +129,8 @@ public class RepeatNoiseMarkerImpl implements RepeatNoiseMarker {
         }
         Map<Integer, List<UnifiedElement>> byPage = new HashMap<>();
         for (UnifiedElement element : elements) {
-            if (NullUtil.isNotNull(element.getPage())) {
-                byPage.computeIfAbsent(element.getPage(), k -> new ArrayList<>()).add(element);
+            for (Integer pageNumber : pagesOf(element)) {
+                byPage.computeIfAbsent(pageNumber, k -> new ArrayList<>()).add(element);
             }
         }
         for (UnifiedPage page : pages) {
