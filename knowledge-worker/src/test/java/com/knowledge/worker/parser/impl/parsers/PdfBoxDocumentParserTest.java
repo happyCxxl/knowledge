@@ -11,6 +11,7 @@ import com.knowledge.worker.parser.impl.parsers.pdf.PageLine;
 import com.knowledge.worker.parser.impl.parsers.pdf.RuleLines;
 import com.knowledge.worker.parser.impl.parsers.pdf.TableCandidateDetector;
 import com.knowledge.worker.parser.impl.parsers.pdf.Token;
+import com.knowledge.worker.parser.layout.impl.ProjectionPageLayoutAnalyzer;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
@@ -37,7 +38,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class PdfBoxDocumentParserTest {
 
-    private final PdfBoxDocumentParser parser = new PdfBoxDocumentParser();
+    private final PdfBoxDocumentParser parser =
+            new PdfBoxDocumentParser(new ProjectionPageLayoutAnalyzer());
 
     private ParseContext context(byte[] data) {
         ParseContext context = new ParseContext();
@@ -614,6 +616,112 @@ class PdfBoxDocumentParserTest {
                         .filter(e -> ElementType.PARAGRAPH.name().equals(e.getType()))
                         .anyMatch(e -> e.getText().contains("10") && e.getText().contains("20")),
                 () -> "elements=" + source.getElements());
+    }
+
+    @Test
+    void twoColumnPageShouldReadByColumnAndNotBecomeTable() throws Exception {
+        ParseSource source = parser.parse(context(buildTwoColumnPage()));
+
+        List<String> paragraphs = source.getElements().stream()
+                .filter(e -> ElementType.PARAGRAPH.name().equals(e.getType()))
+                .map(ParseElement::getText).toList();
+        assertEquals(List.of(
+                        "Left column first line here Left column second line here Left column third line here",
+                        "Right column first line here Right column second line here Right column third line here"),
+                paragraphs, () -> "elements=" + source.getElements());
+        assertTrue(source.getElements().stream()
+                .noneMatch(e -> ElementType.TABLE.name().equals(e.getType())));
+    }
+
+    @Test
+    void spanningHeadingShouldSplitBandsInTwoColumnPage() throws Exception {
+        ParseSource source = parser.parse(context(buildSpanningHeadingPage()));
+
+        List<String> paragraphs = source.getElements().stream()
+                .filter(e -> ElementType.PARAGRAPH.name().equals(e.getType()))
+                .map(ParseElement::getText).toList();
+        assertEquals(List.of(
+                        "Spanning Heading Number One Across Both Columns",
+                        "Left column first line here Left column second line here Left column third line here",
+                        "Right column first line here Right column second line here Right column third line here",
+                        "Spanning Heading Number Two Across Both Columns",
+                        "Left column fourth line here Left column fifth line here",
+                        "Right column fourth line here Right column fifth line here"),
+                paragraphs, () -> "elements=" + source.getElements());
+    }
+
+    /** 造双栏 PDF：左右各三行正文（栏沟约 100pt） */
+    private byte[] buildTwoColumnPage() throws Exception {
+        try (PDDocument doc = new PDDocument()) {
+            PDPage page = new PDPage(new PDRectangle(595, 842));
+            doc.addPage(page);
+            try (PDPageContentStream cs = new PDPageContentStream(doc, page)) {
+                writeColumn(cs, 72, 700, leftColumn());
+                writeColumn(cs, 330, 700, rightColumn());
+            }
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            doc.save(out);
+            return out.toByteArray();
+        }
+    }
+
+    /** 造双栏 PDF：页顶跨栏标题 + 左右各三行 + 中段跨栏标题 + 左右各两行 */
+    private byte[] buildSpanningHeadingPage() throws Exception {
+        try (PDDocument doc = new PDDocument()) {
+            PDPage page = new PDPage(new PDRectangle(595, 842));
+            doc.addPage(page);
+            try (PDPageContentStream cs = new PDPageContentStream(doc, page)) {
+                writeHeading(cs, 760, "Spanning Heading Number One Across Both Columns");
+                writeColumn(cs, 72, 700, leftColumn());
+                writeColumn(cs, 330, 700, rightColumn());
+                writeHeading(cs, 640, "Spanning Heading Number Two Across Both Columns");
+                writeColumn(cs, 72, 600, leftTail());
+                writeColumn(cs, 330, 600, rightTail());
+            }
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            doc.save(out);
+            return out.toByteArray();
+        }
+    }
+
+    private String[] leftColumn() {
+        return new String[] {"Left column first line here", "Left column second line here",
+                "Left column third line here"};
+    }
+
+    private String[] rightColumn() {
+        return new String[] {"Right column first line here", "Right column second line here",
+                "Right column third line here"};
+    }
+
+    private String[] leftTail() {
+        return new String[] {"Left column fourth line here", "Left column fifth line here"};
+    }
+
+    private String[] rightTail() {
+        return new String[] {"Right column fourth line here", "Right column fifth line here"};
+    }
+
+    /** 从 startY 起按 12pt 行距写一栏（10pt 字号） */
+    private void writeColumn(PDPageContentStream cs, float x, float startY, String[] lines) throws Exception {
+        cs.setFont(new PDType1Font(Standard14Fonts.FontName.HELVETICA), 10);
+        float y = startY;
+        for (String line : lines) {
+            cs.beginText();
+            cs.newLineAtOffset(x, y);
+            cs.showText(line);
+            cs.endText();
+            y -= 12;
+        }
+    }
+
+    /** 写一条横跨两栏的标题（14pt 字号，从左边距起足够长） */
+    private void writeHeading(PDPageContentStream cs, float y, String text) throws Exception {
+        cs.setFont(new PDType1Font(Standard14Fonts.FontName.HELVETICA), 14);
+        cs.beginText();
+        cs.newLineAtOffset(72, y);
+        cs.showText(text);
+        cs.endText();
     }
 
     /** 页底数字（文本 + x 位置） */

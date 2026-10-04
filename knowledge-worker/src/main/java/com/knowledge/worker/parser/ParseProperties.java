@@ -1,5 +1,6 @@
 package com.knowledge.worker.parser;
 
+import com.knowledge.worker.parser.layout.LayoutProperties;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
@@ -56,4 +57,28 @@ public class ParseProperties {
 
     /** 表头判定：首行含数字的单元格占比上限（超过该值判为无表头） */
     private double tableHeaderMaxNumericRatio = 0.3;
+
+    /** 分栏：栏沟最小宽度（pt；连续低覆盖横向带达到该宽度才算栏沟） */
+    private double columnGutterMinWidth = 10.0;
+
+    /** 分栏：栏沟最大竖直覆盖比例（横向带内被字符覆盖的纵向范围占比低于该值才算栏沟） */
+    private double columnGutterMaxCoverage = 0.25;
+
+    /** 分栏：每栏最小字符占比（低于该比例不认该栏） */
+    private double columnMinShare = 0.1;
+
+    /** 分栏：每栏最少字符数 */
+    private int columnMinChars = 10;
+
+    /** 分栏：单页参与判定所需的最少字符数（低于该值不分栏） */
+    private int columnMinPageChars = 100;
+
+    /** 分栏：最大栏数 */
+    private int columnMaxCount = 4;
+
+    /** 分栏与阅读顺序阈值（版面端口输入） */
+    public LayoutProperties layout() {
+        return new LayoutProperties(columnGutterMinWidth, columnGutterMaxCoverage, columnMinShare,
+                columnMinChars, columnMinPageChars, columnMaxCount);
+    }
 }

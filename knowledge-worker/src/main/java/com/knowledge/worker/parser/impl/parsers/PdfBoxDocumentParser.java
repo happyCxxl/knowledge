@@ -13,6 +13,11 @@ import com.knowledge.worker.parser.DocumentParserPort;
 import com.knowledge.worker.parser.ParseContext;
 import com.knowledge.worker.parser.ParseProperties;
 import com.knowledge.worker.parser.impl.parsers.pdf.*;
+import com.knowledge.worker.parser.layout.LayoutGeometry;
+import com.knowledge.worker.parser.layout.LayoutProperties;
+import com.knowledge.worker.parser.layout.PageLayoutAnalyzer;
+import com.knowledge.worker.parser.layout.PageLayoutInput;
+import com.knowledge.worker.parser.layout.PageLayoutResult;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -55,6 +60,12 @@ public class PdfBoxDocumentParser implements DocumentParserPort {
      * token 分词的空隙阈值（字符 x 间距 ÷ 字号）
      */
     private static final double TOKEN_GAP_RATIO = 0.35;
+
+    private final PageLayoutAnalyzer layoutAnalyzer;
+
+    public PdfBoxDocumentParser(PageLayoutAnalyzer layoutAnalyzer) {
+        this.layoutAnalyzer = layoutAnalyzer;
+    }
 
     @Override
     public boolean supports(String mimeType) {
@@ -140,11 +151,13 @@ public class PdfBoxDocumentParser implements DocumentParserPort {
         metric.setCharCount(nonBlank);
         metric.setGarbledRatio(totalChars > 0 ? (double) nonCommon / totalChars : 0);
 
-        // 行聚合（y 容差聚类 → 行内按 x 排序 → token 分词）
+        // 行聚合（y 容差聚类 → 按栏沟切行 → 行内按 x 排序 → token 分词）
         List<CharInfo> sorted = stripper.chars.stream()
                 .sorted(Comparator.comparingDouble(CharInfo::y).thenComparingDouble(CharInfo::x))
                 .toList();
-        List<PageLine> lines = new ArrayList<>();
+        List<Double> gutters = detectGutters(stripper.chars, pageWidth, pageHeight,
+                context.getProperties().layout());
+        List<PageLine> rawLines = new ArrayList<>();
         List<CharInfo> lineChars = new ArrayList<>();
         double lineY = -1;
         for (CharInfo c : sorted) {
@@ -155,15 +168,16 @@ public class PdfBoxDocumentParser implements DocumentParserPort {
                 lineChars.add(c);
                 lineY = (lineY + c.y()) / 2;
             } else {
-                lines.add(buildLine(pageNo, lineChars));
+                rawLines.addAll(buildLines(pageNo, lineChars, gutters));
                 lineChars = new ArrayList<>();
                 lineChars.add(c);
                 lineY = c.y();
             }
         }
         if (!lineChars.isEmpty()) {
-            lines.add(buildLine(pageNo, lineChars));
+            rawLines.addAll(buildLines(pageNo, lineChars, gutters));
         }
+        List<PageLine> lines = orderLines(rawLines, gutters, pageWidth, pageHeight);
 
         // 文字占比：行级 bbox 累计（行宽 × 行高，行高取 max(字符高, 字号×1.2)），
         // 字符级小盒子累计会低估占版面积、误伤稀疏页
@@ -176,6 +190,43 @@ public class PdfBoxDocumentParser implements DocumentParserPort {
 
         return new PageContent(pageNo, pageWidth, pageHeight, metric, lines,
                 RuleLines.collect(page, pageHeight));
+    }
+
+    /** 栏沟检测：字符级投影交给版面端口（返回空即单栏） */
+    private List<Double> detectGutters(List<CharInfo> chars, double pageWidth, double pageHeight,
+                                       LayoutProperties properties) {
+        List<PageLayoutInput.Box> boxes = chars.stream()
+                .map(c -> new PageLayoutInput.Box(c.x(), c.y(), c.width(), c.height()))
+                .toList();
+        return layoutAnalyzer.gutters(new PageLayoutInput(pageWidth, pageHeight, boxes), properties);
+    }
+
+    /** 按栏沟切行：整组字符横跨栏沟（跨栏行）时出一整行，其余按栏分组各出一行 */
+    private List<PageLine> buildLines(int pageNo, List<CharInfo> lineChars, List<Double> gutters) {
+        if (gutters.isEmpty()
+                || lineChars.stream().anyMatch(c -> LayoutGeometry.crossesAny(c.x(), c.width(), gutters))) {
+            return List.of(buildLine(pageNo, lineChars));
+        }
+        Map<Integer, List<CharInfo>> byColumn = new LinkedHashMap<>();
+        for (CharInfo c : lineChars) {
+            byColumn.computeIfAbsent(LayoutGeometry.columnOf(c.x(), c.width(), gutters),
+                    k -> new ArrayList<>()).add(c);
+        }
+        return byColumn.values().stream().map(group -> buildLine(pageNo, group)).toList();
+    }
+
+    /** 阅读顺序重排：跨栏行分带，带内按栏序与栏内纵向顺序（单栏页保持纵向顺序） */
+    private List<PageLine> orderLines(List<PageLine> lines, List<Double> gutters,
+                                      double pageWidth, double pageHeight) {
+        if (gutters.isEmpty() || lines.size() < 2) {
+            return lines;
+        }
+        List<PageLayoutInput.Box> boxes = lines.stream()
+                .map(line -> new PageLayoutInput.Box(line.x(), line.y(), line.width(), line.height()))
+                .toList();
+        PageLayoutResult result = layoutAnalyzer.order(
+                new PageLayoutInput(pageWidth, pageHeight, boxes), gutters);
+        return result.placed().stream().map(placed -> lines.get(placed.index())).toList();
     }
 
     /**
@@ -361,7 +412,8 @@ public class PdfBoxDocumentParser implements DocumentParserPort {
             }
         }
 
-        // 正文：页眉带内的命中行与页底带内的页脚行不进正文（内容已由上面的元素承载）
+        // 正文：页眉带内的命中行与页底带内的页脚行不进正文（内容已由上面的元素承载）；
+        // 顺序沿用页内阅读顺序（分栏页已按栏排好）
         List<PageLine> bodyLines = page.lines().stream()
                 .filter(line -> line.y() >= headerBandY
                         || !headers.contains(HeaderFooterDetector.normalizeKey(line.text())))
@@ -373,7 +425,6 @@ public class PdfBoxDocumentParser implements DocumentParserPort {
                             HeaderFooterDetector.normalizeKey(line.text()));
                     return !footers.matches(footerKey, line);
                 })
-                .sorted(Comparator.comparingDouble(PageLine::y))
                 .toList();
 
         // 线框区域：区域内行归线网格表格，其余行按段落与文本表格候选推进
@@ -425,15 +476,17 @@ public class PdfBoxDocumentParser implements DocumentParserPort {
         List<PageLine> paragraph = new ArrayList<>();
         PageLine prev = null;
         for (PageLine line : run) {
-            if (ObjectUtil.isNotNull(prev)
-                    && verticalGap(prev, line) > paragraphGapThreshold(prev, properties)) {
+            // 行序回跳 = 进入下一栏或下一带：段落与表格块都不跨栏、不跨带
+            boolean movedUp = ObjectUtil.isNotNull(prev) && line.y() < prev.y();
+            if (movedUp || (ObjectUtil.isNotNull(prev)
+                    && verticalGap(prev, line) > paragraphGapThreshold(prev, properties))) {
                 // 行距超阈值：先结算段落；表格候选块允许更大行距（表格行距可达数倍行高），
                 // 仅当新行不再具备宽列距（非表格候选）时才结算表格块
                 if (!paragraph.isEmpty()) {
                     elements.add(toParagraphElement(paragraph, fileId));
                     paragraph = new ArrayList<>();
                 }
-                if (!block.isEmpty() && !TableCandidateDetector.isCandidate(line)) {
+                if (!block.isEmpty() && (movedUp || !TableCandidateDetector.isCandidate(line))) {
                     flushTableBlock(block, page, elements, source, fileId, properties);
                     block = new ArrayList<>();
                 }
