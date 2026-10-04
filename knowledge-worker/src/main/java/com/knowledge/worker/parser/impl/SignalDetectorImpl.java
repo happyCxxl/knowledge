@@ -32,22 +32,34 @@ public class SignalDetectorImpl implements SignalDetector {
         }
         ParseProperties p = context.getProperties();
 
-        // ① 页级指标 → 阈值信号（先便宜后贵：字符数 → 乱码率 → 文字占比）
+        // ① 页级指标 → 阈值信号（先便宜后贵：整页无文本 → 文字极少 → 乱码率 → 文字占比）
         if (ObjectUtil.isNotNull(nativeSource.getPageMetrics())) {
             for (var metric : nativeSource.getPageMetrics()) {
                 String page = "page " + metric.getPage();
-                if (metric.getCharCount() < p.getScanPageMinChars()) {
-                    signals.add(Signal.of(SignalType.OCR_TEXT, page,
-                            "非空白字符数低于阈值", metric.getCharCount() + "<" + p.getScanPageMinChars(),
-                            SignalSubtype.SCANNED));
+                if (metric.getCharCount() <= 0) {
+                    // 整页无文本：按图片覆盖分流扫描页与空白页
+                    if (metric.getImageAreaRatio() >= p.getScanPageImageRatio()) {
+                        signals.add(Signal.of(SignalType.OCR_TEXT, page,
+                                "整页无文本且图片覆盖高（扫描页）",
+                                String.format("image=%.2f≥%.2f", metric.getImageAreaRatio(), p.getScanPageImageRatio()),
+                                SignalSubtype.SCANNED));
+                    } else {
+                        signals.add(Signal.of(SignalType.OCR_TEXT, page,
+                                "整页无文本且无图片覆盖（空白页）",
+                                String.format("image=%.2f<%.2f", metric.getImageAreaRatio(), p.getScanPageImageRatio()),
+                                SignalSubtype.BLANK));
+                    }
+                } else if (metric.getCharCount() < p.getScanPageMinChars()
+                        || metric.getTextAreaRatio() < p.getTextAreaRatioThreshold()) {
+                    signals.add(Signal.of(SignalType.OCR_IMAGE, page,
+                            "文字极少或文字占比低（疑似图片页）",
+                            metric.getCharCount() + "<" + p.getScanPageMinChars() + " 或 "
+                                    + String.format("%.2f<%.2f", metric.getTextAreaRatio(), p.getTextAreaRatioThreshold()),
+                            SignalSubtype.IMAGE_LOW_RATIO));
                 } else if (metric.getGarbledRatio() > p.getGarbledRateThreshold()) {
                     signals.add(Signal.of(SignalType.OCR_TEXT, page,
                             "乱码率超阈值", String.format("%.2f>%.2f", metric.getGarbledRatio(), p.getGarbledRateThreshold()),
                             SignalSubtype.GARBLED));
-                } else if (metric.getTextAreaRatio() < p.getTextAreaRatioThreshold()) {
-                    signals.add(Signal.of(SignalType.OCR_IMAGE, page,
-                            "文字占比低于阈值", String.format("%.2f<%.2f", metric.getTextAreaRatio(), p.getTextAreaRatioThreshold()),
-                            SignalSubtype.IMAGE_LOW_RATIO));
                 }
             }
         }

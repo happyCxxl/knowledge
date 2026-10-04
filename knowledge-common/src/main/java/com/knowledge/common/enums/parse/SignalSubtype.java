@@ -8,13 +8,16 @@ package com.knowledge.common.enums.parse;
  */
 public enum SignalSubtype {
 
-    /** 扫描页：单页非空白字符数低于阈值 */
+    /** 扫描页：整页无文本但图片覆盖高（OCR 预留，计失败单元） */
     SCANNED,
 
-    /** 乱码页：非 CJK/ASCII 字符占比超阈值 */
+    /** 空白页：整页无文本且无图片覆盖（不计失败单元） */
+    BLANK,
+
+    /** 乱码页：不可读码点占比超阈值 */
     GARBLED,
 
-    /** 文字占比低：文本 bbox 面积占比低于阈值（疑似图片页，仅告警） */
+    /** 文字极少或文字占比低：疑似图片页（仅告警） */
     IMAGE_LOW_RATIO,
 
     /** 嵌入图片：段落/文档内嵌图片仅引用无文字 */

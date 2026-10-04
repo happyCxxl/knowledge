@@ -33,6 +33,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.ToDoubleFunction;
 
@@ -137,7 +138,6 @@ public class PdfBoxDocumentParser implements DocumentParserPort {
         // 页级指标（字符统计先行；文字占比改在行聚合后按行级 bbox 计算，见下方）
         PageMetric metric = new PageMetric();
         metric.setPage(pageNo);
-        int totalChars = stripper.chars.size();
         int nonBlank = 0;
         int nonCommon = 0;
         for (CharInfo c : stripper.chars) {
@@ -149,7 +149,9 @@ public class PdfBoxDocumentParser implements DocumentParserPort {
             }
         }
         metric.setCharCount(nonBlank);
-        metric.setGarbledRatio(totalChars > 0 ? (double) nonCommon / totalChars : 0);
+        metric.setGarbledRatio(nonBlank > 0 ? (double) nonCommon / nonBlank : 0);
+        RuleLines.Graphics graphics = RuleLines.collect(page, pageHeight);
+        metric.setImageAreaRatio(RuleLines.imageAreaRatio(graphics.imageBoxes(), pageWidth, pageHeight));
 
         // 行聚合（y 容差聚类 → 按栏沟切行 → 行内按 x 排序 → token 分词）
         List<CharInfo> sorted = stripper.chars.stream()
@@ -188,8 +190,7 @@ public class PdfBoxDocumentParser implements DocumentParserPort {
         }
         metric.setTextAreaRatio(pageWidth * pageHeight > 0 ? textArea / (pageWidth * pageHeight) : 0);
 
-        return new PageContent(pageNo, pageWidth, pageHeight, metric, lines,
-                RuleLines.collect(page, pageHeight));
+        return new PageContent(pageNo, pageWidth, pageHeight, metric, lines, graphics.segments());
     }
 
     /** 栏沟检测：字符级投影交给版面端口（返回空即单栏） */
@@ -477,8 +478,8 @@ public class PdfBoxDocumentParser implements DocumentParserPort {
         PageLine prev = null;
         for (PageLine line : run) {
             // 行序回跳 = 进入下一栏或下一带：段落与表格块都不跨栏、不跨带
-            boolean movedUp = ObjectUtil.isNotNull(prev) && line.y() < prev.y();
-            if (movedUp || (ObjectUtil.isNotNull(prev)
+            boolean movedUp = Objects.nonNull(prev) && line.y() < prev.y();
+            if (movedUp || (Objects.nonNull(prev)
                     && verticalGap(prev, line) > paragraphGapThreshold(prev, properties))) {
                 // 行距超阈值：先结算段落；表格候选块允许更大行距（表格行距可达数倍行高），
                 // 仅当新行不再具备宽列距（非表格候选）时才结算表格块
@@ -724,7 +725,7 @@ public class PdfBoxDocumentParser implements DocumentParserPort {
             if (piece.isEmpty()) {
                 continue;
             }
-            if (ObjectUtil.isNotNull(previous)) {
+            if (Objects.nonNull(previous)) {
                 text.append(lineSeparator(previous, piece));
             }
             text.append(piece);
@@ -832,7 +833,7 @@ public class PdfBoxDocumentParser implements DocumentParserPort {
         StringBuilder paragraph = new StringBuilder();
         PageLine prevLine = null;
         for (PageLine line : lines) {
-            if (ObjectUtil.isNotNull(prevLine)) {
+            if (Objects.nonNull(prevLine)) {
                 paragraph.append(lineSeparator(prevLine, line));
             }
             paragraph.append(line.text());

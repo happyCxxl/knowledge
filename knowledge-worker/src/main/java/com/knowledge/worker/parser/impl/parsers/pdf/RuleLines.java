@@ -4,6 +4,7 @@ import org.apache.pdfbox.contentstream.PDFGraphicsStreamEngine;
 import org.apache.pdfbox.cos.COSName;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.graphics.image.PDImage;
+import org.apache.pdfbox.util.Matrix;
 
 import java.awt.geom.Point2D;
 import java.io.IOException;
@@ -75,15 +76,35 @@ public final class RuleLines {
     private RuleLines() {
     }
 
-    /** 采集页面线段；页面内容流异常时返回空列表（该页走文本表格路径） */
-    public static List<Segment> collect(PDPage page, double pageHeight) {
+    /** 页面图元：横竖线段 + 图片占位矩形（均为左上原点坐标） */
+    public record Graphics(List<Segment> segments, List<Region> imageBoxes) {
+    }
+
+    /** 采集页面图元；页面内容流异常时返回空结果（该页走文本表格路径） */
+    public static Graphics collect(PDPage page, double pageHeight) {
         Collector collector = new Collector(page, pageHeight);
         try {
             collector.processPage(page);
         } catch (IOException e) {
-            return List.of();
+            return new Graphics(List.of(), List.of());
         }
-        return collector.segments;
+        return new Graphics(collector.segments, collector.imageBoxes);
+    }
+
+    /** 图片覆盖面积占比：各图片矩形面积之和 ÷ 页面面积（超出页面的部分截掉，上限 1） */
+    public static double imageAreaRatio(List<Region> imageBoxes, double pageWidth, double pageHeight) {
+        if (imageBoxes.isEmpty() || pageWidth <= 0 || pageHeight <= 0) {
+            return 0;
+        }
+        double area = 0;
+        for (Region box : imageBoxes) {
+            double width = Math.min(box.right(), pageWidth) - Math.max(box.left(), 0);
+            double height = Math.min(box.bottom(), pageHeight) - Math.max(box.top(), 0);
+            if (width > 0 && height > 0) {
+                area += width * height;
+            }
+        }
+        return Math.min(area / (pageWidth * pageHeight), 1);
     }
 
     /** 线框区域：相交线条聚成组件，取外接矩形并保留能形成至少 2 列 2 行网格的组件 */
@@ -254,10 +275,11 @@ public final class RuleLines {
         return new Region(left, top, right, bottom);
     }
 
-    /** 图形流引擎：把路径操作收集为横竖线段 */
+    /** 图形流引擎：把路径操作收集为横竖线段、把图片收集为占位矩形 */
     private static final class Collector extends PDFGraphicsStreamEngine {
 
         private final List<Segment> segments = new ArrayList<>();
+        private final List<Region> imageBoxes = new ArrayList<>();
         private final double pageHeight;
         private double startX;
         private double startY;
@@ -332,6 +354,17 @@ public final class RuleLines {
 
         @Override
         public void drawImage(PDImage pdImage) {
+            // 图片占位矩形 = 单位正方形经当前变换矩阵映射（转成左上原点）
+            Matrix matrix = getGraphicsState().getCurrentTransformationMatrix();
+            Point2D p0 = matrix.transformPoint(0, 0);
+            Point2D p1 = matrix.transformPoint(1, 0);
+            Point2D p2 = matrix.transformPoint(0, 1);
+            Point2D p3 = matrix.transformPoint(1, 1);
+            double minX = Math.min(Math.min(p0.getX(), p1.getX()), Math.min(p2.getX(), p3.getX()));
+            double maxX = Math.max(Math.max(p0.getX(), p1.getX()), Math.max(p2.getX(), p3.getX()));
+            double minY = Math.min(Math.min(p0.getY(), p1.getY()), Math.min(p2.getY(), p3.getY()));
+            double maxY = Math.max(Math.max(p0.getY(), p1.getY()), Math.max(p2.getY(), p3.getY()));
+            imageBoxes.add(new Region(minX, pageHeight - maxY, maxX, pageHeight - minY));
         }
 
         @Override

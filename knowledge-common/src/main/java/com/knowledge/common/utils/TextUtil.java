@@ -14,20 +14,22 @@ public final class TextUtil {
     }
 
     /**
-     * 是否非常用字符（CJK 统一表意区 + 扩展 A + 可打印 ASCII + 常用中文标点/全角符号之外）。
-     * 引号类字符不在常用集内，乱码率口径待样本标定。
+     * 是否乱码字符：只认**不可读**的码点 —— 替换字符（U+FFFD）、私用区、未分配码点、控制字符。
+     * 全角标点与引号、假名、谚文、生僻字（CJK 扩展 A 及以上）、希腊/西里尔字母、数学符号、
+     * 圈号与项目符号等一律算正常字符。
+     * 已知盲区：字体缺 ToUnicode 时错位出的可打印 ASCII 垃圾码点合法，不在本判据覆盖内。
      */
     public static boolean isNonCommonChar(int codePoint) {
-        if (codePoint >= 0x4E00 && codePoint <= 0x9FFF) {
-            return false;
+        if (codePoint == 0xFFFD) {
+            return true;
         }
-        if (codePoint >= 0x3400 && codePoint <= 0x4DBF) {
-            return false;
+        if ((codePoint >= 0xE000 && codePoint <= 0xF8FF) || codePoint >= 0xF0000) {
+            return true;
         }
-        if (codePoint >= 0x20 && codePoint <= 0x7E) {
-            return false;
+        if (codePoint < 0x20 || (codePoint >= 0x7F && codePoint <= 0x9F)) {
+            return true;
         }
-        return "，。、；：？！（）《》—…·【】￥%&".indexOf(codePoint) < 0;
+        return !Character.isDefined(codePoint);
     }
 
     /**

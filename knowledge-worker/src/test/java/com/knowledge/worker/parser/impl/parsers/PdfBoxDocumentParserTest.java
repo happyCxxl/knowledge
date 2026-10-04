@@ -3,6 +3,7 @@ import com.knowledge.common.domain.input.FileReference;
 import com.knowledge.common.domain.parse.ParseElement;
 import com.knowledge.common.domain.parse.ParseSource;
 import com.knowledge.common.enums.parse.ElementType;
+import com.knowledge.common.domain.parse.signal.PageMetric;
 import com.knowledge.worker.parser.ParseContext;
 import com.knowledge.worker.parser.ParseProperties;
 import com.knowledge.worker.parser.impl.parsers.pdf.CharInfo;
@@ -18,8 +19,11 @@ import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
+import org.apache.pdfbox.pdmodel.graphics.image.LosslessFactory;
+import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import org.junit.jupiter.api.Test;
 
+import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.util.ArrayList;
@@ -648,6 +652,31 @@ class PdfBoxDocumentParserTest {
                         "Left column fourth line here Left column fifth line here",
                         "Right column fourth line here Right column fifth line here"),
                 paragraphs, () -> "elements=" + source.getElements());
+    }
+
+    @Test
+    void fullPageImageShouldBeMeasuredAsImageCoverage() throws Exception {
+        ParseSource source = parser.parse(context(buildFullPageImagePdf()));
+
+        PageMetric metric = source.getPageMetrics().getFirst();
+        assertEquals(0, metric.getCharCount());
+        assertTrue(metric.getImageAreaRatio() > 0.5, () -> "image=" + metric.getImageAreaRatio());
+    }
+
+    /** 造一页整页图片、无文本的 PDF */
+    private byte[] buildFullPageImagePdf() throws Exception {
+        try (PDDocument doc = new PDDocument()) {
+            PDPage page = new PDPage(new PDRectangle(595, 842));
+            doc.addPage(page);
+            BufferedImage image = new BufferedImage(200, 200, BufferedImage.TYPE_INT_RGB);
+            PDImageXObject xobject = LosslessFactory.createFromImage(doc, image);
+            try (PDPageContentStream cs = new PDPageContentStream(doc, page)) {
+                cs.drawImage(xobject, 0, 0, 595, 842);
+            }
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            doc.save(out);
+            return out.toByteArray();
+        }
     }
 
     /** 造双栏 PDF：左右各三行正文（栏沟约 100pt） */

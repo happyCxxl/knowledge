@@ -13,8 +13,11 @@ public enum QualityWarningCode {
     /** 乱码页：乱码率超阈值，计失败页 */
     GARBLED_PAGE,
 
-    /** 扫描页：无文本层，OCR 预留暂不支持，计失败页 */
+    /** 扫描页：无文本层且图片覆盖高，OCR 预留暂不支持，计失败页 */
     SCANNED_PAGE,
+
+    /** 空白页：无文本且无图片覆盖，不计失败页 */
+    BLANK_PAGE,
 
     /** 嵌入图片文字未识别（OCR 预留，暂仅记录引用与图注），不计失败 */
     IMAGE_TEXT_UNRECOGNIZED,

@@ -37,4 +37,11 @@ final class FallbackSupport {
             quality.getScannedPages().add(page);
         }
     }
+
+    /** 空白页登记（从成功占比分母里剔除）。 */
+    static void addBlankPage(QualityInfo quality, Integer page) {
+        if (ObjectUtil.isNotNull(page)) {
+            quality.getBlankPages().add(page);
+        }
+    }
 }

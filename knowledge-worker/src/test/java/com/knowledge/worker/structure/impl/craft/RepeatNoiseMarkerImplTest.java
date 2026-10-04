@@ -132,8 +132,8 @@ class RepeatNoiseMarkerImplTest {
         List<UnifiedElement> elements = new ArrayList<>();
         elements.add(element("t1", UnifiedElementType.PARAGRAPH.name(), 1, "正常页正文内容用于排除噪声判定，文本长度足够且全部为常用字符。"));
         elements.add(element("i3", UnifiedElementType.IMAGE.name(), 3, null));
-        // 页 4：乱码页（非常用字符占比 > 0.4）
-        elements.add(element("g4", UnifiedElementType.PARAGRAPH.name(), 4, "✈✈✈✈✈✈✈✈✈✈"));
+        // 页 4：乱码页（不可读的替换字符占比 > 0.4）
+        elements.add(element("g4", UnifiedElementType.PARAGRAPH.name(), 4, "\uFFFD\uFFFD\uFFFD\uFFFD\uFFFD\uFFFD\uFFFD\uFFFD\uFFFD\uFFFD"));
         UnifiedDocument document = document(elements, pages(1, 2, 3, 4));
 
         var outcome = marker.mark(document);

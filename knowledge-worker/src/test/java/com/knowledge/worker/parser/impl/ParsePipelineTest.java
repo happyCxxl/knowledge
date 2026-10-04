@@ -12,6 +12,7 @@ import com.knowledge.worker.parser.DocumentParserPort;
 import com.knowledge.worker.parser.ParseContext;
 import com.knowledge.worker.parser.ParseProperties;
 import com.knowledge.worker.parser.signal.SignalFallbackHandler;
+import com.knowledge.worker.parser.impl.fallback.BlankFallbackHandler;
 import com.knowledge.worker.parser.impl.fallback.GarbledFallbackHandler;
 import com.knowledge.worker.parser.impl.fallback.ImageEmbeddedFallbackHandler;
 import com.knowledge.worker.parser.impl.fallback.ImageLowRatioFallbackHandler;
@@ -47,9 +48,9 @@ class ParsePipelineTest {
         signalDetector = new SignalDetectorImpl();
     }
 
-    /** 六个信号降级 handler 真实实例（无 mock） */
+    /** 七个信号降级 handler 真实实例（无 mock） */
     private List<SignalFallbackHandler> fallbackHandlers() {
-        return List.of(new GarbledFallbackHandler(), new ScannedFallbackHandler(),
+        return List.of(new GarbledFallbackHandler(), new ScannedFallbackHandler(), new BlankFallbackHandler(),
                 new ImageEmbeddedFallbackHandler(), new ImageLowRatioFallbackHandler(),
                 new TableRuleFailedFallbackHandler(), new LayoutRuleFailedFallbackHandler());
     }
@@ -108,12 +109,34 @@ class ParsePipelineTest {
         return metric;
     }
 
+    /** 扫描页：整页无文本 + 图片覆盖高 */
     private PageMetric scannedPage(int page) {
+        PageMetric metric = new PageMetric();
+        metric.setPage(page);
+        metric.setCharCount(0);
+        metric.setGarbledRatio(0);
+        metric.setTextAreaRatio(0);
+        metric.setImageAreaRatio(0.8);
+        return metric;
+    }
+
+    /** 空白页：整页无文本也无图片 */
+    private PageMetric blankPage(int page) {
+        PageMetric metric = new PageMetric();
+        metric.setPage(page);
+        metric.setCharCount(0);
+        metric.setGarbledRatio(0);
+        metric.setTextAreaRatio(0);
+        return metric;
+    }
+
+    /** 文字极少页：有文本但少于扫描页门槛（疑似图片页，仅告警） */
+    private PageMetric sparseTextPage(int page) {
         PageMetric metric = new PageMetric();
         metric.setPage(page);
         metric.setCharCount(10);
         metric.setGarbledRatio(0);
-        metric.setTextAreaRatio(0.01);
+        metric.setTextAreaRatio(0.3);
         return metric;
     }
 
@@ -264,6 +287,57 @@ class ParsePipelineTest {
         assertEquals(PipelineTaskStatus.SUCCESS.name(), outcome.getSuggestedStatus());
         assertEquals(0, outcome.getFailedUnits());
         assertEquals(1, outcome.getParseResult().getQuality().getWarnings().size());
+        assertEquals("IMAGE_PAGE_SUSPECTED", outcome.getParseResult().getQuality().getWarnings().getFirst().getCode());
+    }
+
+    @Test
+    void blankPageShouldNotCountAsFailure() {
+        List<PageMetric> metrics = new java.util.ArrayList<>();
+        metrics.add(blankPage(1));
+        for (int i = 2; i <= 10; i++) {
+            metrics.add(normalPage(i));
+        }
+        ParsePipeline pipeline = pipeline(fakeParser(metrics, List.of()));
+
+        ParseOutcome outcome = pipeline.run(context("application/pdf"));
+
+        assertEquals(PipelineTaskStatus.SUCCESS.name(), outcome.getSuggestedStatus());
+        assertEquals(0, outcome.getFailedUnits());
+        assertEquals(1, outcome.getParseResult().getQuality().getBlankPages().size());
+        assertEquals("BLANK_PAGE", outcome.getParseResult().getQuality().getWarnings().getFirst().getCode());
+    }
+
+    @Test
+    void allBlankShouldFailWithoutContent() {
+        ParsePipeline pipeline = pipeline(fakeParser(
+                List.of(blankPage(1), blankPage(2)), List.of()));
+
+        ParseOutcome outcome = pipeline.run(context("application/pdf"));
+
+        assertEquals(PipelineTaskStatus.FAILED.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskErrorCode.PARSE_CORRUPTED.name(), outcome.getErrorCode());
+    }
+
+    @Test
+    void blankPlusScannedShouldFailScannedUnsupported() {
+        ParsePipeline pipeline = pipeline(fakeParser(
+                List.of(blankPage(1), scannedPage(2), scannedPage(3)), List.of()));
+
+        ParseOutcome outcome = pipeline.run(context("application/pdf"));
+
+        assertEquals(PipelineTaskStatus.FAILED.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskErrorCode.SCANNED_UNSUPPORTED.name(), outcome.getErrorCode());
+    }
+
+    @Test
+    void sparseTextPageShouldWarnWithoutFailing() {
+        // 有文本但极少：只告警，不再当扫描页计失败
+        ParsePipeline pipeline = pipeline(fakeParser(List.of(sparseTextPage(1)), List.of()));
+
+        ParseOutcome outcome = pipeline.run(context("application/pdf"));
+
+        assertEquals(PipelineTaskStatus.SUCCESS.name(), outcome.getSuggestedStatus());
+        assertEquals(0, outcome.getFailedUnits());
         assertEquals("IMAGE_PAGE_SUSPECTED", outcome.getParseResult().getQuality().getWarnings().getFirst().getCode());
     }
 

@@ -169,7 +169,11 @@ public class ParsePipeline {
         }
     }
 
-    /** 成功占比门槛评估：0 单元→PARSE_CORRUPTED；全扫描页→SCANNED_UNSUPPORTED；占比不足→RATIO_BELOW_THRESHOLD。 */
+    /**
+     * 成功占比门槛评估：0 单元→PARSE_CORRUPTED；全空白页→PARSE_CORRUPTED；
+     * 内容单元全为扫描页→SCANNED_UNSUPPORTED；占比不足→RATIO_BELOW_THRESHOLD。
+     * 分母用**内容单元**（单元数 − 空白页数）：空白页无内容可解析，既不算成功也不算失败。
+     */
     private void evaluate(ParseOutcome outcome, ParseSource nativeSource, int failedUnits, QualityInfo quality) {
         int unitCount = ObjectUtil.isNull(nativeSource.getUnitCount()) ? 0 : nativeSource.getUnitCount();
         outcome.setUnitCount(unitCount);
@@ -178,12 +182,19 @@ public class ParsePipeline {
             outcome.fail(PipelineTaskErrorCode.PARSE_CORRUPTED.name(), "无有效内容单元（0 页/0 sheet）");
             return;
         }
-        // 纯扫描件：全部单元判为扫描页 → 整任务 FAILED
-        if (!quality.getScannedPages().isEmpty() && quality.getScannedPages().size() == unitCount) {
+        int blankUnits = (int) quality.getBlankPages().stream().distinct().count();
+        int contentUnits = unitCount - blankUnits;
+        if (contentUnits <= 0) {
+            outcome.fail(PipelineTaskErrorCode.PARSE_CORRUPTED.name(),
+                    "全为空白页（" + unitCount + " 个单元无文本也无图片）");
+            return;
+        }
+        // 纯扫描件：内容单元全判为扫描页 → 整任务 FAILED
+        if (!quality.getScannedPages().isEmpty() && quality.getScannedPages().size() >= contentUnits) {
             outcome.fail(PipelineTaskErrorCode.SCANNED_UNSUPPORTED.name(), "扫描件暂不支持（OCR 预留）");
             return;
         }
-        double ratio = (double) (unitCount - failedUnits) / unitCount;
+        double ratio = (double) (contentUnits - failedUnits) / contentUnits;
         if (ratio >= properties.getSuccessUnitRatio()) {
             outcome.setSuggestedStatus(failedUnits == 0
                     ? PipelineTaskStatus.SUCCESS.name()
@@ -191,14 +202,17 @@ public class ParsePipeline {
             return;
         }
         // 门槛不足：连每页原始指标一起打印（扫描件/乱码口径/文字占比口径）
-        log.warn("解析成功占比不足, unitCount={}, failedUnits={}, ratio={}, threshold={}, pageMetrics={}",
-                unitCount, failedUnits, String.format("%.2f", ratio), properties.getSuccessUnitRatio(),
+        log.warn("解析成功占比不足, unitCount={}, blankUnits={}, failedUnits={}, ratio={}, threshold={}, pageMetrics={}",
+                unitCount, blankUnits, failedUnits, String.format("%.2f", ratio),
+                properties.getSuccessUnitRatio(),
                 nativeSource.getPageMetrics().stream()
                         .map(m -> m.getPage() + ":chars=" + m.getCharCount()
                                 + ",garbled=" + String.format("%.2f", m.getGarbledRatio())
-                                + ",area=" + String.format("%.2f", m.getTextAreaRatio()))
+                                + ",area=" + String.format("%.2f", m.getTextAreaRatio())
+                                + ",image=" + String.format("%.2f", m.getImageAreaRatio()))
                         .toList());
         outcome.fail(PipelineTaskErrorCode.RATIO_BELOW_THRESHOLD.name(),
-                String.format("成功单元占比 %.2f 低于门槛 %.2f", ratio, properties.getSuccessUnitRatio()));
+                String.format("成功单元占比 %.2f 低于门槛 %.2f（内容单元 %d，失败 %d）",
+                        ratio, properties.getSuccessUnitRatio(), contentUnits, failedUnits));
     }
 }

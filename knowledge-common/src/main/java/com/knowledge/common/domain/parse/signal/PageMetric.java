@@ -16,9 +16,12 @@ public class PageMetric {
     /** 非空白字符数 */
     private int charCount;
 
-    /** 乱码率（0~1：非 CJK/ASCII/常用中文标点字符占比） */
+    /** 乱码率（0~1：替换字符/私用区/未分配码点 ÷ 非空白字符数） */
     private double garbledRatio;
 
     /** 文本 bbox 面积 ÷ 页面面积（0~1） */
     private double textAreaRatio;
+
+    /** 图片 bbox 面积 ÷ 页面面积（0~1；PDF 逐页统计，其余路径不填） */
+    private double imageAreaRatio;
 }

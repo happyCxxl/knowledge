@@ -19,6 +19,9 @@ public class ParseProperties {
     /** 扫描页判定：单页非空白字符数低于该值 */
     private int scanPageMinChars = 50;
 
+    /** 扫描页判定：图片覆盖面积占比门槛（整页无文本时，达到该值判扫描页，低于该值判空白页） */
+    private double scanPageImageRatio = 0.5;
+
     /** 乱码页判定：非 CJK/ASCII/常用中文标点字符占比 */
     private double garbledRateThreshold = 0.2;
 
