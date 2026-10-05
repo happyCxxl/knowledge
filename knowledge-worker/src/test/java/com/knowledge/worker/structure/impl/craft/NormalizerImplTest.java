@@ -49,7 +49,7 @@ class NormalizerImplTest {
         ParseSource source = ParseSource.nativeSource("poi-5.4.0");
         source.setElements(List.of(table));
 
-        List<UnifiedElement> result = normalizer.normalize(List.of(source), new AssembleContext());
+        List<UnifiedElement> result = normalizer.normalize(List.of(source), new AssembleContext()).getElements();
 
         UnifiedElement unifiedTable = result.getFirst();
         assertEquals(2, unifiedTable.getRows());
@@ -78,7 +78,7 @@ class NormalizerImplTest {
         ParseSource source = ParseSource.nativeSource("pdfbox-3.0.4");
         source.setElements(List.of(paragraph));
 
-        List<UnifiedElement> result = normalizer.normalize(List.of(source), new AssembleContext());
+        List<UnifiedElement> result = normalizer.normalize(List.of(source), new AssembleContext()).getElements();
 
         Map<String, Object> extension = result.getFirst().getExtension();
         assertEquals("native", extension.get("source"));
@@ -92,7 +92,7 @@ class NormalizerImplTest {
         ParseSource source = ParseSource.nativeSource(null);
         source.setElements(List.of(paragraph));
 
-        List<UnifiedElement> result = normalizer.normalize(List.of(source), new AssembleContext());
+        List<UnifiedElement> result = normalizer.normalize(List.of(source), new AssembleContext()).getElements();
 
         Map<String, Object> extension = result.getFirst().getExtension();
         assertEquals("native", extension.get("source"));

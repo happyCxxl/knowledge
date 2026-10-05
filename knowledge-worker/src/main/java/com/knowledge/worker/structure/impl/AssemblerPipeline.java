@@ -21,6 +21,7 @@ import com.knowledge.worker.structure.craft.DedupMerger;
 import com.knowledge.worker.structure.craft.ElementNormalizer;
 import com.knowledge.worker.structure.craft.MarkOutcome;
 import com.knowledge.worker.structure.craft.MergeOutcome;
+import com.knowledge.worker.structure.craft.NormalizeOutcome;
 import com.knowledge.worker.structure.craft.ReadingOrderResolver;
 import com.knowledge.worker.structure.craft.RepeatNoiseMarker;
 import com.knowledge.worker.structure.craft.StructureAssembler;
@@ -33,6 +34,7 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 组装编排（模板方法骨架）：标准化 → 去重合并 → 阅读顺序 → 结构组装 → 跨页接续 →
@@ -72,7 +74,12 @@ public class AssemblerPipeline implements DocumentAssemblerPort {
 
         // ① 元素标准化
         StepLogInfo normalizeLog = StepLogHelper.begin("元素标准化");
-        List<UnifiedElement> normalized = normalizer.normalize(parseResult.getSources(), context);
+        NormalizeOutcome normalize = normalizer.normalize(parseResult.getSources(), context);
+        List<UnifiedElement> normalized = normalize.getElements();
+        if (!normalize.getUnmappedTypeCounts().isEmpty()) {
+            log.warn("===> AssemblerPipeline 元素标准化跳过未识别类型, taskId={}, counts={}",
+                    context.getTaskId(), normalize.getUnmappedTypeCounts());
+        }
         normalizeLog.setStatus(StepStatus.SUCCESS.name());
         StepLogHelper.finish(normalizeLog);
         outcome.getStepLogs().add(normalizeLog);
@@ -116,13 +123,15 @@ public class AssemblerPipeline implements DocumentAssemblerPort {
         report.setRepeatSegmentCount(markOutcome.getRepeatSegmentCount());
         report.setNoisePageCount(markOutcome.getNoisePageCount());
 
-        document.setQuality(buildQuality(merged, tree, continuation, report));
+        document.setQuality(buildQuality(merged, tree, continuation, report, normalize));
         outcome.setDocument(document);
         outcome.setReport(report);
 
         // ⑦ 完整/空树判定（组装不产出 PARTIAL_SUCCESS：无法挂树元素字段自上线起恒空，无消费方）
         if (document.getElements().isEmpty()) {
-            outcome.fail(PipelineTaskErrorCode.STRUCTURE_EMPTY.name(), "无任何可组装元素（空树）");
+            String emptyMessage = normalize.getUnmappedTypeCounts().isEmpty() ? "无任何可组装元素（空树）"
+                    : "无任何可组装元素（空树；其中 " + normalize.unmappedElementCount() + " 个元素因类型未识别被跳过）";
+            outcome.fail(PipelineTaskErrorCode.STRUCTURE_EMPTY.name(), emptyMessage);
         } else {
             outcome.setSuggestedStatus(PipelineTaskStatus.SUCCESS.name());
         }
@@ -205,7 +214,8 @@ public class AssemblerPipeline implements DocumentAssemblerPort {
     }
 
     private DocumentQuality buildQuality(MergeOutcome merged, TreeOutcome tree,
-                                         ContinuationOutcome continuation, AssembleReport report) {
+                                         ContinuationOutcome continuation, AssembleReport report,
+                                         NormalizeOutcome normalize) {
         DocumentQuality quality = new DocumentQuality();
         quality.setConflicts(ObjectUtil.defaultIfNull(merged.getConflicts(), new ArrayList<>()));
         if (tree.getTitleCandidateCount() > 0) {
@@ -227,7 +237,20 @@ public class AssemblerPipeline implements DocumentAssemblerPort {
             quality.getWarnings().add(QualityWarning.of(QualityWarningCode.NOISE_PAGE, null, "WARN",
                     "噪声页 " + report.getNoisePageCount() + " 页已标记（空白/纯图片/乱码；处置在预处理环节）"));
         }
+        if (!normalize.getUnmappedTypeCounts().isEmpty()) {
+            quality.getWarnings().add(QualityWarning.of(QualityWarningCode.ELEMENT_TYPE_UNMAPPED, null, "WARN",
+                    "未识别的解析元素类型 " + normalize.getUnmappedTypeCounts().size() + " 类（"
+                            + unmappedTypesText(normalize.getUnmappedTypeCounts()) + "），共 "
+                            + normalize.unmappedElementCount() + " 个元素已跳过"));
+        }
         return quality;
+    }
+
+    /** 未识别类型明细文本（类型: 个数，多个以顿号分隔） */
+    private String unmappedTypesText(Map<String, Integer> counts) {
+        List<String> parts = new ArrayList<>();
+        counts.forEach((type, count) -> parts.add(type + ": " + count));
+        return String.join("、", parts);
     }
 
     private List<DocumentRelation> mergeRelations(List<DocumentRelation> treeRelations,

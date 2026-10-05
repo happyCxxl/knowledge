@@ -10,6 +10,7 @@ import com.knowledge.common.enums.structure.UnifiedElementType;
 import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.structure.AssembleContext;
 import com.knowledge.worker.structure.craft.ElementNormalizer;
+import com.knowledge.worker.structure.craft.NormalizeOutcome;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -26,27 +27,32 @@ import java.util.Map;
 @Component
 public class NormalizerImpl implements ElementNormalizer {
 
+    /** 类型为空时的计数键（与"未知类型"区分） */
+    private static final String BLANK_TYPE = "(blank)";
+
     @Override
-    public List<UnifiedElement> normalize(List<ParseSource> sources, AssembleContext context) {
-        List<UnifiedElement> result = new ArrayList<>();
+    public NormalizeOutcome normalize(List<ParseSource> sources, AssembleContext context) {
+        NormalizeOutcome outcome = new NormalizeOutcome();
         if (NullUtil.isNull(sources)) {
-            return result;
+            return outcome;
         }
         for (ParseSource source : sources) {
             for (ParseElement element : source.getElements()) {
-                UnifiedElement unified = toUnified(element, source);
+                UnifiedElement unified = toUnified(element, source, outcome.getUnmappedTypeCounts());
                 if (NullUtil.isNotNull(unified)) {
-                    result.add(unified);
+                    outcome.getElements().add(unified);
                 }
             }
         }
-        return result;
+        return outcome;
     }
 
-    private UnifiedElement toUnified(ParseElement element, ParseSource source) {
+    private UnifiedElement toUnified(ParseElement element, ParseSource source, Map<String, Integer> unmappedTypeCounts) {
         String provider = source.getProvider();
         UnifiedElementType type = mapType(element.getType());
         if (NullUtil.isNull(type)) {
+            // 类型集合不匹配：跳过并计数（由管线落质量告警，避免静默丢元素）
+            unmappedTypeCounts.merge(StrUtil.blankToDefault(element.getType(), BLANK_TYPE), 1, Integer::sum);
             return null;
         }
         UnifiedElement unified = new UnifiedElement();
@@ -71,7 +77,7 @@ public class NormalizerImpl implements ElementNormalizer {
         if (NullUtil.isNotNull(element.getCells())) {
             List<UnifiedElement> cells = new ArrayList<>();
             for (ParseElement cell : element.getCells()) {
-                UnifiedElement cellUnified = toUnified(cell, source);
+                UnifiedElement cellUnified = toUnified(cell, source, unmappedTypeCounts);
                 if (NullUtil.isNotNull(cellUnified)) {
                     cells.add(cellUnified);
                 }

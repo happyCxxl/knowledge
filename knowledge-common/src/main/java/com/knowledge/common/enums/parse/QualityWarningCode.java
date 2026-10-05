@@ -43,5 +43,8 @@ public enum QualityWarningCode {
     PROVENANCE_MISSING,
 
     /** 噪声页：空白/纯图片/乱码页已标记 */
-    NOISE_PAGE
+    NOISE_PAGE,
+
+    /** 未识别的解析元素类型：标准化跳过该元素（跨环节类型集合不匹配） */
+    ELEMENT_TYPE_UNMAPPED
 }

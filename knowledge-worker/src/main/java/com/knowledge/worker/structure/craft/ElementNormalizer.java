@@ -1,7 +1,6 @@
 package com.knowledge.worker.structure.craft;
 
 import com.knowledge.common.domain.parse.ParseSource;
-import com.knowledge.common.domain.structure.UnifiedElement;
 import com.knowledge.worker.structure.AssembleContext;
 
 import java.util.List;
@@ -18,7 +17,7 @@ public interface ElementNormalizer {
      *
      * @param sources 多路解析结果（当前 native 单路）
      * @param context 组装上下文
-     * @return 统一元素雏形列表（保留来源标记于 extension）
+     * @return 统一元素雏形列表与未识别类型的跳过计数（来源标记保留在 extension）
      */
-    List<UnifiedElement> normalize(List<ParseSource> sources, AssembleContext context);
+    NormalizeOutcome normalize(List<ParseSource> sources, AssembleContext context);
 }
