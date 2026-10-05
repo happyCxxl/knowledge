@@ -65,4 +65,7 @@ public class StructureProperties {
 
     /** 溯源偏低阈值（百分比）：可回溯占比低于该值才提告警，与详情页结论文案同口径（80） */
     private int provenanceLowPercent = 80;
+
+    /** 重复判定：按需重建的 bigram 集合缓存条数上限（内存有界；退化场景减少重复重建） */
+    private int repeatSetCacheSize = 64;
 }

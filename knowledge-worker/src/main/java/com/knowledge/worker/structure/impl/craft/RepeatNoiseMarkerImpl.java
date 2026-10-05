@@ -17,10 +17,14 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.function.Supplier;
 
 /**
  * 重复/噪声识别实现（字符 bigram Jaccard 相似度）：
@@ -29,6 +33,7 @@ import java.util.Set;
  * 且长度 ≥ repeatSegmentMinLen（除首份外标 REPEATED_SEGMENT）；
  * 噪声页——无元素页/仅图片页/乱码率 > noiseGarbledRatio（标 NOISE_PAGE）；页覆盖范围按 pageRange 计，跨页表覆盖到的页不判空白。
  * Word（无页概念）跳过页级、重复段照做；标记只增不改结构。
+ * 判定语义与"逐个比 Jaccard"一致：已见项按集合规模分桶剪枝、集合按需重建（不常驻）、有界 LRU 控内存。
  *
  * @author cxxl
  */
@@ -56,51 +61,48 @@ public class RepeatNoiseMarkerImpl implements RepeatNoiseMarker {
         if (NullUtil.isNull(pages) || pages.isEmpty()) {
             return;
         }
-        Map<Integer, String> pageText = new HashMap<>();
+        // 页 → 元素引用：拼接顺序与既有口径一致（只取元素自身页码），页文本与 bigram 集合都不常驻（按需重建）
+        Map<Integer, List<UnifiedElement>> pageElements = new HashMap<>();
         for (UnifiedElement element : document.getElements()) {
             // 重复页指纹只取元素自身页码：跨页元素的同一段文字计入其覆盖的每一页，会让这些页互判重复
             if (NullUtil.isNotNull(element.getPage()) && StrUtil.isNotBlank(element.getText())) {
-                pageText.merge(element.getPage(), element.getText(), String::concat);
+                pageElements.computeIfAbsent(element.getPage(), key -> new ArrayList<>()).add(element);
             }
         }
-        List<Integer> pageNumbers = pageText.keySet().stream().sorted().toList();
-        List<Set<String>> shingles = new ArrayList<>();
+        List<Integer> pageNumbers = pageElements.keySet().stream().sorted().toList();
+        RepeatScan scan = new RepeatScan(properties.getRepeatSetCacheSize());
         for (Integer pageNumber : pageNumbers) {
-            shingles.add(TextUtil.bigramSet(pageText.get(pageNumber)));
-        }
-        for (int i = 0; i < pageNumbers.size(); i++) {
-            for (int j = 0; j < i; j++) {
-                if (TextUtil.jaccardSet(shingles.get(i), shingles.get(j)) > properties.getRepeatPageJaccard()) {
-                    addPageMark(pages, pageNumbers.get(i), PageMark.REPEATED_PAGE);
-                    outcome.setRepeatPageCount(outcome.getRepeatPageCount() + 1);
-                    break;
-                }
+            Supplier<String> textSource = () -> concatText(pageElements.get(pageNumber));
+            // 与"与该页之前的所有页逐个比 Jaccard > 阈值"等价：集合规模带之外的页不可能达标
+            if (scan.isDuplicate(pageNumber, textSource, properties.getRepeatPageJaccard(), true)) {
+                addPageMark(pages, pageNumber, PageMark.REPEATED_PAGE);
+                outcome.setRepeatPageCount(outcome.getRepeatPageCount() + 1);
             }
         }
+    }
+
+    /** 页文本：按文档顺序拼接该页元素文本（空文本元素不参与拼接） */
+    private static String concatText(List<UnifiedElement> elements) {
+        StringBuilder text = new StringBuilder();
+        for (UnifiedElement element : elements) {
+            text.append(element.getText());
+        }
+        return text.toString();
     }
 
     // ---------------- 重复段 ----------------
 
     private void markRepeatedSegments(List<UnifiedElement> elements, MarkOutcome outcome) {
-        List<ElementShingle> seen = new ArrayList<>();
+        RepeatScan scan = new RepeatScan(properties.getRepeatSetCacheSize());
         for (UnifiedElement element : elements) {
             if (!isTextElement(element) || StrUtil.isBlank(element.getText())
                     || element.getText().length() < properties.getRepeatSegmentMinLen()) {
                 continue;
             }
-            Set<String> current = TextUtil.bigramSet(element.getText());
-            boolean repeated = false;
-            for (ElementShingle earlier : seen) {
-                if (TextUtil.jaccardSet(current, earlier.shingles) > properties.getRepeatSegmentSimilarity()) {
-                    repeated = true;
-                    break;
-                }
-            }
-            if (repeated) {
+            // 只有未判重复的元素才成为后续参照；集合按需从元素文本重建、不常驻
+            if (scan.isDuplicate(element, element::getText, properties.getRepeatSegmentSimilarity(), false)) {
                 addElementMark(element, ElementMark.REPEATED_SEGMENT);
                 outcome.setRepeatSegmentCount(outcome.getRepeatSegmentCount() + 1);
-            } else {
-                seen.add(new ElementShingle(element.getId(), current));
             }
         }
     }
@@ -184,6 +186,104 @@ public class RepeatNoiseMarkerImpl implements RepeatNoiseMarker {
         }
     }
 
-    private record ElementShingle(String elementId, Set<String> shingles) {
+    /**
+     * 重复扫描（结果与"与之前所有项逐个比 Jaccard > 阈值"等价）：
+     * 已见项按 bigram 集合规模分桶（Jaccard 上界 = min/max，故只比规模带内的候选）；
+     * 集合不常驻——按需从原文重建，配容量有界的 LRU；先走"指纹相同 + 集合相等"的精确快车道。
+     */
+    private static final class RepeatScan {
+
+        private final int cacheSize;
+        private final NavigableMap<Integer, List<SeenItem>> bySize = new TreeMap<>();
+        private final Map<Long, List<SeenItem>> byFingerprint = new HashMap<>();
+        private final Map<Object, Set<String>> setCache;
+
+        RepeatScan(int cacheSize) {
+            this.cacheSize = Math.max(1, cacheSize);
+            this.setCache = new LinkedHashMap<>(16, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<Object, Set<String>> eldest) {
+                    return size() > RepeatScan.this.cacheSize;
+                }
+            };
+        }
+
+        /**
+         * 当前项是否与任一已见项判为重复。
+         *
+         * @param key            项标识（页号或元素），用于缓存与重建
+         * @param textSource     文本来源（按需重建集合）
+         * @param threshold      Jaccard 阈值（严格大于才判重复）
+         * @param rememberAlways 是否无条件记为参照（页路径：所有页；段路径：只记未判重复的）
+         */
+        boolean isDuplicate(Object key, Supplier<String> textSource, double threshold, boolean rememberAlways) {
+            TextUtil.BigramSummary summary = TextUtil.bigramSummary(textSource.get());
+            if (summary.count() == 0) {
+                return false; // 空集合与谁都不相似（jaccardSet 对空集返回 0）
+            }
+            Set<String> current = set(key, textSource);
+            if (threshold < 1 && matchesFingerprint(summary.fingerprint(), current)) {
+                return true; // 集合完全相同 ⇒ Jaccard = 1 > 阈值，与原判定一致
+            }
+            boolean duplicate = exceedsInBand(summary.count(), threshold, current);
+            if (rememberAlways || !duplicate) {
+                remember(key, summary, textSource);
+            }
+            return duplicate;
+        }
+
+        private boolean matchesFingerprint(long fingerprint, Set<String> current) {
+            List<SeenItem> candidates = byFingerprint.get(fingerprint);
+            if (NullUtil.isNull(candidates)) {
+                return false;
+            }
+            for (SeenItem candidate : candidates) {
+                if (set(candidate.key(), candidate.textSource()).equals(current)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private boolean exceedsInBand(int size, double threshold, Set<String> current) {
+            if (bySize.isEmpty()) {
+                return false;
+            }
+            // Jaccard ≤ min/max ⇒ 规模带 [size × 阈值, size ÷ 阈值] 之外不可能达标
+            int min = (int) Math.ceil(size * threshold);
+            int max = threshold <= 0 ? Integer.MAX_VALUE : (int) Math.floor(size / threshold);
+            if (min > max) {
+                return false;
+            }
+            for (List<SeenItem> bucket : bySize.subMap(min, true, max, true).values()) {
+                for (SeenItem candidate : bucket) {
+                    Set<String> candidateSet = set(candidate.key(), candidate.textSource());
+                    if (TextUtil.jaccardExceeds(current, candidateSet, threshold)) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        private void remember(Object key, TextUtil.BigramSummary summary, Supplier<String> textSource) {
+            SeenItem item = new SeenItem(key, summary.fingerprint(), textSource);
+            bySize.computeIfAbsent(summary.count(), bucket -> new ArrayList<>()).add(item);
+            byFingerprint.computeIfAbsent(summary.fingerprint(), bucket -> new ArrayList<>()).add(item);
+        }
+
+        private Set<String> set(Object key, Supplier<String> textSource) {
+            Set<String> cached = setCache.get(key);
+            if (NullUtil.isNotNull(cached)) {
+                return cached;
+            }
+            Set<String> built = TextUtil.bigramSet(textSource.get());
+            setCache.put(key, built);
+            return built;
+        }
+
+        /** 已见项：标识 + 集合指纹 + 文本来源（集合本身不常驻） */
+        private record SeenItem(Object key, long fingerprint, Supplier<String> textSource) {
+        }
     }
 }

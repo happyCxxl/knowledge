@@ -101,6 +101,55 @@ public final class TextUtil {
         return union.isEmpty() ? 0 : (double) intersection.size() / union.size();
     }
 
+    /**
+     * bigram 集合摘要：去重后的 bigram 个数（与 {@link #bigramSet} 的 size 一致）+ 次序无关指纹。
+     * 供"按集合规模剪枝 + 精确重复快车道"使用，集合本身瞬时释放、不常驻。
+     */
+    public record BigramSummary(int count, long fingerprint) {
+    }
+
+    /** 文本 → bigram 摘要（内部集合瞬时释放） */
+    public static BigramSummary bigramSummary(String text) {
+        Set<String> bigrams = bigramSet(text);
+        long fingerprint = 0;
+        for (String bigram : bigrams) {
+            fingerprint += mix(bigram.hashCode());
+        }
+        return new BigramSummary(bigrams.size(), fingerprint);
+    }
+
+    /**
+     * 集合 Jaccard 是否严格超过阈值：判定与 {@code jaccardSet(a, b) > threshold} 一致，
+     * 但用"达标所需的最小交集"提前中止——剩余元素全部命中也不够时立即返回 false。
+     */
+    public static boolean jaccardExceeds(Set<String> a, Set<String> b, double threshold) {
+        if (a.isEmpty() && b.isEmpty()) {
+            return false;
+        }
+        Set<String> smaller = a.size() <= b.size() ? a : b;
+        Set<String> larger = smaller == a ? b : a;
+        double required = threshold * (a.size() + b.size()) / (1 + threshold);
+        int hits = 0;
+        int remaining = smaller.size();
+        for (String bigram : smaller) {
+            remaining--;
+            if (larger.contains(bigram)) {
+                hits++;
+            }
+            if (hits + remaining <= required) {
+                return false;
+            }
+        }
+        int union = a.size() + b.size() - hits;
+        return union > 0 && (double) hits / union > threshold;
+    }
+
+    /** 次序无关的 64 位指纹单元（只作候选筛选，命中后仍需集合相等复核） */
+    private static long mix(int value) {
+        long mixed = value * 0x9E3779B97F4A7C15L;
+        return mixed ^ (mixed >>> 29);
+    }
+
     /** 集合 Jaccard 相似度（两端同为空集视为同一，返回 1） */
     private static double jaccardRatio(Set<?> a, Set<?> b) {
         if (a.isEmpty() && b.isEmpty()) {
