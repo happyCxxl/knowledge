@@ -70,7 +70,7 @@ public class KbPipelineTaskDbServiceImpl extends InfraDbServiceImpl<KbPipelineTa
                 errorCode, errorMsg);
     }
 
-    /** 终态回写：条件更新（fromStatus → toStatus）+ 结束时间 + 错误码/信息，后到者影响 0 行 */
+    /** 终态回写：条件更新（fromStatus → toStatus）+ 结束时间 + 错误码/信息，后到者影响 0 行（编排层靠它互斥） */
     private int finishFrom(Long id, String fromStatus, String toStatus, String errorCode, String errorMsg) {
         LambdaUpdateWrapper<KbPipelineTask> updateWrapper = new LambdaUpdateWrapper<>();
         updateWrapper.eq(KbPipelineTask::getId, id)

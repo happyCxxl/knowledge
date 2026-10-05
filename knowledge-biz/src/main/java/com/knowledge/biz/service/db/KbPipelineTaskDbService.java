@@ -55,6 +55,7 @@ public interface KbPipelineTaskDbService extends InfraDbService<KbPipelineTask> 
 
     /**
      * 终态回写：RUNNING → 指定终态 + 结束时间 + 错误码/信息（条件更新，后到者得 0）。
+     * 条件更新是编排层互斥的依据：看门狗超时回写与执行器成功/失败回写只可能有一个生效。
      *
      * @param id        任务 ID
      * @param status    目标终态（PipelineTaskStatus 枚举名）
@@ -66,6 +67,7 @@ public interface KbPipelineTaskDbService extends InfraDbService<KbPipelineTask> 
 
     /**
      * 未入队即失败回写：QUEUED → FAILED + 结束时间 + 错误码/信息（条件更新，已被领取的任务不受影响）。
+     * 与 {@link #claim} 的条件互斥：入队失败回写与消费者领取只可能有一个生效，另一方影响 0 行。
      *
      * @param id        任务 ID
      * @param errorCode 错误码
