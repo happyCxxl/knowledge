@@ -1,0 +1,6 @@
+# pnpm 项目级设置（pnpm 10 起，项目级 pnpm 配置的落点；本仓库不是多包工作区，故无 packages 字段）
+# allowBuilds：依赖构建脚本（postinstall 等）的取舍表态 —— pnpm 11 未表态时会报 ERR_PNPM_IGNORED_BUILDS 并中止安装
+# vue-demi：出厂入口已是 Vue 3（lib/index.mjs 即 `import * as Vue from 'vue'`、isVue2 = false），
+# 其 postinstall 只在检测到 Vue 2 时改写入口；本项目为 vue ^3.5.43，故明确忽略。
+allowBuilds:
+  vue-demi: false
