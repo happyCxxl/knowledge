@@ -60,13 +60,13 @@ public class DedupMergerImpl implements DedupMerger {
                 double similarity = TextUtil.jaccardCharSet(a.getText(), b.getText());
                 if (iou > iouThreshold && similarity > textThreshold) {
                     // 同一个东西：原生优先，否则先到者保留；被弃证据可追溯（保留在冲突记录外，记合并数）
+                    outcome.setMergePairs(outcome.getMergePairs() + 1);
                     if (isPrior(a, b)) {
                         removed.add(j);
                     } else {
                         removed.add(i);
                         break;
                     }
-                    outcome.setMergePairs(outcome.getMergePairs() + 1);
                 } else if (iou > iouThreshold && similarity <= textThreshold) {
                     // 同框不同内容且无法裁决：两路都留，PRIMARY/BACKUP 标记 + CONFLICT
                     ConflictRecord record = new ConflictRecord();

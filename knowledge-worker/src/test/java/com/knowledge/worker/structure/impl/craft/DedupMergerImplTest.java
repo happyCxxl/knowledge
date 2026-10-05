@@ -99,6 +99,8 @@ class DedupMergerImplTest {
 
         assertEquals(1, outcome.getElements().size());
         assertEquals("n-1", outcome.getElements().getFirst().getId());
+        // 后到者取胜的路径同样计入合并对数（计数在取舍分支之前）
+        assertEquals(1, outcome.getMergePairs());
     }
 
     @Test
