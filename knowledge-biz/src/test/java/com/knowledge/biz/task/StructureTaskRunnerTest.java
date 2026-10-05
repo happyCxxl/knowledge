@@ -11,6 +11,8 @@ import com.knowledge.common.domain.structure.UnifiedDocument;
 import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.enums.task.PipelineTaskErrorCode;
 import com.knowledge.common.enums.task.PipelineTaskStatus;
+import com.knowledge.common.error.ErrorCode;
+import com.knowledge.common.exception.KnowledgeException;
 import com.knowledge.common.utils.JsonUtil;
 import com.knowledge.filecenter.service.FileStorage;
 import com.knowledge.worker.structure.AssembleContext;
@@ -147,5 +149,58 @@ class StructureTaskRunnerTest {
         verify(pipelineTaskDbService).finish(eq(60L), eq(PipelineTaskStatus.FAILED.name()),
                 eq(PipelineTaskErrorCode.STRUCTURE_UPSTREAM_UNREADABLE.name()), any());
         verify(fileStorage, never()).getObject(any());
+    }
+
+    @Test
+    void unexpectedFailureShouldUseClassNameInsteadOfNull() {
+        when(pipelineTaskDbService.getById(60L)).thenReturn(queuedTask());
+        when(pipelineTaskDbService.claim(60L)).thenReturn(1);
+        when(pipelineProductDbService.getById(50L)).thenReturn(parseProduct());
+        when(fileStorage.getObject("abc".repeat(22)))
+                .thenReturn(JsonUtil.toJsonStr(new ParseResult()).getBytes(StandardCharsets.UTF_8));
+        when(documentAssembler.assemble(any(ParseResult.class), any(AssembleContext.class)))
+                .thenThrow(new IllegalStateException());
+
+        runner.run(60L);
+
+        ArgumentCaptor<String> errorMsg = ArgumentCaptor.forClass(String.class);
+        verify(pipelineTaskDbService).finish(eq(60L), eq(PipelineTaskStatus.FAILED.name()),
+                eq(PipelineTaskErrorCode.STRUCTURE_FAILED.name()), errorMsg.capture());
+        // 无消息的异常不落 "null"，退化为类名，不看日志也能判断异常类型
+        assertEquals("IllegalStateException", errorMsg.getValue());
+    }
+
+    @Test
+    void knowledgeExceptionOnAssembleShouldFailUpstreamUnreadable() {
+        when(pipelineTaskDbService.getById(60L)).thenReturn(queuedTask());
+        when(pipelineTaskDbService.claim(60L)).thenReturn(1);
+        when(pipelineProductDbService.getById(50L)).thenReturn(parseProduct());
+        when(fileStorage.getObject("abc".repeat(22)))
+                .thenReturn(JsonUtil.toJsonStr(new ParseResult()).getBytes(StandardCharsets.UTF_8));
+        when(documentAssembler.assemble(any(ParseResult.class), any(AssembleContext.class)))
+                .thenThrow(new KnowledgeException(ErrorCode.FILE_NOT_FOUND));
+
+        runner.run(60L);
+
+        ArgumentCaptor<String> errorMsg = ArgumentCaptor.forClass(String.class);
+        verify(pipelineTaskDbService).finish(eq(60L), eq(PipelineTaskStatus.FAILED.name()),
+                eq(PipelineTaskErrorCode.STRUCTURE_UPSTREAM_UNREADABLE.name()), errorMsg.capture());
+        // 业务异常（上游文件已不存在）按"上游不可读"归口，且直接用它的原因文案
+        assertEquals(ErrorCode.FILE_NOT_FOUND.getMessage(), errorMsg.getValue());
+    }
+
+    @Test
+    void unreadableUpstreamWithBlankMessageShouldStillNameTheCause() {
+        when(pipelineTaskDbService.getById(60L)).thenReturn(queuedTask());
+        when(pipelineTaskDbService.claim(60L)).thenReturn(1);
+        when(pipelineProductDbService.getById(50L)).thenReturn(parseProduct());
+        when(fileStorage.getObject("abc".repeat(22))).thenThrow(new IllegalStateException());
+
+        runner.run(60L);
+
+        ArgumentCaptor<String> errorMsg = ArgumentCaptor.forClass(String.class);
+        verify(pipelineTaskDbService).finish(eq(60L), eq(PipelineTaskStatus.FAILED.name()),
+                eq(PipelineTaskErrorCode.STRUCTURE_UPSTREAM_UNREADABLE.name()), errorMsg.capture());
+        assertEquals("上游解析产物读取失败: IllegalStateException", errorMsg.getValue());
     }
 }
