@@ -165,9 +165,13 @@ public final class StructureStatsSupport {
         stats.put(KEY_PARENT_CHILD_COUNT, parentChild);
         stats.put(KEY_CONTINUATION_COUNT, continuation);
 
-        long traced = elements.stream().filter(StructureStatsSupport::isTraced).count();
+        // 溯源口径：结构性节点（SECTION）不计入分母；可回溯 = 自身或子元素（表格单元格）带定位
+        List<UnifiedElement> provenanceScope = elements.stream()
+                .filter(element -> !isStructuralElement(element))
+                .toList();
+        long traced = provenanceScope.stream().filter(StructureStatsSupport::isTraced).count();
         stats.put(KEY_TRACED_COUNT, traced);
-        stats.put(KEY_PROVENANCE_COVERAGE, coverage(traced, elements.size()));
+        stats.put(KEY_PROVENANCE_COVERAGE, coverage(traced, provenanceScope.size()));
         stats.put(KEY_DURATION_MS, StatsSupport.durationMs(startedAt, finishedAt));
 
         // 阅读顺序口径：产物里没有"是否重排"的标记，用"无坐标元素数"表达 ——
@@ -293,12 +297,25 @@ public final class StructureStatsSupport {
         return "结构可用 · " + String.join(" · ", notes);
     }
 
-    /** 元素是否带完整溯源（文件引用 + 定位路径齐备） */
+    /** 元素是否可回溯：自身带完整溯源，或其子元素（表格单元格）带完整溯源 */
     private static boolean isTraced(UnifiedElement element) {
-        Provenance provenance = element.getProvenance();
+        if (hasProvenance(element.getProvenance())) {
+            return true;
+        }
+        return NullUtil.isNotNull(element.getCells()) && element.getCells().stream()
+                .anyMatch(cell -> hasProvenance(cell.getProvenance()));
+    }
+
+    /** 溯源是否齐备（文件引用 + 定位路径） */
+    private static boolean hasProvenance(Provenance provenance) {
         return NullUtil.isNotNull(provenance)
                 && StrUtil.isNotBlank(provenance.getFile())
                 && StrUtil.isNotBlank(provenance.getPath());
+    }
+
+    /** 结构性节点：组装环节自造的节点（SECTION），没有原文定位 */
+    private static boolean isStructuralElement(UnifiedElement element) {
+        return UnifiedElementType.SECTION.name().equals(element.getType());
     }
 
     /** 章节节点数（SECTION 类型） */

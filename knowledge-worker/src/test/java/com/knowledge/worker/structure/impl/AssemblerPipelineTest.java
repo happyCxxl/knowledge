@@ -4,6 +4,7 @@ import com.knowledge.common.domain.input.FileReference;
 import com.knowledge.common.domain.parse.ParseElement;
 import com.knowledge.common.domain.parse.ParseResult;
 import com.knowledge.common.domain.parse.ParseSource;
+import com.knowledge.common.domain.parse.Provenance;
 import com.knowledge.common.domain.parse.QualityWarning;
 import com.knowledge.common.domain.structure.AssembleOutcome;
 import com.knowledge.common.domain.structure.UnifiedElement;
@@ -46,6 +47,10 @@ class AssemblerPipelineTest {
     /** 两侧枚举都不存在的类型名（模拟解析侧新增类型） */
     private static final String UNKNOWN_TYPE = "CUSTOM_BLOCK";
 
+    /** Excel MIME（触发 sheet → SECTION 分支） */
+    private static final String XLSX_MIME =
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
     private AssemblerPipeline pipeline;
     private StructureProperties properties;
 
@@ -70,16 +75,38 @@ class AssemblerPipelineTest {
     }
 
     private ParseResult parseResult(ParseElement... elements) {
+        return parseResult("application/pdf", elements);
+    }
+
+    private ParseResult parseResult(String mimeType, ParseElement... elements) {
         ParseResult result = new ParseResult();
         result.setResultId(2L);
         FileReference file = new FileReference();
         file.setFileId("f-1");
-        file.setMimeType("application/pdf");
+        file.setMimeType(mimeType);
         result.setFile(file);
         ParseSource source = ParseSource.nativeSource("pdfbox-3.0.4");
         source.setElements(new ArrayList<>(List.of(elements)));
         result.setSources(List.of(source));
         return result;
+    }
+
+    /** Excel 表格：sheetName 生成 SECTION，单元格按需带溯源 */
+    private ParseElement sheetTable(String id, String sheetName, boolean withCellProvenance) {
+        ParseElement table = ParseElement.of(id, ElementType.TABLE);
+        table.setSheetName(sheetName);
+        table.setPage(1);
+        table.setRows(1);
+        table.setCols(1);
+        ParseElement cell = ParseElement.of(id + "-c0", ElementType.TABLE_CELL);
+        cell.setRow(0);
+        cell.setCol(0);
+        cell.setText("甲");
+        if (withCellProvenance) {
+            cell.setProvenance(new Provenance("f-1", "office#sheet[" + sheetName + "]/cell[0,0]"));
+        }
+        table.setCells(List.of(cell));
+        return table;
     }
 
     private ParseElement paragraph(String id, String text) {
@@ -146,5 +173,25 @@ class AssemblerPipelineTest {
 
         assertEquals(PipelineTaskStatus.SUCCESS.name(), outcome.getSuggestedStatus());
         assertEquals(0, warningMessages(outcome, QualityWarningCode.ELEMENT_TYPE_UNMAPPED).size());
+    }
+
+    @Test
+    void excelSheetTableShouldNotWarnProvenance() {
+        // 章节节点不计入分母；表格经由单元格定位回原文 → 覆盖率 100%，不再恒定告警
+        AssembleOutcome outcome = pipeline.assemble(
+                parseResult(XLSX_MIME, sheetTable("t-1", "评分表", true)), context());
+
+        assertEquals(PipelineTaskStatus.SUCCESS.name(), outcome.getSuggestedStatus());
+        assertEquals(0, warningMessages(outcome, QualityWarningCode.PROVENANCE_MISSING).size());
+    }
+
+    @Test
+    void tableWithoutAnyProvenanceShouldStillWarnProvenance() {
+        AssembleOutcome outcome = pipeline.assemble(
+                parseResult(XLSX_MIME, sheetTable("t-1", "评分表", false)), context());
+
+        List<String> messages = warningMessages(outcome, QualityWarningCode.PROVENANCE_MISSING);
+        assertEquals(1, messages.size());
+        assertTrue(messages.getFirst().contains("1 个元素缺原文定位"), messages.getFirst());
     }
 }

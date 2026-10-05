@@ -5,10 +5,12 @@ import cn.hutool.core.util.StrUtil;
 import com.knowledge.common.domain.parse.PageDimension;
 import com.knowledge.common.domain.parse.ParseResult;
 import com.knowledge.common.domain.parse.ParseSource;
+import com.knowledge.common.domain.parse.Provenance;
 import com.knowledge.common.domain.parse.QualityWarning;
 import com.knowledge.common.domain.structure.*;
 import com.knowledge.common.domain.task.StepLogInfo;
 import com.knowledge.common.enums.parse.QualityWarningCode;
+import com.knowledge.common.enums.structure.UnifiedElementType;
 import com.knowledge.common.enums.task.PipelineTaskErrorCode;
 import com.knowledge.common.enums.task.PipelineTaskStatus;
 import com.knowledge.common.enums.task.StepStatus;
@@ -157,18 +159,41 @@ public class AssemblerPipeline implements DocumentAssemblerPort {
         return report;
     }
 
+    /** 溯源校验：结构性节点不计入分母；可回溯 = 元素自身或其子元素（表格单元格）带原文定位 */
     private void verifyProvenance(List<UnifiedElement> elements, AssembleReport report) {
-        int total = elements.size();
+        int total = 0;
         int traceable = 0;
         for (UnifiedElement element : elements) {
-            if (NullUtil.isNotNull(element.getProvenance())
-                    && StrUtil.isNotBlank(element.getProvenance().getFile())
-                    && StrUtil.isNotBlank(element.getProvenance().getPath())) {
+            if (isStructuralElement(element)) {
+                continue;
+            }
+            total++;
+            if (isTraceable(element)) {
                 traceable++;
             }
         }
         report.setNormalizedCount(total);
         report.setTraceableRatio(total > 0 ? (double) traceable / total : 0);
+    }
+
+    /** 可回溯：元素自身带原文定位，或其子元素（表格单元格）带定位 */
+    private boolean isTraceable(UnifiedElement element) {
+        if (hasProvenance(element.getProvenance())) {
+            return true;
+        }
+        return NullUtil.isNotNull(element.getCells()) && element.getCells().stream()
+                .anyMatch(cell -> hasProvenance(cell.getProvenance()));
+    }
+
+    /** 原文定位是否齐备（文件引用 + 定位路径） */
+    private boolean hasProvenance(Provenance provenance) {
+        return NullUtil.isNotNull(provenance) && StrUtil.isNotBlank(provenance.getFile())
+                && StrUtil.isNotBlank(provenance.getPath());
+    }
+
+    /** 结构性节点：组装环节自造的节点（SECTION；将来的 DOCUMENT/PAGE 同理），没有原文定位 */
+    private boolean isStructuralElement(UnifiedElement element) {
+        return UnifiedElementType.SECTION.name().equals(element.getType());
     }
 
     private UnifiedDocument buildDocument(ParseResult parseResult, AssembleContext context,
