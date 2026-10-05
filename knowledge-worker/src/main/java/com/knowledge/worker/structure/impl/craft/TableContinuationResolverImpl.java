@@ -83,7 +83,7 @@ public class TableContinuationResolverImpl implements TableContinuationResolver 
         return outcome;
     }
 
-    /** 接续判定（四条件 + 表头一致或列宽模式放宽规则）；页码相邻性按当前末页比较，表头不可读时不进主规则 */
+    /** 接续判定（四条件 + 表头一致或列宽模式放宽规则）；页码相邻性按当前末页比较，表头或列数不可判定时不进主规则 */
     private ContinuationDecision decide(UnifiedElement a, UnifiedElement b, AssembleContext context) {
         if (isNotPdfTable(a) || isNotPdfTable(b) || !isCutAtPageBottom(a)) {
             return NOT_MERGED;
@@ -95,10 +95,12 @@ public class TableContinuationResolverImpl implements TableContinuationResolver 
         if (NullUtil.isNull(b.getBbox()) || b.getBbox().getY() >= context.getProperties().getPageTopThreshold()) {
             return NOT_MERGED; // 下一页表格不在页首
         }
-        if (!Objects.equals(a.getCols(), b.getCols())) {
-            return NOT_MERGED; // 列数不同
+        boolean columnsKnown = NullUtil.isNotNull(a.getCols()) && NullUtil.isNotNull(b.getCols());
+        if (columnsKnown && !Objects.equals(a.getCols(), b.getCols())) {
+            return NOT_MERGED; // 列数已知且不同
         }
-        if (headerSimilarity(a, b) >= context.getProperties().getContinuationHeaderSimilarity()) {
+        // 主规则要求列数已知且表头可读且相似；任一条件不可判定即落放宽规则（按参考行列宽判定）
+        if (columnsKnown && headerSimilarity(a, b) >= context.getProperties().getContinuationHeaderSimilarity()) {
             return MERGED; // 主规则
         }
         if (!columnWidthPatternMatch(a, b, context)) {

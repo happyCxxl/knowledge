@@ -314,4 +314,33 @@ class TableContinuationResolverImplTest {
         assertEquals(1, outcome.getElements().size());
         assertEquals(1, outcome.getSuspectedCount());
     }
+
+    @Test
+    void missingColumnCountShouldNotPassAsEqual() {
+        // 两侧列表都缺失：不再当作"列数相同"走主规则，改按参考行列宽判为疑似接续
+        UnifiedElement a = multiRowTable(2, 700, true, 0,
+                List.of(List.of("评分项", "分值"), List.of("甲", "10")));
+        a.setCols(null);
+        UnifiedElement b = multiRowTable(3, 20, false, 0,
+                List.of(List.of("评分项", "分值"), List.of("乙", "20")));
+        b.setCols(null);
+
+        ContinuationOutcome outcome = resolver.joinContinuations(new ArrayList<>(List.of(a, b)), context());
+
+        assertEquals(1, outcome.getElements().size());
+        assertEquals(1, outcome.getSuspectedCount());
+    }
+
+    @Test
+    void knownDifferentColumnCountShouldNotMerge() {
+        UnifiedElement a = multiRowTable(2, 700, true, 0,
+                List.of(List.of("评分项", "分值"), List.of("甲", "10")));
+        UnifiedElement b = multiRowTable(3, 20, false, 0,
+                List.of(List.of("评分项", "分值", "备注"), List.of("乙", "20", "-")));
+
+        ContinuationOutcome outcome = resolver.joinContinuations(new ArrayList<>(List.of(a, b)), context());
+
+        assertEquals(2, outcome.getElements().size());
+        assertEquals(0, outcome.getContinuationCount());
+    }
 }
