@@ -75,25 +75,25 @@ public class StructureAssemblerImpl implements StructureAssembler {
         }
         outcome.setTitleCountByCascade(cascadeCounts);
 
-        // ② Excel：sheet → SECTION
-        List<DocumentRelation> relations = new ArrayList<>();
-        Set<String> relationKeys = new HashSet<>();
+        // ② Excel：sheet → SECTION（关系在接续之后按最终元素表重建）
         List<UnifiedElement> workElements = outcome.getElements();
         if (isExcel(context.getSourceFileType())) {
-            appendRelations(relations, relationKeys, buildSheetSections(workElements));
+            buildSheetSections(workElements);
         }
-
-        // ③ 章节树（PARENT_CHILD）
-        appendRelations(relations, relationKeys, buildChapterTree(workElements));
-
-        // ④ 阅读顺序关系（NEXT/PREVIOUS，页眉页脚排除正文流）
-        appendRelations(relations, relationKeys, buildOrderRelations(workElements));
-
-        // ⑤ 单元格归属（TABLE_CELL_OF）
-        appendRelations(relations, relationKeys, buildCellRelations(workElements));
-
-        outcome.setRelations(relations);
         return outcome;
+    }
+
+    @Override
+    public List<DocumentRelation> buildRelations(List<UnifiedElement> elements, AssembleContext context) {
+        List<DocumentRelation> relations = new ArrayList<>();
+        Set<String> relationKeys = new HashSet<>();
+        // 章节树（PARENT_CHILD；Excel 章节 → 表格的归属也在其中）
+        appendRelations(relations, relationKeys, buildChapterTree(elements));
+        // 阅读顺序关系（NEXT/PREVIOUS，页眉页脚排除正文流）
+        appendRelations(relations, relationKeys, buildOrderRelations(elements));
+        // 单元格归属（TABLE_CELL_OF；以最终元素表为准，接续并入的单元格归到合并后的表）
+        appendRelations(relations, relationKeys, buildCellRelations(elements));
+        return relations;
     }
 
     /** 关系累积：同一（类型、起点、终点）只保留首个（sheet 归属与章节树可能给出同一对父子） */
@@ -168,7 +168,7 @@ public class StructureAssemblerImpl implements StructureAssembler {
 
     // ---------------- 章节树 / 归属 / 顺序 ----------------
 
-    private List<DocumentRelation> buildSheetSections(List<UnifiedElement> elements) {
+    private void buildSheetSections(List<UnifiedElement> elements) {
         // 按 sheet 名分组（保持出现顺序），并记录各 sheet 首个元素的下标
         Map<String, List<UnifiedElement>> sheetGroups = new LinkedHashMap<>();
         Map<String, Integer> firstIndexes = new LinkedHashMap<>();
@@ -186,24 +186,13 @@ public class StructureAssemblerImpl implements StructureAssembler {
         }
         List<String> sheetNames = new ArrayList<>(sheetGroups.keySet());
         if (sheetNames.isEmpty()) {
-            return new ArrayList<>();
-        }
-        List<UnifiedElement> sections = new ArrayList<>();
-        for (String sheetName : sheetNames) {
-            sections.add(sheetSection(sheetName));
+            return;
         }
         // 自后向前插入：章节紧邻各自 sheet 的首个元素，顺序即 章节1、表1、章节2、表2 …
+        // 章节 → 表格的归属关系由 buildRelations 的章节树按最终元素表生成
         for (int i = sheetNames.size() - 1; i >= 0; i--) {
-            elements.add(firstIndexes.get(sheetNames.get(i)), sections.get(i));
+            elements.add(firstIndexes.get(sheetNames.get(i)), sheetSection(sheetNames.get(i)));
         }
-        List<DocumentRelation> relations = new ArrayList<>();
-        for (int i = 0; i < sheetNames.size(); i++) {
-            for (UnifiedElement table : sheetGroups.get(sheetNames.get(i))) {
-                relations.add(new DocumentRelation(RelationType.PARENT_CHILD.name(),
-                        sections.get(i).getId(), table.getId(), "sheet 归属"));
-            }
-        }
-        return relations;
     }
 
     /** sheet 章节节点：id 由 sheet 名派生，层级固定 0（工作表是顶层章节） */
@@ -220,37 +209,47 @@ public class StructureAssemblerImpl implements StructureAssembler {
         List<DocumentRelation> relations = new ArrayList<>();
         List<String> stack = new ArrayList<>();
         List<Integer> stackLevels = new ArrayList<>();
+        List<String> stackTypes = new ArrayList<>();
         for (UnifiedElement element : elements) {
             String type = element.getType();
             if (UnifiedElementType.TITLE.name().equals(type)) {
                 int level = ObjectUtil.defaultIfNull(element.getLevel(), 1);
-                popSameOrDeeper(stack, stackLevels, level);
+                popSameOrDeeper(stack, stackLevels, stackTypes, level);
                 addParentChild(relations, stack, element, null);
-                push(stack, stackLevels, element.getId(), level);
+                push(stack, stackLevels, stackTypes, element.getId(), level, type);
             } else if (UnifiedElementType.SECTION.name().equals(type)) {
-                popSameOrDeeper(stack, stackLevels, 0); // 同级章节互为兄弟
+                popSameOrDeeper(stack, stackLevels, stackTypes, 0); // 同级章节互为兄弟
                 addParentChild(relations, stack, element, "sheet 章节");
-                push(stack, stackLevels, element.getId(), 0);
+                push(stack, stackLevels, stackTypes, element.getId(), 0, type);
             } else if (!UnifiedElementType.HEADER.name().equals(type)
                     && !UnifiedElementType.FOOTER.name().equals(type)) {
-                addParentChild(relations, stack, element, null);
+                addParentChild(relations, stack, element, contentNote(stackTypes));
             }
         }
         return relations;
     }
 
+    /** 正文元素的父子关系说明：挂在 sheet 章节下时标"sheet 归属" */
+    private String contentNote(List<String> stackTypes) {
+        return !stackTypes.isEmpty() && UnifiedElementType.SECTION.name().equals(stackTypes.getLast())
+                ? "sheet 归属" : null;
+    }
+
     /** 弹出层级不浅于当前层级的节点（同级或更深者出栈，保证同级互为兄弟） */
-    private void popSameOrDeeper(List<String> stack, List<Integer> stackLevels, int level) {
+    private void popSameOrDeeper(List<String> stack, List<Integer> stackLevels, List<String> stackTypes, int level) {
         while (!stackLevels.isEmpty() && stackLevels.getLast() >= level) {
             stackLevels.removeLast();
             stack.removeLast();
+            stackTypes.removeLast();
         }
     }
 
     /** 当前节点入栈（正文元素不入栈，只挂到栈顶章节） */
-    private void push(List<String> stack, List<Integer> stackLevels, String elementId, int level) {
+    private void push(List<String> stack, List<Integer> stackLevels, List<String> stackTypes,
+                      String elementId, int level, String type) {
         stack.add(elementId);
         stackLevels.add(level);
+        stackTypes.add(type);
     }
 
     /** 挂到栈顶章节（栈空即顶级，无父关系）；note 为关系说明（无则空） */

@@ -128,17 +128,19 @@ class StructureAssemblerImplTest {
     void chapterTreeShouldAttachContentToNearestTitle() {
         UnifiedElement title = paragraph("第一章 总则", 14d, true);
         UnifiedElement content = paragraph("投标保证金为人民币叁佰万元整。", 10d, false);
+        AssembleContext ctx = context("application/pdf");
 
-        TreeOutcome outcome = assembler.assembleTree(List.of(title, content), context("application/pdf"));
+        TreeOutcome outcome = assembler.assembleTree(List.of(title, content), ctx);
+        List<DocumentRelation> relations = assembler.buildRelations(outcome.getElements(), ctx);
 
-        List<DocumentRelation> parentChild = outcome.getRelations().stream()
+        List<DocumentRelation> parentChild = relations.stream()
                 .filter(r -> "PARENT_CHILD".equals(r.getType()))
                 .toList();
         assertEquals(1, parentChild.size());
         assertEquals(title.getId(), parentChild.getFirst().getFrom());
         assertEquals(content.getId(), parentChild.getFirst().getTo());
         // 阅读顺序关系
-        assertTrue(outcome.getRelations().stream().anyMatch(r -> "NEXT".equals(r.getType())));
+        assertTrue(relations.stream().anyMatch(r -> "NEXT".equals(r.getType())));
     }
 
     @Test
@@ -148,15 +150,16 @@ class StructureAssemblerImplTest {
         table.setType(UnifiedElementType.TABLE.name());
         table.setText("评分表");
         table.setExtension(Map.of("sheetName", "评分表"));
+        AssembleContext ctx = context("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
 
-        TreeOutcome outcome = assembler.assembleTree(new ArrayList<>(List.of(table)),
-                context("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
+        TreeOutcome outcome = assembler.assembleTree(new ArrayList<>(List.of(table)), ctx);
+        List<DocumentRelation> relations = assembler.buildRelations(outcome.getElements(), ctx);
 
         assertEquals(2, outcome.getElements().size());
         UnifiedElement section = outcome.getElements().getFirst();
         assertEquals(UnifiedElementType.SECTION.name(), section.getType());
         assertEquals("评分表", section.getText());
-        assertTrue(outcome.getRelations().stream().anyMatch(r ->
+        assertTrue(relations.stream().anyMatch(r ->
                 "PARENT_CHILD".equals(r.getType()) && section.getId().equals(r.getFrom())
                         && "t-1".equals(r.getTo())));
     }
@@ -185,12 +188,13 @@ class StructureAssemblerImplTest {
 
     @Test
     void excelSectionsShouldBeSiblingsAndOwnTheirTables() {
+        AssembleContext ctx = context(XLSX_MIME);
         TreeOutcome outcome = assembler.assembleTree(
-                new ArrayList<>(List.of(sheetTable("t-1", "评分表"), sheetTable("t-2", "报价表"))),
-                context(XLSX_MIME));
+                new ArrayList<>(List.of(sheetTable("t-1", "评分表"), sheetTable("t-2", "报价表"))), ctx);
+        List<DocumentRelation> relations = assembler.buildRelations(outcome.getElements(), ctx);
 
         List<UnifiedElement> elements = outcome.getElements();
-        List<DocumentRelation> parentChild = outcome.getRelations().stream()
+        List<DocumentRelation> parentChild = relations.stream()
                 .filter(r -> "PARENT_CHILD".equals(r.getType()))
                 .toList();
         assertEquals(2, parentChild.size());
@@ -202,16 +206,17 @@ class StructureAssemblerImplTest {
 
     @Test
     void excelNextChainShouldFollowInterleavedOrder() {
+        AssembleContext ctx = context(XLSX_MIME);
         TreeOutcome outcome = assembler.assembleTree(
-                new ArrayList<>(List.of(sheetTable("t-1", "评分表"), sheetTable("t-2", "报价表"))),
-                context(XLSX_MIME));
+                new ArrayList<>(List.of(sheetTable("t-1", "评分表"), sheetTable("t-2", "报价表"))), ctx);
+        List<DocumentRelation> relations = assembler.buildRelations(outcome.getElements(), ctx);
 
         List<UnifiedElement> elements = outcome.getElements();
         List<String> expected = List.of(
                 elements.get(0).getId() + "->" + elements.get(1).getId(),
                 elements.get(1).getId() + "->" + elements.get(2).getId(),
                 elements.get(2).getId() + "->" + elements.get(3).getId());
-        List<String> chain = outcome.getRelations().stream()
+        List<String> chain = relations.stream()
                 .filter(r -> "NEXT".equals(r.getType()))
                 .map(r -> r.getFrom() + "->" + r.getTo())
                 .toList();

@@ -110,9 +110,13 @@ public class AssemblerPipeline implements DocumentAssemblerPort {
         StepLogHelper.finish(verifyLog);
         outcome.getStepLogs().add(verifyLog);
 
+        // 关系按最终元素表重建（接续会移除元素，避免出现指向已删元素的边）
+        List<DocumentRelation> relations = mergeRelations(
+                structureAssembler.buildRelations(continuation.getElements(), context),
+                continuation.getRelations());
+
         // 组装文档 + 质量
-        UnifiedDocument document = buildDocument(parseResult, context, continuation.getElements(),
-                mergeRelations(tree.getRelations(), continuation.getRelations()));
+        UnifiedDocument document = buildDocument(parseResult, context, continuation.getElements(), relations);
 
         // 重复与噪声识别（组装环节识别写标记，处置环节读取）
         StepLogInfo markLog = StepLogHelper.begin("重复与噪声识别");

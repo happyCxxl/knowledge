@@ -1,6 +1,5 @@
 package com.knowledge.worker.structure.craft;
 
-import com.knowledge.common.domain.structure.DocumentRelation;
 import com.knowledge.common.domain.structure.UnifiedElement;
 import lombok.Data;
 
@@ -9,7 +8,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 结构组装产出：元素（类型/层级更新）+ 关系 + 推定统计（内部流转，不出 worker）。
+ * 结构组装产出：元素（类型/层级更新）+ 推定统计（内部流转，不出 worker）；
+ * 关系由 {@link StructureAssembler#buildRelations} 在接续之后按最终元素表生成。
  *
  * @author cxxl
  */
@@ -18,9 +18,6 @@ public class TreeOutcome {
 
     /** 组装后元素 */
     private List<UnifiedElement> elements = new ArrayList<>();
-
-    /** 关系（PARENT_CHILD/TABLE_CELL_OF/NEXT/PREVIOUS…） */
-    private List<DocumentRelation> relations = new ArrayList<>();
 
     /** 标题推定数 */
     private int titleCount;
