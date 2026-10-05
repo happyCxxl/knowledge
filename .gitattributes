@@ -12,3 +12,8 @@
 # （Git Bash 版 mvn 用 `while read`、mvn.cmd 用 `for /F`），行尾带 CR 会把参数污染成
 # `-Dstdout.encoding=UTF-8\r` → JVM 直接 `Unrecognized option`。钩子里调用的正是 shell 版 mvn。
 .mvn/jvm.config text eol=lf
+
+# 前端整棵树钉死 LF：web/.prettierrc.json 里写明 endOfLine=lf，而 core.autocrlf=true 会把
+# 检出转成 CRLF，于是 `pnpm lint`（pre-push 第 3 步）的 `prettier --check .` 会把整棵前端树
+# 判为格式不符——与改动内容无关，只与检出环境有关。钉死 LF 后索引、工作区与校验口径一致。
+web/** text eol=lf
