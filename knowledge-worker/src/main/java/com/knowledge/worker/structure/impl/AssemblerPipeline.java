@@ -10,6 +10,7 @@ import com.knowledge.common.domain.parse.QualityWarning;
 import com.knowledge.common.domain.structure.*;
 import com.knowledge.common.domain.task.StepLogInfo;
 import com.knowledge.common.enums.parse.QualityWarningCode;
+import com.knowledge.common.enums.structure.StructureStepName;
 import com.knowledge.common.enums.structure.UnifiedElementType;
 import com.knowledge.common.enums.task.PipelineTaskErrorCode;
 import com.knowledge.common.enums.task.PipelineTaskStatus;
@@ -39,8 +40,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 组装编排（模板方法骨架）：标准化 → 去重合并 → 阅读顺序 → 结构组装 → 跨页接续 →
- * 溯源校验 → UnifiedDocument 构建 → 完整/部分树判定。
+ * 组装编排（模板方法骨架）：标准化 → 去重与阅读顺序 → 结构组装（标题/章节）→ 跨页接续 → 关系重建 →
+ * 溯源校验 → 重复与噪声识别 → 质量与空树判定（只产出 SUCCESS 或 STRUCTURE_EMPTY）。
  * 纯算法，不碰 DB/产物存储（落库回写由 biz StructureTaskRunner 编排）。
  *
  * @author cxxl
@@ -75,7 +76,7 @@ public class AssemblerPipeline implements DocumentAssemblerPort {
                 context.getTaskId(), context.getFileResultId(), context.getSourceFileType());
 
         // ① 元素标准化
-        StepLogInfo normalizeLog = StepLogHelper.begin("元素标准化");
+        StepLogInfo normalizeLog = StepLogHelper.begin(StructureStepName.NORMALIZE.value());
         NormalizeOutcome normalize = normalizer.normalize(parseResult.getSources(), context);
         List<UnifiedElement> normalized = normalize.getElements();
         if (!normalize.getUnmappedTypeCounts().isEmpty()) {
@@ -87,7 +88,7 @@ public class AssemblerPipeline implements DocumentAssemblerPort {
         outcome.getStepLogs().add(normalizeLog);
 
         // ② 去重与合并 + ③ 阅读顺序
-        StepLogInfo orderLog = StepLogHelper.begin("去重与阅读顺序");
+        StepLogInfo orderLog = StepLogHelper.begin(StructureStepName.DEDUP_ORDER.value());
         MergeOutcome merged = merger.merge(normalized, context);
         List<UnifiedElement> ordered = readingOrderResolver.resolve(merged.getElements(), context);
         orderLog.setStatus(StepStatus.SUCCESS.name());
@@ -95,7 +96,7 @@ public class AssemblerPipeline implements DocumentAssemblerPort {
         outcome.getStepLogs().add(orderLog);
 
         // ④ 结构组装 + ⑤ 跨页接续
-        StepLogInfo assembleLog = StepLogHelper.begin("结构组装与接续");
+        StepLogInfo assembleLog = StepLogHelper.begin(StructureStepName.ASSEMBLE_CONTINUATION.value());
         TreeOutcome tree = structureAssembler.assembleTree(ordered, context);
         ContinuationOutcome continuation = continuationResolver.joinContinuations(tree.getElements(), context);
         assembleLog.setStatus(StepStatus.SUCCESS.name());
@@ -103,7 +104,7 @@ public class AssemblerPipeline implements DocumentAssemblerPort {
         outcome.getStepLogs().add(assembleLog);
 
         // ⑥ 溯源校验 + 组装报告
-        StepLogInfo verifyLog = StepLogHelper.begin("溯源校验");
+        StepLogInfo verifyLog = StepLogHelper.begin(StructureStepName.VERIFY_PROVENANCE.value());
         AssembleReport report = buildReport(merged, tree, continuation);
         verifyProvenance(continuation.getElements(), report);
         verifyLog.setStatus(StepStatus.SUCCESS.name());
@@ -119,8 +120,13 @@ public class AssemblerPipeline implements DocumentAssemblerPort {
         UnifiedDocument document = buildDocument(parseResult, context, continuation.getElements(), relations);
 
         // 重复与噪声识别（组装环节识别写标记，处置环节读取）
-        StepLogInfo markLog = StepLogHelper.begin("重复与噪声识别");
+        StepLogInfo markLog = StepLogHelper.begin(StructureStepName.MARK_REPEAT_NOISE.value());
         MarkOutcome markOutcome = repeatNoiseMarker.mark(document);
+        if (NullUtil.isNotNull(markOutcome.getWarnings())) {
+            for (String reason : markOutcome.getWarnings()) {
+                log.warn("===> AssemblerPipeline 标记明细, taskId={}, reason={}", context.getTaskId(), reason);
+            }
+        }
         markLog.setStatus(StepStatus.SUCCESS.name());
         markLog.setWarningCount(markOutcome.getNoisePageCount());
         StepLogHelper.finish(markLog);
@@ -129,7 +135,7 @@ public class AssemblerPipeline implements DocumentAssemblerPort {
         report.setRepeatSegmentCount(markOutcome.getRepeatSegmentCount());
         report.setNoisePageCount(markOutcome.getNoisePageCount());
 
-        document.setQuality(buildQuality(merged, tree, continuation, report, normalize));
+        document.setQuality(buildQuality(merged, tree, continuation, report, normalize, context));
         outcome.setDocument(document);
         outcome.setReport(report);
 
@@ -159,7 +165,6 @@ public class AssemblerPipeline implements DocumentAssemblerPort {
         report.setTitleCountByCascade(ObjectUtil.defaultIfNull(tree.getTitleCountByCascade(), new HashMap<>()));
         report.setTitleCandidateCount(tree.getTitleCandidateCount());
         report.setContinuationCount(continuation.getContinuationCount());
-        report.setUnattachableElements(ObjectUtil.defaultIfNull(tree.getUnattachableElements(), new ArrayList<>()));
         return report;
     }
 
@@ -176,7 +181,7 @@ public class AssemblerPipeline implements DocumentAssemblerPort {
                 traceable++;
             }
         }
-        report.setNormalizedCount(total);
+        report.setProvenanceScopeCount(total);
         report.setTraceableRatio(total > 0 ? (double) traceable / total : 0);
     }
 
@@ -244,7 +249,7 @@ public class AssemblerPipeline implements DocumentAssemblerPort {
 
     private DocumentQuality buildQuality(MergeOutcome merged, TreeOutcome tree,
                                          ContinuationOutcome continuation, AssembleReport report,
-                                         NormalizeOutcome normalize) {
+                                         NormalizeOutcome normalize, AssembleContext context) {
         DocumentQuality quality = new DocumentQuality();
         quality.setConflicts(ObjectUtil.defaultIfNull(merged.getConflicts(), new ArrayList<>()));
         if (tree.getTitleCandidateCount() > 0) {
@@ -255,12 +260,14 @@ public class AssemblerPipeline implements DocumentAssemblerPort {
             quality.getWarnings().add(QualityWarning.of(QualityWarningCode.SUSPECTED_CONTINUATION, null, "WARN",
                     "疑似续表 " + continuation.getSuspectedCount() + " 处（放宽规则命中，默认接续 + 表头继承）"));
         }
-        if (report.getTraceableRatio() < 1) {
-            int missingCount = report.getNormalizedCount()
-                    - (int) Math.round(report.getTraceableRatio() * report.getNormalizedCount());
+        int coveragePercent = (int) Math.round(report.getTraceableRatio() * 100);
+        int lowPercent = context.getProperties().getProvenanceLowPercent();
+        if (coveragePercent < lowPercent) {
+            int missingCount = report.getProvenanceScopeCount()
+                    - (int) Math.round(report.getTraceableRatio() * report.getProvenanceScopeCount());
             quality.getWarnings().add(QualityWarning.of(QualityWarningCode.PROVENANCE_MISSING, null, "WARN",
-                    String.format("溯源可回溯占比 %.2f，%d 个元素缺原文定位",
-                            report.getTraceableRatio(), missingCount)));
+                    String.format("溯源可回溯占比 %.2f（低于阈值 %d%%），%d 个元素缺原文定位",
+                            report.getTraceableRatio(), lowPercent, missingCount)));
         }
         if (report.getNoisePageCount() > 0) {
             quality.getWarnings().add(QualityWarning.of(QualityWarningCode.NOISE_PAGE, null, "WARN",

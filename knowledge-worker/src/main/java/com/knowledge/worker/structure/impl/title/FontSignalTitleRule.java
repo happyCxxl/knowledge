@@ -7,7 +7,7 @@ import com.knowledge.worker.structure.title.TitleRuleContext;
 import org.springframework.stereotype.Component;
 
 /**
- * 字号/加粗启发式标题规则（最弱层）：短句 + 加粗 + 字号 ≥ 文档中位数 1.15 倍 → 二级档
+ * 字号/加粗启发式标题规则（最弱层）：短句 + 加粗 + 字号 ≥ 文档中位数 × 配置比例（默认 1.15）→ 二级档
  * （深层标题靠编号模式，本层只兜无编号场景）。
  *
  * @author cxxl
@@ -24,7 +24,8 @@ public class FontSignalTitleRule implements TitleRule {
     public TitleDecision tryMatch(TitleRuleContext context) {
         Double size = context.fontSize();
         if (!context.shortText() || !context.bold() || NullUtil.isNull(size)
-                || context.medianSize() <= 0 || size < context.medianSize() * 1.15) {
+                || context.medianSize() <= 0
+                || size < context.medianSize() * context.properties().getFontSignalSizeRatio()) {
             return null;
         }
         return TitleDecision.title(2,

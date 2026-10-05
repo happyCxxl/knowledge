@@ -37,7 +37,7 @@ public class UnifiedElement {
     /** 跨页元素：页码范围 */
     private List<Integer> pageRange;
 
-    /** 跨页元素：按页分段框 */
+    /** 跨页元素：按页分段框（供预览分段高亮；当前无生产读取方） */
     private List<ElementBBox> bboxes;
 
     /** 字体事实 */

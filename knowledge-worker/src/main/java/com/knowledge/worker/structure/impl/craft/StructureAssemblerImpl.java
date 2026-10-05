@@ -131,17 +131,29 @@ public class StructureAssemblerImpl implements StructureAssembler {
             judgeContext.setFontSize(ruleContext.fontSize());
             judgeContext.setBold(ruleContext.element().getFont() == null
                     ? null : ruleContext.element().getFont().getBold());
+            // 兜底路径下编号模式不可知（能识别编号的规则已先命中），留空
             judgeContext.setNumberingPattern(null);
             TitleJudgeResult result = judge.judgeTitle(judgeContext);
             if (NullUtil.isNotNull(result) && Boolean.TRUE.equals(result.getIsTitle())) {
                 TitleEvidence evidence = TitleDecision.evidence("model", ruleContext.fontSize(),
                         ruleContext.bold(), null);
-                evidence.setModelEvidence(result.getModel() + "@" + result.getVersion()
-                        + " conf=" + result.getConfidence());
+                evidence.setModelEvidence(modelEvidenceText(result));
                 return TitleDecision.title(ObjectUtil.defaultIfNull(result.getLevel(), 2), evidence);
             }
         }
         return TitleDecision.paragraph();
+    }
+
+    /** 模型兜底证据文本：版本与置信度缺失时不拼 null */
+    private String modelEvidenceText(TitleJudgeResult result) {
+        StringBuilder text = new StringBuilder(StrUtil.blankToDefault(result.getModel(), "model"));
+        if (StrUtil.isNotBlank(result.getVersion())) {
+            text.append('@').append(result.getVersion());
+        }
+        if (ObjectUtil.isNotNull(result.getConfidence())) {
+            text.append(" conf=").append(result.getConfidence());
+        }
+        return text.toString();
     }
 
     private double medianFontSize(List<UnifiedElement> elements) {

@@ -23,7 +23,7 @@ public class ParseSource {
     /** 具体解析器/提供方（如 pdfbox-3.0.4） */
     private String provider;
 
-    /** 该路是否带候选顺序信息（组装环节阅读顺序参考） */
+    /** 该路是否带候选顺序信息（预留未实现：组装环节阅读顺序当前不消费该字段） */
     private Boolean candidateOrder;
 
     /** 该路产出的元素列表 */

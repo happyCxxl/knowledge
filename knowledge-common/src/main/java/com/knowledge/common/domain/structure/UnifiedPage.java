@@ -22,7 +22,7 @@ public class UnifiedPage {
     /** 页面高（pt） */
     private Double height;
 
-    /** 旋转角度 */
+    /** 旋转角度（预留未实现：当前恒 0，PDF /Rotate 未接；接入时由解析侧回填） */
     private Double rotation;
 
     /** 单位 */

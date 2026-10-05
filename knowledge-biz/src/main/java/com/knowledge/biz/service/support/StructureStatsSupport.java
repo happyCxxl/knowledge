@@ -54,6 +54,9 @@ public final class StructureStatsSupport {
     /** 疑似续表数 */
     public static final String KEY_CONTINUATION_COUNT = "continuationCount";
 
+    /** 疑似续表数（放宽规则命中；关系 detail 标注"疑似"） */
+    public static final String KEY_SUSPECTED_CONTINUATION_COUNT = "suspectedContinuationCount";
+
     /** 溯源齐备的元素数 */
     public static final String KEY_TRACED_COUNT = "tracedCount";
 
@@ -64,6 +67,7 @@ public final class StructureStatsSupport {
     public static final String KEY_DURATION_MS = "durationMs";
 
     /** 无坐标元素数（阅读顺序靠"按坐标排 + 无坐标按原序追加"） */
+    /** 阅读顺序口径：产物里没有"是否重排"的标记，用"无坐标元素数"表达（跨页续表保留首页框，不再计入） */
     public static final String KEY_WITHOUT_BBOX_COUNT = "withoutBboxCount";
 
     /** 重复段数（元素 marks = REPEATED_SEGMENT） */
@@ -155,15 +159,20 @@ public final class StructureStatsSupport {
 
         int parentChild = 0;
         int continuation = 0;
+        int suspectedContinuation = 0;
         for (DocumentRelation relation : relations) {
             if (RelationType.PARENT_CHILD.name().equals(relation.getType())) {
                 parentChild++;
             } else if (RelationType.CONTINUATION_OF.name().equals(relation.getType())) {
                 continuation++;
+                if (isSuspectedContinuation(relation)) {
+                    suspectedContinuation++;
+                }
             }
         }
         stats.put(KEY_PARENT_CHILD_COUNT, parentChild);
         stats.put(KEY_CONTINUATION_COUNT, continuation);
+        stats.put(KEY_SUSPECTED_CONTINUATION_COUNT, suspectedContinuation);
 
         // 溯源口径：结构性节点（SECTION）不计入分母；可回溯 = 自身或子元素（表格单元格）带定位
         List<UnifiedElement> provenanceScope = elements.stream()
@@ -195,6 +204,11 @@ public final class StructureStatsSupport {
             stats.put(KEY_SCHEMA_VERSION, info.getSchemaVersion());
         }
         return stats;
+    }
+
+    /** 该接续关系是否属放宽规则命中的疑似接续（组装环节写在关系 detail 里） */
+    private static boolean isSuspectedContinuation(DocumentRelation relation) {
+        return StrUtil.isNotBlank(relation.getDetail()) && relation.getDetail().contains("疑似");
     }
 
     /** 元素 marks 里含指定标记的数量 */
@@ -282,9 +296,9 @@ public final class StructureStatsSupport {
         if (coverage < PROVENANCE_LOW_PERCENT) {
             notes.add("溯源偏低 " + coverage + "%");
         }
-        int continuation = intOf(stats.get(KEY_CONTINUATION_COUNT));
-        if (continuation > 0) {
-            notes.add("疑似续表 " + continuation + " 处");
+        int suspectedContinuation = intOf(stats.get(KEY_SUSPECTED_CONTINUATION_COUNT));
+        if (suspectedContinuation > 0) {
+            notes.add("疑似续表 " + suspectedContinuation + " 处");
         }
         int repeated = intOf(stats.get(KEY_REPEATED_SEGMENT_COUNT));
         int noise = intOf(stats.get(KEY_NOISE_PAGE_COUNT));

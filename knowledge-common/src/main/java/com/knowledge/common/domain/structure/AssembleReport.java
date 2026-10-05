@@ -2,19 +2,19 @@ package com.knowledge.common.domain.structure;
 
 import lombok.Data;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Map;
 
 /**
- * 组装报告：多工艺统计 + 溯源可回溯占比（落子步骤记录，工作台"组装详情"数据源）。
+ * 组装报告：多工艺统计 + 溯源可回溯占比。
+ * 内部流转：不落产物、不落子步骤记录（详情页统计由 biz 侧按产物现算，本类只服务管线内判定与日志）。
  *
  * @author cxxl
  */
 @Data
 public class AssembleReport {
 
-    /** 标准化元素数 */
-    private int normalizedCount;
+    /** 计入溯源分母的元素数（接续合并后、排除结构性节点） */
+    private int provenanceScopeCount;
 
     /** 去重合并对数 */
     private int mergePairs;
@@ -22,14 +22,14 @@ public class AssembleReport {
     /** 冲突数 */
     private int conflictCount;
 
-    /** 阅读顺序切分数（预留未启用，从未赋值） */
+    /** 阅读顺序切分数（预留未实现：从未赋值，接入顺序切分统计时启用） */
     private int orderCuts;
 
     /** 标题推定数 */
     private int titleCount;
 
     /** 标题推定数（按级联层统计，如 style:1, number-pattern:3） */
-    private java.util.Map<String, Integer> titleCountByCascade;
+    private Map<String, Integer> titleCountByCascade;
 
     /** 标题候选告警数 */
     private int titleCandidateCount;
@@ -48,7 +48,4 @@ public class AssembleReport {
 
     /** 噪声页数（组装环节识别） */
     private int noisePageCount;
-
-    /** 无法挂树的元素 ID 列表（组装完整性判定依据） */
-    private List<String> unattachableElements = new ArrayList<>();
 }

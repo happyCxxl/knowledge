@@ -43,8 +43,9 @@ public record TitleRuleContext(UnifiedElement element, double medianSize, Struct
         return NullUtil.isNotNull(element.getFont()) && Boolean.TRUE.equals(element.getFont().getBold());
     }
 
-    /** 字号佐证：加粗，或字号不低于文档中位数 1.05 倍 */
+    /** 字号佐证：加粗，或字号不低于文档中位数 × 配置比例（默认 1.05） */
     public boolean fontBacked() {
-        return bold() || (NullUtil.isNotNull(fontSize()) && medianSize > 0 && fontSize() >= medianSize * 1.05);
+        return bold() || (NullUtil.isNotNull(fontSize()) && medianSize > 0
+                && fontSize() >= medianSize * properties.getFontBackedSizeRatio());
     }
 }

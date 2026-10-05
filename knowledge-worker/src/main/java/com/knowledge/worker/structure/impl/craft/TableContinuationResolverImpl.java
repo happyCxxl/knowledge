@@ -122,7 +122,7 @@ public class TableContinuationResolverImpl implements TableContinuationResolver 
         int droppedRows = appendRows(mergedCells, b, baseRows);
         a.setCells(mergedCells);
         a.setRows(baseRows + declaredRowsOf(b) - droppedRows);
-        a.setHeaderInherited(true);
+        a.setHeaderInherited(droppedRows > 0); // 仅在确实丢弃了续页表头行时才算表头继承
         // 跨页位置以列表承载：pageRange/bboxes 逐页累积；首页的 page 与 bbox 保留在元素上
         a.setPageRange(appendPageRange(a, b));
         a.setBboxes(appendBboxes(a, b));
@@ -296,7 +296,7 @@ public class TableContinuationResolverImpl implements TableContinuationResolver 
                 matched++;
             }
         }
-        return (double) matched / widthsA.size() >= 0.6;
+        return (double) matched / widthsA.size() >= context.getProperties().getColumnWidthMatchRatio();
     }
 
     private List<Double> rowWidths(UnifiedElement table, Integer row) {

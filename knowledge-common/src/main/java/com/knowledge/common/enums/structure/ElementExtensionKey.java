@@ -27,7 +27,7 @@ public enum ElementExtensionKey {
     /** 表格被页底切断标记（PDF 解析器写入，跨页接续判定用） */
     CUT_AT_PAGE_BOTTOM("cutAtPageBottom"),
 
-    /** 页眉重复出现标记（PDF 解析器写入） */
+    /** 页眉重复出现标记（预留未实现：当前无解析器写入、无读取方） */
     HEADER_REPEATED("headerRepeated");
 
     private final String key;

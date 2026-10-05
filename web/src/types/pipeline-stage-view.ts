@@ -275,7 +275,7 @@ const STRUCTURE_VIEW: StageViewConfig = {
       },
       { key: 'tables', label: '表格', value: countText(summary?.tableCount) },
       { key: 'images', label: '图片', value: countText(summary?.imageCount) },
-      { key: 'continuation', label: '疑似续表', value: countText(statNum('continuationCount')) },
+      { key: 'continuation', label: '续表', value: countText(statNum('continuationCount')) },
       { key: 'conflicts', label: '冲突', value: countText(summary?.conflictCount) },
       { key: 'warnings', label: '告警', value: countText(summary?.warningCount) },
       { key: 'traced', label: '溯源覆盖率', value: coverageText(statNum('provenanceCoverage')) },
@@ -530,6 +530,7 @@ function structureChecklist(node: LineageNode): StageCheckItem[] {
   const coverage = statOf(node, 'provenanceCoverage');
   const traced = statOf(node, 'tracedCount');
   const continuation = statOf(node, 'continuationCount');
+  const suspected = statOf(node, 'suspectedContinuationCount');
   const fromPage = statOf(node, 'continuationFromPage');
   const toPage = statOf(node, 'continuationToPage');
   const repeated = statOf(node, 'repeatedSegmentCount');
@@ -544,8 +545,7 @@ function structureChecklist(node: LineageNode): StageCheckItem[] {
         : 'warn';
   const coverageTone: CheckTone =
     coverage === null ? 'idle' : coverage >= PROVENANCE_WARN_PERCENT ? 'ok' : 'warn';
-  const continuationTone: CheckTone =
-    continuation === null ? 'idle' : continuation > 0 ? 'warn' : 'ok';
+  const continuationTone: CheckTone = suspected === null ? 'idle' : suspected > 0 ? 'warn' : 'ok';
   const repeatTone: CheckTone =
     repeated === null || noise === null ? 'idle' : repeated > 0 || noise > 0 ? 'warn' : 'ok';
   const orderTone: CheckTone = withoutBbox === null ? 'idle' : withoutBbox > 0 ? 'warn' : 'ok';
@@ -568,8 +568,9 @@ function structureChecklist(node: LineageNode): StageCheckItem[] {
     {
       key: 'continuation',
       label: '疑似续表',
-      value: continuation === null ? '—' : `${countText(continuation)} 处`,
-      note: continuationRangeText(continuation, fromPage, toPage),
+      value: continuation === null ? '—' : `疑似 ${countText(suspected ?? 0)} 处`,
+      note:
+        continuationRangeText(continuation, fromPage, toPage) || `共 ${countText(continuation)} 处`,
       tone: continuationTone,
     },
     {

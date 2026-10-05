@@ -27,7 +27,4 @@ public class TreeOutcome {
 
     /** 标题候选告警数 */
     private int titleCandidateCount;
-
-    /** 无法挂树的元素 ID */
-    private List<String> unattachableElements = new ArrayList<>();
 }

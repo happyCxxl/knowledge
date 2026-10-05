@@ -1,8 +1,10 @@
 package com.knowledge.biz.service.support;
 
 import com.knowledge.common.domain.parse.Provenance;
+import com.knowledge.common.domain.structure.DocumentRelation;
 import com.knowledge.common.domain.structure.UnifiedDocument;
 import com.knowledge.common.domain.structure.UnifiedElement;
+import com.knowledge.common.enums.structure.RelationType;
 import com.knowledge.common.enums.structure.UnifiedElementType;
 import org.junit.jupiter.api.Test;
 
@@ -88,5 +90,21 @@ class StructureStatsSupportTest {
 
         assertEquals(0, stats.get(StructureStatsSupport.KEY_PROVENANCE_COVERAGE));
         assertTrue(StructureStatsSupport.summary(null, stats, "SUCCESS").contains("溯源偏低 0%"));
+    }
+
+    @Test
+    void suspectedContinuationShouldBeCountedSeparately() {
+        UnifiedDocument document = new UnifiedDocument();
+        document.setElements(List.of(traced("n-1", UnifiedElementType.PARAGRAPH)));
+        document.setRelations(List.of(
+                new DocumentRelation(RelationType.CONTINUATION_OF.name(), "n-1#p2", "n-1#p1", "续表四条件命中，表头继承"),
+                new DocumentRelation(RelationType.CONTINUATION_OF.name(), "n-1#p3", "n-1#p1",
+                        "疑似续表（放宽规则），表头继承")));
+
+        Map<String, Object> stats = StructureStatsSupport.stats(null, null, document);
+
+        assertEquals(2, stats.get(StructureStatsSupport.KEY_CONTINUATION_COUNT));
+        assertEquals(1, stats.get(StructureStatsSupport.KEY_SUSPECTED_CONTINUATION_COUNT));
+        assertTrue(StructureStatsSupport.summary(null, stats, "SUCCESS").contains("疑似续表 1 处"));
     }
 }

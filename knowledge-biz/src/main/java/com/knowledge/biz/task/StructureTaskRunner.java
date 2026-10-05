@@ -103,6 +103,7 @@ public class StructureTaskRunner {
 
     private void persistProduct(KbPipelineTask task, KbPipelineProduct parseProduct, AssembleOutcome outcome) {
         UnifiedDocument document = Objects.requireNonNull(outcome.getDocument(), "组装结果为空");
+        // 组装环节没有独立能力快照：产物行该列只承载 schemaVersion（解析环节的能力快照在 documentInfo 里）
         KbPipelineProduct product = productPersistence.persist(task, PipelineStage.STRUCTURE, parseProduct.getId(),
                 JsonUtil.toJsonStr(Map.of("schemaVersion", UnifiedDocument.SCHEMA_VERSION)), document);
         stepLogPersistence.save(task.getId(), outcome.getStepLogs());
