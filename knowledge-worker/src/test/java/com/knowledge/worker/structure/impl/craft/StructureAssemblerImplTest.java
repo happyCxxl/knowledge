@@ -13,6 +13,7 @@ import com.knowledge.worker.structure.impl.title.CnDotTitleRule;
 import com.knowledge.worker.structure.impl.title.CnParenTitleRule;
 import com.knowledge.worker.structure.impl.title.FontSignalTitleRule;
 import com.knowledge.worker.structure.impl.title.NumberTitleRule;
+import com.knowledge.worker.structure.impl.title.SingleNumberTitleRule;
 import com.knowledge.worker.structure.impl.title.StyleTitleRule;
 import com.knowledge.worker.structure.title.TitleRule;
 import org.junit.jupiter.api.BeforeEach;
@@ -41,8 +42,8 @@ class StructureAssemblerImplTest {
     void setUp() {
         properties = new StructureProperties();
         List<TitleRule> rules = List.of(new StyleTitleRule(), new ChapterTitleRule(),
-                new NumberTitleRule(), new CnParenTitleRule(), new CnDotTitleRule(),
-                new FontSignalTitleRule());
+                new SingleNumberTitleRule(), new NumberTitleRule(), new CnParenTitleRule(),
+                new CnDotTitleRule(), new FontSignalTitleRule());
         assembler = new StructureAssemblerImpl(
                 new StructureJudgeRegistry(new ArrayList<>(), properties), rules);
     }
@@ -215,5 +216,81 @@ class StructureAssemblerImplTest {
                 .map(r -> r.getFrom() + "->" + r.getTo())
                 .toList();
         assertEquals(expected, chain);
+    }
+
+    @Test
+    void styleRuleShouldRejectStyleNameContainingHeading() {
+        UnifiedElement styled = paragraph("投标保证金为人民币叁佰万元整。", 10d, false);
+        styled.setExtension(Map.of("style", "MyHeading2Style"));
+
+        assembler.assembleTree(List.of(styled), context("application/pdf"));
+
+        assertEquals(UnifiedElementType.PARAGRAPH.name(), styled.getType());
+    }
+
+    @Test
+    void styleRuleShouldClampDeepLevel() {
+        UnifiedElement styled = paragraph("第某章 标题", 12d, false);
+        styled.setExtension(Map.of("style", "Heading12"));
+
+        assembler.assembleTree(List.of(styled), context("application/pdf"));
+
+        assertEquals(UnifiedElementType.TITLE.name(), styled.getType());
+        assertEquals(9, styled.getLevel());
+    }
+
+    @Test
+    void styleRuleShouldRequireShortText() {
+        UnifiedElement styled = paragraph("这是一段被套用了标题样式的长正文内容，用于确认样式规则同样要求短句约束，"
+                + "避免整段正文被判定为标题而撑坏章节结构。", 12d, false);
+        styled.setExtension(Map.of("style", "Heading2"));
+
+        assembler.assembleTree(List.of(styled), context("application/pdf"));
+
+        assertEquals(UnifiedElementType.PARAGRAPH.name(), styled.getType());
+    }
+
+    @Test
+    void singleNumberHeadingShouldBeLevelOne() {
+        UnifiedElement heading = paragraph("1 总则", 14d, true);
+
+        assembler.assembleTree(List.of(heading), context("application/pdf"));
+
+        assertEquals(UnifiedElementType.TITLE.name(), heading.getType());
+        assertEquals(1, heading.getLevel());
+        assertEquals("single-number-pattern", heading.getTitleEvidence().getCascade());
+        assertEquals("1", heading.getTitleEvidence().getPattern());
+    }
+
+    @Test
+    void dotNumberHeadingShouldStayLevelTwo() {
+        UnifiedElement dotted = paragraph("1.1 范围", 14d, true);
+
+        assembler.assembleTree(List.of(dotted), context("application/pdf"));
+
+        assertEquals(UnifiedElementType.TITLE.name(), dotted.getType());
+        assertEquals(2, dotted.getLevel());
+        assertEquals("number-pattern", dotted.getTitleEvidence().getCascade());
+        assertEquals("1.1", dotted.getTitleEvidence().getPattern());
+    }
+
+    @Test
+    void decimalParagraphShouldNotBecomeTitle() {
+        UnifiedElement decimal = paragraph("3.14 是圆周率的近似值，属于正文说明。", 10d, false);
+
+        TreeOutcome outcome = assembler.assembleTree(List.of(decimal), context("application/pdf"));
+
+        assertEquals(UnifiedElementType.PARAGRAPH.name(), decimal.getType());
+        assertEquals(1, outcome.getTitleCandidateCount());
+    }
+
+    @Test
+    void singleNumberBodyLineShouldBeCandidateOnly() {
+        UnifiedElement body = paragraph("2 个工作日", 10d, false);
+
+        TreeOutcome outcome = assembler.assembleTree(List.of(body), context("application/pdf"));
+
+        assertEquals(UnifiedElementType.PARAGRAPH.name(), body.getType());
+        assertEquals(1, outcome.getTitleCandidateCount());
     }
 }

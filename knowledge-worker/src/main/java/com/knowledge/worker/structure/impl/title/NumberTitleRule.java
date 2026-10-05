@@ -1,5 +1,6 @@
 package com.knowledge.worker.structure.impl.title;
 
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.structure.title.TitleDecision;
 import com.knowledge.worker.structure.title.TitleRule;
 import com.knowledge.worker.structure.title.TitleRuleContext;
@@ -27,20 +28,12 @@ public class NumberTitleRule implements TitleRule {
 
     @Override
     public TitleDecision tryMatch(TitleRuleContext context) {
-        if (!context.shortText()) {
-            return null;
-        }
-        Matcher number = NUMBER_PATTERN.matcher(context.text());
-        if (!number.matches()) {
+        Matcher number = NumberTitleSupport.matchNumber(context, NUMBER_PATTERN);
+        if (NullUtil.isNull(number)) {
             return null;
         }
         int level = countDots(number.group(1)) + 1;
-        boolean hasCjk = context.text().codePoints().anyMatch(cp -> cp >= 0x4E00 && cp <= 0x9FFF);
-        if (hasCjk && context.fontBacked()) {
-            return TitleDecision.title(level,
-                    TitleDecision.evidence("number-pattern", context.fontSize(), context.bold(), "1.1"));
-        }
-        return TitleDecision.candidate();
+        return NumberTitleSupport.decide(context, level, "number-pattern", number.group(1));
     }
 
     private int countDots(String number) {
