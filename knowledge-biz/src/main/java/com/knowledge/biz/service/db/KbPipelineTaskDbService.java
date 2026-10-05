@@ -65,6 +65,16 @@ public interface KbPipelineTaskDbService extends InfraDbService<KbPipelineTask> 
     int finish(Long id, String status, String errorCode, String errorMsg);
 
     /**
+     * 未入队即失败回写：QUEUED → FAILED + 结束时间 + 错误码/信息（条件更新，已被领取的任务不受影响）。
+     *
+     * @param id        任务 ID
+     * @param errorCode 错误码
+     * @param errorMsg  错误信息
+     * @return 受影响行数
+     */
+    int failQueued(Long id, String errorCode, String errorMsg);
+
+    /**
      * 扫库领批（多环节）：QUEUED + 环节在给定集合内，id 升序，限量。
      *
      * @param stages 环节集合（PipelineStage 枚举名）

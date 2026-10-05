@@ -4,6 +4,7 @@ import com.knowledge.biz.service.db.KbPipelineTaskDbService;
 import com.knowledge.common.domain.entity.KbPipelineTask;
 import com.knowledge.common.dto.response.task.StageTriggerVO;
 import com.knowledge.common.enums.task.PipelineStage;
+import com.knowledge.common.enums.task.PipelineTaskErrorCode;
 import com.knowledge.common.enums.task.PipelineTaskStatus;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.ThrowUtil;
@@ -64,9 +65,21 @@ public class TaskTriggerSupport {
         task.setUpstreamProductId(upstreamProductId);
         task.setStrategySnapshot(strategySnapshot);
         pipelineTaskDbService.save(task);
-        taskQueue.enqueue(task.getId());
+        enqueueNewTask(task, stageLabel, fileResultId);
         log.info("===> TaskTriggerSupport trigger 触发{}任务, fileResultId={}, taskId={}, upstream={}",
                 stageLabel, fileResultId, task.getId(), upstreamProductId);
         return new StageTriggerVO(task.getId());
+    }
+
+    /** 新任务入队：写不进队列时把任务落 FAILED（库里不留"永远排不上队"的 QUEUED），随后仍抛出（触发未成功） */
+    private void enqueueNewTask(KbPipelineTask task, String stageLabel, Long fileResultId) {
+        try {
+            taskQueue.enqueue(task.getId());
+        } catch (Exception e) {
+            log.error("触发{}任务入队失败, fileResultId={}, taskId={}", stageLabel, fileResultId, task.getId(), e);
+            pipelineTaskDbService.failQueued(task.getId(), PipelineTaskErrorCode.TASK_ENQUEUE_FAILED.name(),
+                    "任务入队失败，请重试");
+            throw e;
+        }
     }
 }

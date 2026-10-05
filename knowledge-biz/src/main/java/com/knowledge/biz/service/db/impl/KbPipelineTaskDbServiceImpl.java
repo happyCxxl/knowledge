@@ -61,10 +61,21 @@ public class KbPipelineTaskDbServiceImpl extends InfraDbServiceImpl<KbPipelineTa
 
     @Override
     public int finish(Long id, String status, String errorCode, String errorMsg) {
+        return finishFrom(id, PipelineTaskStatus.RUNNING.name(), status, errorCode, errorMsg);
+    }
+
+    @Override
+    public int failQueued(Long id, String errorCode, String errorMsg) {
+        return finishFrom(id, PipelineTaskStatus.QUEUED.name(), PipelineTaskStatus.FAILED.name(),
+                errorCode, errorMsg);
+    }
+
+    /** 终态回写：条件更新（fromStatus → toStatus）+ 结束时间 + 错误码/信息，后到者影响 0 行 */
+    private int finishFrom(Long id, String fromStatus, String toStatus, String errorCode, String errorMsg) {
         LambdaUpdateWrapper<KbPipelineTask> updateWrapper = new LambdaUpdateWrapper<>();
         updateWrapper.eq(KbPipelineTask::getId, id)
-                .eq(KbPipelineTask::getStatus, PipelineTaskStatus.RUNNING.name())
-                .set(KbPipelineTask::getStatus, status)
+                .eq(KbPipelineTask::getStatus, fromStatus)
+                .set(KbPipelineTask::getStatus, toStatus)
                 .set(KbPipelineTask::getErrorCode, errorCode)
                 .set(KbPipelineTask::getErrorMsg, errorMsg)
                 .set(KbPipelineTask::getFinishedAt, LocalDateTime.now());

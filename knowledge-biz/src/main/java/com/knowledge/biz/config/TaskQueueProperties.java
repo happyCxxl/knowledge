@@ -33,11 +33,11 @@ public class TaskQueueProperties {
     /** 启动补偿：QUEUED 且创建时间早于此阈值才补投 */
     private Duration compensateThreshold = Duration.ofMinutes(5);
 
-    /** 低频兜底对账开关（默认关闭） */
-    private boolean lowFreqSweepEnabled = false;
+    /** 低频兜底对账开关（默认开启：入库未入队的滞留任务由它兜住） */
+    private boolean lowFreqSweepEnabled = true;
 
-    /** 低频兜底周期 */
-    private Duration lowFreqSweepInterval = Duration.ofMinutes(10);
+    /** 低频兜底周期（配合 5 分钟补投门槛，最长滞留约 6 分钟） */
+    private Duration lowFreqSweepInterval = Duration.ofMinutes(1);
 
     /** 补偿/兜底分布式锁持有时长（SET NX EX） */
     private Duration sweepLockTtl = Duration.ofSeconds(30);

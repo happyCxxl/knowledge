@@ -53,8 +53,8 @@ knowledge:
     queue-key: knowledge:task:queue
     wakeup-timeout: 5s
     compensate-threshold: 5m
-    low-freq-sweep-enabled: false
-    low-freq-sweep-interval: 10m
+    low-freq-sweep-enabled: true
+    low-freq-sweep-interval: 1m
     sweep-lock-ttl: 30s
 
 # 文件服务：存储后端（minio / local）与对象存储连接、桶名
