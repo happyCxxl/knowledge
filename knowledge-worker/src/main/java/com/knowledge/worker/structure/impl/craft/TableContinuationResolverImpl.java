@@ -43,6 +43,9 @@ public class TableContinuationResolverImpl implements TableContinuationResolver 
 
     private static final ContinuationDecision SUSPECTED = new ContinuationDecision(true, true);
 
+    /** 表头相似度的不可判定取值（表头行读不到时返回，低于任何有效阈值） */
+    private static final double UNJUDGEABLE_SIMILARITY = -1;
+
     private final StructureJudgeRegistry judgeRegistry;
 
     /** 接续判定结果（是否合并 + 是否属放宽规则的疑似接续） */
@@ -80,7 +83,7 @@ public class TableContinuationResolverImpl implements TableContinuationResolver 
         return outcome;
     }
 
-    /** 接续判定（四条件 + 表头一致或列宽模式放宽规则）；页码相邻性按当前末页比较 */
+    /** 接续判定（四条件 + 表头一致或列宽模式放宽规则）；页码相邻性按当前末页比较，表头不可读时不进主规则 */
     private ContinuationDecision decide(UnifiedElement a, UnifiedElement b, AssembleContext context) {
         if (isNotPdfTable(a) || isNotPdfTable(b) || !isCutAtPageBottom(a)) {
             return NOT_MERGED;
@@ -231,10 +234,35 @@ public class TableContinuationResolverImpl implements TableContinuationResolver 
         return Boolean.TRUE.equals(flag);
     }
 
+    /** 表头相似度：任一侧表头行不可读时返回不可判定（-1），不再把"都读不到"当成一致 */
     private double headerSimilarity(UnifiedElement a, UnifiedElement b) {
-        List<String> headerA = rowTexts(a, a.getHeaderRow());
-        List<String> headerB = rowTexts(b, b.getHeaderRow());
-        return TextUtil.jaccardCharSet(String.join("", headerA), String.join("", headerB));
+        Integer headerA = readableHeaderRow(a);
+        Integer headerB = readableHeaderRow(b);
+        if (NullUtil.isNull(headerA) || NullUtil.isNull(headerB)) {
+            return UNJUDGEABLE_SIMILARITY;
+        }
+        return TextUtil.jaccardCharSet(String.join("", rowTexts(a, headerA)), String.join("", rowTexts(b, headerB)));
+    }
+
+    /** 可读表头行：headerRow 非空且该行确有单元格；读不到时返回 null（表头未判定） */
+    private Integer readableHeaderRow(UnifiedElement table) {
+        return rowCells(table, table.getHeaderRow()).isEmpty() ? null : table.getHeaderRow();
+    }
+
+    /** 参考行：表头行可读时用它，读不到时退化为该表首行（列宽模式判定的几何依据） */
+    private Integer referenceRow(UnifiedElement table) {
+        Integer headerRow = readableHeaderRow(table);
+        if (NullUtil.isNotNull(headerRow)) {
+            return headerRow;
+        }
+        if (NullUtil.isNull(table.getCells())) {
+            return null;
+        }
+        return table.getCells().stream()
+                .map(UnifiedElement::getRow)
+                .filter(NullUtil::isNotNull)
+                .min(Comparator.naturalOrder())
+                .orElse(null);
     }
 
     private List<String> rowTexts(UnifiedElement table, Integer row) {
@@ -252,9 +280,10 @@ public class TableContinuationResolverImpl implements TableContinuationResolver 
                 .toList();
     }
 
+    /** 列宽模式：按参考行（表头不可读时用首行）比较各列宽度，命中率 ≥ 0.6 视为几何一致 */
     private boolean columnWidthPatternMatch(UnifiedElement a, UnifiedElement b, AssembleContext context) {
-        List<Double> widthsA = rowWidths(a, a.getHeaderRow());
-        List<Double> widthsB = rowWidths(b, b.getHeaderRow());
+        List<Double> widthsA = rowWidths(a, referenceRow(a));
+        List<Double> widthsB = rowWidths(b, referenceRow(b));
         if (widthsA.size() != widthsB.size() || widthsA.isEmpty()) {
             return false;
         }

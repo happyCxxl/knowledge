@@ -264,4 +264,54 @@ class TableContinuationResolverImplTest {
         assertEquals(3, merged.getRows()); // A 侧按单元格最大行号 + 1 = 2，B 保留一行
         assertEquals("乙", cellOf(merged, 2, 0).getText());
     }
+
+    /** 统一改写各列宽度（构造"列宽不一致"的对照表） */
+    private void setColumnWidth(UnifiedElement table, double width) {
+        for (UnifiedElement cell : table.getCells()) {
+            cell.setBbox(new BBox(72 + cell.getCol() * width, cell.getBbox().getY(), width,
+                    cell.getBbox().getHeight()));
+        }
+    }
+
+    @Test
+    void unreadableHeadersShouldMergeAsSuspectedWhenWidthsMatch() {
+        // 两侧表头都判不出：不再按"一致"走主规则，改由列宽模式判为疑似接续
+        UnifiedElement a = multiRowTable(2, 700, true, null,
+                List.of(List.of("甲", "10"), List.of("乙", "20")));
+        UnifiedElement b = multiRowTable(3, 20, false, null,
+                List.of(List.of("丙", "30"), List.of("丁", "40")));
+
+        ContinuationOutcome outcome = resolver.joinContinuations(new ArrayList<>(List.of(a, b)), context());
+
+        assertEquals(1, outcome.getElements().size());
+        assertEquals(1, outcome.getContinuationCount());
+        assertEquals(1, outcome.getSuspectedCount());
+        assertTrue(outcome.getRelations().stream()
+                .anyMatch(r -> "CONTINUATION_OF".equals(r.getType()) && r.getDetail().contains("疑似续表")));
+    }
+
+    @Test
+    void unreadableHeadersWithDifferentWidthsShouldNotMerge() {
+        UnifiedElement a = multiRowTable(2, 700, true, null,
+                List.of(List.of("甲", "10"), List.of("乙", "20")));
+        UnifiedElement b = multiRowTable(3, 20, false, null, List.of(List.of("丙", "30")));
+        setColumnWidth(b, 300);
+
+        ContinuationOutcome outcome = resolver.joinContinuations(new ArrayList<>(List.of(a, b)), context());
+
+        assertEquals(2, outcome.getElements().size());
+        assertEquals(0, outcome.getContinuationCount());
+    }
+
+    @Test
+    void oneReadableHeaderShouldFallToRelaxedRule() {
+        UnifiedElement a = multiRowTable(2, 700, true, 0,
+                List.of(List.of("评分项", "分值"), List.of("甲", "10")));
+        UnifiedElement b = multiRowTable(3, 20, false, null, List.of(List.of("丙", "30")));
+
+        ContinuationOutcome outcome = resolver.joinContinuations(new ArrayList<>(List.of(a, b)), context());
+
+        assertEquals(1, outcome.getElements().size());
+        assertEquals(1, outcome.getSuspectedCount());
+    }
 }
