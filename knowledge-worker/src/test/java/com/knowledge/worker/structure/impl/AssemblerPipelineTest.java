@@ -2,6 +2,7 @@ package com.knowledge.worker.structure.impl;
 
 import com.knowledge.common.domain.input.FileReference;
 import com.knowledge.common.domain.parse.BBox;
+import com.knowledge.common.domain.parse.PageDimension;
 import com.knowledge.common.domain.parse.ParseElement;
 import com.knowledge.common.domain.parse.ParseResult;
 import com.knowledge.common.domain.parse.ParseSource;
@@ -39,6 +40,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -228,6 +230,33 @@ class AssemblerPipelineTest {
         element.setPage(page);
         element.setBbox(new BBox(72, y, 400, 20));
         return element;
+    }
+
+    @Test
+    void noisePageWarningShouldCarrySampleReasons() {
+        // 5 页：前 4 页无元素（空白噪声页），第 5 页有正文
+        ParseResult result = parseResult(pdfParagraph("n-1", 5, 300, "第五页正文内容"));
+        result.getSources().getFirst().setPageDimensions(List.of(
+                pageDimension(1), pageDimension(2), pageDimension(3), pageDimension(4), pageDimension(5)));
+
+        AssembleOutcome outcome = pipeline.assemble(result, context());
+
+        List<String> messages = warningMessages(outcome, QualityWarningCode.NOISE_PAGE);
+        assertEquals(1, messages.size());
+        String message = messages.getFirst();
+        assertTrue(message.contains("噪声页 4 页已标记"), message);
+        assertTrue(message.contains("页 1 空白页"), message);
+        assertTrue(message.contains("页 3 空白页"), message);
+        assertTrue(message.contains(" 等"), message);
+        assertFalse(message.contains("页 4 空白页"), message);
+    }
+
+    private PageDimension pageDimension(int page) {
+        PageDimension dimension = new PageDimension();
+        dimension.setPage(page);
+        dimension.setWidth(595d);
+        dimension.setHeight(842d);
+        return dimension;
     }
 
     @Test

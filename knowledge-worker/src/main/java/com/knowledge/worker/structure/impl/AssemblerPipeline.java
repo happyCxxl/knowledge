@@ -57,6 +57,9 @@ public class AssemblerPipeline implements DocumentAssemblerPort {
     /** 页面坐标原点（落 UnifiedPage.origin） */
     private static final String PAGE_ORIGIN = "top-left";
 
+    /** 噪声页告警里最多列出的样例条数（完整清单进日志） */
+    private static final int NOISE_SAMPLE_CAP = 3;
+
     private final ElementNormalizer normalizer;
     private final DedupMerger merger;
     private final ReadingOrderResolver readingOrderResolver;
@@ -135,7 +138,7 @@ public class AssemblerPipeline implements DocumentAssemblerPort {
         report.setRepeatSegmentCount(markOutcome.getRepeatSegmentCount());
         report.setNoisePageCount(markOutcome.getNoisePageCount());
 
-        document.setQuality(buildQuality(merged, tree, continuation, report, normalize, context));
+        document.setQuality(buildQuality(merged, tree, continuation, report, normalize, markOutcome, context));
         outcome.setDocument(document);
         outcome.setReport(report);
 
@@ -166,6 +169,15 @@ public class AssemblerPipeline implements DocumentAssemblerPort {
         report.setTitleCandidateCount(tree.getTitleCandidateCount());
         report.setContinuationCount(continuation.getContinuationCount());
         return report;
+    }
+
+    /** 噪声页样例：最多 {@link #NOISE_SAMPLE_CAP} 条原因，超出以"等"收尾（完整清单在日志） */
+    private String noiseSampleText(List<String> reasons) {
+        if (NullUtil.isNull(reasons) || reasons.isEmpty()) {
+            return "";
+        }
+        String sample = String.join("、", reasons.subList(0, Math.min(NOISE_SAMPLE_CAP, reasons.size())));
+        return "；例：" + sample + (reasons.size() > NOISE_SAMPLE_CAP ? " 等" : "");
     }
 
     /** 溯源校验：结构性节点不计入分母；可回溯 = 元素自身或其子元素（表格单元格）带原文定位 */
@@ -249,7 +261,8 @@ public class AssemblerPipeline implements DocumentAssemblerPort {
 
     private DocumentQuality buildQuality(MergeOutcome merged, TreeOutcome tree,
                                          ContinuationOutcome continuation, AssembleReport report,
-                                         NormalizeOutcome normalize, AssembleContext context) {
+                                         NormalizeOutcome normalize, MarkOutcome markOutcome,
+                                         AssembleContext context) {
         DocumentQuality quality = new DocumentQuality();
         quality.setConflicts(ObjectUtil.defaultIfNull(merged.getConflicts(), new ArrayList<>()));
         if (tree.getTitleCandidateCount() > 0) {
@@ -271,7 +284,8 @@ public class AssemblerPipeline implements DocumentAssemblerPort {
         }
         if (report.getNoisePageCount() > 0) {
             quality.getWarnings().add(QualityWarning.of(QualityWarningCode.NOISE_PAGE, null, "WARN",
-                    "噪声页 " + report.getNoisePageCount() + " 页已标记（空白/纯图片/乱码；处置在预处理环节）"));
+                    "噪声页 " + report.getNoisePageCount() + " 页已标记（空白/纯图片/乱码；处置在预处理环节）"
+                            + noiseSampleText(markOutcome.getWarnings())));
         }
         if (!normalize.getUnmappedTypeCounts().isEmpty()) {
             quality.getWarnings().add(QualityWarning.of(QualityWarningCode.ELEMENT_TYPE_UNMAPPED, null, "WARN",

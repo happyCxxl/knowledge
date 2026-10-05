@@ -156,7 +156,7 @@ public class RepeatNoiseMarkerImpl implements RepeatNoiseMarker {
             if (noise) {
                 addPageMark(pages, page.getPageNumber(), PageMark.NOISE_PAGE);
                 outcome.setNoisePageCount(outcome.getNoisePageCount() + 1);
-                outcome.getWarnings().add("页 " + page.getPageNumber() + "：" + reason);
+                outcome.getWarnings().add("页 " + page.getPageNumber() + " " + reason);
             }
         }
     }
