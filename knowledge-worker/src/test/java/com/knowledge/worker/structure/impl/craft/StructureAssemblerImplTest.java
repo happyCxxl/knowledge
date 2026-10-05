@@ -1,13 +1,18 @@
 package com.knowledge.worker.structure.impl.craft;
 import com.knowledge.common.enums.structure.UnifiedElementType;
 
+import com.knowledge.common.domain.structure.ContinuationJudgeContext;
+import com.knowledge.common.domain.structure.ContinuationJudgeResult;
 import com.knowledge.common.domain.structure.DocumentRelation;
+import com.knowledge.common.domain.structure.TitleJudgeContext;
+import com.knowledge.common.domain.structure.TitleJudgeResult;
 import com.knowledge.common.domain.structure.UnifiedElement;
 import com.knowledge.common.domain.parse.FontInfo;
 import com.knowledge.worker.structure.AssembleContext;
 import com.knowledge.worker.structure.StructureProperties;
 import com.knowledge.worker.structure.craft.TreeOutcome;
 import com.knowledge.worker.structure.impl.StructureJudgeRegistry;
+import com.knowledge.worker.structure.judge.StructureJudgeProvider;
 import com.knowledge.worker.structure.impl.title.ChapterTitleRule;
 import com.knowledge.worker.structure.impl.title.CnDotTitleRule;
 import com.knowledge.worker.structure.impl.title.CnParenTitleRule;
@@ -122,6 +127,92 @@ class StructureAssemblerImplTest {
         assertEquals(UnifiedElementType.TITLE.name(), boldLarge.getType());
         assertEquals("font-signal", boldLarge.getTitleEvidence().getCascade());
         assertEquals(1, outcome.getTitleCount());
+    }
+
+    /** 假模型判定实现：候选文本含「重大」才判为标题，用于走通兜底分支 */
+    private static final class FakeJudge implements StructureJudgeProvider {
+
+        @Override
+        public TitleJudgeResult judgeTitle(TitleJudgeContext judgeContext) {
+            TitleJudgeResult result = new TitleJudgeResult();
+            result.setIsTitle(judgeContext.getCandidateText() != null
+                    && judgeContext.getCandidateText().contains("重大"));
+            result.setLevel(2);
+            result.setConfidence(0.87d);
+            result.setModel("fake-judge");
+            return result;
+        }
+
+        @Override
+        public ContinuationJudgeResult judgeContinuation(ContinuationJudgeContext judgeContext) {
+            return new ContinuationJudgeResult();
+        }
+    }
+
+    private StructureAssemblerImpl assemblerWithJudge(boolean enabled) {
+        properties.setModelFallbackEnabled(enabled);
+        List<TitleRule> rules = List.of(new StyleTitleRule(), new ChapterTitleRule(),
+                new SingleNumberTitleRule(), new NumberTitleRule(), new CnParenTitleRule(),
+                new CnDotTitleRule(), new FontSignalTitleRule());
+        return new StructureAssemblerImpl(
+                new StructureJudgeRegistry(List.of(new FakeJudge()), properties), rules);
+    }
+
+    @Test
+    void modelFallbackShouldTitleWhenRulesMiss() {
+        StructureAssemblerImpl judgeAssembler = assemblerWithJudge(true);
+        // 无样式、无编号、字号未达 1.15 倍且不加粗 → 规则全 miss，交给模型兜底
+        UnifiedElement candidate = paragraph("重大事项说明", 11d, false);
+
+        judgeAssembler.assembleTree(List.of(candidate), context("application/pdf"));
+
+        assertEquals(UnifiedElementType.TITLE.name(), candidate.getType());
+        assertEquals(2, candidate.getLevel());
+        assertEquals("model", candidate.getTitleEvidence().getCascade());
+        assertEquals("fake-judge conf=0.87", candidate.getTitleEvidence().getModelEvidence());
+    }
+
+    @Test
+    void modelFallbackShouldStayOffWhenDisabled() {
+        StructureAssemblerImpl judgeAssembler = assemblerWithJudge(false);
+        UnifiedElement candidate = paragraph("重大事项说明", 11d, false);
+
+        judgeAssembler.assembleTree(List.of(candidate), context("application/pdf"));
+
+        assertEquals(UnifiedElementType.PARAGRAPH.name(), candidate.getType());
+    }
+
+    @Test
+    void headerFooterShouldStayOutOfChapterTreeAndOrderChain() {
+        UnifiedElement header = new UnifiedElement();
+        header.setId("h-1");
+        header.setType(UnifiedElementType.HEADER.name());
+        header.setText("某某公司投标文件");
+        UnifiedElement footer = new UnifiedElement();
+        footer.setId("f-1");
+        footer.setType(UnifiedElementType.FOOTER.name());
+        footer.setText("第 1 页");
+        UnifiedElement title = paragraph("第一章 总则", 14d, true);
+        title.setId("t-1");
+        UnifiedElement content = paragraph("正文内容一段。", 10d, false);
+        content.setId("c-1");
+        AssembleContext ctx = context("application/pdf");
+
+        TreeOutcome outcome = assembler.assembleTree(
+                new ArrayList<>(List.of(header, title, content, footer)), ctx);
+        List<DocumentRelation> relations = assembler.buildRelations(outcome.getElements(), ctx);
+
+        // 页眉页脚留在元素表里，但不挂章节树
+        assertEquals(4, outcome.getElements().size());
+        assertTrue(relations.stream()
+                .filter(r -> "PARENT_CHILD".equals(r.getType()))
+                .noneMatch(r -> "h-1".equals(r.getTo()) || "f-1".equals(r.getTo())));
+        // 也不进正文流：阅读顺序链只有 标题 → 正文
+        List<String> chain = relations.stream()
+                .filter(r -> "NEXT".equals(r.getType()))
+                .map(r -> r.getFrom() + "->" + r.getTo())
+                .toList();
+        assertEquals(List.of("t-1->c-1"), chain);
     }
 
     @Test

@@ -71,4 +71,18 @@ class ReadingOrderResolverImplTest {
 
         assertEquals(List.of("b", "a"), ordered.stream().map(UnifiedElement::getId).toList());
     }
+
+    @Test
+    void multiplePagesShouldKeepPageOrderAndSortInsideEachPage() {
+        // 第 2 页两段传入顺序颠倒：仍按页内自上而下重排，且页序保持 1 → 2
+        UnifiedElement p1 = element("p1", 1, 72, 100, 400, 20);
+        UnifiedElement p2 = element("p2", 1, 72, 200, 400, 20);
+        UnifiedElement q2 = element("q2", 2, 72, 300, 400, 20);
+        UnifiedElement q1 = element("q1", 2, 72, 90, 400, 20);
+
+        List<UnifiedElement> ordered = resolver.resolve(List.of(p1, q2, p2, q1), context());
+
+        assertEquals(List.of("p1", "p2", "q1", "q2"),
+                ordered.stream().map(UnifiedElement::getId).toList());
+    }
 }

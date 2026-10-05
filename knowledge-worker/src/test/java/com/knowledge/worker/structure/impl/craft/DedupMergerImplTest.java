@@ -88,6 +88,20 @@ class DedupMergerImplTest {
     }
 
     @Test
+    void laterHigherPrioritySourceShouldWinOverEarlierLowerOne() {
+        BBox box = new BBox(72, 100, 300, 20);
+        // 低优先级（ocr）先到、高优先级（native）后到：取舍只看优先级，与到达顺序无关
+        UnifiedElement ocrEl = element("o-1", "投标保证金为人民币叁佰万元整。", box, "ocr");
+        UnifiedElement nativeEl = element("n-1", "投标保证金为人民币叁佰万元整。",
+                new BBox(73, 101, 298, 19), "native");
+
+        MergeOutcome outcome = merger.merge(List.of(ocrEl, nativeEl), context());
+
+        assertEquals(1, outcome.getElements().size());
+        assertEquals("n-1", outcome.getElements().getFirst().getId());
+    }
+
+    @Test
     void unknownSourceShouldRankLast() {
         BBox box = new BBox(72, 100, 300, 20);
         UnifiedElement unknown = element("x-1", "投标保证金为人民币叁佰万元整。", box, "mystery-route");
