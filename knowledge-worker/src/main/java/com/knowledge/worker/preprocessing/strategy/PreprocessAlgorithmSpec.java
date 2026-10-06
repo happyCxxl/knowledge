@@ -137,6 +137,9 @@ public final class PreprocessAlgorithmSpec {
         }
         Map<String, Object> rules = (Map<String, Object>) (rulesObj == null ? Map.of() : rulesObj);
         for (Map.Entry<String, Object> entry : rules.entrySet()) {
+            if (PreprocessStrategy.CUSTOM_KEY.equals(entry.getKey())) {
+                return "自定义规则组要写在 custom 下，rules 只放七条固定规则";
+            }
             PreprocessRule rule = PreprocessRule.of(entry.getKey());
             if (rule == null) {
                 continue; // 未知规则键透传不报错（前向兼容）
@@ -151,7 +154,7 @@ public final class PreprocessAlgorithmSpec {
                 return ruleError;
             }
         }
-        return validateCustom(config.get("custom"));
+        return validateCustom(config.get(PreprocessStrategy.CUSTOM_KEY));
     }
 
     private static String validateRuleConfig(PreprocessRule rule, Map<String, Object> ruleMap) {
@@ -247,16 +250,16 @@ public final class PreprocessAlgorithmSpec {
                 return "自定义规则存在不合法的正则表达式: " + pattern;
             }
             String action = String.valueOf(ruleMap.getOrDefault("action", ""));
-            if (CustomRuleAction.of(action) == null) {
-                return "自定义规则动作非法: " + action + "（允许 REMOVE/REPLACE/EXTRACT）";
+            CustomRuleAction customAction = CustomRuleAction.of(action);
+            if (customAction == null) {
+                return "自定义规则动作非法: " + action + "（允许 " + CustomRuleAction.names() + "）";
             }
             Object replacement = ruleMap.get("replacement");
-            if (CustomRuleAction.REPLACE.name().equalsIgnoreCase(action)
-                    && (replacement == null || String.valueOf(replacement).isEmpty())) {
+            if (customAction.needsReplacement() && (replacement == null || String.valueOf(replacement).isEmpty())) {
                 return "替换动作需填写替换文本";
             }
-            if (!CustomRuleAction.REPLACE.name().equalsIgnoreCase(action) && replacement != null) {
-                return action + " 动作不允许携带替换文本";
+            if (!customAction.needsReplacement() && replacement != null) {
+                return customAction + " 动作不允许携带替换文本";
             }
         }
         return null;

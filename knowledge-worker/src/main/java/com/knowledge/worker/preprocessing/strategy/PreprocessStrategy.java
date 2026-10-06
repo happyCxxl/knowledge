@@ -33,6 +33,9 @@ public class PreprocessStrategy implements StageStrategy {
     public static final String ON = "ON";
     public static final String OFF = "OFF";
 
+    /** 自定义规则组的快照键（JSON 契约）：与七条固定规则同级，不进 rules */
+    public static final String CUSTOM_KEY = "custom";
+
     /** 策略类型（PREPROCESS） */
     private String type = TYPE;
 

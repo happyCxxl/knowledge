@@ -15,6 +15,8 @@ import com.knowledge.worker.preprocessing.rule.RuleOutcome;
 import com.knowledge.worker.preprocessing.strategy.PreprocessStrategy;
 import org.springframework.stereotype.Component;
 
+import java.time.DateTimeException;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -179,7 +181,7 @@ public class FieldNormalizeRule implements CleanRule {
                 String iso = cnDateToIso(match.group(1), match.group(2), match.group(3));
                 if (iso == null) {
                     traces.add(TraceEntry.of("chinese-date-v1", PreprocessFieldType.DATE.name(),
-                            TraceEntry.ACTION_MANUAL_REVIEW, match.group(), null, "中文日期解析失败（拿不准），不改写"));
+                            TraceEntry.ACTION_MANUAL_REVIEW, match.group(), null, "中文日期解析失败或日期不存在（拿不准），不改写"));
                     return match.group();
                 }
                 traces.add(TraceEntry.of("chinese-date-v1", PreprocessFieldType.DATE.name(),
@@ -190,12 +192,13 @@ public class FieldNormalizeRule implements CleanRule {
             });
 
             work = replaceAll(work, SEP_DATE, match -> {
-                int month = Integer.parseInt(match.group(2));
-                int day = Integer.parseInt(match.group(3));
-                if (month < 1 || month > 12 || day < 1 || day > 31) {
+                String iso = isoDateOf(Integer.parseInt(match.group(1)),
+                        Integer.parseInt(match.group(2)), Integer.parseInt(match.group(3)));
+                if (iso == null) {
+                    traces.add(TraceEntry.of("date-sep-v1", PreprocessFieldType.DATE.name(),
+                            TraceEntry.ACTION_MANUAL_REVIEW, match.group(), null, "分隔符日期越界或日期不存在（拿不准），不改写"));
                     return match.group();
                 }
-                String iso = String.format("%04d-%02d-%02d", Integer.parseInt(match.group(1)), month, day);
                 if (iso.equals(match.group())) {
                     return match.group();
                 }
@@ -321,16 +324,26 @@ public class FieldNormalizeRule implements CleanRule {
     }
 
     /**
-     * 中文日期 → ISO（yyyy-MM-dd）；月/日非法返回 null。
+     * 中文日期 → ISO（yyyy-MM-dd）；年份非法、月日越界或日期不存在返回 null。
      */
     private String cnDateToIso(String yearCn, String monthCn, String dayCn) {
         int year = cnYear(yearCn);
-        int month = cnSmallNumber(monthCn);
-        int day = cnSmallNumber(dayCn);
-        if (year <= 0 || month < 1 || month > 12 || day < 1 || day > 31) {
+        if (year <= 0) {
             return null;
         }
-        return String.format("%04d-%02d-%02d", year, month, day);
+        return isoDateOf(year, cnSmallNumber(monthCn), cnSmallNumber(dayCn));
+    }
+
+    /**
+     * 年/月/日 → ISO 日期（yyyy-MM-dd）；月日越界或日期不存在（如 2 月 30 日）返回 null。
+     * 日历合法性交给 {@link LocalDate} 判定，避免写出不存在的日期。
+     */
+    private String isoDateOf(int year, int month, int day) {
+        try {
+            return LocalDate.of(year, month, day).toString();
+        } catch (DateTimeException e) {
+            return null;
+        }
     }
 
     /** 年份逐字映射（〇零一二三四五六七八九 + ASCII 数字） */

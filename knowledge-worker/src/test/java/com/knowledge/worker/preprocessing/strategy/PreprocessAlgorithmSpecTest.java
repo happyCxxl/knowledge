@@ -1,8 +1,10 @@
 package com.knowledge.worker.preprocessing.strategy;
 
+import com.knowledge.common.enums.preprocess.CustomRuleAction;
 import com.knowledge.common.enums.preprocess.PreprocessRule;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -71,5 +73,43 @@ class PreprocessAlgorithmSpecTest {
         Map<String, Object> config = Map.of("rules", Map.of("toc", Map.of("enabled", "ON")));
 
         assertNotNull(PreprocessAlgorithmSpec.validate(config));
+    }
+
+    @Test
+    void customGroupUnderRulesShouldBeRejected() {
+        Map<String, Object> config = Map.of("rules", Map.of("custom", Map.of("enabled", "ON")));
+
+        String error = PreprocessAlgorithmSpec.validate(config);
+
+        assertNotNull(error);
+        assertTrue(error.contains("custom"));
+    }
+
+    @Test
+    void customActionCatalogShouldDriveReplacementConstraint() {
+        assertEquals("REMOVE/REPLACE/EXTRACT", CustomRuleAction.names());
+        assertTrue(CustomRuleAction.REPLACE.needsReplacement());
+        assertFalse(CustomRuleAction.REMOVE.needsReplacement());
+        assertFalse(CustomRuleAction.EXTRACT.needsReplacement());
+        assertTrue(CustomRuleAction.EXTRACT.desc().contains("命中"));
+    }
+
+    @Test
+    void customRuleWithReplacementOnExtractShouldBeRejected() {
+        Map<String, Object> config = Map.of("custom", Map.of("enabled", "ON", "rules",
+                List.of(Map.of("pattern", "x+", "action", "EXTRACT", "replacement", "y"))));
+
+        String error = PreprocessAlgorithmSpec.validate(config);
+
+        assertNotNull(error);
+        assertTrue(error.contains("不允许携带替换文本"));
+    }
+
+    @Test
+    void customRemoveRuleWithoutReplacementShouldPass() {
+        Map<String, Object> config = Map.of("custom", Map.of("enabled", "ON", "rules",
+                List.of(Map.of("pattern", "x+", "action", "REMOVE"))));
+
+        assertNull(PreprocessAlgorithmSpec.validate(config));
     }
 }

@@ -194,6 +194,52 @@ class FieldNormalizeRuleTest {
     }
 
     @Test
+    void impossibleSeparatorDateShouldMarkManualReviewAndKeepText() {
+        ViewElement element = element("投标截止：2026/2/30");
+
+        RuleOutcome outcome = rule.apply(element, context);
+
+        assertEquals("投标截止：2026/2/30", element.getNormalizedText());
+        assertTrue(outcome.getFields().isEmpty());
+        assertTrue(outcome.getTraces().stream()
+                .anyMatch(t -> TraceEntry.ACTION_MANUAL_REVIEW.equals(t.getAction())
+                        && t.getRule().equals("date-sep-v1")));
+    }
+
+    @Test
+    void outOfRangeSeparatorDateShouldMarkManualReviewAndKeepText() {
+        ViewElement element = element("开标时间 2026/13/45");
+
+        RuleOutcome outcome = rule.apply(element, context);
+
+        assertEquals("开标时间 2026/13/45", element.getNormalizedText());
+        assertTrue(outcome.getTraces().stream()
+                .anyMatch(t -> TraceEntry.ACTION_MANUAL_REVIEW.equals(t.getAction())));
+    }
+
+    @Test
+    void leapDaySeparatorDateShouldConvert() {
+        ViewElement element = element("投标截止：2028/2/29");
+
+        rule.apply(element, context);
+
+        assertTrue(element.getNormalizedText().contains("2028-02-29"));
+    }
+
+    @Test
+    void impossibleChineseDateShouldMarkManualReviewAndKeepText() {
+        ViewElement element = element("开标时间：二〇二六年二月三十日");
+
+        RuleOutcome outcome = rule.apply(element, context);
+
+        assertEquals("开标时间：二〇二六年二月三十日", element.getNormalizedText());
+        assertTrue(outcome.getFields().isEmpty());
+        assertTrue(outcome.getTraces().stream()
+                .anyMatch(t -> TraceEntry.ACTION_MANUAL_REVIEW.equals(t.getAction())
+                        && t.getRule().equals("chinese-date-v1")));
+    }
+
+    @Test
     void disabledShouldReportOff() {
         PreprocessStrategy strategy = PreprocessStrategy.defaultStrategy();
         strategy.rule(PreprocessRule.FIELD).setEnabled(PreprocessStrategy.OFF);
