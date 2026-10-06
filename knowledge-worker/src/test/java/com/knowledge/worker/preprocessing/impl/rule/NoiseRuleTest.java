@@ -71,12 +71,12 @@ class NoiseRuleTest {
     }
 
     @Test
-    void keepShouldLeaveElementUntouched() {
+    void keepShouldResetStatusToNormalAndKeepText() {
         ViewElement element = element();
         var outcome = rule.apply(element, context("KEEP"));
 
-        // 只统计不处置：不命中、状态与文本都不动（噪声计数来自组装环节页标记）
-        assertFalse(outcome.isMatched());
+        // 只统计不处置：状态回 NORMAL、检索文本原样（噪声计数来自组装环节页标记）
+        assertTrue(outcome.isMatched());
         assertEquals(ViewElementStatus.NORMAL.name(), element.getStatus());
         assertEquals("噪声页内容", element.getNormalizedText());
     }

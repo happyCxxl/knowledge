@@ -4,11 +4,12 @@ import com.knowledge.common.domain.preprocess.TraceEntry;
 import com.knowledge.common.domain.preprocess.ViewElement;
 import com.knowledge.common.enums.preprocess.PreprocessAction;
 import com.knowledge.common.enums.preprocess.ViewElementStatus;
+import com.knowledge.worker.preprocessing.ViewElementHelper;
 import com.knowledge.worker.preprocessing.rule.RuleOutcome;
 
 /**
  * 标记类规则的三档处置（package-private）：剔除 / 保留 / 标记（默认）。
- * 状态名与追踪文案由各规则传入。
+ * 三档都会落一条追踪；剔除档同时清检索文本与表格单元格文本。状态名与追踪文案由各规则传入。
  *
  * @author cxxl
  */
@@ -34,6 +35,8 @@ final class MarkDisposeSupport {
         if (PreprocessAction.EXCLUDE.name().equalsIgnoreCase(option)) {
             element.setStatus(excludedStatus);
             element.setNormalizedText(null);
+            // 表格类元素的单元格文本也要清：不清会残留进检索内容流
+            ViewElementHelper.clearCellTexts(element);
             trace = TraceEntry.of(ruleName, null, TraceEntry.ACTION_EXCLUDE, null, null, texts.exclude());
             changed = 1;
         } else if (PreprocessAction.KEEP.name().equalsIgnoreCase(option)) {
