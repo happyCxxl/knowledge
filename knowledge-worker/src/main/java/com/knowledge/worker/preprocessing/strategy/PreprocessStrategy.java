@@ -1,6 +1,7 @@
 package com.knowledge.worker.preprocessing.strategy;
 
 import cn.hutool.core.util.StrUtil;
+import com.knowledge.common.enums.preprocess.PreprocessAction;
 import com.knowledge.common.enums.preprocess.PreprocessParam;
 import com.knowledge.common.enums.preprocess.PreprocessRule;
 import com.knowledge.worker.StageStrategy;
@@ -62,10 +63,25 @@ public class PreprocessStrategy implements StageStrategy {
         return rules == null || rule == null ? null : rules.get(rule.key());
     }
 
-    /** 三态规则处置方式（缺失回退默认） */
+    /** 三态规则处置方式（action 缺省时按旧开关换算，再缺回退默认） */
     public String action(PreprocessRule rule, String defaultValue) {
         PreprocessRuleConfig config = rule(rule);
-        return config == null || StrUtil.isBlank(config.getAction()) ? defaultValue : config.getAction();
+        if (config == null) {
+            return defaultValue;
+        }
+        if (StrUtil.isNotBlank(config.getAction())) {
+            return config.getAction();
+        }
+        String legacy = legacyAction(rule, config.getEnabled());
+        return StrUtil.isBlank(legacy) ? defaultValue : legacy;
+    }
+
+    /** 旧开关格式（enabled）→ 三态处置：ON=EXCLUDE / OFF=KEEP；非旧开关规则或开关为空返回 null */
+    public static String legacyAction(PreprocessRule rule, String enabled) {
+        if (rule == null || !rule.legacyToggle() || StrUtil.isBlank(enabled)) {
+            return null;
+        }
+        return ON.equalsIgnoreCase(enabled) ? PreprocessAction.EXCLUDE.name() : PreprocessAction.KEEP.name();
     }
 
     /** 开关规则取值（缺失回退默认） */

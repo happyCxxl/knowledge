@@ -39,7 +39,7 @@ public final class PreprocessStatsSupport {
     /** 剔除元素数（页眉/页脚/目录/噪声被剔除与冲突被裁决方；不含重复份） */
     public static final String KEY_EXCLUDED_COUNT = "excludedCount";
 
-    /** 重复份元素数 */
+    /** 重复份元素数（剔除档；标记档的重复份计入仅标记） */
     public static final String KEY_REPEATED_COUNT = "repeatedCount";
 
     /** 不进切片的元素数（剔除态 + 重复份） */
@@ -75,12 +75,13 @@ public final class PreprocessStatsSupport {
     /** 本次运行耗时（毫秒） */
     public static final String KEY_DURATION_MS = "durationMs";
 
-    /** 仅标记状态：页眉页脚与目录噪声被标注，内容仍在检索流里 */
+    /** 仅标记状态：页眉页脚/目录/噪声/重复份被标注，内容仍在检索流里 */
     public static final List<String> MARKED_STATUSES = List.of(
             ViewElementStatus.MARKED_HEADER.name(),
             ViewElementStatus.MARKED_FOOTER.name(),
             ViewElementStatus.MARKED_TOC.name(),
-            ViewElementStatus.NOISE.name());
+            ViewElementStatus.NOISE.name(),
+            ViewElementStatus.MARKED_REPEAT.name());
 
     /** 文本改写两条规则的规则名前缀（产物轨迹里的 rule 取值） */
     private static final String RULE_ENCODING_PREFIX = "encoding-";

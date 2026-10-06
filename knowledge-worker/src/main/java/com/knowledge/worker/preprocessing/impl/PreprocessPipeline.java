@@ -273,8 +273,8 @@ public class PreprocessPipeline implements PreprocessorPort {
             }
             if (StrUtil.isNotBlank(config.getAction())) {
                 options.put(rule.key(), config.getAction());
-            }
-            if (StrUtil.isNotBlank(config.getEnabled())) {
+            } else if (StrUtil.isNotBlank(config.getEnabled())) {
+                // 旧开关格式（仅迁移期可能出现）只作兜底：有 action 时以 action 为准，同一规则不留两份口径
                 options.put(rule.key(), config.getEnabled());
             }
             if (config.getParams() != null) {

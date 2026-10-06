@@ -20,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 重复处置规则单测：段级/页级标记 → 只留一份；OFF 关闭。
+ * 重复处置规则单测：段级/页级标记按三档处置（EXCLUDE 只留首份 / MARK 标记保留 / KEEP 不改动）。
  *
  * @author cxxl
  */
@@ -40,8 +40,16 @@ class RepeatRuleTest {
     }
 
     private RuleContext context(Set<Integer> repeatedPages) {
+        return context(PreprocessStrategy.defaultStrategy(), repeatedPages);
+    }
+
+    private RuleContext context(String action, Set<Integer> repeatedPages) {
         PreprocessStrategy strategy = PreprocessStrategy.defaultStrategy();
-        strategy.rule(PreprocessRule.REPEAT).setEnabled("ON");
+        strategy.rule(PreprocessRule.REPEAT).setAction(action);
+        return context(strategy, repeatedPages);
+    }
+
+    private RuleContext context(PreprocessStrategy strategy, Set<Integer> repeatedPages) {
         RuleContext context = new RuleContext();
         context.setStrategy(strategy);
         context.setProperties(new PreprocessProperties());
@@ -53,7 +61,7 @@ class RepeatRuleTest {
     }
 
     @Test
-    void repeatedSegmentMarkShouldExcludeFromContentFlow() {
+    void repeatedSegmentShouldExcludeByDefault() {
         ViewElement element = element();
         element.setMarks(List.of(ElementMark.REPEATED_SEGMENT.name()));
 
@@ -65,7 +73,7 @@ class RepeatRuleTest {
     }
 
     @Test
-    void repeatedPageShouldExcludeFromContentFlow() {
+    void repeatedPageShouldExcludeByDefault() {
         ViewElement element = element();
         element.setPage(7);
 
@@ -77,12 +85,49 @@ class RepeatRuleTest {
     }
 
     @Test
-    void offShouldReportOff() {
-        PreprocessStrategy strategy = PreprocessStrategy.defaultStrategy();
-        strategy.rule(PreprocessRule.REPEAT).setEnabled(PreprocessStrategy.OFF);
+    void repeatedSegmentMarkShouldKeepTextWithMarkedStatus() {
+        ViewElement element = element();
+        element.setMarks(List.of(ElementMark.REPEATED_SEGMENT.name()));
 
-        assertFalse(rule.enabledIn(strategy));
+        var outcome = rule.apply(element, context("MARK", new HashSet<>()));
+
+        assertTrue(outcome.isMatched());
+        assertEquals(ViewElementStatus.MARKED_REPEAT.name(), element.getStatus());
+        assertEquals("重复段落内容", element.getNormalizedText());
+    }
+
+    @Test
+    void repeatedSegmentKeepShouldResetStatusToNormal() {
+        ViewElement element = element();
+        element.setMarks(List.of(ElementMark.REPEATED_SEGMENT.name()));
+
+        var outcome = rule.apply(element, context("KEEP", new HashSet<>()));
+
+        assertTrue(outcome.isMatched());
+        assertEquals(ViewElementStatus.NORMAL.name(), element.getStatus());
+        assertEquals("重复段落内容", element.getNormalizedText());
+    }
+
+    @Test
+    void repeatedPageMarkShouldKeepTextWithMarkedStatus() {
+        ViewElement element = element();
+        element.setPage(7);
+
+        var outcome = rule.apply(element, context("MARK", new HashSet<>(Set.of(7))));
+
+        assertTrue(outcome.isMatched());
+        assertEquals(ViewElementStatus.MARKED_REPEAT.name(), element.getStatus());
+        assertEquals("重复段落内容", element.getNormalizedText());
+    }
+
+    @Test
+    void enabledInShouldFollowRulePresence() {
         assertTrue(rule.enabledIn(PreprocessStrategy.defaultStrategy()));
+
+        PreprocessStrategy removed = PreprocessStrategy.defaultStrategy();
+        removed.getRules().remove(PreprocessRule.REPEAT.key());
+
+        assertFalse(rule.enabledIn(removed));
     }
 
     @Test

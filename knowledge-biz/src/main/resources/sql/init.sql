@@ -403,10 +403,10 @@ CREATE TABLE kb_user
 INSERT INTO kb_user (id, username, display_name, password, status, role, token_version, del_flag)
 VALUES (1, 'admin', '管理员', '$2a$10$Z/lASt5WwaaR.Y84fMsDkeoUtIxb4jiniyYaH5AmkTyh1oCVJc8Hq', 1, 'ADMIN', 1, '0');
 
--- 预处理策略：七规则默认开，页眉页脚/目录/噪声只标记（与内置默认同参）
+-- 预处理策略：页眉页脚/目录/噪声只标记，重复只留首份，字段/文本整理/编码开（与内置默认同参）
 INSERT INTO kb_pipeline_strategy_version (type, name, version, config_snapshot, status)
 VALUES ('PREPROCESS', 'preproc-default', 'v1',
-        '{"rules":{"headerFooter":{"action":"MARK"},"toc":{"action":"MARK","params":{"minLinesPerPage":"3","runMinLength":"3"}},"noise":{"action":"MARK"},"repeat":{"enabled":"ON"},"field":{"enabled":"ON","params":{"amount":"ON","date":"ON","area":"ON","certNo":"ON"}},"tidy":{"enabled":"ON","params":{"whitespace":"ON","punct":"ON","dashes":"ON","bullets":"ON","urls":"ON"}},"encoding":{"enabled":"ON"}},"custom":{"enabled":"ON","rules":[]}}',
+        '{"rules":{"headerFooter":{"action":"MARK"},"toc":{"action":"MARK","params":{"minLinesPerPage":"3","runMinLength":"3"}},"noise":{"action":"MARK"},"repeat":{"action":"EXCLUDE"},"field":{"enabled":"ON","params":{"amount":"ON","date":"ON","area":"ON","certNo":"ON"}},"tidy":{"enabled":"ON","params":{"whitespace":"ON","joinLines":"ON","punct":"ON","dashes":"ON","bullets":"ON","urls":"ON"}},"encoding":{"enabled":"ON"}},"custom":{"enabled":"ON","rules":[]}}',
         'ACTIVE');
 
 -- 切片策略：段落聚合 + 行级表切片 + 递归兜底（与内置默认同参）

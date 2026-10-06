@@ -20,8 +20,8 @@ public enum PreprocessRule {
     /** 噪声处置（三态） */
     NOISE("noise", "噪声元素处置：KEEP 只统计不处置 / MARK 保留但标注 / EXCLUDE 剔除出检索内容流"),
 
-    /** 重复处置（开关） */
-    REPEAT("repeat", "重复段落/页剔除（判定来自组装环节结构标记，只保留首份）"),
+    /** 重复处置（三态；迁移期兼容旧 enabled 开关） */
+    REPEAT("repeat", "重复元素处置（判定来自组装环节结构标记，除首份外）：EXCLUDE 只保留首份 / MARK 保留但标注 / KEEP 不改动（重复内容留在检索内容流）"),
 
     /** 字段规范化（开关） */
     FIELD("field", "招投标字段字符级标准化（金额/日期/面积/证号，按字段类型子开关）"),
@@ -52,7 +52,14 @@ public enum PreprocessRule {
 
     /** 三态规则（有 action，无 enabled） */
     public boolean triState() {
-        return this == HEADER_FOOTER || this == TOC || this == NOISE;
+        return this == HEADER_FOOTER || this == TOC || this == NOISE || this == REPEAT;
+    }
+
+    /**
+     * 旧开关格式：该规则历史上只有 enabled 开关（迁移期仍接受只给 enabled 的配置，ON 按 EXCLUDE / OFF 按 KEEP 解释）。
+     */
+    public boolean legacyToggle() {
+        return this == REPEAT;
     }
 
     /** 按序列化键精确查找；未识别返回 null */

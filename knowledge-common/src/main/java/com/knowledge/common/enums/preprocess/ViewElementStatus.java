@@ -29,8 +29,11 @@ public enum ViewElementStatus {
     /** 目录：剔除 */
     EXCLUDED_TOC,
 
-    /** 重复内容（normalizedText 只保留一份，本元素为重复份） */
+    /** 重复内容：剔除档（normalizedText 只保留一份，本元素为重复份） */
     REPEATED,
+
+    /** 重复内容：标记档（仍进 normalizedText 内容流） */
+    MARKED_REPEAT,
 
     /** 噪声：仅标记 */
     NOISE,

@@ -33,15 +33,18 @@ public final class PreprocessAlgorithmSpec {
 
     // ---------------- 默认补齐 ----------------
 
-    /** 三态规则默认处置方式（开关规则返回 null） */
+    /** 三态规则默认处置方式（开关规则返回 null）；重复默认剔除，与历史上开关 ON 的效果一致 */
     public static String defaultAction(PreprocessRule rule) {
+        if (rule == PreprocessRule.REPEAT) {
+            return PreprocessAction.EXCLUDE.name();
+        }
         return rule.triState() ? PreprocessAction.MARK.name() : null;
     }
 
     /** 开关规则默认值（三态规则返回 false） */
     public static boolean defaultEnabled(PreprocessRule rule) {
         return switch (rule) {
-            case REPEAT, FIELD, TIDY, ENCODING -> true;
+            case FIELD, TIDY, ENCODING -> true;
             default -> false;
         };
     }
@@ -78,6 +81,7 @@ public final class PreprocessAlgorithmSpec {
 
     /**
      * 解析后补全：缺规则补默认（action/enabled）、缺参数补全局默认、custom 补默认。
+     * 重复（repeat）的 action 缺省时先按旧开关 enabled 换算（ON=EXCLUDE / OFF=KEEP），无旧开关才用默认档。
      */
     public static PreprocessStrategy normalize(PreprocessStrategy strategy, PreprocessProperties properties) {
         if (strategy.getRules() == null) {
@@ -92,8 +96,14 @@ public final class PreprocessAlgorithmSpec {
             if (config.getParams() == null) {
                 config.setParams(new HashMap<>());
             }
-            if (StrUtil.isBlank(config.getAction()) && defaultAction(rule) != null) {
-                config.setAction(defaultAction(rule));
+            if (StrUtil.isBlank(config.getAction())) {
+                String action = PreprocessStrategy.legacyAction(rule, config.getEnabled());
+                if (action == null) {
+                    action = defaultAction(rule);
+                }
+                if (action != null) {
+                    config.setAction(action);
+                }
             }
             if (StrUtil.isBlank(config.getEnabled()) && defaultEnabled(rule)) {
                 config.setEnabled(PreprocessStrategy.ON);
@@ -161,8 +171,11 @@ public final class PreprocessAlgorithmSpec {
             if (!isOnOff(enabled)) {
                 return "开关取值非法: " + rule.key() + "." + enabled;
             }
-            if (rule.triState()) {
+            if (rule.triState() && !rule.legacyToggle()) {
                 return "规则 " + rule.key() + " 无开关，请使用 action 处置方式";
+            }
+            if (rule.legacyToggle() && actionObj != null) {
+                return "规则 " + rule.key() + " 同时给了 action 与 enabled（enabled 是旧开关格式）：请只保留 action";
             }
         }
         Object paramsObj = ruleMap.get("params");

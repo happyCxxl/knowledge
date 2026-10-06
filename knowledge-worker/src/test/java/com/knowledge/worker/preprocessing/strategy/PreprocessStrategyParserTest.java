@@ -11,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 预处理策略解析器单测：结构化解析补全默认 / 空与非法回退内置默认 / custom 解析。
+ * 预处理策略解析器单测：结构化解析补全默认 / 重复旧开关换算 / 空与非法回退内置默认 / custom 解析。
  *
  * @author cxxl
  */
@@ -26,10 +26,11 @@ class PreprocessStrategyParserTest {
         assertEquals("EXCLUDE", strategy.action(PreprocessRule.HEADER_FOOTER, "MARK"));
         assertEquals("MARK", strategy.action(PreprocessRule.TOC, "MARK"));
         assertEquals("MARK", strategy.action(PreprocessRule.NOISE, "MARK"));
-        assertTrue(strategy.enabled(PreprocessRule.REPEAT, false));
         assertTrue(strategy.enabled(PreprocessRule.FIELD, false));
         assertTrue(strategy.enabled(PreprocessRule.TIDY, false));
         assertTrue(strategy.enabled(PreprocessRule.ENCODING, false));
+        // 重复默认档 = 剔除（与历史上开关 ON 的效果一致）
+        assertEquals("EXCLUDE", strategy.action(PreprocessRule.REPEAT, "MARK"));
         // 参数补默认（值源 PreprocessProperties）
         assertEquals(3, strategy.intParam(PreprocessRule.TOC, PreprocessParam.TOC_MIN_LINES_PER_PAGE, 0));
         assertTrue(strategy.boolParam(PreprocessRule.TIDY, PreprocessParam.TIDY_URLS, false));
@@ -76,6 +77,20 @@ class PreprocessStrategyParserTest {
                 "{\"custom\":{\"enabled\":\"OFF\",\"rules\":[{\"pattern\":\"x+\",\"action\":\"REMOVE\"}]}}");
 
         assertTrue(strategy.customRules().isEmpty());
+    }
+
+    @Test
+    void legacyRepeatToggleShouldMapToAction() {
+        assertEquals("KEEP", parser.parse("{\"rules\":{\"repeat\":{\"enabled\":\"OFF\"}}}")
+                .action(PreprocessRule.REPEAT, "MARK"));
+        assertEquals("EXCLUDE", parser.parse("{\"rules\":{\"repeat\":{\"enabled\":\"ON\"}}}")
+                .action(PreprocessRule.REPEAT, "MARK"));
+    }
+
+    @Test
+    void explicitRepeatActionShouldWinOverDefault() {
+        assertEquals("MARK", parser.parse("{\"rules\":{\"repeat\":{\"action\":\"MARK\"}}}")
+                .action(PreprocessRule.REPEAT, "EXCLUDE"));
     }
 
     @Test
