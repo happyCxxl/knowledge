@@ -83,11 +83,13 @@ function summarizePreprocess(snapshot: string | null): ConfigSummary {
     const rule: PreprocessRuleRaw | undefined = cfg.rules[key];
     items.push({
       k: PREPROCESS_RULE_LABELS[key] ?? key,
-      v: PREPROCESS_ACTION_LABELS[preprocessAction(rule)] ?? ABSENT,
+      v: PREPROCESS_ACTION_LABELS[preprocessAction(key, rule)] ?? ABSENT,
     });
   }
 
-  const enabledToggles = PREPROCESS_TOGGLE_RULES.filter((key) => preprocessToggle(cfg.rules[key]));
+  const enabledToggles = PREPROCESS_TOGGLE_RULES.filter((key) =>
+    preprocessToggle(key, cfg.rules[key]),
+  );
   items.push({
     k: '内容整理',
     v:
@@ -98,7 +100,7 @@ function summarizePreprocess(snapshot: string | null): ConfigSummary {
 
   // 子开关只在规则开启时才有意义，这里额外补一条明细
   const fieldParams = ruleParamsOf(cfg.rules, 'field');
-  if (preprocessToggle(cfg.rules.field) && fieldParams) {
+  if (preprocessToggle('field', cfg.rules.field) && fieldParams) {
     const on = PREPROCESS_FIELD_KEYS.filter((key) => fieldParams[key] === 'ON');
     items.push({
       k: '字段标准化范围',
@@ -107,7 +109,7 @@ function summarizePreprocess(snapshot: string | null): ConfigSummary {
     });
   }
   const tidyParams = ruleParamsOf(cfg.rules, 'tidy');
-  if (preprocessToggle(cfg.rules.tidy) && tidyParams) {
+  if (preprocessToggle('tidy', cfg.rules.tidy) && tidyParams) {
     const on = PREPROCESS_TIDY_KEYS.filter((key) => tidyParams[key] === 'ON');
     items.push({
       k: '文本整理范围',

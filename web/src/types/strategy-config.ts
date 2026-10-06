@@ -74,11 +74,29 @@ export const PREPROCESS_ACTION_LABELS: Record<string, string> = {
   EXCLUDE: '剔除',
 };
 
-/** 用「动作」语义的规则：三选一 */
-export const PREPROCESS_ACTION_RULES = ['headerFooter', 'toc', 'noise'] as const;
+/** 用「动作」语义的规则：三选一（重复与三条处置规则同形） */
+export const PREPROCESS_ACTION_RULES = ['headerFooter', 'toc', 'noise', 'repeat'] as const;
 
 /** 用「开关」语义的规则：开 / 关 */
-export const PREPROCESS_TOGGLE_RULES = ['repeat', 'field', 'tidy', 'encoding'] as const;
+export const PREPROCESS_TOGGLE_RULES = ['field', 'tidy', 'encoding'] as const;
+
+/** 配置区展示顺序（含自定义规则组，它是链尾第 8 个节点） */
+export const PREPROCESS_RULE_ORDER = [
+  'headerFooter',
+  'toc',
+  'noise',
+  'repeat',
+  'encoding',
+  'tidy',
+  'field',
+  'custom',
+] as const;
+
+/** 处置类规则分组（判定在上游环节，本页只决定处置方式） */
+export const PREPROCESS_DISPOSE_RULES = ['headerFooter', 'toc', 'noise', 'repeat'] as const;
+
+/** 内容整理类规则分组 */
+export const PREPROCESS_ORGANIZE_RULES = ['encoding', 'tidy', 'field'] as const;
 
 export const PREPROCESS_RULE_LABELS: Record<string, string> = {
   headerFooter: '页眉页脚',
@@ -88,17 +106,52 @@ export const PREPROCESS_RULE_LABELS: Record<string, string> = {
   field: '字段标准化',
   tidy: '文本级整理',
   encoding: '乱码与编码清理',
+  custom: '自定义规则',
 };
 
 export const PREPROCESS_RULE_HINTS: Record<string, string> = {
-  headerFooter: '剔除后不进检索内容流，展示视图仍完整',
-  toc: '选「剔除」时，下面两个识别阈值不生效',
-  noise: '「保留」尚未实现，选它等于「标记」',
-  repeat: '重复段落与重复页只保留首份；判定来自组装环节的结构标记',
+  headerFooter: '页眉页脚元素（含页码）怎么处置',
+  toc: '先按阈值判是不是目录，再决定处置；阈值对三种处置都生效',
+  noise: '组装判出的噪声页上的元素；「保留」只统计不处置',
+  repeat: '重复份：只留首份（默认）/ 标注保留 / 原样保留',
   field: '金额 / 日期 / 面积 / 证号 四类字段分别开关',
-  tidy: '空白 / 标点 / 破折号 / 项目符号 / 链接 子规则独立开关',
-  encoding: '清理乱码与编码残留，默认开启',
+  tidy: '空白 / 折行合并 / 标点 / 软连字符 / 项目符号 / 链接 子规则独立开关',
+  encoding: '乱码残留与全角字符清理（NFKC），第 1 步执行',
+  custom: '链尾按列表顺序执行的正则；上限 20 条、单条正则 ≤200 字符',
 };
+
+/**
+ * 未配置时的生效默认值（与后端 `PreprocessAlgorithmSpec` 对齐）：
+ * 动作类默认见下，开关类 field / tidy / encoding 默认开。
+ */
+export const PREPROCESS_DEFAULT_ACTION: Record<string, PreprocessAction | undefined> = {
+  headerFooter: 'MARK',
+  toc: 'MARK',
+  noise: 'MARK',
+  repeat: 'EXCLUDE',
+};
+
+export const PREPROCESS_DEFAULT_ENABLED: Record<string, boolean> = {
+  field: true,
+  tidy: true,
+  encoding: true,
+};
+
+/**
+ * 旧开关格式兼容名单：这几条规则历史上只有 enabled 开关，
+ * 迁移期按「ON = 剔除 / OFF = 保留」换算（与后端 `PreprocessRule.legacyToggle()` 同一口径）。
+ */
+export const PREPROCESS_LEGACY_TOGGLE_RULES = ['repeat'] as const;
+
+/** 自定义规则动作（后端 CustomRuleAction） */
+export const PREPROCESS_CUSTOM_ACTIONS = [
+  { key: 'REMOVE', label: '移除', hint: '命中内容整体移除' },
+  { key: 'REPLACE', label: '替换', hint: '按替换文本改写，支持 $1 组引用' },
+  { key: 'EXTRACT', label: '提取', hint: '只保留命中，多个命中以空格连接' },
+] as const;
+
+/** 自定义规则条数上限（与后端 PreprocessAlgorithmSpec.CUSTOM_RULE_MAX 一致） */
+export const PREPROCESS_CUSTOM_RULE_MAX = 20;
 
 /** 字段标准化的四类子开关 */
 export const PREPROCESS_FIELD_KEYS = ['amount', 'date', 'area', 'certNo'] as const;
@@ -110,15 +163,23 @@ export const PREPROCESS_FIELD_LABELS: Record<string, string> = {
   certNo: '证号',
 };
 
-/** 文本整理的五个子开关 */
-export const PREPROCESS_TIDY_KEYS = ['whitespace', 'punct', 'dashes', 'bullets', 'urls'] as const;
+/** 文本整理的六个子开关 */
+export const PREPROCESS_TIDY_KEYS = [
+  'whitespace',
+  'joinLines',
+  'punct',
+  'dashes',
+  'bullets',
+  'urls',
+] as const;
 
 export const PREPROCESS_TIDY_LABELS: Record<string, string> = {
-  whitespace: '空白',
-  punct: '标点',
-  dashes: '破折号',
+  whitespace: '空白与首尾',
+  joinLines: '折行段落合并',
+  punct: '标点与引号',
+  dashes: '软连字符',
   bullets: '项目符号',
-  urls: '链接',
+  urls: '链接与邮箱',
 };
 
 /** 目录识别阈值（仅在 toc 动作为 MARK/EXCLUDE 时有意义） */
@@ -479,18 +540,59 @@ export function parseConfigByType(type: string, snapshot: string | null): Record
   }
 }
 
-/** 取某条预处理规则的动作（动作类规则没写 action 时按 MARK 兜底，与后端一致） */
-export function preprocessAction(rule: PreprocessRuleRaw | undefined): PreprocessAction {
+/**
+ * 取某条预处理规则的动作：优先 `action`；缺 `action` 但带旧开关 `enabled` 时按 ON=EXCLUDE / OFF=KEEP 换算；
+ * 两者都没有时按该规则的默认档（重复默认剔除，其余处置类默认标记）。
+ */
+export function preprocessAction(
+  key: string,
+  rule: PreprocessRuleRaw | undefined,
+): PreprocessAction {
   const value = rule?.action;
   if (value === 'KEEP' || value === 'MARK' || value === 'EXCLUDE') {
     return value;
   }
-  return 'MARK';
+  return preprocessLegacyAction(key, rule) ?? PREPROCESS_DEFAULT_ACTION[key] ?? 'MARK';
 }
 
-/** 取某条预处理开关规则的开关状态（没写时按 OFF 兜底） */
-export function preprocessToggle(rule: PreprocessRuleRaw | undefined): boolean {
-  return rule?.enabled === 'ON';
+/** 旧开关格式换算（只对名单内的规则生效）：ON=EXCLUDE / OFF=KEEP；不适用返回 null */
+export function preprocessLegacyAction(
+  key: string,
+  rule: PreprocessRuleRaw | undefined,
+): PreprocessAction | null {
+  if (!(PREPROCESS_LEGACY_TOGGLE_RULES as readonly string[]).includes(key)) {
+    return null;
+  }
+  if (rule?.enabled === 'ON') {
+    return 'EXCLUDE';
+  }
+  if (rule?.enabled === 'OFF') {
+    return 'KEEP';
+  }
+  return null;
+}
+
+/** 取开关规则状态：没写时按该规则的默认（field / tidy / encoding 默认开） */
+export function preprocessToggle(key: string, rule: PreprocessRuleRaw | undefined): boolean {
+  if (rule?.enabled === 'ON') {
+    return true;
+  }
+  if (rule?.enabled === 'OFF') {
+    return false;
+  }
+  return PREPROCESS_DEFAULT_ENABLED[key] ?? false;
+}
+
+/** 取规则内某子开关状态：没写时按默认开（与后端子参数默认 ON 一致） */
+export function preprocessSubToggle(rule: PreprocessRuleRaw | undefined, key: string): boolean {
+  const value = rule?.params?.[key];
+  if (value === 'ON') {
+    return true;
+  }
+  if (value === 'OFF') {
+    return false;
+  }
+  return true;
 }
 
 /** 算法选项查找：找不到返回 undefined（配置里出现了前端不知道的算法） */

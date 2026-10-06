@@ -347,6 +347,7 @@ export const PREPROCESS_STATUS_LABELS: Record<string, string> = {
   MARKED_HEADER: '仅标记·页眉',
   MARKED_FOOTER: '仅标记·页脚',
   MARKED_TOC: '仅标记·目录',
+  MARKED_REPEAT: '仅标记·重复份',
   NOISE: '仅标记·噪声',
   EXCLUDED_HEADER: '剔除·页眉',
   EXCLUDED_FOOTER: '剔除·页脚',
