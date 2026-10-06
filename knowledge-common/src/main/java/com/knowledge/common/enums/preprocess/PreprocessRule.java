@@ -15,7 +15,7 @@ public enum PreprocessRule {
     HEADER_FOOTER("headerFooter", "页眉页脚元素处置：KEEP 保留 / MARK 保留但标注 / EXCLUDE 剔除出检索内容流"),
 
     /** 目录处置（三态） */
-    TOC("toc", "目录元素处置：整页/连续窗口判定为目录后按动作处理；EXCLUDE 时识别阈值参数不生效"),
+    TOC("toc", "目录元素处置：先按阈值（整页行数 / 连续窗口）判定目录，再按动作处理；阈值对所有动作都生效，非目录页的特征行不受影响"),
 
     /** 噪声处置（三态） */
     NOISE("noise", "噪声元素处置：KEEP 只统计不处置 / MARK 保留但标注 / EXCLUDE 剔除出检索内容流"),
