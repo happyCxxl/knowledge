@@ -49,6 +49,26 @@ class PreprocessVoAssemblerTest {
     }
 
     @Test
+    void toSummaryShouldCountMarkedRepeatInMarkedOnly() {
+        PreprocessView view = new PreprocessView();
+        view.getElements().add(element("e-1", ViewElementStatus.NORMAL.name(), "展示", "检索"));
+        view.getElements().add(element("e-2", ViewElementStatus.MARKED_REPEAT.name(), "展示2", "检索2"));
+        view.getElements().add(element("e-3", ViewElementStatus.REPEATED.name(), "展示3", null));
+        view.getElements().add(element("e-4", ViewElementStatus.EXCLUDED_NOISE.name(), "展示4", null));
+        view.getElements().add(element("e-5", ViewElementStatus.NOISE.name(), "展示5", "检索5"));
+
+        var summary = assembler.toSummary(view);
+
+        // 标记档的重复份只计「仅标记」，不进「重复」与「不进切片」口径
+        assertEquals(5, summary.getElementCount());
+        assertEquals(2, summary.getMarkedCount());
+        assertEquals(1, summary.getRepeatedCount());
+        assertEquals(1, summary.getExcludedCount());
+        assertEquals(2, summary.getChunkSkippedCount());
+        assertEquals(Integer.valueOf(1), summary.getStatusCounts().get(ViewElementStatus.MARKED_REPEAT.name()));
+    }
+
+    @Test
     void toElementVOsShouldFilterKeepTracesAndMapCells() {
         PreprocessView view = new PreprocessView();
         ViewElement element = element("t-1", ViewElementStatus.NORMAL.name(), "展示", "检索");

@@ -3,6 +3,7 @@ import com.knowledge.common.enums.structure.ElementMark;
 import com.knowledge.common.enums.preprocess.ViewElementStatus;
 
 import com.knowledge.common.domain.preprocess.ViewElement;
+import com.knowledge.common.enums.preprocess.PreprocessParam;
 import com.knowledge.common.enums.preprocess.PreprocessRule;
 import com.knowledge.worker.preprocessing.PreprocessProperties;
 import com.knowledge.worker.preprocessing.strategy.PreprocessStrategy;
@@ -46,6 +47,11 @@ class TocRuleTest {
                                 Set<String> tocRunIds) {
         PreprocessStrategy strategy = PreprocessStrategy.defaultStrategy();
         strategy.rule(PreprocessRule.TOC).setAction(action);
+        return context(strategy, tocCount, tocRunIds);
+    }
+
+    private RuleContext context(PreprocessStrategy strategy, Map<Integer, Integer> tocCount,
+                                Set<String> tocRunIds) {
         RuleContext context = new RuleContext();
         context.setStrategy(strategy);
         context.setProperties(new PreprocessProperties());
@@ -96,6 +102,35 @@ class TocRuleTest {
 
         assertEquals(ViewElementStatus.EXCLUDED_TOC.name(), element.getStatus());
         assertNull(element.getNormalizedText());
+    }
+
+    @Test
+    void customThresholdShouldDriveDispose() {
+        PreprocessStrategy strategy = PreprocessStrategy.defaultStrategy();
+        strategy.rule(PreprocessRule.TOC).setAction("MARK");
+        strategy.rule(PreprocessRule.TOC).getParams()
+                .put(PreprocessParam.TOC_MIN_LINES_PER_PAGE.key(), "5");
+
+        ViewElement belowThreshold = tocElement(5);
+        assertFalse(rule.apply(belowThreshold,
+                context(strategy, new HashMap<>(Map.of(5, 4)), new HashSet<>())).isMatched());
+        assertEquals(ViewElementStatus.NORMAL.name(), belowThreshold.getStatus());
+
+        ViewElement atThreshold = tocElement(5);
+        assertTrue(rule.apply(atThreshold,
+                context(strategy, new HashMap<>(Map.of(5, 5)), new HashSet<>())).isMatched());
+        assertEquals(ViewElementStatus.MARKED_TOC.name(), atThreshold.getStatus());
+    }
+
+    @Test
+    void keepShouldStayNormal() {
+        ViewElement element = tocElement(5);
+
+        var outcome = rule.apply(element, context("KEEP", new HashMap<>(Map.of(5, 3)), new HashSet<>()));
+
+        assertTrue(outcome.isMatched());
+        assertEquals(ViewElementStatus.NORMAL.name(), element.getStatus());
+        assertEquals("第一章 总则 ...... 1", element.getNormalizedText());
     }
 
     @Test

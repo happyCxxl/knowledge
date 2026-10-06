@@ -26,6 +26,7 @@ import com.knowledge.worker.preprocessing.rule.CleanRule;
 import com.knowledge.worker.preprocessing.PreprocessContext;
 import com.knowledge.worker.preprocessing.PreprocessProperties;
 import com.knowledge.common.enums.preprocess.PreprocessAction;
+import com.knowledge.common.enums.preprocess.PreprocessParam;
 import com.knowledge.common.enums.preprocess.PreprocessRule;
 import com.knowledge.worker.preprocessing.strategy.PreprocessStrategy;
 import com.knowledge.worker.preprocessing.rule.RuleContext;
@@ -94,6 +95,31 @@ class PreprocessPipelineTest {
             page.setMarks(new ArrayList<>(List.of(mark)));
         }
         return page;
+    }
+
+    @Test
+    void wordTocRunWindowShouldFollowRunMinLength() {
+        List<UnifiedElement> elements = new ArrayList<>();
+        elements.add(element("t1", UnifiedElementType.PARAGRAPH.name(), null, "第一章 总则 ...... 1"));
+        elements.add(element("t2", UnifiedElementType.PARAGRAPH.name(), null, "第二章 须知 ...... 2"));
+        elements.add(element("t3", UnifiedElementType.PARAGRAPH.name(), null, "第三章 评标 ...... 3"));
+        elements.add(element("n-1", UnifiedElementType.PARAGRAPH.name(), null, "正文段落"));
+        for (UnifiedElement e : List.of(elements.get(0), elements.get(1), elements.get(2))) {
+            e.setMarks(new ArrayList<>(List.of(ElementMark.TOC_LINE.name())));
+        }
+        // Word 无页概念：3 行连续窗口默认（runMinLength=3）判目录，阈值提到 4 就不再判
+        PreprocessStrategy strict = PreprocessStrategy.defaultStrategy();
+        strict.rule(PreprocessRule.TOC).getParams()
+                .put(PreprocessParam.TOC_RUN_MIN_LENGTH.key(), "4");
+
+        PreprocessView strictView = pipeline()
+                .preprocess(context(document(elements, new ArrayList<>()), strict)).getView();
+        PreprocessView defaultView = pipeline()
+                .preprocess(context(document(elements, new ArrayList<>()),
+                        PreprocessStrategy.defaultStrategy())).getView();
+
+        assertEquals(ViewElementStatus.NORMAL.name(), strictView.getElements().get(0).getStatus());
+        assertEquals(ViewElementStatus.MARKED_TOC.name(), defaultView.getElements().get(0).getStatus());
     }
 
     @Test
