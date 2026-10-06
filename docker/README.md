@@ -20,17 +20,18 @@ docker compose up -d
 
 ## 组件与端口
 
-| 组件         | 端口                            | 账号           | 说明                                              |
-|--------------|---------------------------------|----------------|---------------------------------------------------|
-| MySQL 8      | 3306                            | root / root123 | 首次启动自动建库 `knowledge` + 全部表 + 策略 seed |
-| Redis 7      | 6379                            | 无密码         | 任务唤醒队列 / 启动补偿分布式锁                   |
-| Milvus 2.5.5 | 19530（gRPC）/ 9091（健康检查） | —              | 向量库；配套 etcd + minio 内部容器                |
+| 组件         | 端口                            | 账号           | 说明                                                                                     |
+|--------------|---------------------------------|----------------|------------------------------------------------------------------------------------------|
+| MySQL 8      | 3306                            | root / root123 | 首次启动自动建库 `knowledge` + 全部表 + 策略 seed                                        |
+| Redis 7      | 6379                            | 无密码         | 任务唤醒队列 / 启动补偿分布式锁                                                          |
+| Milvus 2.5.5 | 19530（gRPC）/ 9091（健康检查） | —              | 向量库；配套 etcd + minio 内部容器；应用启动时缺库自动建 `knowledge`（只自带 `default`） |
 
 与 `application.yml` 的对应关系：
 
 - `spring.datasource.*` → mysql 容器
 - `spring.data.redis.*` → redis 容器
 - `knowledge.vector.milvus.host` / `port` → milvus 容器（默认 localhost:19530，未在 yml 中显式配置）
+- `knowledge.vector.milvus.database` → 目标库名（默认 `knowledge`）：Milvus 只自带 `default` 库，连接时指定的库必须已存在，故启动先探测、缺库即以 `default` 库连一次并创建（与集合懒建同口径）；置 `knowledge.vector.milvus.enable=false` 可整体跳过向量库
 
 ## 常用命令
 
