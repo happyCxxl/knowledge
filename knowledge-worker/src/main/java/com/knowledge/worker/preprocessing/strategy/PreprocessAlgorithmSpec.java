@@ -64,6 +64,7 @@ public final class PreprocessAlgorithmSpec {
             }
             case TIDY -> {
                 defaults.put(PreprocessParam.TIDY_WHITESPACE.key(), PreprocessStrategy.ON);
+                defaults.put(PreprocessParam.TIDY_JOIN_LINES.key(), PreprocessStrategy.ON);
                 defaults.put(PreprocessParam.TIDY_PUNCT.key(), PreprocessStrategy.ON);
                 defaults.put(PreprocessParam.TIDY_DASHES.key(), PreprocessStrategy.ON);
                 defaults.put(PreprocessParam.TIDY_BULLETS.key(), PreprocessStrategy.ON);

@@ -80,6 +80,34 @@ class TextTidyRuleTest {
     }
 
     @Test
+    void brokenLinesInSameParagraphShouldJoin() {
+        ViewElement element = paragraph("投标保证金为人民币\n叁佰万元整，\n请于开标前提交。");
+
+        var outcome = rule.apply(element, context());
+
+        assertTrue(outcome.isMatched());
+        assertEquals("投标保证金为人民币叁佰万元整，请于开标前提交。", element.getDisplayText());
+    }
+
+    @Test
+    void blankLineShouldKeepParagraphBoundary() {
+        ViewElement element = paragraph("第一段内容\n\n第二段内容");
+
+        rule.apply(element, context());
+
+        assertEquals("第一段内容\n第二段内容", element.getDisplayText());
+    }
+
+    @Test
+    void listItemsShouldNotBeJoined() {
+        ViewElement element = paragraph("评分说明如下：\n1. 价格分\n2. 技术分");
+
+        rule.apply(element, context());
+
+        assertEquals("评分说明如下：\n1. 价格分\n2. 技术分", element.getDisplayText());
+    }
+
+    @Test
     void unchangedParagraphShouldNotMatch() {
         assertFalse(rule.apply(paragraph("正文段落无任何需要整理的内容"), context()).isMatched());
     }

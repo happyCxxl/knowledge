@@ -31,6 +31,9 @@ public enum PreprocessParam {
     /** 空白归一化 */
     TIDY_WHITESPACE(PreprocessRule.TIDY, "whitespace", null, null, "ON", "行内空白折叠/trim/单元格空白归一化"),
 
+    /** 折行段落合并 */
+    TIDY_JOIN_LINES(PreprocessRule.TIDY, "joinLines", null, null, "ON", "折行段落合并（同段内硬折行合成一行，段间不动）"),
+
     /** 标点与引号统一 */
     TIDY_PUNCT(PreprocessRule.TIDY, "punct", null, null, "ON", "重复标点折叠 + 全半角与弯引号统一"),
 
