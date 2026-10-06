@@ -14,8 +14,8 @@ import org.springframework.stereotype.Component;
 
 /**
  * ⑦ 噪声处置：判定依赖组装环节噪声页标记（NOISE_PAGE），本规则按处置方式处理
- * MARK（标记，默认）/EXCLUDE（剔除出检索文本内容流；KEEP 未实现，按 MARK 处理）。
- * 空白页无元素，仅统计与告警，无元素级处置。
+ * KEEP（只统计不处置：不改状态与文本）/ MARK（标记，默认，仍参与内容流）/ EXCLUDE（剔除出检索文本内容流）。
+ * 噪声计数来自组装环节的页标记，与处置动作无关；空白页无元素，仅统计与告警，无元素级处置。
  *
  * @author cxxl
  */
@@ -48,6 +48,10 @@ public class NoiseRule implements CleanRule {
             return RuleOutcome.none();
         }
         String opt = context.getStrategy().action(PreprocessRule.NOISE, PreprocessAction.MARK.name());
+        if (PreprocessAction.KEEP.name().equalsIgnoreCase(opt)) {
+            // 只统计不处置：元素状态与文本一律不动（噪声计数来自组装环节页标记）
+            return RuleOutcome.none();
+        }
         TraceEntry trace;
         int changed = 0;
         if (PreprocessAction.EXCLUDE.name().equalsIgnoreCase(opt)) {

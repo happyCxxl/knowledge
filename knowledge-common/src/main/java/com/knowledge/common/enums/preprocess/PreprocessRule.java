@@ -17,8 +17,8 @@ public enum PreprocessRule {
     /** 目录处置（三态） */
     TOC("toc", "目录元素处置：整页/连续窗口判定为目录后按动作处理；EXCLUDE 时识别阈值参数不生效"),
 
-    /** 噪声处置（三态：KEEP 未实现，按 MARK 处理） */
-    NOISE("noise", "噪声元素处置：MARK 标记 / EXCLUDE 剔除（KEEP 暂未实现，按 MARK 处理）"),
+    /** 噪声处置（三态） */
+    NOISE("noise", "噪声元素处置：KEEP 只统计不处置 / MARK 保留但标注 / EXCLUDE 剔除出检索内容流"),
 
     /** 重复处置（开关） */
     REPEAT("repeat", "重复段落/页剔除（判定来自组装环节结构标记，只保留首份）"),

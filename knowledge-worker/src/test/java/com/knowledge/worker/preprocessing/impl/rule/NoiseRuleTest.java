@@ -18,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 噪声处置规则单测：MARK/EXCLUDE 两档；非噪声页不命中。
+ * 噪声处置规则单测：KEEP（只统计不处置）/ MARK / EXCLUDE 三档；非噪声页不命中。
  *
  * @author cxxl
  */
@@ -68,6 +68,17 @@ class NoiseRuleTest {
 
         assertEquals(ViewElementStatus.EXCLUDED_NOISE.name(), element.getStatus());
         assertNull(element.getNormalizedText());
+    }
+
+    @Test
+    void keepShouldLeaveElementUntouched() {
+        ViewElement element = element();
+        var outcome = rule.apply(element, context("KEEP"));
+
+        // 只统计不处置：不命中、状态与文本都不动（噪声计数来自组装环节页标记）
+        assertFalse(outcome.isMatched());
+        assertEquals(ViewElementStatus.NORMAL.name(), element.getStatus());
+        assertEquals("噪声页内容", element.getNormalizedText());
     }
 
     @Test
