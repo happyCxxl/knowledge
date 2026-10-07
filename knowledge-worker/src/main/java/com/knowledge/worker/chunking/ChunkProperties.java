@@ -15,9 +15,6 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "knowledge.chunk")
 public class ChunkProperties {
 
-    /** 目标切片长度下限（字符，草案 300） */
-    private int targetMinLen = 300;
-
     /** 目标切片长度上限（字符，草案 800；整段不可拆允许 801–1000） */
     private int targetMaxLen = 800;
 
@@ -41,9 +38,6 @@ public class ChunkProperties {
 
     /** 表格行组大小：每 N 行一组（草案 3；行级切片 row-slice 用） */
     private int tableRowGroupSize = 3;
-
-    /** 父子层级深度（草案 2；预留未消费——实际父子实现为 pipeline 布尔开关 + 单层父片） */
-    private int parentChildDepth = 2;
 
     /** 标题路径保留级数（草案 3） */
     private int titlePathMaxLevel = 3;
