@@ -205,23 +205,6 @@
                 </div>
               </template>
             </div>
-
-            <div class="stg-pane-foot">
-              <span class="stg-pane-order"
-                >1 编码 → 2 文本整理 → 3 页眉页脚 → 4 目录 → 5 重复 → 6 字段 → 7 噪声 → 8 自定义 → 9
-                视图组装</span
-              >
-              <span class="page-spacer"></span>
-              <span>顺序固定；改动需重新触发预处理才生效，旧任务与旧产物不动</span>
-            </div>
-            <div class="stg-pane-foot">
-              <span class="stg-pane-order"
-                >1 编码 → 2 文本整理 → 3 页眉页脚 → 4 目录 → 5 重复 → 6 字段 → 7 噪声 → 8 自定义 → 9
-                视图组装</span
-              >
-              <span class="page-spacer"></span>
-              <span>顺序固定；改动需重新触发预处理才生效，旧任务与旧产物不动</span>
-            </div>
           </template>
         </section>
       </div>
@@ -1122,23 +1105,6 @@ onMounted(async () => {
 
   /* 配置区不出现滚动条：内容超高时仍可滚，但不占位且不可见 */
   scrollbar-width: none;
-}
-
-/* 页尾固定条：执行顺序与生效时点 */
-.stg-pane-foot {
-  display: flex;
-  flex: none;
-  gap: 10px;
-  align-items: center;
-  padding: 10px 24px;
-  border-top: 1px solid var(--kb-line);
-  color: var(--kb-text-3);
-  font-size: 12px;
-}
-
-.stg-pane-order {
-  color: var(--kb-text-2);
-  font-family: ui-monospace, 'JetBrains Mono', Consolas, monospace;
 }
 
 .stg-sec {
