@@ -3,7 +3,10 @@ package com.knowledge.worker.chunking.impl.body;
 import cn.hutool.core.util.StrUtil;
 import com.knowledge.common.domain.chunk.Chunk;
 import com.knowledge.common.domain.preprocess.ViewElement;
+import com.knowledge.common.enums.chunk.ChunkContentType;
+import com.knowledge.common.enums.chunk.ChunkRoute;
 import com.knowledge.worker.chunking.SliceContext;
+import com.knowledge.worker.chunking.strategy.ChunkRouteConfig;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -20,6 +23,12 @@ public final class BodyChunkSupport {
 
     /** 句边界分隔符（保留分隔符的 lookbehind 切分） */
     public static final String SENTENCE_BOUNDARIES = "[。！？；\\n]";
+
+    /** 降级原因：整段超过软上限（段落/结构混合/句子聚合共用） */
+    public static final String REASON_PARAGRAPH_TOO_LONG = "超长段落递归降级";
+
+    /** 降级原因：一节文本超过片长上限（标题边界） */
+    public static final String REASON_TITLE_BOUNDARY_TOO_LONG = "标题边界超长降级";
 
     private BodyChunkSupport() {
     }
@@ -94,5 +103,27 @@ public final class BodyChunkSupport {
             }
         }
         return sentences;
+    }
+
+    /**
+     * 超长降级（正文各策略共用唯一入口）：按策略所选兜底切片器切片，逐片标 {@code contentType=FALLBACK}
+     * 与降级原因。调用前须先结算既有缓冲（降级片不与聚合片混作一组）。
+     *
+     * @param text      超长文本（整元素或一节文本）
+     * @param sourceIds 来源元素 ID（一节文本为组内元素并集）
+     * @param pages     页码范围（可为 null）
+     * @param context   切片上下文（含策略路由与兜底切片器）
+     * @param reason    降级原因（写入 fallbackReason）
+     */
+    public static List<Chunk> fallbackChunks(String text, List<String> sourceIds, List<Integer> pages,
+                                             SliceContext context, String reason) {
+        ChunkRouteConfig fallbackConfig = context.getStrategy().route(ChunkRoute.FALLBACK);
+        List<Chunk> chunks = new ArrayList<>();
+        for (String piece : context.getFallback().slice(text, fallbackConfig)) {
+            Chunk chunk = buildChunk(ChunkContentType.FALLBACK.name(), piece, context, sourceIds, pages);
+            chunk.setFallbackReason(reason);
+            chunks.add(chunk);
+        }
+        return chunks;
     }
 }

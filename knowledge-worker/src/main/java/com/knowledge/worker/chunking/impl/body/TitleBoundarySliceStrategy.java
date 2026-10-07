@@ -8,11 +8,9 @@ import com.knowledge.worker.chunking.SliceContext;
 import com.knowledge.worker.chunking.slice.SliceStrategy;
 import com.knowledge.common.enums.chunk.ChunkAlgorithm;
 import com.knowledge.worker.chunking.strategy.ChunkParamKeys;
-import com.knowledge.worker.chunking.strategy.ChunkRouteConfig;
 import com.knowledge.common.enums.chunk.ChunkRoute;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -55,14 +53,8 @@ public class TitleBoundarySliceStrategy implements SliceStrategy {
         if (content.length() <= maxLen) {
             return List.of(BodyChunkSupport.buildChunk(ChunkContentType.PARAGRAPH.name(), content, context, ids, pages));
         }
-        // 超长节：走兜底降级（每片合法、带 fallbackReason）
-        ChunkRouteConfig fallbackConfig = context.getStrategy().route(ChunkRoute.FALLBACK);
-        List<Chunk> chunks = new ArrayList<>();
-        for (String piece : context.getFallback().slice(content, fallbackConfig)) {
-            Chunk chunk = BodyChunkSupport.buildChunk(ChunkContentType.FALLBACK.name(), piece, context, ids, pages);
-            chunk.setFallbackReason("标题边界超长降级");
-            chunks.add(chunk);
-        }
-        return chunks;
+        // 超长节：走兜底降级（与正文聚合类共用同一入口，每片合法、带 fallbackReason）
+        return BodyChunkSupport.fallbackChunks(content, ids, pages, context,
+                BodyChunkSupport.REASON_TITLE_BOUNDARY_TOO_LONG);
     }
 }
