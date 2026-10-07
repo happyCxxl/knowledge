@@ -212,14 +212,28 @@ export interface PreprocessConfig {
  * 切片算法选项。
  *
  * <p>`supported=false` 的是后端预留但未上线的算法（后端枚举里也是这样标的），
- * 下拉里**置灰可见**。
+ * 下拉里**置灰可见**，并带上未上线原因（`reason`）。
+ *
+ * <p>参数的**键与范围**与后端 `knowledge-common/.../enums/chunk/ChunkParam` 同源
+ * （那是保存校验的唯一事实源）；此处只补中文名与范围提示，改一处要同步另一处。
  */
+export interface ChunkParamHint {
+  /** 参数中文名 */
+  label: string;
+  /** 允许的最小值（与后端 ChunkParam 一致） */
+  min: number;
+  /** 允许的最大值（与后端 ChunkParam 一致） */
+  max: number;
+}
+
 export interface ChunkAlgorithmOption {
   key: string;
   label: string;
   supported: boolean;
-  /** 该算法涉及的参数（键 → 中文名） */
-  params?: Record<string, string>;
+  /** 该算法涉及的参数（键 → 中文名 + 范围） */
+  params?: Record<string, ChunkParamHint>;
+  /** 未上线原因（`supported=false` 时用于下拉里的说明） */
+  reason?: string;
 }
 
 export const CHUNK_BODY_ALGORITHMS: ChunkAlgorithmOption[] = [
@@ -227,28 +241,45 @@ export const CHUNK_BODY_ALGORITHMS: ChunkAlgorithmOption[] = [
     key: 'paragraph-aggregate',
     label: '段落聚合',
     supported: true,
-    params: { targetMaxLen: '目标片长', softMaxLen: '软上限' },
+    params: {
+      targetMaxLen: { label: '目标片长', min: 100, max: 5000 },
+      softMaxLen: { label: '软上限', min: 100, max: 8000 },
+    },
   },
-  { key: 'title-boundary', label: '标题边界', supported: true, params: { maxLen: '片长上限' } },
+  {
+    key: 'title-boundary',
+    label: '标题边界',
+    supported: true,
+    params: { maxLen: { label: '片长上限', min: 100, max: 20000 } },
+  },
   {
     key: 'structure-hybrid',
     label: '结构混合',
     supported: true,
-    params: { targetMaxLen: '目标片长' },
+    params: {
+      targetMaxLen: { label: '目标片长', min: 100, max: 5000 },
+      softMaxLen: { label: '软上限', min: 100, max: 8000 },
+    },
   },
   {
     key: 'sentence-aggregate',
     label: '句子聚合',
     supported: true,
-    params: { targetMaxLen: '目标片长', softMaxLen: '软上限' },
+    params: {
+      targetMaxLen: { label: '目标片长', min: 100, max: 5000 },
+      softMaxLen: { label: '软上限', min: 100, max: 8000 },
+    },
   },
   {
     key: 'fixed-window',
     label: '固定窗口',
     supported: true,
-    params: { len: '窗口长度', overlap: '重叠长度' },
+    params: {
+      len: { label: '窗口长度', min: 100, max: 5000 },
+      overlap: { label: '重叠长度', min: 0, max: 1000 },
+    },
   },
-  { key: 'semantic', label: '语义切片', supported: false },
+  { key: 'semantic', label: '语义切片', supported: false, reason: '依赖嵌入能力' },
 ];
 
 export const CHUNK_TABLE_ALGORITHMS: ChunkAlgorithmOption[] = [
@@ -256,29 +287,44 @@ export const CHUNK_TABLE_ALGORITHMS: ChunkAlgorithmOption[] = [
     key: 'row-slice',
     label: '行级切片（表头随片）',
     supported: true,
-    params: { groupThreshold: '短行阈值', groupSize: '行组大小' },
+    params: {
+      groupThreshold: { label: '短行阈值', min: 5, max: 500 },
+      groupSize: { label: '行组大小', min: 1, max: 20 },
+    },
   },
   {
     key: 'row-group',
     label: '行组切片',
     supported: true,
-    params: { groupSize: '行组大小', maxLen: '组字符上限' },
+    params: {
+      groupSize: { label: '行组大小', min: 1, max: 50 },
+      maxLen: { label: '组字符上限', min: 100, max: 5000 },
+    },
   },
-  { key: 'whole-table', label: '整表一片', supported: true, params: { maxLen: '片长上限' } },
+  {
+    key: 'whole-table',
+    label: '整表一片',
+    supported: true,
+    params: { maxLen: { label: '片长上限', min: 100, max: 20000 } },
+  },
   {
     key: 'context-merged',
     label: '表 + 引导段落',
     supported: true,
-    params: { leadMaxLen: '引导段截断长度' },
+    params: {
+      leadMaxLen: { label: '引导段截断长度', min: 0, max: 1000 },
+      groupThreshold: { label: '短行阈值', min: 5, max: 500 },
+      groupSize: { label: '行组大小', min: 1, max: 20 },
+    },
   },
 ];
 
 export const CHUNK_IMAGE_ALGORITHMS: ChunkAlgorithmOption[] = [
   { key: 'caption-placeholder', label: '图注占位', supported: true },
-  { key: 'caption-context', label: '图注 + 上下文', supported: false },
-  { key: 'ocr', label: 'OCR 文字', supported: false },
-  { key: 'visual-summary', label: '视觉摘要', supported: false },
-  { key: 'multimodal', label: '多模态向量', supported: false },
+  { key: 'caption-context', label: '图注 + 上下文', supported: false, reason: '依赖邻近正文聚合' },
+  { key: 'ocr', label: 'OCR 文字', supported: false, reason: '依赖解析环节的 OCR 能力' },
+  { key: 'visual-summary', label: '视觉摘要', supported: false, reason: '依赖多模态模型' },
+  { key: 'multimodal', label: '多模态向量', supported: false, reason: '依赖多模态向量模型' },
 ];
 
 export const CHUNK_FALLBACK_ALGORITHMS: ChunkAlgorithmOption[] = [
@@ -286,15 +332,21 @@ export const CHUNK_FALLBACK_ALGORITHMS: ChunkAlgorithmOption[] = [
     key: 'recursive-length',
     label: '递归降级',
     supported: true,
-    params: { len: '片长', overlap: '重叠' },
+    params: {
+      len: { label: '片长', min: 100, max: 5000 },
+      overlap: { label: '重叠', min: 0, max: 1000 },
+    },
   },
   {
     key: 'fixed-window',
     label: '固定窗口硬切',
     supported: true,
-    params: { len: '片长', overlap: '重叠' },
+    params: {
+      len: { label: '片长', min: 100, max: 5000 },
+      overlap: { label: '重叠', min: 0, max: 1000 },
+    },
   },
-  { key: 'semantic-boundary', label: '语义断点', supported: false },
+  { key: 'semantic-boundary', label: '语义断点', supported: false, reason: '依赖嵌入能力' },
   { key: 'none', label: '不兜底', supported: true },
 ];
 

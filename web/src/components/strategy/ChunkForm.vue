@@ -14,7 +14,7 @@
           v-for="option in CHUNK_ROUTE_ALGORITHMS[route]"
           :key="option.key"
           :value="option.key"
-          :label="option.supported ? option.label : `${option.label}（未上线）`"
+          :label="option.supported ? option.label : `${option.label}（未上线：${option.reason}）`"
           :disabled="!option.supported"
         />
       </el-select>
@@ -24,7 +24,9 @@
     <!-- 参数按算法定义动态渲染：不同算法参数不同 -->
     <div v-if="paramEntries(route).length > 0" class="cf-params">
       <label v-for="entry in paramEntries(route)" :key="entry[0]" class="cf-param">
-        <span class="cf-param-label">{{ entry[1] }}</span>
+        <span class="cf-param-label"
+          >{{ entry[1].label }}（{{ entry[1].min }}~{{ entry[1].max }}）</span
+        >
         <el-input
           v-if="!readonly"
           :model-value="paramValueOf(route, entry[0])"
@@ -76,7 +78,7 @@
 /**
  * 切片策略表单。
  *
- * <p>覆盖四路由（正文 / 表格 / 图片 / 超长兜底）的算法与参数，以及流程开关。
+ * <p>覆盖四路由（正文 / 表格 / 图片 / 超长兜底）的算法与参数，以及流程开关；参数标签带上允许范围（与后端 ChunkParam 同源）。
  *
  * <p>两处后端约束在这里体现：
  * <ol>
@@ -99,7 +101,12 @@ import {
   algorithmLabel,
   findAlgorithmOption,
 } from '@/types/strategy-config';
-import type { ChunkConfig, ChunkRouteKey, ChunkRouteRaw } from '@/types/strategy-config';
+import type {
+  ChunkConfig,
+  ChunkParamHint,
+  ChunkRouteKey,
+  ChunkRouteRaw,
+} from '@/types/strategy-config';
 
 const config = defineModel<ChunkConfig>('config', { required: true });
 
@@ -139,7 +146,7 @@ function setAlgorithm(route: ChunkRouteKey, value: string): void {
 }
 
 /** 当前算法声明的参数（[键, 中文名]）；未登记的算法返回空，避免乱渲染参数 */
-function paramEntries(route: ChunkRouteKey): [string, string][] {
+function paramEntries(route: ChunkRouteKey): [string, ChunkParamHint][] {
   const option = findAlgorithmOption(route, algorithmOf(route));
   return option?.params ? Object.entries(option.params) : [];
 }
