@@ -9,6 +9,7 @@ import com.knowledge.common.domain.preprocess.ViewElement;
 import com.knowledge.common.domain.rules.PreprocessViewRules;
 import com.knowledge.common.enums.chunk.ChunkContentType;
 import com.knowledge.common.enums.chunk.ChunkRoute;
+import com.knowledge.common.enums.chunk.PipelineKey;
 import com.knowledge.common.utils.NullUtil;
 import com.knowledge.filecenter.service.FileStorage;
 import com.knowledge.worker.chunking.strategy.ChunkRouteConfig;
@@ -70,6 +71,12 @@ public final class ChunkStatsSupport {
 
     /** 超过软上限（softMaxLen）的片数：这些片只能靠兜底降级切开 */
     public static final String KEY_OVER_SOFT_MAX_COUNT = "overSoftMaxCount";
+
+    /** 最小合并长度（流程层 minMergeLen，默认 300） */
+    public static final String KEY_MIN_MERGE_LEN = "minMergeLen";
+
+    /** 欠长片数（子片里短于 minMergeLen 的片：合并后仍偏短，多为合并尾巴） */
+    public static final String KEY_UNDER_MIN_MERGE_COUNT = "underMinMergeCount";
 
     /** 进入切片的元素数（上游视图元素 − 跳过） */
     public static final String KEY_ROUTED_ELEMENT_COUNT = "routedElementCount";
@@ -263,6 +270,11 @@ public final class ChunkStatsSupport {
             stats.put(KEY_FALLBACK_LEN, fallback.intParam(PARAM_FALLBACK_LEN, 0));
             stats.put(KEY_FALLBACK_OVERLAP, fallback.intParam(PARAM_FALLBACK_OVERLAP, 0));
         }
+        int minMergeLen = strategy.pipelineInt(PipelineKey.MIN_MERGE_LEN, 0);
+        if (minMergeLen > 0) {
+            stats.put(KEY_MIN_MERGE_LEN, minMergeLen);
+            stats.put(KEY_UNDER_MIN_MERGE_COUNT, countUnder(chunks, minMergeLen));
+        }
     }
 
     /** 超过给定片长的片数 */
@@ -271,6 +283,17 @@ public final class ChunkStatsSupport {
             return 0;
         }
         return (int) chunks.stream().filter(chunk -> chunk.getCharCount() > limit).count();
+    }
+
+    /** 短于给定长度的子片数（父片是整章聚合，不参与欠长统计） */
+    private static int countUnder(List<Chunk> chunks, int limit) {
+        if (limit <= 0) {
+            return 0;
+        }
+        return (int) chunks.stream()
+                .filter(chunk -> !ChunkContentType.SECTION.name().equals(chunk.getContentType()))
+                .filter(chunk -> chunk.getCharCount() < limit)
+                .count();
     }
 
     /** 被挂子片的父片数：子片的 parentChunkId 落在集合内的片 ID 上 */
