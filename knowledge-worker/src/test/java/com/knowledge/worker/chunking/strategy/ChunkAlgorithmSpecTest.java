@@ -1,12 +1,16 @@
 package com.knowledge.worker.chunking.strategy;
 
+import com.knowledge.common.enums.chunk.ChunkAlgorithm;
+import com.knowledge.common.enums.chunk.ChunkParam;
 import com.knowledge.common.enums.chunk.ChunkRoute;
 import com.knowledge.common.utils.JsonUtil;
 import com.knowledge.worker.chunking.ChunkProperties;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -90,5 +94,52 @@ class ChunkAlgorithmSpecTest {
 
         assertEquals("5", defaults.get("groupSize"));
         assertEquals("600", defaults.get("maxLen"));
+    }
+
+    @Test
+    void defaultParamsShouldAllExistInCatalogue() {
+        for (ChunkAlgorithm algorithm : ChunkAlgorithm.values()) {
+            Set<String> allowed = new HashSet<>();
+            ChunkParam.ofAlgorithm(algorithm).forEach(param -> allowed.add(param.key()));
+            Set<String> defaults = ChunkAlgorithmSpec
+                    .defaultParams(algorithm.route(), algorithm.key(), new ChunkProperties()).keySet();
+            for (String key : defaults) {
+                assertTrue(allowed.contains(key),
+                        algorithm.key() + " 的默认参数 " + key + " 不在 ChunkParam 目录里");
+            }
+        }
+    }
+
+    @Test
+    void catalogueShouldCoverEveryParamKeyConstant() {
+        Set<String> keys = new HashSet<>();
+        for (ChunkParam param : ChunkParam.values()) {
+            keys.add(param.key());
+        }
+        for (String constant : new String[] { ChunkParamKeys.TARGET_MAX_LEN, ChunkParamKeys.SOFT_MAX_LEN,
+                ChunkParamKeys.LEN, ChunkParamKeys.OVERLAP, ChunkParamKeys.MAX_LEN, ChunkParamKeys.LEAD_MAX_LEN,
+                ChunkParamKeys.GROUP_THRESHOLD, ChunkParamKeys.GROUP_SIZE }) {
+            assertTrue(keys.contains(constant), "参数键常量 " + constant + " 在 ChunkParam 目录里没有对应条目");
+        }
+    }
+
+    @Test
+    void rangeBoundaryShouldBeAcceptedAtCatalogueEdges() {
+        assertNull(ChunkAlgorithmSpec.validate(config(
+                "{\"routes\":{\"body\":{\"algorithm\":\"paragraph-aggregate\",\"params\":{\"targetMaxLen\":\"100\",\"softMaxLen\":\"100\"}}}}")));
+        assertNull(ChunkAlgorithmSpec.validate(config(
+                "{\"routes\":{\"body\":{\"algorithm\":\"paragraph-aggregate\",\"params\":{\"targetMaxLen\":\"5000\",\"softMaxLen\":\"8000\"}}}}")));
+        assertNotNull(ChunkAlgorithmSpec.validate(config(
+                "{\"routes\":{\"body\":{\"algorithm\":\"paragraph-aggregate\",\"params\":{\"softMaxLen\":\"99\"}}}}")));
+        assertNull(ChunkAlgorithmSpec.validate(config(
+                "{\"routes\":{\"fallback\":{\"algorithm\":\"recursive-length\",\"params\":{\"len\":\"5000\",\"overlap\":\"1000\"}}}}")));
+        assertNotNull(ChunkAlgorithmSpec.validate(config(
+                "{\"routes\":{\"fallback\":{\"algorithm\":\"recursive-length\",\"params\":{\"len\":\"5000\",\"overlap\":\"1001\"}}}}")));
+    }
+
+    @Test
+    void unknownParamKeyShouldPassThrough() {
+        assertNull(ChunkAlgorithmSpec.validate(config(
+                "{\"routes\":{\"body\":{\"algorithm\":\"paragraph-aggregate\",\"params\":{\"someFutureKey\":\"abc\"}}}}")));
     }
 }

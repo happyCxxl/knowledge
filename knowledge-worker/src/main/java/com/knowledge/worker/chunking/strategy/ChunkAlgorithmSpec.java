@@ -1,6 +1,7 @@
 package com.knowledge.worker.chunking.strategy;
 
 import com.knowledge.common.enums.chunk.ChunkAlgorithm;
+import com.knowledge.common.enums.chunk.ChunkParam;
 import com.knowledge.common.enums.chunk.ChunkRoute;
 import com.knowledge.common.enums.chunk.PipelineKey;
 import com.knowledge.worker.chunking.ChunkProperties;
@@ -91,31 +92,33 @@ public final class ChunkAlgorithmSpec {
         }
         switch (algorithm) {
             case BODY_PARAGRAPH_AGGREGATE, BODY_STRUCTURE_HYBRID, BODY_SENTENCE_AGGREGATE -> {
-                defaults.put("targetMaxLen", String.valueOf(properties.getTargetMaxLen()));
-                defaults.put("softMaxLen", String.valueOf(properties.getSoftMaxLen()));
+                defaults.put(ChunkParamKeys.TARGET_MAX_LEN, String.valueOf(properties.getTargetMaxLen()));
+                defaults.put(ChunkParamKeys.SOFT_MAX_LEN, String.valueOf(properties.getSoftMaxLen()));
             }
-            case BODY_TITLE_BOUNDARY -> defaults.put("maxLen", String.valueOf(properties.getTitleBoundaryMaxLen()));
+            case BODY_TITLE_BOUNDARY ->
+                defaults.put(ChunkParamKeys.MAX_LEN, String.valueOf(properties.getTitleBoundaryMaxLen()));
             case BODY_FIXED_WINDOW -> {
-                defaults.put("len", String.valueOf(properties.getBodyWindowLen()));
-                defaults.put("overlap", String.valueOf(properties.getBodyWindowOverlap()));
+                defaults.put(ChunkParamKeys.LEN, String.valueOf(properties.getBodyWindowLen()));
+                defaults.put(ChunkParamKeys.OVERLAP, String.valueOf(properties.getBodyWindowOverlap()));
             }
             case TABLE_ROW_SLICE -> {
-                defaults.put("groupThreshold", String.valueOf(properties.getTableRowGroupThreshold()));
-                defaults.put("groupSize", String.valueOf(properties.getTableRowGroupSize()));
+                defaults.put(ChunkParamKeys.GROUP_THRESHOLD, String.valueOf(properties.getTableRowGroupThreshold()));
+                defaults.put(ChunkParamKeys.GROUP_SIZE, String.valueOf(properties.getTableRowGroupSize()));
             }
             case TABLE_ROW_GROUP -> {
-                defaults.put("groupSize", String.valueOf(properties.getRowGroupSize()));
-                defaults.put("maxLen", String.valueOf(properties.getRowGroupMaxLen()));
+                defaults.put(ChunkParamKeys.GROUP_SIZE, String.valueOf(properties.getRowGroupSize()));
+                defaults.put(ChunkParamKeys.MAX_LEN, String.valueOf(properties.getRowGroupMaxLen()));
             }
-            case TABLE_WHOLE -> defaults.put("maxLen", String.valueOf(properties.getWholeTableMaxLen()));
+            case TABLE_WHOLE ->
+                defaults.put(ChunkParamKeys.MAX_LEN, String.valueOf(properties.getWholeTableMaxLen()));
             case TABLE_CONTEXT_MERGED -> {
-                defaults.put("leadMaxLen", String.valueOf(properties.getContextLeadMaxLen()));
-                defaults.put("groupThreshold", String.valueOf(properties.getTableRowGroupThreshold()));
-                defaults.put("groupSize", String.valueOf(properties.getTableRowGroupSize()));
+                defaults.put(ChunkParamKeys.LEAD_MAX_LEN, String.valueOf(properties.getContextLeadMaxLen()));
+                defaults.put(ChunkParamKeys.GROUP_THRESHOLD, String.valueOf(properties.getTableRowGroupThreshold()));
+                defaults.put(ChunkParamKeys.GROUP_SIZE, String.valueOf(properties.getTableRowGroupSize()));
             }
             case FALLBACK_RECURSIVE, FALLBACK_FIXED_WINDOW -> {
-                defaults.put("len", String.valueOf(properties.getRecursiveLen()));
-                defaults.put("overlap", String.valueOf(properties.getRecursiveOverlap()));
+                defaults.put(ChunkParamKeys.LEN, String.valueOf(properties.getRecursiveLen()));
+                defaults.put(ChunkParamKeys.OVERLAP, String.valueOf(properties.getRecursiveOverlap()));
             }
             default -> {
             }
@@ -164,50 +167,24 @@ public final class ChunkAlgorithmSpec {
         }
         @SuppressWarnings("unchecked")
         Map<String, Object> params = (Map<String, Object>) (paramsObj == null ? Map.of() : paramsObj);
-        // 允许的键与范围（按算法）
-        Map<String, int[]> allowed = new LinkedHashMap<>();
-        ChunkAlgorithm algorithm = ChunkAlgorithm.of(route, algorithmKey);
-        if (algorithm != null) {
-            switch (algorithm) {
-                case BODY_PARAGRAPH_AGGREGATE, BODY_STRUCTURE_HYBRID, BODY_SENTENCE_AGGREGATE -> {
-                    allowed.put("targetMaxLen", new int[] { 100, 5000 });
-                    allowed.put("softMaxLen", new int[] { 100, 8000 });
-                }
-                case BODY_TITLE_BOUNDARY, TABLE_WHOLE -> allowed.put("maxLen", new int[] { 100, 20000 });
-                case BODY_FIXED_WINDOW, FALLBACK_RECURSIVE, FALLBACK_FIXED_WINDOW -> {
-                    allowed.put("len", new int[] { 100, 5000 });
-                    allowed.put("overlap", new int[] { 0, 1000 });
-                }
-                case TABLE_ROW_SLICE -> {
-                    allowed.put("groupThreshold", new int[] { 5, 500 });
-                    allowed.put("groupSize", new int[] { 1, 20 });
-                }
-                case TABLE_ROW_GROUP -> {
-                    allowed.put("groupSize", new int[] { 1, 50 });
-                    allowed.put("maxLen", new int[] { 100, 5000 });
-                }
-                case TABLE_CONTEXT_MERGED -> {
-                    allowed.put("leadMaxLen", new int[] { 0, 1000 });
-                    allowed.put("groupThreshold", new int[] { 5, 500 });
-                    allowed.put("groupSize", new int[] { 1, 20 });
-                }
-                default -> {
-                }
-            }
+        // 允许的键与范围：单一事实源在 ChunkParam（按算法索引）
+        Map<String, ChunkParam> allowed = new LinkedHashMap<>();
+        for (ChunkParam param : ChunkParam.ofAlgorithm(ChunkAlgorithm.of(route, algorithmKey))) {
+            allowed.put(param.key(), param);
         }
         for (Map.Entry<String, Object> entry : params.entrySet()) {
-            String key = entry.getKey();
-            if (!allowed.containsKey(key)) {
+            ChunkParam param = allowed.get(entry.getKey());
+            if (param == null) {
                 continue; // 未知参数键透传不报错（前向兼容）
             }
-            int[] range = allowed.get(key);
             try {
                 int value = Integer.parseInt(String.valueOf(entry.getValue()).trim());
-                if (value < range[0] || value > range[1]) {
-                    return "参数越界: " + route.key() + "." + key + "（允许 " + range[0] + "~" + range[1] + "）";
+                if (value < param.min() || value > param.max()) {
+                    return "参数越界: " + route.key() + "." + entry.getKey()
+                            + "（允许 " + param.min() + "~" + param.max() + "）";
                 }
             } catch (NumberFormatException e) {
-                return "参数必须是整数: " + route.key() + "." + key;
+                return "参数必须是整数: " + route.key() + "." + entry.getKey();
             }
         }
         return null;
