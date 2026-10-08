@@ -100,6 +100,22 @@
               :class="{ 'layout-nav-item-active': isNavActive(child.path) }"
               :to="child.path"
             >
+              <svg
+                class="layout-nav-icon"
+                width="16"
+                height="16"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.4"
+              >
+                <path
+                  v-for="(d, index) in child.iconPaths"
+                  :key="index"
+                  :d="d"
+                  stroke-linejoin="round"
+                />
+              </svg>
               <span class="layout-nav-label">{{ child.label }}</span>
             </router-link>
           </div>
@@ -113,6 +129,22 @@
               :class="{ 'layout-nav-item-active': isNavActive(child.path) }"
               :to="child.path"
             >
+              <svg
+                class="layout-nav-icon"
+                width="16"
+                height="16"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.4"
+              >
+                <path
+                  v-for="(d, index) in child.iconPaths"
+                  :key="index"
+                  :d="d"
+                  stroke-linejoin="round"
+                />
+              </svg>
               <span class="layout-nav-label">{{ child.label }}</span>
             </router-link>
           </div>
@@ -244,10 +276,11 @@ function toggleSide(): void {
   writeCollapsed('layout-side', sideCollapsed.value);
 }
 
-/** 二级项：只有名称与目标路径，缩进列出 */
+/** 二级项：名称、目标路径与图标；缩进列出，或收起态在浮出面板里列出 */
 interface NavChild {
   label: string;
   path: string;
+  iconPaths: string[];
 }
 
 interface NavBase {
@@ -289,9 +322,23 @@ const navItems: NavItem[] = [
     ],
     children: [
       // 知识库：列表页与它的三个下钻页（执行链 / 索引与发布 / 检索评测）共用这一项
-      { label: '知识库', path: '/knowledge-base' },
+      {
+        label: '知识库',
+        path: '/knowledge-base',
+        iconPaths: [
+          'M2.2 5.2 8 2l5.8 3.2v5.6L8 14 2.2 10.8V5.2Z',
+          'M2.2 5.2 8 8.4l5.8-3.2M8 8.4V14',
+        ],
+      },
       // 策略管理：预处理/切片/向量化/检索四类策略的版本管理
-      { label: '策略管理', path: '/strategy' },
+      {
+        label: '策略管理',
+        path: '/strategy',
+        iconPaths: [
+          'M2.6 4.4h10.8M2.6 8h10.8M2.6 11.6h10.8',
+          'M5.6 2.8v3.2M10.4 6.4v3.2M6.8 10v3.2',
+        ],
+      },
     ],
   },
   {
@@ -564,12 +611,19 @@ function handleLogout(): void {
   position: relative;
 }
 
-/* 组标题是按钮：清掉按钮默认样式，外观与其它菜单项完全一致 */
+/*
+ * 组标题是按钮：清掉按钮默认样式，外观与其它菜单项完全一致。
+ *
+ * <p>**不写 `font` 简写**：简写会把 `font-size` 一并重置成继承值（侧栏继承 16px），
+ * 组标题就比其它菜单项大一号；这里只换字体族，字号由 `.layout-nav-item` 统一给。
+ */
 .layout-nav-item-parent {
   width: 100%;
   border: none;
   background: none;
-  font: inherit;
+
+  /* 显式写完整字体栈而不是 `font-family: inherit`：项目规范要求字体声明以通用族结尾 */
+  font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
   text-align: left;
   cursor: pointer;
 }
@@ -616,19 +670,20 @@ function handleLogout(): void {
   flex-direction: column;
 }
 
+/* 导轨对齐一级图标的竖中线（14 + 12 + 8 = 34），读作从组图标垂下来的分支 */
 .layout-nav-sub::before {
   position: absolute;
   top: 4px;
   bottom: 4px;
-  left: 22px;
+  left: 20px;
   width: 1px;
   background: var(--kb-line-2);
   content: '';
 }
 
+/* 二级项只改缩进：字号、行高、图标尺寸与一级项完全一致 */
 .layout-nav-item-sub {
   padding-left: 30px;
-  font-size: 13px;
 }
 
 /* 折叠态改用浮出面板，二级列表让位 */
@@ -643,12 +698,12 @@ function handleLogout(): void {
 
 /*
  * 收起态的二级入口：悬停组标题或键盘聚焦时从组块右缘外浮出。
- * 组块宽 210px（展开）与 36px（收起），同一套偏移在两种状态下都落在侧栏右边界外 8px。
+ * 组块宽 210px（展开）与 35px（收起），同一套偏移在两种状态下都落在侧栏右边界外。
  */
 .layout-nav-flyout {
   position: absolute;
   top: 0;
-  left: calc(100% + 22px);
+  left: calc(100% + 26px);
   z-index: 6;
   display: flex;
   width: 196px;
@@ -681,10 +736,10 @@ function handleLogout(): void {
   letter-spacing: 0.06em;
 }
 
+/* 面板里的二级项：行高与内边距收紧一点，字号仍与侧栏菜单一致 */
 .layout-nav-item-flyout {
   margin: 1px 0;
   padding: 8px 10px;
-  font-size: 13px;
 }
 
 /* 面板内的选中项只留底色：侧栏边缘那条渐变竖条画在面板外会悬空 */
@@ -1026,7 +1081,7 @@ function handleLogout(): void {
 }
 
 .layout-side-collapsed .layout-nav-flyout .layout-nav-label {
-  width: 148px;
+  width: 132px;
   opacity: 1;
 }
 </style>
