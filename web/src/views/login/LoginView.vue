@@ -27,23 +27,17 @@
                   aria-hidden="true"
                 >
                   <path
-                    d="M13 2.5 22 7.5v11L13 23.5 4 18.5v-11L13 2.5Z"
+                    d="M5 7.5l3.6 12 4.4-8.4 4.4 8.4L21 7.5"
                     stroke="#041510"
-                    stroke-width="1.8"
+                    stroke-width="2.6"
+                    stroke-linecap="round"
                     stroke-linejoin="round"
-                  />
-                  <path
-                    d="M9.2 14.6v-3.2l3.8-6.2 3.8 6.2v3.2l-3.8 5.8-3.8-5.8Z"
-                    stroke="#041510"
-                    stroke-width="1.6"
-                    stroke-linejoin="round"
-                    opacity="0.85"
                   />
                 </svg>
               </div>
               <div class="login-head-text">
-                <div class="login-brand">knowledge</div>
-                <div class="login-brand-sub">企业知识库 · 检索评测平台</div>
+                <div class="login-brand">工作台</div>
+                <div class="login-brand-sub">AI 工作台</div>
               </div>
             </div>
             <h1 class="login-title">欢迎回来</h1>
@@ -120,23 +114,17 @@
                   aria-hidden="true"
                 >
                   <path
-                    d="M13 2.5 22 7.5v11L13 23.5 4 18.5v-11L13 2.5Z"
+                    d="M5 7.5l3.6 12 4.4-8.4 4.4 8.4L21 7.5"
                     stroke="#041510"
-                    stroke-width="1.8"
+                    stroke-width="2.6"
+                    stroke-linecap="round"
                     stroke-linejoin="round"
-                  />
-                  <path
-                    d="M9.2 14.6v-3.2l3.8-6.2 3.8 6.2v3.2l-3.8 5.8-3.8-5.8Z"
-                    stroke="#041510"
-                    stroke-width="1.6"
-                    stroke-linejoin="round"
-                    opacity="0.85"
                   />
                 </svg>
               </div>
               <div class="login-head-text">
-                <div class="login-brand">knowledge</div>
-                <div class="login-brand-sub">企业知识库 · 检索评测平台</div>
+                <div class="login-brand">工作台</div>
+                <div class="login-brand-sub">AI 工作台</div>
               </div>
             </div>
             <h1 class="login-title">创建账号</h1>

@@ -16,23 +16,17 @@
               aria-hidden="true"
             >
               <path
-                d="M13 2.5 22 7.5v11L13 23.5 4 18.5v-11L13 2.5Z"
+                d="M5 7.5l3.6 12 4.4-8.4 4.4 8.4L21 7.5"
                 stroke="#041510"
-                stroke-width="1.8"
+                stroke-width="2.6"
+                stroke-linecap="round"
                 stroke-linejoin="round"
-              />
-              <path
-                d="M9.2 14.6v-3.2l3.8-6.2 3.8 6.2v3.2l-3.8 5.8-3.8-5.8Z"
-                stroke="#041510"
-                stroke-width="1.6"
-                stroke-linejoin="round"
-                opacity="0.85"
               />
             </svg>
           </div>
           <div class="layout-brand-text">
-            <div class="layout-brand-name">knowledge</div>
-            <div class="layout-brand-sub">企业知识库平台</div>
+            <div class="layout-brand-name">工作台</div>
+            <div class="layout-brand-sub">AI 工作台</div>
           </div>
         </router-link>
       </div>
@@ -49,28 +43,109 @@
         aria-label="展开或收起侧边菜单"
         @click="toggleSide"
       ></button>
-      <router-link
-        v-for="item in visibleNavItems"
-        :key="item.path"
-        class="layout-nav-item"
-        :class="{ 'layout-nav-item-active': isNavActive(item.path) }"
-        :to="item.path"
-        :title="sideCollapsed ? item.label : undefined"
-      >
-        <svg
-          class="layout-nav-icon"
-          width="16"
-          height="16"
-          viewBox="0 0 16 16"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.4"
+      <template v-for="item in visibleNavItems" :key="item.label">
+        <!-- 分组项：展开态点标题开合，二级项缩进列出；收起态的二级入口是浮出面板 -->
+        <div
+          v-if="item.kind === 'group'"
+          class="layout-nav-group"
+          :class="{ 'is-open': isGroupOpen(item), 'is-current': groupHasActive(item) }"
         >
-          <path v-for="(d, index) in item.iconPaths" :key="index" :d="d" stroke-linejoin="round" />
-          <circle v-if="item.iconCircle" cx="8" cy="5.4" r="2.6" />
-        </svg>
-        <span class="layout-nav-label">{{ item.label }}</span>
-      </router-link>
+          <button
+            class="layout-nav-item layout-nav-item-parent"
+            :class="{
+              'layout-nav-item-active': sideCollapsed && groupHasActive(item),
+              'is-expanded': isGroupOpen(item),
+            }"
+            type="button"
+            :aria-expanded="isGroupOpen(item)"
+            @click="toggleGroup(item)"
+          >
+            <svg
+              class="layout-nav-icon"
+              width="16"
+              height="16"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.4"
+            >
+              <path
+                v-for="(d, index) in item.iconPaths"
+                :key="index"
+                :d="d"
+                stroke-linejoin="round"
+              />
+            </svg>
+            <span class="layout-nav-label layout-nav-label-parent">{{ item.label }}</span>
+            <svg
+              class="layout-nav-caret"
+              width="14"
+              height="14"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M4.2 6.2 8 10l3.8-3.8" />
+            </svg>
+          </button>
+          <div class="layout-nav-sub">
+            <router-link
+              v-for="child in item.children"
+              :key="child.path"
+              class="layout-nav-item layout-nav-item-sub"
+              :class="{ 'layout-nav-item-active': isNavActive(child.path) }"
+              :to="child.path"
+            >
+              <span class="layout-nav-label">{{ child.label }}</span>
+            </router-link>
+          </div>
+          <!-- 收起态的浮出面板：悬停组标题或键盘聚焦时出现，压在内容区上 -->
+          <div v-if="sideCollapsed" class="layout-nav-flyout">
+            <div class="layout-nav-flyout-title">{{ item.label }}</div>
+            <router-link
+              v-for="child in item.children"
+              :key="child.path"
+              class="layout-nav-item layout-nav-item-flyout"
+              :class="{ 'layout-nav-item-active': isNavActive(child.path) }"
+              :to="child.path"
+            >
+              <span class="layout-nav-label">{{ child.label }}</span>
+            </router-link>
+          </div>
+        </div>
+
+        <!-- 叶子项：直接跳转 -->
+        <router-link
+          v-else
+          class="layout-nav-item"
+          :class="{ 'layout-nav-item-active': isNavActive(item.path) }"
+          :to="item.path"
+          :title="sideCollapsed ? item.label : undefined"
+        >
+          <svg
+            class="layout-nav-icon"
+            width="16"
+            height="16"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.4"
+          >
+            <path
+              v-for="(d, index) in item.iconPaths"
+              :key="index"
+              :d="d"
+              stroke-linejoin="round"
+            />
+            <circle v-if="item.iconCircle" cx="8" cy="5.4" r="2.6" />
+          </svg>
+          <span class="layout-nav-label">{{ item.label }}</span>
+        </router-link>
+      </template>
       <div class="layout-side-foot">
         <el-dropdown class="layout-user-drop" trigger="click" placement="top-start">
           <div class="layout-user-trigger">
@@ -150,7 +225,7 @@
 
 <script setup lang="ts">
 import { ElMessage } from 'element-plus';
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 import { useAuthStore } from '@/stores/auth';
@@ -169,34 +244,58 @@ function toggleSide(): void {
   writeCollapsed('layout-side', sideCollapsed.value);
 }
 
-interface NavItem {
+/** 二级项：只有名称与目标路径，缩进列出 */
+interface NavChild {
   label: string;
   path: string;
+}
+
+interface NavBase {
+  label: string;
   iconPaths: string[];
-  iconCircle?: boolean;
   /** 仅管理员可见的菜单 */
   adminOnly?: boolean;
 }
 
-/** 侧边导航项（扁平结构）。 */
+interface NavLeaf extends NavBase {
+  kind: 'leaf';
+  path: string;
+  iconCircle?: boolean;
+}
+
+/** 一级分组：自身不下钻，点标题开合它下面的二级项 */
+interface NavGroup extends NavBase {
+  kind: 'group';
+  children: NavChild[];
+}
+
+type NavItem = NavLeaf | NavGroup;
+
+/** 侧边导航项（两级结构：没有二级项的是一级叶子项，其余归到分组里）。 */
 const navItems: NavItem[] = [
   {
+    kind: 'leaf',
     label: '首页',
     path: '/home',
     iconPaths: ['M2.4 6.6 8 2.6l5.6 4v6.8H2.4z', 'M6.2 13.4V9.2h3.6v4.2'],
   },
   {
-    label: '知识库',
-    path: '/knowledge-base',
-    iconPaths: ['M2.2 5.2 8 2l5.8 3.2v5.6L8 14 2.2 10.8V5.2Z', 'M2.2 5.2 8 8.4l5.8-3.2M8 8.4V14'],
+    kind: 'group',
+    label: '知识库工作台',
+    iconPaths: [
+      'M8 2.2 14 5.4 8 8.6 2 5.4 8 2.2Z',
+      'M2.8 8.2 8 11l5.2-2.8',
+      'M2.8 11 8 13.8l5.2-2.8',
+    ],
+    children: [
+      // 知识库：列表页与它的三个下钻页（执行链 / 索引与发布 / 检索评测）共用这一项
+      { label: '知识库', path: '/knowledge-base' },
+      // 策略管理：预处理/切片/向量化/检索四类策略的版本管理
+      { label: '策略管理', path: '/strategy' },
+    ],
   },
   {
-    // 策略管理：预处理/切片/向量化/检索四类策略的版本管理
-    label: '策略管理',
-    path: '/strategy',
-    iconPaths: ['M2.6 4.4h10.8M2.6 8h10.8M2.6 11.6h10.8', 'M5.6 2.8v3.2M10.4 6.4v3.2M6.8 10v3.2'],
-  },
-  {
+    kind: 'leaf',
     label: '用户管理',
     path: '/user',
     iconPaths: ['M2.8 13.6c0-2.4 2.3-3.8 5.2-3.8s5.2 1.4 5.2 3.8'],
@@ -204,6 +303,7 @@ const navItems: NavItem[] = [
     adminOnly: true,
   },
   {
+    kind: 'leaf',
     // 个人中心：账号信息、联系方式与改密；放在主导航末项，人人可见
     label: '个人中心',
     path: '/profile',
@@ -227,6 +327,39 @@ function isNavActive(path: string): boolean {
   }
   // 子页面归到所属菜单：/knowledge-base/xxx/stages 也要点亮「知识库」
   return path !== '/home' && route.path.startsWith(`${path}/`);
+}
+
+/** 组内是否有选中项：组标题据此高亮，收起态下由组标题承担选中态 */
+function groupHasActive(item: NavGroup): boolean {
+  return item.children.some((child) => isNavActive(child.path));
+}
+
+/** 展开的组（按组名索引）：只展开当前路由所在的组，其余收起 */
+const openGroups = ref<string[]>([]);
+
+function isGroupOpen(item: NavGroup): boolean {
+  return openGroups.value.includes(item.label);
+}
+
+/** 进入页面或换页后，把当前路由所在的组纳入展开状态，选中项始终看得见 */
+function syncOpenGroups(): void {
+  for (const item of navItems) {
+    if (item.kind === 'group' && groupHasActive(item) && !isGroupOpen(item)) {
+      openGroups.value.push(item.label);
+    }
+  }
+}
+
+syncOpenGroups();
+watch(() => route.path, syncOpenGroups);
+
+function toggleGroup(item: NavGroup): void {
+  const index = openGroups.value.indexOf(item.label);
+  if (index === -1) {
+    openGroups.value.push(item.label);
+    return;
+  }
+  openGroups.value.splice(index, 1);
 }
 
 /**
@@ -306,7 +439,7 @@ function handleLogout(): void {
 
 .layout-side {
   position: relative;
-  z-index: 1;
+  z-index: 2;
   display: flex;
   flex-direction: column;
   padding: 22px 14px;
@@ -422,6 +555,141 @@ function handleLogout(): void {
 
 .layout-nav-item-active .layout-nav-icon {
   opacity: 1;
+}
+
+/* ==================== 一级分组与二级项 ==================== */
+
+/* 浮出面板以组块为定位基准 */
+.layout-nav-group {
+  position: relative;
+}
+
+/* 组标题是按钮：清掉按钮默认样式，外观与其它菜单项完全一致 */
+.layout-nav-item-parent {
+  width: 100%;
+  border: none;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* 组内有选中项时标题转亮：选中底色归二级项，标题只做「所在分组」的提示 */
+.layout-nav-group.is-current > .layout-nav-item-parent {
+  color: var(--kb-text-1);
+}
+
+/*
+ * 箭头贴右边界绝对定位：菜单文字块是定宽的（折叠动画要用固定宽度），
+ * 行内没有剩余空间，放到流里会被挤出侧栏。
+ */
+.layout-nav-caret {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  color: var(--kb-text-3);
+  transform: translateY(-50%);
+  transition:
+    transform 0.2s ease,
+    opacity 0.2s ease;
+}
+
+/* 箭头随开合翻转；组内有选中项时箭头转主色 */
+.layout-nav-item-parent.is-expanded .layout-nav-caret {
+  transform: translateY(-50%) rotate(180deg);
+}
+
+.layout-nav-group.is-current .layout-nav-caret {
+  color: var(--kb-primary);
+}
+
+/* 组标题给箭头让出位置：文字以省略号收在箭头左边 */
+.layout-nav-label-parent {
+  padding-right: 18px;
+  text-overflow: ellipsis;
+}
+
+/* 二级列表：缩进 + 一条竖向导轨，标明它们从属于上面的组标题 */
+.layout-nav-sub {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.layout-nav-sub::before {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 22px;
+  width: 1px;
+  background: var(--kb-line-2);
+  content: '';
+}
+
+.layout-nav-item-sub {
+  padding-left: 30px;
+  font-size: 13px;
+}
+
+/* 折叠态改用浮出面板，二级列表让位 */
+.layout-side-collapsed .layout-nav-sub {
+  display: none;
+}
+
+/* 组收起时二级项让位 */
+.layout-nav-group:not(.is-open) > .layout-nav-sub {
+  display: none;
+}
+
+/*
+ * 收起态的二级入口：悬停组标题或键盘聚焦时从组块右缘外浮出。
+ * 组块宽 210px（展开）与 36px（收起），同一套偏移在两种状态下都落在侧栏右边界外 8px。
+ */
+.layout-nav-flyout {
+  position: absolute;
+  top: 0;
+  left: calc(100% + 22px);
+  z-index: 6;
+  display: flex;
+  width: 196px;
+  flex-direction: column;
+  padding: 8px;
+  border: 1px solid var(--kb-line-2);
+  border-radius: 12px;
+  background: var(--kb-bg-2);
+  box-shadow: 0 18px 40px rgb(0 0 0 / 45%);
+  opacity: 0;
+  transform: translateX(-4px);
+  visibility: hidden;
+  transition:
+    opacity 0.16s ease,
+    transform 0.16s ease,
+    visibility 0.16s;
+}
+
+.layout-nav-group:hover > .layout-nav-flyout,
+.layout-nav-group:focus-within > .layout-nav-flyout {
+  opacity: 1;
+  transform: translateX(0);
+  visibility: visible;
+}
+
+.layout-nav-flyout-title {
+  padding: 2px 10px 7px;
+  color: var(--kb-text-3);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+}
+
+.layout-nav-item-flyout {
+  margin: 1px 0;
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+/* 面板内的选中项只留底色：侧栏边缘那条渐变竖条画在面板外会悬空 */
+.layout-nav-flyout .layout-nav-item::before {
+  display: none;
 }
 
 .layout-side-foot {
@@ -744,5 +1012,21 @@ function handleLogout(): void {
 .layout-user-trigger:focus-visible,
 .layout-user-drop:focus-within {
   outline: none;
+}
+
+/*
+ * 收起态的两处让位与例外：
+ * - 组标题的箭头正落在图标上，一并让位；
+ * - 浮出面板里的文字要留着（上面那条规则把菜单文字宽度归零）。
+ * 两处都写在最后：与上面同特异性的规则相比，位置靠后者生效。
+ */
+.layout-side-collapsed .layout-nav-item-parent .layout-nav-caret {
+  width: 0;
+  opacity: 0;
+}
+
+.layout-side-collapsed .layout-nav-flyout .layout-nav-label {
+  width: 148px;
+  opacity: 1;
 }
 </style>
