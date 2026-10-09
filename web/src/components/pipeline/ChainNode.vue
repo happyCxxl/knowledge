@@ -94,12 +94,16 @@
         >
           详情
         </button>
+        <!--
+          不可用时的 title 就是禁用原因：存储类型不一致时要看得到"切回原存储后可继续"。
+          可点时不挂 title（可点态没有原因要给），链图本身不产生多余提示。
+        -->
         <button
           v-if="nextStage !== null"
           class="chain-node-more"
           type="button"
           :disabled="!triggerEnabled"
-          :title="triggerDisabledReason"
+          :title="triggerEnabled ? undefined : triggerDisabledReason"
           @pointerdown.stop
           @click.stop="data.onTrigger?.()"
         >
@@ -297,18 +301,29 @@ const nextStageText = computed(() => (nextStage.value === null ? '' : stageLabel
 /** 本节点是否已产出产物：产物即分叉点，没有它就不能从这个环节往下走 */
 const hasProduct = computed(() => Boolean(props.data.node.productId));
 
+/** 该文件的数据源与当前启用的数据源是否不一致（不一致时下游环节不可触发） */
+const storageBlocked = computed(() => props.data.storageBlockReason !== '');
+
 /**
- * 触发下一环节是否可点：**本节点有产物**即可。
+ * 触发下一环节是否可点：**本节点有产物**、且**数据源一致**，两个条件并列。
  *
  * <p>不要求本节点是选中路径末端：点击用的是**这张卡自己的产物**作上游
  * （`onTrigger` 把本节点交出去），同环节多个产物各自成链，就是接口的分叉语义。
  */
-const triggerEnabled = computed(() => hasProduct.value);
+const triggerEnabled = computed(() => hasProduct.value && !storageBlocked.value);
 
-/** 不可用原因（简短，挂在按钮 title 上）：按"用户下一步能做什么"分档 */
+/**
+ * 不可用原因（简短，挂在按钮 title 上）：按"用户下一步能做什么"分档。
+ *
+ * <p>数据源不一致时给这条专属原因：它是可修复的（把当前启用切回原数据源后即可继续），
+ * 比"本次运行没有产物"更能说明下一步。
+ */
 const triggerDisabledReason = computed(() => {
   if (triggerEnabled.value) {
     return '';
+  }
+  if (storageBlocked.value) {
+    return props.data.storageBlockReason;
   }
   return isTaskPending(props.data.node.status) ? '任务完成后可用' : '本次运行没有产物';
 });

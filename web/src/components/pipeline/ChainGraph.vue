@@ -77,6 +77,12 @@ const props = defineProps<{
   positionStore: NodePositionStore;
   /** 命中知识库绑定策略的版本串集合（name-version） */
   boundVersions: Set<string>;
+  /**
+   * 当前文件不能继续执行的原因文案（可以继续时为空串）。
+   *
+   * <p>卡片只负责显示：判据与文案都由页面按数据源 ID 与显示名给出，图组件不自己拼。
+   */
+  storageBlockReason: string;
 }>();
 
 const emit = defineEmits<{
@@ -467,6 +473,8 @@ const graphNodes = computed(() => {
       onPath: pathTaskIds.value.has(node.taskId),
       hit: isHit(node),
       outCount: (childrenMap.value.get(node.taskId) ?? []).length,
+      // 数据源不一致的原因：本次计算取一次，节点按它禁用触发入口并显示原因
+      storageBlockReason: props.storageBlockReason,
       // 卡片上「触发下一环节」的回调：由本组件注入并转成 trigger 事件上抛，
       // 并把**被点的那张卡的节点**一起交出去（下游按它的产物分叉）。
       // 这样自定义节点不必自己想办法 emit（Vue Flow 的节点是它内部渲染的）

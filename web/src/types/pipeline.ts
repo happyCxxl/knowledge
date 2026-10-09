@@ -155,11 +155,104 @@ export interface FileResult {
    * （后端会给 `stageStatuses: null`）。取值一律走 {@link stageStatusList}，直接当数组用会抛异常。
    */
   stageStatuses: StageStatus[] | null;
+  /**
+   * 这条结果的**原始文件**所在的存储类型码值（如 `minio` / `local`）。
+   *
+   * <p>**可空**：存储类型尚未下发时不显示徽标。徽标标签用它，能不能继续执行由
+   * {@link storageSourceId} 决定。
+   */
+  storageType: string | null;
+  /**
+   * **当前写入后端**的存储类型码值。
+   *
+   * <p>同一次响应里每一条记录都给同一个值；展示名回落时用它。
+   */
+  currentStorageType: string | null;
+  /**
+   * 这条结果的**原始文件**所在的数据源 ID。
+   *
+   * <p>**可空**：数据源尚未下发时按取不到判据处理，不显示徽标也不拦触发。
+   */
+  storageSourceId: string | null;
+  /**
+   * 这条结果的**原始文件**所在数据源的显示名。
+   *
+   * <p>**可空**：数据源未注册（已删）时后端给空，取值走 {@link fileStorageLabel} 回落。
+   */
+  storageSourceName: string | null;
+  /**
+   * **当前启用数据源**的 ID。
+   *
+   * <p>同一次响应里每一条记录都给同一个值；与 {@link storageSourceId} 不一致表示这条链的
+   * 产物落在别的数据源上，下游环节不能再往下走。
+   */
+  currentStorageSourceId: string | null;
+  /**
+   * **当前启用数据源**的显示名。
+   *
+   * <p>**可空**：没有启用的数据源或该数据源未注册时后端给空，取值走 {@link fileStorageLabel} 回落。
+   */
+  currentStorageSourceName: string | null;
 }
 
 /** 安全取环节状态列表：后端可能返回 null（新导入文件），统一按空数组处理 */
 export function stageStatusList(file: FileResult): StageStatus[] {
   return file.stageStatuses ?? [];
+}
+
+/**
+ * 存储类型码值 → 展示名。
+ *
+ * <p>用索引签名而非枚举联合：存储后端后续会有别的码值，未知码值原样显示比显示空白有用。
+ */
+export const FILE_STORAGE_LABELS: Record<string, string> = {
+  minio: 'MinIO',
+  local: '本地',
+};
+
+/** 取存储类型展示名；未知码值回落原值 */
+export function fileStorageName(storageType: string): string {
+  return FILE_STORAGE_LABELS[storageType] ?? storageType;
+}
+
+/**
+ * 取存储展示名：数据源显示名优先，取不到时回落该结果的存储类型展示名。
+ *
+ * @param storageSourceName 数据源显示名（后端未下发时为 null）
+ * @param storageType 存储类型码值（后端未下发时为 null）
+ * @return 展示名；两侧都取不到时返回 `—`
+ */
+export function fileStorageLabel(
+  storageSourceName: string | null,
+  storageType: string | null,
+): string {
+  if (storageSourceName) {
+    return storageSourceName;
+  }
+  return storageType ? fileStorageName(storageType) : '—';
+}
+
+/** 这条结果的原始文件是否落在当前启用的数据源上；两侧任一缺 ID 时按「取不到判据」处理 */
+export function sameStorageSource(file: FileResult): boolean {
+  return !file.storageSourceId || !file.currentStorageSourceId
+    ? true
+    : file.storageSourceId === file.currentStorageSourceId;
+}
+
+/**
+ * 这条结果不能继续执行的原因文案；可以继续（或数据源 ID 未下发）时为空串。
+ *
+ * <p>判据是**数据源实例 ID**：同类型的两个实例（如两台 MinIO）之间切换同样是不可继续的状态，
+ * 类型码值相同不代表产物落在同一个后端上。两侧任一缺 ID 时判为可以继续，
+ * 与后端「档案没记数据源 ID 就放行」的口径一致。文案与后端拒绝执行时给的运行时消息同款。
+ */
+export function storageBlockReason(file: FileResult | null | undefined): string {
+  if (!file || sameStorageSource(file)) {
+    return '';
+  }
+  const archive = fileStorageLabel(file.storageSourceName, file.storageType);
+  const current = fileStorageLabel(file.currentStorageSourceName, file.currentStorageType);
+  return `该任务属于 ${archive}，当前启用的是 ${current}，无法继续执行；把当前启用切回 ${archive} 后可继续`;
 }
 
 /**
@@ -670,6 +763,13 @@ export interface ChainNodeData {
   hit: boolean;
   /** 出度（下游运行数）：决定节点右侧铺几个源连接桩，避免多次触发的边起点重叠 */
   outCount: number;
+  /**
+   * 该文件不能继续执行的原因文案；可以继续时为空串。
+   *
+   * <p>由 `ChainGraph` 在组装 `data` 时按下发值填入，节点据此禁用「触发下一环节」
+   * 并把这个原因显示在按钮提示上。
+   */
+  storageBlockReason: string;
   /**
    * 点击卡片上「触发下一环节」时的回调。
    *

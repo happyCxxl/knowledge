@@ -52,6 +52,15 @@
             />
             <div class="stage-file-main">
               <span class="stage-file-name">{{ file.fileName }}</span>
+              <!-- 存储徽标：标签给出这条结果落在哪种存储，配色与悬停提示给出能不能继续执行 -->
+              <span
+                v-if="file.storageType"
+                class="stage-file-store"
+                :data-tone="sameStorageSource(file) ? 'same' : 'other'"
+                :title="fileStoreTitle(file)"
+              >
+                {{ fileStorageName(file.storageType) }}
+              </span>
               <span class="stage-file-meta-text">
                 {{ formatSize(file.fileSize) }}
                 <template v-if="file.createTime"> · {{ formatTime(file.createTime) }}</template>
@@ -99,6 +108,7 @@
             :file-key="selectedFileId"
             :position-store="nodePositions"
             :bound-versions="boundVersions"
+            :storage-block-reason="storageBlockReason"
             :class="{ 'is-refreshing': lineageLoading }"
             @select="onPathSelect"
             @trigger="openTrigger"
@@ -114,10 +124,15 @@
               class="stage-trigger-btn"
               type="primary"
               :loading="triggering"
+              :disabled="storageBlockReason !== ''"
               @click="onTriggerParse"
             >
               解析
             </el-button>
+            <!-- 不能继续执行的原因：按钮旁边显示，不覆盖按钮的加载态 -->
+            <span v-if="storageBlockReason" class="stage-start-block">{{
+              storageBlockReason
+            }}</span>
           </div>
         </div>
 
@@ -138,6 +153,7 @@
       :stage="triggerStage"
       :upstream="triggerSource"
       :submitting="triggering"
+      :block-reason="storageBlockReason"
       @confirm="onTriggerConfirm"
     />
 
@@ -167,7 +183,14 @@ import TriggerStageDialog from '@/components/pipeline/TriggerStageDialog.vue';
 import FileExtBadge from '@/components/knowledge-base/FileExtBadge.vue';
 import { prunePositions, readPositions } from '@/utils/chain-layout-storage';
 import { readCollapsed, writeCollapsed } from '@/utils/ui-state-storage';
-import { PIPELINE_STAGES, STRATEGY_BINDING_TYPES, isTaskPending } from '@/types/pipeline';
+import {
+  PIPELINE_STAGES,
+  STRATEGY_BINDING_TYPES,
+  fileStorageName,
+  isTaskPending,
+  sameStorageSource,
+  storageBlockReason as fileStorageBlockReason,
+} from '@/types/pipeline';
 import type {
   FileResult,
   Lineage,
@@ -439,6 +462,31 @@ const selectedFileName = computed(
 const selectedFileObjectId = computed(
   () => files.value.find((file) => file.id === selectedFileId.value)?.fileId ?? '',
 );
+
+/** 当前选中文件的那条记录：数据源判据与徽标文案都从它取；未选中时为 null */
+const selectedFile = computed(
+  () => files.value.find((file) => file.id === selectedFileId.value) ?? null,
+);
+
+/**
+ * 当前选中文件不能继续执行的原因文案；可以继续时为空串。
+ *
+ * <p>判据与文案都取类型层的 {@link fileStorageBlockReason}：文件栏徽标、链图卡片与右侧入口
+ * 读到的是同一份结论。数据源 ID 未下发时按"无这条信息"处理，不拦触发。
+ */
+const storageBlockReason = computed(() => fileStorageBlockReason(selectedFile.value));
+
+/** 徽标悬停提示：展示名 + 不能继续执行时的原因（可以继续时只给展示名） */
+function fileStoreTitle(file: FileResult): string {
+  // 徽标标签是存储类型，提示里说清具体数据源实例
+  const name = file.storageSourceName ?? file.storageType;
+  const prefix = name ? `存储：${name}` : '';
+  const reason = fileStorageBlockReason(file);
+  if (!prefix) {
+    return reason;
+  }
+  return reason ? `${prefix} · ${reason}` : prefix;
+}
 
 /** 打开详情抽屉：只记下被点的节点，不动选中路径、也不触发轮询 */
 function openDetail(node: LineageNode): void {
@@ -836,6 +884,35 @@ onUnmounted(() => {
   font-size: 11px;
 }
 
+/*
+ * 存储类型徽标：与行内大小文字同为 10px 的小号标签，宽度随文字。
+ *
+ * <p>自己的字号由 10px 显式写定、不继承：继承来的字号会随行内其它文字变化。
+ * 两档配色只差一档明度：与当前写入后端一致的一档用主色，不一致的一档用告警色。
+ */
+.stage-file-store {
+  display: inline-flex;
+  flex: none;
+  align-self: flex-start;
+  align-items: center;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 6%);
+  color: var(--kb-text-3);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.stage-file-store[data-tone='same'] {
+  background: rgb(52 211 153 / 12%);
+  color: var(--kb-primary);
+}
+
+.stage-file-store[data-tone='other'] {
+  background: rgb(251 191 36 / 14%);
+  color: var(--kb-warn);
+}
+
 .stage-pager {
   display: flex;
   flex: none;
@@ -944,6 +1021,14 @@ onUnmounted(() => {
   margin-bottom: 10px;
   color: var(--kb-text-3);
   font-size: 12px;
+}
+
+/* 入口被拦的原因：与提示行同宽居中，长文案折行而不是把按钮顶偏 */
+.stage-start-block {
+  max-width: 320px;
+  color: var(--kb-warn);
+  font-size: 12px;
+  text-align: center;
 }
 
 .stage-empty {

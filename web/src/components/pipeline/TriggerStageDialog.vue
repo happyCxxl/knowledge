@@ -32,6 +32,9 @@
       未选中路径末端，无法确定从哪个产物触发下游
     </div>
 
+    <!-- 存储类型不一致：与上面的空态并列显示，确认按钮同时置灰 -->
+    <div v-if="blockReason" class="trigger-block">{{ blockReason }}</div>
+
     <!-- 有策略的环节才需要选策略；解析/组装无策略 -->
     <div v-if="strategyRequired" class="trigger-strategy">
       <div class="trigger-row">
@@ -62,7 +65,12 @@
 
     <template #footer>
       <el-button @click="visible = false">取消</el-button>
-      <el-button type="primary" :loading="submitting" :disabled="!upstream" @click="onConfirm">
+      <el-button
+        type="primary"
+        :loading="submitting"
+        :disabled="!upstream || blockReason !== ''"
+        @click="onConfirm"
+      >
         触发执行
       </el-button>
     </template>
@@ -88,6 +96,12 @@ const props = defineProps<{
   /** 上游节点（选中路径的末端），其 productId 即分叉点 */
   upstream: LineageNode | null;
   submitting: boolean;
+  /**
+   * 当前文件的存储类型与当前写入后端不一致时的原因文案（一致或码值缺失时为空串）。
+   *
+   * <p>判据与文案由页面给：弹窗只负责显示与置灰。
+   */
+  blockReason: string;
 }>();
 
 const emit = defineEmits<{
@@ -167,6 +181,17 @@ watch(
 
 .trigger-warn {
   border-color: rgb(251 191 36 / 35%);
+  background: rgb(251 191 36 / 8%);
+  color: var(--kb-warn);
+  font-size: 12px;
+}
+
+/* 存储类型不一致的原因：与上游信息块同宽，单独一条告警条 */
+.trigger-block {
+  margin-top: 12px;
+  padding: 10px 14px;
+  border: 1px solid rgb(251 191 36 / 35%);
+  border-radius: 10px;
   background: rgb(251 191 36 / 8%);
   color: var(--kb-warn);
   font-size: 12px;
