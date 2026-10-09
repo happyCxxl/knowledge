@@ -7,7 +7,10 @@ import com.knowledge.common.domain.entity.KbPipelineProduct;
 import com.knowledge.common.domain.entity.KbPipelineTask;
 import com.knowledge.common.domain.task.StageOutcome;
 import com.knowledge.common.enums.task.PipelineStage;
+import com.knowledge.common.enums.task.PipelineTaskErrorCode;
 import com.knowledge.common.enums.task.PipelineTaskStatus;
+import com.knowledge.common.error.ErrorCode;
+import com.knowledge.common.exception.KnowledgeException;
 import com.knowledge.common.utils.NullUtil;
 
 /**
@@ -58,6 +61,24 @@ public final class TaskRunnerSupport {
         return NullUtil.isNull(product)
                 ? productDbService.getByFileResultIdAndStage(task.getFileResultId(), stage.name())
                 : product;
+    }
+
+    /**
+     * 失败归口的任务错误码：链的数据源与当前启用的数据源不一致（40453）单独归口为
+     * {@link PipelineTaskErrorCode#TASK_STORAGE_MISMATCH}，其余情况用该环节的兜底码。
+     *
+     * <p>本方法读异常自身的错误码判定，不解析失败文案：任务行的 {@code error_code} 可以直接看出存储不一致。
+     *
+     * @param e        执行器捕获到的异常
+     * @param fallback 该环节的兜底任务错误码
+     * @return 落库用的任务错误码码值
+     */
+    public static String failureCode(Exception e, PipelineTaskErrorCode fallback) {
+        if (e instanceof KnowledgeException knowledge
+                && knowledge.getErrorCode() == ErrorCode.STORAGE_TYPE_MISMATCH) {
+            return PipelineTaskErrorCode.TASK_STORAGE_MISMATCH.name();
+        }
+        return fallback.name();
     }
 
     /**

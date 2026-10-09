@@ -13,6 +13,9 @@ public enum PipelineTaskErrorCode {
     /** 执行超时（孤儿恢复判定） */
     EXECUTOR_TIMEOUT,
 
+    /** 任务所属数据源与当前启用的数据源不一致（排队/重跑期间切换了当前启用，产物写入被拒） */
+    TASK_STORAGE_MISMATCH,
+
     /** 文件深层损坏（入口探测未发现，解析时暴露） */
     PARSE_CORRUPTED,
 

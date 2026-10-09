@@ -57,17 +57,21 @@ knowledge:
     low-freq-sweep-interval: 1m
     sweep-lock-ttl: 30s
 
-# 文件服务：存储后端（minio / local）与对象存储连接、桶名
-# 切到 local 时 minio 段可留可删（MinioStorageProvider 不再装配）；
-# 注意：两种后端的对象不互通，切换后旧对象需手工复制过去才能读到
+# 文件服务：数据源首次初始化的缺省来源
+# 数据源表为空时按本段参数 seed 两行（MinIO / 本地磁盘），storage-type 指的那种类型置为当前启用；
+# 表里没有启用的数据源时按 storage-type 回落注册一条内置定义。连接参数的实际来源是 kb_storage_source.config_json。
 file-center:
   storage-type: minio
-  local-root: ./data/file-center
-  endpoint: http://localhost:9000
-  access-key: minioadmin
-  secret-key: minioadmin
-  file-bucket: files
-  artifact-bucket: artifacts
+  minio:
+    endpoint: http://localhost:9000
+    access-key: minioadmin
+    secret-key: minioadmin
+    file-bucket: files
+    artifact-bucket: artifacts
+  local:
+    root-dir: ./data/file-center
+    file-dir: files
+    artifact-dir: artifacts
 
 # 检索能力分层解锁：预留能力清单（RetrievalCapability 枚举名，逗号分隔；解锁 = 加枚举名）
 retrieval:

@@ -10,6 +10,7 @@ import com.knowledge.biz.service.db.KbFileResultDbService;
 import com.knowledge.biz.service.db.KbPipelineProductDbService;
 import com.knowledge.biz.service.db.KbPipelineTaskDbService;
 import com.knowledge.biz.service.db.KbSourceFileDbService;
+import com.knowledge.biz.service.support.ChainStorageSupport;
 import com.knowledge.biz.service.support.EmbedRowSupport;
 import com.knowledge.biz.task.ProductPersistence;
 import com.knowledge.common.domain.chunk.Chunk;
@@ -33,6 +34,7 @@ import com.knowledge.common.domain.preprocess.ViewElement;
 import com.knowledge.common.domain.structure.DocumentInfo;
 import com.knowledge.common.domain.structure.UnifiedDocument;
 import com.knowledge.common.domain.structure.UnifiedElement;
+import com.knowledge.common.domain.storage.ObjectRef;
 import com.knowledge.common.enums.base.DelFlag;
 import com.knowledge.common.enums.embed.EmbedRecordStatus;
 import com.knowledge.common.enums.embed.EmbeddingModel;
@@ -66,7 +68,9 @@ import java.util.Map;
  *       不是真解析器/组装器跑的）。</li>
  * </ul>
  *
- * <p><b>产物写在哪</b>：跟随 {@code file-center.storage-type}；当前为 {@code local}。
+ * <p><b>产物写在哪</b>：跟随当前启用的存储数据源。
+ * 复用的来源文件档案落在另一个数据源时（档案属于数据源 A、当前启用数据源 B），
+ * 本链一行不落：告警并回一条 skipped 摘要。
  *
  * @author cxxl
  */
@@ -92,6 +96,7 @@ public class SeedService {
 
     private final FileStorage fileStorage;
     private final ProductPersistence productPersistence;
+    private final ChainStorageSupport chainStorageSupport;
     private final IndexSetService indexSetService;
     private final KbSourceFileDbService sourceFileDbService;
     private final KbFileResultDbService fileResultDbService;
@@ -104,6 +109,9 @@ public class SeedService {
 
     /**
      * 为新知识库造一条完整链路。
+     *
+     * <p>复用的来源文件档案与当前启用的数据源不一致时（档案落在另一个数据源），
+     * 本链一行不落：告警并返回只带 knowledgeBaseId 与 skipped 标记的摘要。
      *
      * @param knowledgeBaseId 目标知识库（需已绑定 PREPROCESS/CHUNK/EMBED 三条策略）
      * @return 本次种子的关键 ID
@@ -120,6 +128,15 @@ public class SeedService {
         // ② 文件链路
         KbFileResult origin = fileResultDbService.getById(SOURCE_FILE_RESULT_ID);
         KbSourceFile sourceFile = sourceFileDbService.getById(origin.getSourceFileId());
+        // 复用文件的档案落在另一个数据源：跳过该链产物写入，接口不因数据源切换失败
+        Long archiveSourceId = chainStorageSupport.storageSourceIdOfFile(sourceFile.getFileId());
+        if (chainStorageSupport.storageMismatchOfArchive(archiveSourceId)) {
+            log.warn("===> 种子：复用文件档案属于 {}，当前启用 {}，跳过该链产物写入, knowledgeBaseId={}, fileId={}",
+                    chainStorageSupport.sourceName(archiveSourceId),
+                    chainStorageSupport.currentSourceName(),
+                    knowledgeBaseId, sourceFile.getFileId());
+            return skippedSummary(knowledgeBaseId);
+        }
         KbSourceFile newSource = sourceFile;
         KbFileResult fileResult = newFileResult(knowledgeBaseId, newSource, origin);
         fileResultDbService.save(fileResult);
@@ -148,11 +165,20 @@ public class SeedService {
         summary.put("embeddingSetId", String.valueOf(embed.setId()));
         summary.put("recordCount", chunks.size());
         summary.put("dimension", embed.dimension());
-        summary.put("artifactStore", "file-center(storage-type 决定；当前为 local)");
+        summary.put("artifactStore", "file-center(" + chainStorageSupport.currentSourceName() + ")");
         return summary;
     }
 
     // ---------------- 上游四阶段（产物由切片文本反推） ----------------
+
+    /** 存储不一致时的摘要：只带知识库与跳过标记，一行不落 */
+    private Map<String, Object> skippedSummary(Long knowledgeBaseId) {
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("knowledgeBaseId", knowledgeBaseId);
+        summary.put("skipped", true);
+        summary.put("reason", "复用文件档案的数据源与当前启用的数据源不一致，跳过该链产物写入");
+        return summary;
+    }
 
     /** 依次落 PARSE / STRUCTURE / PREPROCESS / CHUNK，返回四张产物行与切片集 ID */
     private StageProducts buildUpstream(KbFileResult fileResult, KbSourceFile sourceFile,
@@ -228,11 +254,21 @@ public class SeedService {
         setRow.setTotalChars(chunks.stream().mapToInt(c -> lengthOf(c.getContent())).sum());
         setRow.setStatus(RowStatus.ACTIVE.name());
         setRow.setArtifactId(chunk.getArtifactId());
+        setRow.setStorageType(chunk.getStorageType());
+        setRow.setStorageSourceId(chunk.getStorageSourceId());
+        setRow.setBucket(chunk.getBucket());
         setRow.setCreateTime(LocalDateTime.now());
         chunkSetDbService.save(setRow);
 
         // kb_chunk 行：切片详情页读它
-        List<KbChunk> chunkRows = new ArrayList<>(chunks.size());
+        saveChunkRows(chunkSetId, chunks);
+
+        return new StageProducts(parse, structure, preprocess, chunk, chunkSetId);
+    }
+
+    /** 切片行：沿用真实切片的字段与 chunkId，批量落库 */
+    private void saveChunkRows(Long chunkSetId, List<KbChunk> chunks) {
+        List<KbChunk> rows = new ArrayList<>(chunks.size());
         int order = 1;
         for (KbChunk source : chunks) {
             KbChunk row = new KbChunk();
@@ -250,11 +286,9 @@ public class SeedService {
             row.setTokenCount(source.getTokenCount());
             row.setStrategyVersion(CHUNK_VERSION);
             row.setCreateTime(LocalDateTime.now());
-            chunkRows.add(row);
+            rows.add(row);
         }
-        chunkDbService.saveBatch(chunkRows, 500);
-
-        return new StageProducts(parse, structure, preprocess, chunk, chunkSetId);
+        chunkDbService.saveBatch(rows, 500);
     }
 
     /** EMBED：确定性向量 + 产物 + 集合行 + 记录行 */
@@ -319,7 +353,7 @@ public class SeedService {
                 PipelineStage.EMBED, chunkProduct.getId(), embedSnapshot(), set);
 
         KbEmbeddingSet setRow = EmbedRowSupport.setRow(fileResult.getId(), set, EMBED_VERSION,
-                product.getArtifactId());
+                ObjectRef.ofProduct(product));
         setRow.setId(IdWorker.getId());
         setRow.setCreateTime(LocalDateTime.now());
         embeddingSetDbService.save(setRow);

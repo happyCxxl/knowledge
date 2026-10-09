@@ -8,7 +8,9 @@ import com.knowledge.biz.service.db.KbPipelineProductDbService;
 import com.knowledge.biz.service.db.KbPipelineStepLogDbService;
 import com.knowledge.biz.service.db.KbPipelineStrategyVersionDbService;
 import com.knowledge.biz.service.db.KbPipelineTaskDbService;
+import com.knowledge.biz.service.db.KbSourceFileDbService;
 import com.knowledge.biz.service.db.KbStrategyBindingDbService;
+import com.knowledge.biz.service.support.ChainStorageSupport;
 import com.knowledge.biz.service.support.FileResultAccessGuard;
 import com.knowledge.biz.service.support.EmbedVoAssembler;
 import com.knowledge.biz.service.support.StageStrategySupport;
@@ -25,10 +27,13 @@ import com.knowledge.common.domain.entity.KbPipelineStrategyVersion;
 import com.knowledge.common.domain.entity.KbPipelineTask;
 import com.knowledge.common.domain.entity.KbStrategyBinding;
 import com.knowledge.common.dto.response.embed.EmbedDetailVO;
+import com.knowledge.common.enums.storage.StorageType;
 import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.enums.task.PipelineTaskStatus;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
+import com.knowledge.filecenter.provider.StorageRouter;
+import com.knowledge.filecenter.service.FileStorage;
 import com.knowledge.model.catalog.StaticModelCatalog;
 import com.knowledge.worker.chunking.ChunkProperties;
 import com.knowledge.worker.chunking.strategy.ChunkStrategyParser;
@@ -63,6 +68,9 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class EmbedControlServiceImplTest {
 
+    /** 产物所在的数据源 */
+    private static final Long SOURCE_ID = 1L;
+
     @Mock
     private KbFileResultDbService fileResultDbService;
     @Mock
@@ -83,6 +91,12 @@ class EmbedControlServiceImplTest {
     private KbEmbeddingRecordDbService embeddingRecordDbService;
     @Mock
     private KbStrategyBindingDbService strategyBindingDbService;
+    @Mock
+    private KbSourceFileDbService sourceFileDbService;
+    @Mock
+    private StorageRouter storageRouter;
+    @Mock
+    private FileStorage fileStorage;
 
     private EmbedControlServiceImpl service;
 
@@ -92,13 +106,15 @@ class EmbedControlServiceImplTest {
         SecurityTestSupport.loginViewer();
         boundKnowledgeBase(10L);
         FileResultAccessGuard accessGuard = new FileResultAccessGuard(fileResultDbService, knowledgeBaseDbService);
+        ChainStorageSupport chainStorage = new ChainStorageSupport(fileResultDbService, sourceFileDbService,
+                fileStorage, storageRouter);
         service = new EmbedControlServiceImpl(pipelineProductDbService, stepLogDbService,
                 embeddingSetDbService, embeddingRecordDbService, new EmbedVoAssembler(),
                 new EmbedStrategyParser(new EmbedProperties(), new StaticModelCatalog()),
                 new ChunkStrategyParser(new ChunkProperties()),
                 new EmbedProperties(), new ChunkProperties(),
                 new StageStrategySupport(strategyVersionDbService, strategyBindingDbService, knowledgeBaseDbService),
-                new TaskTriggerSupport(pipelineTaskDbService, taskQueue),
+                new TaskTriggerSupport(pipelineTaskDbService, chainStorage, taskQueue),
                 new TaskDetailSupport(pipelineTaskDbService, stepLogDbService, pipelineProductDbService), accessGuard);
     }
 
@@ -114,6 +130,10 @@ class EmbedControlServiceImplTest {
         KbPipelineProduct product = new KbPipelineProduct();
         product.setId(50L);
         product.setCapabilitySnapshot(capabilitySnapshot);
+        product.setArtifactId("abc".repeat(22));
+        product.setStorageType(StorageType.MINIO.getCode());
+        product.setStorageSourceId(SOURCE_ID);
+        product.setBucket("artifacts");
         return product;
     }
 
@@ -264,6 +284,10 @@ class EmbedControlServiceImplTest {
         when(pipelineTaskDbService.getByFileResultIdAndStage(10L, PipelineStage.EMBED.name())).thenReturn(task);
         KbPipelineProduct product = new KbPipelineProduct();
         product.setArtifactId("abc".repeat(16));
+        // 产物行记下对象位置：详情据此取向量集合
+        product.setStorageType(StorageType.MINIO.getCode());
+        product.setStorageSourceId(SOURCE_ID);
+        product.setBucket("artifacts");
         when(pipelineProductDbService.getById(50L)).thenReturn(product);
         KbEmbeddingSet set = new KbEmbeddingSet();
         set.setId(70L);
@@ -276,6 +300,9 @@ class EmbedControlServiceImplTest {
         set.setRecordCount(3);
         set.setCachedCount(1);
         set.setArtifactId("abc".repeat(16));
+        set.setStorageType(StorageType.MINIO.getCode());
+        set.setStorageSourceId(SOURCE_ID);
+        set.setBucket("artifacts");
         when(embeddingSetDbService.getByArtifactId("abc".repeat(16))).thenReturn(set);
         KbEmbeddingRecord cached = new KbEmbeddingRecord();
         cached.setEmbeddingId("emb-0001");

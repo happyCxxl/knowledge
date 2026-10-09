@@ -17,7 +17,13 @@ public enum AuditObjectType {
     INDEX_VERSION("INDEX_VERSION", "索引版本"),
 
     /** 账号（用户管理） */
-    KB_USER("KB_USER", "账号");
+    KB_USER("KB_USER", "账号"),
+
+    /** 存储数据源 */
+    STORAGE_SOURCE("STORAGE_SOURCE", "存储数据源"),
+
+    /** 系统设置 */
+    SYSTEM_SETTING("SYSTEM_SETTING", "系统设置");
 
     /** 码值（与库表 object_type 列一致） */
     private final String key;

@@ -33,10 +33,12 @@ import com.knowledge.common.dto.response.knowledge.StrategyBindingVO;
 import com.knowledge.common.enums.base.DelFlag;
 import com.knowledge.common.enums.knowledge.AuditActionType;
 import com.knowledge.common.enums.knowledge.KnowledgeBaseStatus;
+import com.knowledge.common.enums.storage.StorageType;
 import com.knowledge.common.enums.user.UserRole;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
 import com.knowledge.common.security.KnowledgeUser;
+import com.knowledge.filecenter.provider.StorageRouter;
 import com.knowledge.filecenter.service.FileStorage;
 import com.knowledge.worker.input.FileValidatorPort;
 import org.junit.jupiter.api.AfterEach;
@@ -101,6 +103,8 @@ class KnowledgeBaseServiceImplTest {
 
     private FileStorage fileStorage;
 
+    private StorageRouter storageRouter;
+
     private KnowledgeBaseServiceImpl service;
 
     @BeforeEach
@@ -117,11 +121,15 @@ class KnowledgeBaseServiceImplTest {
         pipelineTaskDbService = mock(KbPipelineTaskDbService.class);
         fileValidator = mock(FileValidatorPort.class);
         fileStorage = mock(FileStorage.class);
+        storageRouter = mock(StorageRouter.class);
+        // 存储口径：当前启用的数据源取运行时生效值，列表页的所属数据源按档案批量取（无档案时留空）
+        when(storageRouter.writeType()).thenReturn(StorageType.MINIO);
+        when(fileStorage.refsOf(any())).thenReturn(Map.of());
         // 组装器为纯映射无状态类，用真实实例（mock 会让 VO 组装返回 null）
         service = new KnowledgeBaseServiceImpl(knowledgeBaseDbService, kbAuditLogDbService,
                 strategyBindingDbService, strategyVersionDbService, kbFileResultDbService,
                 indexSetDbService, indexVersionDbService, sourceFileDbService, submitLogDbService,
-                pipelineTaskDbService, fileValidator, fileStorage,
+                pipelineTaskDbService, fileValidator, fileStorage, storageRouter,
                 new InputVoAssembler(), new TaskVoAssembler());
         // 默认以普通用户登录：可见范围 = 自己的库。管理员视角的用例单独 login(ADMIN)
         login(ME, UserRole.USER);

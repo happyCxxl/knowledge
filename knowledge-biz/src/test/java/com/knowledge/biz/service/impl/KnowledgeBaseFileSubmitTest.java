@@ -21,6 +21,7 @@ import com.knowledge.common.domain.entity.KbSubmitLog;
 import com.knowledge.common.domain.entity.KnowledgeBase;
 import com.knowledge.common.domain.input.FileMetadata;
 import com.knowledge.common.domain.input.FileValidationResult;
+import com.knowledge.common.domain.storage.StorageRef;
 import com.knowledge.common.dto.request.input.FileSubmitRequest;
 import com.knowledge.common.dto.response.input.FileResultVO;
 import com.knowledge.common.dto.response.input.FileSubmitResponse;
@@ -29,12 +30,14 @@ import com.knowledge.common.enums.input.FileFormat;
 import com.knowledge.common.enums.input.FileValidationFailReason;
 import com.knowledge.common.enums.input.SubmitStatus;
 import com.knowledge.common.enums.knowledge.KnowledgeBaseStatus;
+import com.knowledge.common.enums.storage.StorageType;
 import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.enums.task.PipelineTaskStatus;
 import com.knowledge.common.enums.user.UserRole;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
 import com.knowledge.common.security.KnowledgeUser;
+import com.knowledge.filecenter.provider.StorageRouter;
 import com.knowledge.filecenter.service.FileStorage;
 import com.knowledge.worker.input.FileValidatorPort;
 import org.junit.jupiter.api.AfterEach;
@@ -49,6 +52,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -56,6 +60,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -93,19 +98,32 @@ class KnowledgeBaseFileSubmitTest {
     private FileValidatorPort fileValidator;
     @Mock
     private FileStorage fileStorage;
+    @Mock
+    private StorageRouter storageRouter;
 
     private KnowledgeBaseServiceImpl service;
 
     /** 当前登录用户：夹具知识库默认归它，正向用例才能过归属校验 */
     private static final long ME = 1001L;
 
+    /** 档案所在的数据源 */
+    private static final Long SOURCE_ID = 1L;
+
+    /** 当前启用的数据源 */
+    private static final Long CURRENT_SOURCE_ID = 2L;
+
     @BeforeEach
     void setUp() {
+        // 存储口径：当前启用的数据源取运行时生效值，列表页的所属数据源按档案批量取（无档案时留空）；
+        // 提交类用例不读存储口径，用宽松桩避免未使用告警
+        lenient().when(storageRouter.writeType()).thenReturn(StorageType.MINIO);
+        lenient().when(storageRouter.currentName()).thenReturn(null);
+        lenient().when(fileStorage.refsOf(any())).thenReturn(Map.of());
         // 组装器为纯映射无状态类，用真实实例（mock 会让 VO 组装返回 null，无法验证响应内容）
         service = new KnowledgeBaseServiceImpl(knowledgeBaseDbService, kbAuditLogDbService,
                 strategyBindingDbService, strategyVersionDbService, kbFileResultDbService,
                 indexSetDbService, indexVersionDbService, sourceFileDbService, submitLogDbService,
-                pipelineTaskDbService, fileValidator, fileStorage,
+                pipelineTaskDbService, fileValidator, fileStorage, storageRouter,
                 new InputVoAssembler(), new TaskVoAssembler());
         // 提交链路会做知识库归属校验，用例必须有登录上下文
         KnowledgeUser user = new KnowledgeUser();
@@ -351,6 +369,11 @@ class KnowledgeBaseFileSubmitTest {
         source.setFileId("88");
         source.setFileName("招标文件.pdf");
         when(sourceFileDbService.listByIds(List.of(1L))).thenReturn(List.of(source));
+        // 存储口径：所属数据源按档案批量取，当前启用的数据源取运行时生效值（不一致时由触发入口拒绝）
+        when(fileStorage.refsOf(List.of("88")))
+                .thenReturn(Map.of("88", new StorageRef(StorageType.MINIO.getCode(), SOURCE_ID)));
+        when(storageRouter.currentSourceId()).thenReturn(CURRENT_SOURCE_ID);
+        when(storageRouter.writeType()).thenReturn(StorageType.LOCAL);
 
         // 模拟 DB 倒序契约：同一 fileResult 两条任务时列表第一条即最新
         KbPipelineTask parseOld = new KbPipelineTask();
@@ -423,6 +446,64 @@ class KnowledgeBaseFileSubmitTest {
         assertNotNull(fr11Statuses);
         assertEquals(1, fr11Statuses.size());
         assertEquals(22L, fr11Statuses.getFirst().getTaskId());
+        // 存储口径随行下发：所属数据源取档案、当前启用的数据源取运行时生效值
+        assertEquals(StorageType.MINIO.getCode(), records.getFirst().getStorageType());
+        assertEquals(SOURCE_ID, records.getFirst().getStorageSourceId());
+        assertEquals(CURRENT_SOURCE_ID, records.getFirst().getCurrentStorageSourceId());
+        assertEquals(StorageType.LOCAL.getCode(), records.getFirst().getCurrentStorageType());
+    }
+
+    /**
+     * 单条文件结果的存储口径桩：档案记着数据源 1，当前启用数据源 2。
+     *
+     * @param storageSourceName 档案数据源的显示名（数据源未注册时传 null）
+     * @param currentSourceName 当前启用数据源的显示名（未启用或未注册时传 null）
+     */
+    private void stubStorageNames(String storageSourceName, String currentSourceName) {
+        KbFileResult fileResult = new KbFileResult();
+        fileResult.setId(10L);
+        fileResult.setSourceFileId(1L);
+        Page<KbFileResult> page = new Page<>(1, 10);
+        page.setRecords(List.of(fileResult));
+        when(kbFileResultDbService.pageByKb(1L, 10L, 1L)).thenReturn(page);
+        KbSourceFile source = new KbSourceFile();
+        source.setId(1L);
+        source.setFileId("88");
+        when(sourceFileDbService.listByIds(List.of(1L))).thenReturn(List.of(source));
+        when(fileStorage.refsOf(List.of("88")))
+                .thenReturn(Map.of("88", new StorageRef(StorageType.MINIO.getCode(), SOURCE_ID)));
+        when(storageRouter.nameOf(SOURCE_ID)).thenReturn(storageSourceName);
+        when(storageRouter.currentSourceId()).thenReturn(CURRENT_SOURCE_ID);
+        when(storageRouter.currentName()).thenReturn(currentSourceName);
+        // 环节状态查询：本条结果没有任何任务（列表页只问五个环节，多出来的桩会被判为无用）
+        for (String statusStage : List.of(PipelineStage.PARSE.name(), PipelineStage.STRUCTURE.name(),
+                PipelineStage.PREPROCESS.name(), PipelineStage.CHUNK.name(), PipelineStage.EMBED.name())) {
+            when(pipelineTaskDbService.listByFileResultIdsAndStage(List.of(10L), statusStage))
+                    .thenReturn(List.of());
+        }
+    }
+
+    @Test
+    void pageFileResultsShouldAttachSourceNames() {
+        stubStorageNames("MinIO-A", "MinIO-B");
+
+        FileResultVO record = service.pageFileResults(1L, 10L, 1L, null).getRecords().getFirst();
+
+        // 两个数据源实例同类型（minio）：显示名才是区分它们的字段
+        assertEquals("MinIO-A", record.getStorageSourceName());
+        assertEquals("MinIO-B", record.getCurrentStorageSourceName());
+    }
+
+    @Test
+    void pageFileResultsShouldLeaveSourceNameEmptyWhenSourceUnregistered() {
+        // 数据源已删：档案仍记着 ID，注册表给不出显示名
+        stubStorageNames(null, null);
+
+        FileResultVO record = service.pageFileResults(1L, 10L, 1L, null).getRecords().getFirst();
+
+        assertEquals(SOURCE_ID, record.getStorageSourceId());
+        assertNull(record.getStorageSourceName());
+        assertNull(record.getCurrentStorageSourceName());
     }
 
     @Test

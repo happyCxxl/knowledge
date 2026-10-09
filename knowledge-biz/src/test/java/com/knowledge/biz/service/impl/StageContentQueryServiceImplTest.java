@@ -27,8 +27,10 @@ import com.knowledge.common.domain.parse.ParseResult;
 import com.knowledge.common.domain.parse.ParseSource;
 import com.knowledge.common.domain.preprocess.PreprocessView;
 import com.knowledge.common.domain.preprocess.ViewElement;
+import com.knowledge.common.domain.storage.ObjectRef;
 import com.knowledge.common.dto.response.stagecontent.StageContentVO;
 import com.knowledge.common.enums.parse.ElementType;
+import com.knowledge.common.enums.storage.StorageType;
 import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.enums.task.PipelineTaskStatus;
 import com.knowledge.common.error.ErrorCode;
@@ -67,6 +69,9 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class StageContentQueryServiceImplTest {
 
+    /** 产物所在的数据源 */
+    private static final Long SOURCE_ID = 1L;
+
     @Mock
     private KbPipelineTaskDbService pipelineTaskDbService;
     @Mock
@@ -100,6 +105,16 @@ class StageContentQueryServiceImplTest {
                 fileStorage, new TaskDetailSupport(pipelineTaskDbService, stepLogDbService, pipelineProductDbService), accessGuard);
     }
 
+    /** 产物行夹具：读取按记录里的数据源与桶名定位，行对象必须带上这两段 */
+    private KbPipelineProduct productRow(String artifactId) {
+        KbPipelineProduct product = new KbPipelineProduct();
+        product.setArtifactId(artifactId);
+        product.setStorageType(StorageType.MINIO.getCode());
+        product.setStorageSourceId(SOURCE_ID);
+        product.setBucket("artifacts");
+        return product;
+    }
+
     private KbPipelineTask latestTask(String stage) {
         KbPipelineTask task = new KbPipelineTask();
         task.setId(41L);
@@ -125,8 +140,7 @@ class StageContentQueryServiceImplTest {
         when(fileResultDbService.getById(10L)).thenReturn(fileResultOfKb10());
         KbPipelineTask task = latestTask(PipelineStage.CHUNK.name());
         when(pipelineTaskDbService.getById(41L)).thenReturn(task);
-        KbPipelineProduct product = new KbPipelineProduct();
-        product.setArtifactId("art-c1");
+        KbPipelineProduct product = productRow("art-c1");
         when(pipelineProductDbService.getById(50L)).thenReturn(product);
         KbChunkSet chunkSet = new KbChunkSet();
         chunkSet.setId(70L);
@@ -152,8 +166,7 @@ class StageContentQueryServiceImplTest {
         KbPipelineTask task = latestTask(PipelineStage.PREPROCESS.name());
         when(pipelineTaskDbService.getByFileResultIdAndStage(10L, PipelineStage.PREPROCESS.name()))
                 .thenReturn(task);
-        KbPipelineProduct product = new KbPipelineProduct();
-        product.setArtifactId("art-p1");
+        KbPipelineProduct product = productRow("art-p1");
         when(pipelineProductDbService.getById(50L)).thenReturn(product);
         PreprocessView view = new PreprocessView();
         ViewElement kept = new ViewElement();
@@ -169,7 +182,7 @@ class StageContentQueryServiceImplTest {
         excluded.setDisplayText("第 1 页 共 10 页");
         excluded.setNormalizedText(null);
         view.setElements(List.of(kept, excluded));
-        when(fileStorage.getObject("art-p1"))
+        when(fileStorage.getObject(ObjectRef.ofProduct(product)))
                 .thenReturn(Objects.requireNonNull(JsonUtil.toJsonStr(view)).getBytes(StandardCharsets.UTF_8));
 
         StageContentVO vo = service.stageContent(10L, "PREPROCESS", null, null, null, null);
@@ -185,13 +198,47 @@ class StageContentQueryServiceImplTest {
     }
 
     @Test
+    void unconfiguredStorageShouldPropagate40455() {
+        when(fileResultDbService.getById(10L)).thenReturn(fileResultOfKb10());
+        KbPipelineTask task = latestTask(PipelineStage.PREPROCESS.name());
+        when(pipelineTaskDbService.getByFileResultIdAndStage(10L, PipelineStage.PREPROCESS.name()))
+                .thenReturn(task);
+        // 产物行缺 storageType/storageSourceId/bucket → 记录所属后端未配置：存储类读取失败向上抛，不吞成空条目
+        KbPipelineProduct product = new KbPipelineProduct();
+        product.setArtifactId("art-p1");
+        when(pipelineProductDbService.getById(50L)).thenReturn(product);
+
+        KnowledgeException e = assertThrows(KnowledgeException.class,
+                () -> service.stageContent(10L, "PREPROCESS", null, null, null, null));
+
+        assertEquals(ErrorCode.STORAGE_BACKEND_UNCONFIGURED, e.getErrorCode());
+    }
+
+    @Test
+    void nonStorageReadFailureShouldLeaveItemsEmpty() {
+        when(fileResultDbService.getById(10L)).thenReturn(fileResultOfKb10());
+        KbPipelineTask task = latestTask(PipelineStage.PREPROCESS.name());
+        when(pipelineTaskDbService.getByFileResultIdAndStage(10L, PipelineStage.PREPROCESS.name()))
+                .thenReturn(task);
+        KbPipelineProduct product = productRow("art-p1");
+        when(pipelineProductDbService.getById(50L)).thenReturn(product);
+        // 非存储类读取失败：记日志留空条目，不阻断（latest 仍为 true，total 归零）
+        when(fileStorage.getObject(ObjectRef.ofProduct(product))).thenThrow(new IllegalStateException("boom"));
+
+        StageContentVO vo = service.stageContent(10L, "PREPROCESS", null, null, null, null);
+
+        assertTrue(vo.getLatest());
+        assertTrue(vo.getItems().isEmpty());
+        assertEquals(0, vo.getTotal());
+    }
+
+    @Test
     void chunkShouldMapOrderAlignedItems() {
         when(fileResultDbService.getById(10L)).thenReturn(fileResultOfKb10());
         KbPipelineTask task = latestTask(PipelineStage.CHUNK.name());
         when(pipelineTaskDbService.getByFileResultIdAndStage(10L, PipelineStage.CHUNK.name()))
                 .thenReturn(task);
-        KbPipelineProduct product = new KbPipelineProduct();
-        product.setArtifactId("art-c1");
+        KbPipelineProduct product = productRow("art-c1");
         when(pipelineProductDbService.getById(50L)).thenReturn(product);
         KbChunkSet chunkSet = new KbChunkSet();
         chunkSet.setId(70L);
@@ -225,8 +272,7 @@ class StageContentQueryServiceImplTest {
         KbPipelineTask task = latestTask(PipelineStage.EMBED.name());
         when(pipelineTaskDbService.getByFileResultIdAndStage(10L, PipelineStage.EMBED.name()))
                 .thenReturn(task);
-        KbPipelineProduct product = new KbPipelineProduct();
-        product.setArtifactId("art-e1");
+        KbPipelineProduct product = productRow("art-e1");
         when(pipelineProductDbService.getById(50L)).thenReturn(product);
         KbEmbeddingSet set = new KbEmbeddingSet();
         set.setId(90L);
@@ -289,8 +335,7 @@ class StageContentQueryServiceImplTest {
         KbPipelineTask task = latestTask(PipelineStage.PARSE.name());
         when(pipelineTaskDbService.getByFileResultIdAndStage(10L, PipelineStage.PARSE.name()))
                 .thenReturn(task);
-        KbPipelineProduct product = new KbPipelineProduct();
-        product.setArtifactId("art-parse");
+        KbPipelineProduct product = productRow("art-parse");
         when(pipelineProductDbService.getById(50L)).thenReturn(product);
         ParseSource source = new ParseSource();
         source.setSource("native");
@@ -304,7 +349,7 @@ class StageContentQueryServiceImplTest {
         source.setElements(elements);
         ParseResult result = new ParseResult();
         result.setSources(List.of(source));
-        when(fileStorage.getObject("art-parse"))
+        when(fileStorage.getObject(ObjectRef.ofProduct(product)))
                 .thenReturn(Objects.requireNonNull(JsonUtil.toJsonStr(result)).getBytes(StandardCharsets.UTF_8));
     }
 
@@ -314,8 +359,7 @@ class StageContentQueryServiceImplTest {
         KbPipelineTask task = latestTask(PipelineStage.PARSE.name());
         when(pipelineTaskDbService.getByFileResultIdAndStage(10L, PipelineStage.PARSE.name()))
                 .thenReturn(task);
-        KbPipelineProduct product = new KbPipelineProduct();
-        product.setArtifactId("art-parse");
+        KbPipelineProduct product = productRow("art-parse");
         when(pipelineProductDbService.getById(50L)).thenReturn(product);
         ParseSource source = new ParseSource();
         source.setSource("native");
@@ -330,7 +374,7 @@ class StageContentQueryServiceImplTest {
         source.setElements(elements);
         ParseResult result = new ParseResult();
         result.setSources(List.of(source));
-        when(fileStorage.getObject("art-parse"))
+        when(fileStorage.getObject(ObjectRef.ofProduct(product)))
                 .thenReturn(Objects.requireNonNull(JsonUtil.toJsonStr(result)).getBytes(StandardCharsets.UTF_8));
     }
 

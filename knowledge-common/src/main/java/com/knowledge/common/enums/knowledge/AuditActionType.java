@@ -53,5 +53,8 @@ public enum AuditActionType {
     USER_DELETE,
 
     /** 账号本人：修改密码 */
-    USER_PASSWORD_CHANGE
+    USER_PASSWORD_CHANGE,
+
+    /** 存储数据源：切换当前启用的数据源 */
+    STORAGE_SWITCH
 }

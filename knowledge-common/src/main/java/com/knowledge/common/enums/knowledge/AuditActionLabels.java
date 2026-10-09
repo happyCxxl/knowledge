@@ -32,7 +32,8 @@ public final class AuditActionLabels {
             Map.entry(AuditActionType.USER_DISABLE, "停用账号"),
             Map.entry(AuditActionType.USER_ENABLE, "启用账号"),
             Map.entry(AuditActionType.USER_DELETE, "删除账号"),
-            Map.entry(AuditActionType.USER_PASSWORD_CHANGE, "修改密码"));
+            Map.entry(AuditActionType.USER_PASSWORD_CHANGE, "修改密码"),
+            Map.entry(AuditActionType.STORAGE_SWITCH, "切换当前存储数据源"));
 
     /**
      * BIND 的中文名按对象类型分：绑策略与解绑都走 BIND，

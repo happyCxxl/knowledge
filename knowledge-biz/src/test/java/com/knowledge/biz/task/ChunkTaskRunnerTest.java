@@ -6,6 +6,8 @@ import com.knowledge.biz.service.db.KbFileResultDbService;
 import com.knowledge.biz.service.db.KbPipelineProductDbService;
 import com.knowledge.biz.service.db.KbPipelineStepLogDbService;
 import com.knowledge.biz.service.db.KbPipelineTaskDbService;
+import com.knowledge.biz.service.db.KbSourceFileDbService;
+import com.knowledge.biz.service.support.ChainStorageSupport;
 import com.knowledge.common.domain.chunk.Chunk;
 import com.knowledge.common.domain.chunk.ChunkOutcome;
 import com.knowledge.common.domain.chunk.ChunkSet;
@@ -15,14 +17,17 @@ import com.knowledge.common.domain.entity.KbFileResult;
 import com.knowledge.common.domain.entity.KbPipelineProduct;
 import com.knowledge.common.domain.entity.KbPipelineTask;
 import com.knowledge.common.domain.preprocess.PreprocessView;
+import com.knowledge.common.domain.storage.ObjectRef;
 import com.knowledge.common.domain.structure.DocumentInfo;
 import com.knowledge.common.domain.structure.UnifiedDocument;
 import com.knowledge.common.domain.task.StepLogInfo;
 import com.knowledge.common.enums.chunk.ChunkContentType;
+import com.knowledge.common.enums.storage.StorageType;
 import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.enums.task.PipelineTaskErrorCode;
 import com.knowledge.common.enums.task.PipelineTaskStatus;
 import com.knowledge.common.utils.JsonUtil;
+import com.knowledge.filecenter.provider.StorageRouter;
 import com.knowledge.filecenter.service.FileStorage;
 import com.knowledge.worker.chunking.ChunkContext;
 import com.knowledge.worker.chunking.ChunkProperties;
@@ -60,10 +65,15 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class ChunkTaskRunnerTest {
 
+    /** 档案与产物所在的数据源 */
+    private static final Long SOURCE_ID = 1L;
+
     @Mock
     private KbPipelineTaskDbService pipelineTaskDbService;
     @Mock
     private KbFileResultDbService fileResultDbService;
+    @Mock
+    private KbSourceFileDbService sourceFileDbService;
     @Mock
     private KbPipelineProductDbService pipelineProductDbService;
     @Mock
@@ -75,18 +85,23 @@ class ChunkTaskRunnerTest {
     @Mock
     private FileStorage fileStorage;
     @Mock
+    private StorageRouter storageRouter;
+    @Mock
     private ChunkerPort chunker;
 
     private ChunkTaskRunner runner;
 
     @BeforeEach
     void setUp() {
+        // 存储守卫用真实实例 + mock 依赖：链类型取不到（默认 mock 返回 null）时不拦
+        ChainStorageSupport chainStorage = new ChainStorageSupport(fileResultDbService, sourceFileDbService,
+                fileStorage, storageRouter);
         runner = new ChunkTaskRunner(pipelineTaskDbService, fileResultDbService,
                 pipelineProductDbService, chunkSetDbService, chunkDbService,
                 fileStorage, chunker, new ChunkProperties(),
                 new ChunkStrategyParser(new ChunkProperties()),
                 new StepLogPersistence(stepLogDbService),
-                new ProductPersistence(pipelineProductDbService, pipelineTaskDbService, fileStorage));
+                new ProductPersistence(pipelineProductDbService, pipelineTaskDbService, chainStorage, fileStorage));
     }
 
     private KbPipelineTask queuedTask() {
@@ -104,6 +119,9 @@ class ChunkTaskRunnerTest {
         product.setId(50L);
         product.setUpstreamProductId(30L);
         product.setArtifactId("abc".repeat(22));
+        product.setStorageType(StorageType.MINIO.getCode());
+        product.setStorageSourceId(SOURCE_ID);
+        product.setBucket("artifacts");
         return product;
     }
 
@@ -174,10 +192,11 @@ class ChunkTaskRunnerTest {
         when(fileResultDbService.getById(10L)).thenReturn(fileResult());
         when(pipelineProductDbService.getByFileResultIdAndStage(10L, PipelineStage.PREPROCESS.name()))
                 .thenReturn(preprocessProduct());
-        when(fileStorage.getObject("abc".repeat(22)))
+        when(fileStorage.getObject(ObjectRef.of(SOURCE_ID, StorageType.MINIO.getCode(), "artifacts", "abc".repeat(22))))
                 .thenReturn(json(view()));
         when(chunker.chunk(any(ChunkContext.class))).thenReturn(successOutcome());
-        when(fileStorage.putObject(any(byte[].class))).thenReturn("def".repeat(21) + "0");
+        when(fileStorage.putObject(any(byte[].class)))
+                .thenReturn(ObjectRef.of(SOURCE_ID, StorageType.MINIO.getCode(), "artifacts", "def".repeat(21) + "0"));
         when(pipelineProductDbService.save(any(KbPipelineProduct.class))).thenAnswer(inv -> {
             inv.getArgument(0, KbPipelineProduct.class).setId(80L);
             return true;
@@ -203,6 +222,8 @@ class ChunkTaskRunnerTest {
         verify(chunkSetDbService).save(chunkSetCaptor.capture());
         assertEquals(2, chunkSetCaptor.getValue().getChunkCount());
         assertEquals("chunk-hybrid-v1", chunkSetCaptor.getValue().getChunkStrategyVersion());
+        // 切片集合行沿用产物行的对象位置（含数据源 ID）
+        assertEquals(SOURCE_ID, chunkSetCaptor.getValue().getStorageSourceId());
 
         @SuppressWarnings({ "unchecked", "rawtypes" })
         ArgumentCaptor<List<KbChunk>> chunkRowsCaptor = ArgumentCaptor.forClass((Class) List.class);
@@ -230,10 +251,11 @@ class ChunkTaskRunnerTest {
         // 该用例只验证"优先取指定上游产物"，不涉结构参照：置空避免 readStructureDocument 内部产生严格桩参数不匹配告警
         specified.setUpstreamProductId(null);
         when(pipelineProductDbService.getById(88L)).thenReturn(specified);
-        when(fileStorage.getObject("spec".repeat(16)))
+        when(fileStorage.getObject(ObjectRef.of(SOURCE_ID, StorageType.MINIO.getCode(), "artifacts", "spec".repeat(16))))
                 .thenReturn(json(view()));
         when(chunker.chunk(any(ChunkContext.class))).thenReturn(successOutcome());
-        when(fileStorage.putObject(any(byte[].class))).thenReturn("out".repeat(16));
+        when(fileStorage.putObject(any(byte[].class)))
+                .thenReturn(ObjectRef.of(SOURCE_ID, StorageType.MINIO.getCode(), "artifacts", "out".repeat(16)));
         when(pipelineProductDbService.save(any(KbPipelineProduct.class))).thenAnswer(inv -> {
             inv.getArgument(0, KbPipelineProduct.class).setId(80L);
             return true;
@@ -245,7 +267,7 @@ class ChunkTaskRunnerTest {
 
         runner.run(70L);
 
-        verify(fileStorage).getObject("spec".repeat(16));
+        verify(fileStorage).getObject(ObjectRef.of(SOURCE_ID, StorageType.MINIO.getCode(), "artifacts", "spec".repeat(16)));
         verify(pipelineProductDbService, never()).getByFileResultIdAndStage(any(), any());
         ArgumentCaptor<KbPipelineProduct> productCaptor = ArgumentCaptor.forClass(KbPipelineProduct.class);
         verify(pipelineProductDbService).save(productCaptor.capture());
@@ -274,7 +296,7 @@ class ChunkTaskRunnerTest {
         when(fileResultDbService.getById(10L)).thenReturn(fileResult());
         when(pipelineProductDbService.getByFileResultIdAndStage(10L, PipelineStage.PREPROCESS.name()))
                 .thenReturn(preprocessProduct());
-        when(fileStorage.getObject("abc".repeat(22)))
+        when(fileStorage.getObject(ObjectRef.of(SOURCE_ID, StorageType.MINIO.getCode(), "artifacts", "abc".repeat(22))))
                 .thenReturn(json(view()));
         ChunkOutcome outcome = new ChunkOutcome();
         outcome.setSuggestedStatus(PipelineTaskStatus.FAILED.name());
@@ -299,12 +321,13 @@ class ChunkTaskRunnerTest {
         KbPipelineProduct preprocess = preprocessProduct();
         when(pipelineProductDbService.getByFileResultIdAndStage(10L, PipelineStage.PREPROCESS.name()))
                 .thenReturn(preprocess);
-        when(fileStorage.getObject("abc".repeat(22)))
+        when(fileStorage.getObject(ObjectRef.of(SOURCE_ID, StorageType.MINIO.getCode(), "artifacts", "abc".repeat(22))))
                 .thenReturn(json(view()));
         // 上游 STRUCTURE 产物缺失 → 结构参照为 null，不阻断
         when(pipelineProductDbService.getById(30L)).thenReturn(null);
         when(chunker.chunk(any(ChunkContext.class))).thenReturn(successOutcome());
-        when(fileStorage.putObject(any(byte[].class))).thenReturn("def".repeat(21) + "0");
+        when(fileStorage.putObject(any(byte[].class)))
+                .thenReturn(ObjectRef.of(SOURCE_ID, StorageType.MINIO.getCode(), "artifacts", "def".repeat(21) + "0"));
         when(pipelineProductDbService.save(any(KbPipelineProduct.class))).thenAnswer(inv -> {
             inv.getArgument(0, KbPipelineProduct.class).setId(80L);
             return true;
@@ -329,20 +352,24 @@ class ChunkTaskRunnerTest {
         when(fileResultDbService.getById(10L)).thenReturn(fileResult());
         when(pipelineProductDbService.getByFileResultIdAndStage(10L, PipelineStage.PREPROCESS.name()))
                 .thenReturn(preprocessProduct());
-        when(fileStorage.getObject("abc".repeat(22)))
+        when(fileStorage.getObject(ObjectRef.of(SOURCE_ID, StorageType.MINIO.getCode(), "artifacts", "abc".repeat(22))))
                 .thenReturn(json(view()));
         KbPipelineProduct structureProduct = new KbPipelineProduct();
         structureProduct.setId(30L);
         structureProduct.setArtifactId("ghi".repeat(21) + "0");
+        structureProduct.setStorageType(StorageType.MINIO.getCode());
+        structureProduct.setStorageSourceId(SOURCE_ID);
+        structureProduct.setBucket("artifacts");
         when(pipelineProductDbService.getById(30L)).thenReturn(structureProduct);
         UnifiedDocument document = new UnifiedDocument();
         DocumentInfo info = new DocumentInfo();
         info.setDocumentId("doc-10");
         document.setDocumentInfo(info);
-        when(fileStorage.getObject("ghi".repeat(21) + "0"))
+        when(fileStorage.getObject(ObjectRef.of(SOURCE_ID, StorageType.MINIO.getCode(), "artifacts", "ghi".repeat(21) + "0")))
                 .thenReturn(json(document));
         when(chunker.chunk(any(ChunkContext.class))).thenReturn(successOutcome());
-        when(fileStorage.putObject(any(byte[].class))).thenReturn("def".repeat(21) + "0");
+        when(fileStorage.putObject(any(byte[].class)))
+                .thenReturn(ObjectRef.of(SOURCE_ID, StorageType.MINIO.getCode(), "artifacts", "def".repeat(21) + "0"));
         when(pipelineProductDbService.save(any(KbPipelineProduct.class))).thenAnswer(inv -> {
             inv.getArgument(0, KbPipelineProduct.class).setId(80L);
             return true;

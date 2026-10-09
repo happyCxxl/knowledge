@@ -7,6 +7,7 @@ import com.knowledge.common.domain.preprocess.PreprocessView;
 import com.knowledge.common.domain.preprocess.TraceEntry;
 import com.knowledge.common.domain.preprocess.ViewElement;
 import com.knowledge.common.domain.rules.PreprocessViewRules;
+import com.knowledge.common.domain.storage.ObjectRef;
 import com.knowledge.common.enums.preprocess.ViewElementStatus;
 import com.knowledge.common.utils.NullUtil;
 import com.knowledge.filecenter.service.FileStorage;
@@ -94,14 +95,14 @@ public final class PreprocessStatsSupport {
     }
 
     /**
-     * 读派生视图产物；产物引用为空、对象读不到或 JSON 解析失败都返回 null。
+     * 读派生视图产物；对象位置为空、对象读不到或 JSON 解析失败都返回 null。
      *
      * @param fileStorage 对象存储
-     * @param artifactId  产物引用（sha256），可空
+     * @param ref         产物对象位置（含存储类型与桶名），可空
      * @return 派生视图；取不到返回 null
      */
-    public static PreprocessView readView(FileStorage fileStorage, String artifactId) {
-        return StatsSupport.readArtifact(fileStorage, artifactId, PreprocessView.class);
+    public static PreprocessView readView(FileStorage fileStorage, ObjectRef ref) {
+        return StatsSupport.readArtifact(fileStorage, ref, PreprocessView.class);
     }
 
     /**

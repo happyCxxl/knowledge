@@ -1,18 +1,18 @@
 package com.knowledge.filecenter.config;
 
+import com.knowledge.common.enums.storage.StorageType;
+import com.knowledge.common.error.ErrorCode;
+import com.knowledge.common.exception.KnowledgeException;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
 /**
- * 文件服务配置：存储后端选择、本地存储根目录与 MinIO 连接/桶名。
+ * 文件服务配置：数据源首次初始化的缺省来源。
  *
- * <p>**两种后端**（{@link #storageType}）：{@code minio}（默认，对象存储）与
- * {@code local}（本地磁盘，开发/演示用）。两者的"桶"语义一致 —— 本地实现把桶名当
- * 子目录，{@code kb_file_object.bucket} 档案字段无需区分后端。
- *
- * <p><b>切换后端前请注意</b>：已写入的对象不会自动迁移，切换后旧对象在新后端里读不到
- * （反过来也一样）。要让存量数据可用，需要先把对象文件复制到新后端的对应位置。
+ * <p>{@link #storageType} 指明的类型在数据源表为空时决定哪一行置为当前启用，表里没有可用行时
+ * 按它回落注册一条内置定义。{@link #minio} 与 {@link #local} 是两类数据源的缺省连接参数，
+ * 只在 seed 与回落时读取；连接参数的实际来源是 kb_storage_source.config_json。
  *
  * @author cxxl
  */
@@ -21,24 +21,61 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "file-center")
 public class FileCenterConfig {
 
-    /** 存储后端：minio（默认）/ local（本地磁盘） */
+    /** 首次初始化置为当前启用的存储类型（StorageType 枚举码：minio / local） */
     private String storageType = "minio";
 
-    /** 本地存储根目录（storage-type=local 时生效）；相对路径按进程工作目录解析 */
-    private String localRoot = "./data/file-center";
+    /** MinIO 数据源缺省参数 */
+    private Minio minio = new Minio();
 
-    /** MinIO 服务端点 */
-    private String endpoint = "http://localhost:9000";
+    /** 本地磁盘数据源缺省参数 */
+    private Local local = new Local();
 
-    /** 访问密钥 */
-    private String accessKey = "minioadmin";
+    /**
+     * 首次初始化置为当前启用的存储类型。
+     *
+     * @return 存储类型
+     * @throws KnowledgeException 码值为空或未知（40500）
+     */
+    public StorageType defaultType() {
+        StorageType type = StorageType.of(storageType);
+        if (type == null) {
+            throw new KnowledgeException(ErrorCode.SYSTEM_ERROR,
+                    "file-center.storage-type 取值非法: " + storageType);
+        }
+        return type;
+    }
 
-    /** 私有密钥 */
-    private String secretKey = "minioadmin";
+    /** MinIO 数据源缺省参数 */
+    @Data
+    public static class Minio {
 
-    /** 文件对象桶名 */
-    private String fileBucket = "files";
+        /** 服务端点 */
+        private String endpoint = "http://localhost:9000";
 
-    /** 内容寻址对象桶名 */
-    private String artifactBucket = "artifacts";
+        /** 访问密钥 */
+        private String accessKey = "minioadmin";
+
+        /** 私有密钥 */
+        private String secretKey = "minioadmin";
+
+        /** 文件对象桶名 */
+        private String fileBucket = "files";
+
+        /** 内容寻址对象桶名 */
+        private String artifactBucket = "artifacts";
+    }
+
+    /** 本地磁盘数据源缺省参数 */
+    @Data
+    public static class Local {
+
+        /** 存储根目录（相对路径按进程工作目录解析，启动时打印解析后的绝对路径） */
+        private String rootDir = "./data/file-center";
+
+        /** 文件对象一级子目录名 */
+        private String fileDir = "files";
+
+        /** 内容寻址对象一级子目录名 */
+        private String artifactDir = "artifacts";
+    }
 }

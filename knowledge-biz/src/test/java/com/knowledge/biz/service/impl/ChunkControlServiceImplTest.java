@@ -9,6 +9,8 @@ import com.knowledge.biz.service.db.KbPipelineStrategyVersionDbService;
 import com.knowledge.biz.service.db.KbPipelineTaskDbService;
 import com.knowledge.biz.service.db.KbStrategyBindingDbService;
 import com.knowledge.biz.service.db.KnowledgeBaseDbService;
+import com.knowledge.biz.service.db.KbSourceFileDbService;
+import com.knowledge.biz.service.support.ChainStorageSupport;
 import com.knowledge.biz.service.support.FileResultAccessGuard;
 import com.knowledge.biz.service.support.ChunkVoAssembler;
 import com.knowledge.biz.service.support.StageStrategySupport;
@@ -24,10 +26,13 @@ import com.knowledge.common.domain.entity.KbPipelineStrategyVersion;
 import com.knowledge.common.domain.entity.KbPipelineTask;
 import com.knowledge.common.domain.entity.KbStrategyBinding;
 import com.knowledge.common.domain.entity.KnowledgeBase;
+import com.knowledge.common.domain.storage.ObjectRef;
 import com.knowledge.common.dto.response.chunk.ChunkDetailVO;
+import com.knowledge.common.enums.storage.StorageType;
 import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.enums.task.PipelineTaskStatus;
 import com.knowledge.common.error.ErrorCode;
+import com.knowledge.filecenter.provider.StorageRouter;
 import com.knowledge.filecenter.service.FileStorage;
 import com.knowledge.common.exception.KnowledgeException;
 import com.knowledge.worker.chunking.ChunkProperties;
@@ -60,6 +65,9 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class ChunkControlServiceImplTest {
 
+    /** 产物所在的数据源 */
+    private static final Long SOURCE_ID = 1L;
+
     @Mock
     private KbFileResultDbService fileResultDbService;
     @Mock
@@ -81,6 +89,10 @@ class ChunkControlServiceImplTest {
     @Mock
     private KnowledgeBaseDbService knowledgeBaseDbService;
     @Mock
+    private KbSourceFileDbService sourceFileDbService;
+    @Mock
+    private StorageRouter storageRouter;
+    @Mock
     private FileStorage fileStorage;
 
     private ChunkControlServiceImpl service;
@@ -91,9 +103,11 @@ class ChunkControlServiceImplTest {
         SecurityTestSupport.loginViewer();
         boundKnowledgeBase(10L);
         FileResultAccessGuard accessGuard = new FileResultAccessGuard(fileResultDbService, knowledgeBaseDbService);
+        ChainStorageSupport chainStorage = new ChainStorageSupport(fileResultDbService, sourceFileDbService,
+                fileStorage, storageRouter);
         service = new ChunkControlServiceImpl(pipelineProductDbService,
                 new StageStrategySupport(strategyVersionDbService, strategyBindingDbService, knowledgeBaseDbService),
-                new TaskTriggerSupport(pipelineTaskDbService, taskQueue),
+                new TaskTriggerSupport(pipelineTaskDbService, chainStorage, taskQueue),
                 new TaskDetailSupport(pipelineTaskDbService, stepLogDbService, pipelineProductDbService),
                 chunkSetDbService, chunkDbService,
                 new ChunkStrategyParser(new ChunkProperties()),
@@ -110,6 +124,10 @@ class ChunkControlServiceImplTest {
     private KbPipelineProduct preprocessProduct() {
         KbPipelineProduct product = new KbPipelineProduct();
         product.setId(50L);
+        product.setArtifactId("abc".repeat(22));
+        product.setStorageType(StorageType.MINIO.getCode());
+        product.setStorageSourceId(SOURCE_ID);
+        product.setBucket("artifacts");
         return product;
     }
 
@@ -334,12 +352,19 @@ class ChunkControlServiceImplTest {
         when(pipelineTaskDbService.getByFileResultIdAndStage(10L, PipelineStage.CHUNK.name())).thenReturn(task);
         KbPipelineProduct product = new KbPipelineProduct();
         product.setArtifactId("abc".repeat(16));
+        // 产物行记下对象位置：详情按它取切片集合
+        product.setStorageType(StorageType.MINIO.getCode());
+        product.setStorageSourceId(SOURCE_ID);
+        product.setBucket("artifacts");
         when(pipelineProductDbService.getById(50L)).thenReturn(product);
         KbChunkSet chunkSet = new KbChunkSet();
         chunkSet.setId(70L);
         chunkSet.setChunkCount(2);
         chunkSet.setTotalChars(300);
         chunkSet.setArtifactId("abc".repeat(16));
+        chunkSet.setStorageType(StorageType.MINIO.getCode());
+        chunkSet.setStorageSourceId(SOURCE_ID);
+        chunkSet.setBucket("artifacts");
         when(chunkSetDbService.getByArtifactId("abc".repeat(16))).thenReturn(chunkSet);
         KbChunk parent = new KbChunk();
         parent.setChunkId("c-1");
@@ -396,6 +421,27 @@ class ChunkControlServiceImplTest {
         KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.chunkDetail(10L, 31L));
         assertEquals(ErrorCode.PARAM_INVALID, e.getErrorCode());
     }
+
+    @Test
+    void detailWithIncompleteProductLocationShouldReject40455() {
+        when(fileResultDbService.getById(10L)).thenReturn(fileResult());
+        KbPipelineTask task = new KbPipelineTask();
+        task.setId(41L);
+        task.setStage(PipelineStage.CHUNK.name());
+        task.setStatus(PipelineTaskStatus.SUCCESS.name());
+        task.setProductId(50L);
+        when(pipelineTaskDbService.getByFileResultIdAndStage(10L, PipelineStage.CHUNK.name())).thenReturn(task);
+        // 产物行缺 storageType / storageSourceId / bucket：位置不完整，详情按「存储后端未配置」拒绝
+        KbPipelineProduct product = new KbPipelineProduct();
+        product.setArtifactId("abc".repeat(16));
+        when(pipelineProductDbService.getById(50L)).thenReturn(product);
+
+        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.chunkDetail(10L, null));
+
+        assertEquals(ErrorCode.STORAGE_BACKEND_UNCONFIGURED, e.getErrorCode());
+        verify(chunkSetDbService, never()).getByArtifactId(any());
+    }
+
     @Test
     void otherUserFileResultShouldReject40401() {
         when(fileResultDbService.getById(10L)).thenReturn(fileResult());

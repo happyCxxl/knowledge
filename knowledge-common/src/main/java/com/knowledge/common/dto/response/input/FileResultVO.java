@@ -33,6 +33,24 @@ public class FileResultVO {
     /** 文件大小（字节） */
     private Long fileSize;
 
+    /** 该文件结果所属存储类型码值（kb_file_object.storage_type：minio / local；无档案时为空） */
+    private String storageType;
+
+    /** 该文件结果所属数据源实例 ID（kb_file_object.storage_source_id；无档案时为空） */
+    private Long storageSourceId;
+
+    /** 该文件结果所属数据源显示名（数据源未注册时为空） */
+    private String storageSourceName;
+
+    /** 当前启用的数据源 ID（无启用的数据源时为空） */
+    private Long currentStorageSourceId;
+
+    /** 当前启用的数据源类型码值（无启用的数据源时为空） */
+    private String currentStorageType;
+
+    /** 当前启用的数据源显示名（无启用的数据源或未注册时为空） */
+    private String currentStorageSourceName;
+
     /** 创建时间 */
     private LocalDateTime createTime;
 

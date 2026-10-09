@@ -5,8 +5,10 @@ import com.knowledge.biz.service.db.KbPipelineProductDbService;
 import com.knowledge.biz.service.db.KbPipelineStepLogDbService;
 import com.knowledge.biz.service.db.KbPipelineStrategyVersionDbService;
 import com.knowledge.biz.service.db.KbPipelineTaskDbService;
+import com.knowledge.biz.service.db.KbSourceFileDbService;
 import com.knowledge.biz.service.db.KbStrategyBindingDbService;
 import com.knowledge.biz.service.db.KnowledgeBaseDbService;
+import com.knowledge.biz.service.support.ChainStorageSupport;
 import com.knowledge.biz.service.support.FileResultAccessGuard;
 import com.knowledge.biz.service.support.PreprocessVoAssembler;
 import com.knowledge.biz.service.support.StageStrategySupport;
@@ -21,11 +23,14 @@ import com.knowledge.common.domain.entity.KbPipelineStrategyVersion;
 import com.knowledge.common.domain.entity.KbPipelineTask;
 import com.knowledge.common.domain.entity.KbStrategyBinding;
 import com.knowledge.common.domain.entity.KnowledgeBase;
+import com.knowledge.common.domain.storage.ObjectRef;
 import com.knowledge.common.dto.response.preprocess.PreprocessDetailVO;
+import com.knowledge.common.enums.storage.StorageType;
 import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.enums.task.PipelineTaskStatus;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
+import com.knowledge.filecenter.provider.StorageRouter;
 import com.knowledge.filecenter.service.FileStorage;
 import com.knowledge.worker.preprocessing.PreprocessProperties;
 import com.knowledge.worker.preprocessing.strategy.PreprocessStrategy;
@@ -59,6 +64,9 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class PreprocessControlServiceImplTest {
 
+    /** 产物所在的数据源 */
+    private static final Long SOURCE_ID = 1L;
+
     @Mock
     private KbFileResultDbService fileResultDbService;
     @Mock
@@ -74,6 +82,10 @@ class PreprocessControlServiceImplTest {
     @Mock
     private FileStorage fileStorage;
     @Mock
+    private KbSourceFileDbService sourceFileDbService;
+    @Mock
+    private StorageRouter storageRouter;
+    @Mock
     private KbStrategyBindingDbService strategyBindingDbService;
     @Mock
     private KnowledgeBaseDbService knowledgeBaseDbService;
@@ -86,9 +98,11 @@ class PreprocessControlServiceImplTest {
         SecurityTestSupport.loginViewer();
         boundKnowledgeBase(10L);
         FileResultAccessGuard accessGuard = new FileResultAccessGuard(fileResultDbService, knowledgeBaseDbService);
+        ChainStorageSupport chainStorage = new ChainStorageSupport(fileResultDbService, sourceFileDbService,
+                fileStorage, storageRouter);
         service = new PreprocessControlServiceImpl(pipelineProductDbService,
                 new StageStrategySupport(strategyVersionDbService, strategyBindingDbService, knowledgeBaseDbService),
-                new TaskTriggerSupport(pipelineTaskDbService, taskQueue),
+                new TaskTriggerSupport(pipelineTaskDbService, chainStorage, taskQueue),
                 new TaskDetailSupport(pipelineTaskDbService, stepLogDbService, pipelineProductDbService), fileStorage,
                 new PreprocessStrategyParser(new PreprocessProperties()),
                 new PreprocessVoAssembler(), accessGuard);
@@ -385,6 +399,10 @@ class PreprocessControlServiceImplTest {
         when(stepLogDbService.listByTaskId(31L)).thenReturn(List.of(step));
         KbPipelineProduct product = new KbPipelineProduct();
         product.setArtifactId("abc".repeat(16));
+        // 产物行记下对象位置：详情读取按数据源与对象键定位
+        product.setStorageType(StorageType.MINIO.getCode());
+        product.setStorageSourceId(SOURCE_ID);
+        product.setBucket("artifacts");
         when(pipelineProductDbService.getById(50L)).thenReturn(product);
         String json = "{\"strategyVersion\":\"preproc-default-v1\","
                 + "\"options\":{\"pageHeaderFooter\":\"MARK\"},"
@@ -396,7 +414,8 @@ class PreprocessControlServiceImplTest {
                 + "\"preprocessTrace\":[{\"rule\":\"amount-cn-v1\",\"field\":\"AMOUNT\",\"action\":\"EXTRACT\",\"before\":\"叁佰万\",\"after\":\"3000000.00\",\"evidence\":\"中文金额命中\"}]},"
                 + "{\"elementId\":\"hdr-1\",\"type\":\"HEADER\",\"status\":\"EXCLUDED_HEADER\",\"rawText\":\"页眉文本\",\"displayText\":\"页眉文本\","
                 + "\"preprocessTrace\":[{\"rule\":\"header-footer-detect-v1\",\"action\":\"EXCLUDE\",\"before\":\"页眉文本\",\"evidence\":\"多页重复页眉\"}]}]}";
-        when(fileStorage.getObject("abc".repeat(16))).thenReturn(json.getBytes(StandardCharsets.UTF_8));
+        when(fileStorage.getObject(ObjectRef.of(SOURCE_ID, StorageType.MINIO.getCode(), "artifacts", "abc".repeat(16))))
+                .thenReturn(json.getBytes(StandardCharsets.UTF_8));
 
         PreprocessDetailVO detail = service.preprocessDetail(10L, null);
 
@@ -444,6 +463,27 @@ class PreprocessControlServiceImplTest {
         KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.preprocessDetail(10L, 51L));
         assertEquals(ErrorCode.PARAM_INVALID, e.getErrorCode());
     }
+
+    @Test
+    void detailWithIncompleteProductLocationShouldReject40455() {
+        when(fileResultDbService.getById(10L)).thenReturn(fileResult());
+        KbPipelineTask task = new KbPipelineTask();
+        task.setId(31L);
+        task.setStage(PipelineStage.PREPROCESS.name());
+        task.setStatus(PipelineTaskStatus.SUCCESS.name());
+        task.setProductId(50L);
+        when(pipelineTaskDbService.getByFileResultIdAndStage(10L, PipelineStage.PREPROCESS.name())).thenReturn(task);
+        // 产物行缺 storageType / bucket：位置不完整，读取路径按「存储后端未配置」拒绝
+        KbPipelineProduct product = new KbPipelineProduct();
+        product.setArtifactId("abc".repeat(16));
+        when(pipelineProductDbService.getById(50L)).thenReturn(product);
+
+        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.preprocessDetail(10L, null));
+
+        assertEquals(ErrorCode.STORAGE_BACKEND_UNCONFIGURED, e.getErrorCode());
+        verify(fileStorage, never()).getObject(any(ObjectRef.class));
+    }
+
     @Test
     void otherUserFileResultShouldReject40401() {
         when(fileResultDbService.getById(10L)).thenReturn(fileResult());

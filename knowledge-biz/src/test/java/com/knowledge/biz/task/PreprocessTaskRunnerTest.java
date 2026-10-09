@@ -4,20 +4,25 @@ import com.knowledge.biz.service.db.KbFileResultDbService;
 import com.knowledge.biz.service.db.KbPipelineProductDbService;
 import com.knowledge.biz.service.db.KbPipelineStepLogDbService;
 import com.knowledge.biz.service.db.KbPipelineTaskDbService;
+import com.knowledge.biz.service.db.KbSourceFileDbService;
+import com.knowledge.biz.service.support.ChainStorageSupport;
 import com.knowledge.common.domain.entity.KbFileResult;
 import com.knowledge.common.domain.entity.KbPipelineProduct;
 import com.knowledge.common.domain.entity.KbPipelineTask;
 import com.knowledge.common.domain.preprocess.PreprocessOutcome;
 import com.knowledge.common.domain.preprocess.PreprocessView;
+import com.knowledge.common.domain.storage.ObjectRef;
 import com.knowledge.common.domain.structure.DocumentInfo;
 import com.knowledge.common.domain.structure.UnifiedDocument;
 import com.knowledge.common.domain.structure.UnifiedElement;
 import com.knowledge.common.domain.task.StepLogInfo;
+import com.knowledge.common.enums.storage.StorageType;
 import com.knowledge.common.enums.structure.UnifiedElementType;
 import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.enums.task.PipelineTaskErrorCode;
 import com.knowledge.common.enums.task.PipelineTaskStatus;
 import com.knowledge.common.utils.JsonUtil;
+import com.knowledge.filecenter.provider.StorageRouter;
 import com.knowledge.filecenter.service.FileStorage;
 import com.knowledge.worker.preprocessing.PreprocessContext;
 import com.knowledge.worker.preprocessing.PreprocessProperties;
@@ -52,10 +57,15 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class PreprocessTaskRunnerTest {
 
+    /** 档案与产物所在的数据源 */
+    private static final Long SOURCE_ID = 1L;
+
     @Mock
     private KbPipelineTaskDbService pipelineTaskDbService;
     @Mock
     private KbFileResultDbService fileResultDbService;
+    @Mock
+    private KbSourceFileDbService sourceFileDbService;
     @Mock
     private KbPipelineProductDbService pipelineProductDbService;
     @Mock
@@ -63,17 +73,22 @@ class PreprocessTaskRunnerTest {
     @Mock
     private FileStorage fileStorage;
     @Mock
+    private StorageRouter storageRouter;
+    @Mock
     private PreprocessorPort preprocessor;
 
     private PreprocessTaskRunner runner;
 
     @BeforeEach
     void setUp() {
+        // 存储守卫用真实实例 + mock 依赖：链类型取不到（默认 mock 返回 null）时不拦
+        ChainStorageSupport chainStorage = new ChainStorageSupport(fileResultDbService, sourceFileDbService,
+                fileStorage, storageRouter);
         runner = new PreprocessTaskRunner(pipelineTaskDbService, fileResultDbService,
                 pipelineProductDbService, fileStorage, preprocessor,
                 new PreprocessProperties(), new PreprocessStrategyParser(new PreprocessProperties()),
                 new StepLogPersistence(stepLogDbService),
-                new ProductPersistence(pipelineProductDbService, pipelineTaskDbService, fileStorage));
+                new ProductPersistence(pipelineProductDbService, pipelineTaskDbService, chainStorage, fileStorage));
     }
 
     private KbPipelineTask queuedTask() {
@@ -90,6 +105,9 @@ class PreprocessTaskRunnerTest {
         KbPipelineProduct product = new KbPipelineProduct();
         product.setId(50L);
         product.setArtifactId("abc".repeat(22));
+        product.setStorageType(StorageType.MINIO.getCode());
+        product.setStorageSourceId(SOURCE_ID);
+        product.setBucket("artifacts");
         return product;
     }
 
@@ -143,10 +161,11 @@ class PreprocessTaskRunnerTest {
         when(pipelineTaskDbService.claim(60L)).thenReturn(1);
         when(fileResultDbService.getById(10L)).thenReturn(fileResult());
         when(pipelineProductDbService.getById(50L)).thenReturn(structureProduct());
-        when(fileStorage.getObject("abc".repeat(22)))
+        when(fileStorage.getObject(ObjectRef.of(SOURCE_ID, StorageType.MINIO.getCode(), "artifacts", "abc".repeat(22))))
                 .thenReturn(Objects.requireNonNull(JsonUtil.toJsonStr(document())).getBytes(StandardCharsets.UTF_8));
         when(preprocessor.preprocess(any(PreprocessContext.class))).thenReturn(successOutcome());
-        when(fileStorage.putObject(any(byte[].class))).thenReturn("def".repeat(21) + "0");
+        when(fileStorage.putObject(any(byte[].class)))
+                .thenReturn(ObjectRef.of(SOURCE_ID, StorageType.MINIO.getCode(), "artifacts", "def".repeat(21) + "0"));
         when(pipelineProductDbService.save(any(KbPipelineProduct.class))).thenAnswer(inv -> {
             inv.getArgument(0, KbPipelineProduct.class).setId(70L);
             return true;
@@ -165,6 +184,9 @@ class PreprocessTaskRunnerTest {
         assertEquals(50L, productCaptor.getValue().getUpstreamProductId());
         assertEquals(10L, productCaptor.getValue().getFileResultId());
         assertNotNull(productCaptor.getValue().getCapabilitySnapshot());
+        // 产物行记下对象位置：读取路径据此定位（缺这两段会报 40455）
+        assertEquals(StorageType.MINIO.getCode(), productCaptor.getValue().getStorageType());
+        assertEquals("artifacts", productCaptor.getValue().getBucket());
 
         verify(pipelineTaskDbService).finish(60L, PipelineTaskStatus.SUCCESS.name(), null, null);
         verify(pipelineTaskDbService).updateProductId(60L, 70L);
@@ -182,10 +204,11 @@ class PreprocessTaskRunnerTest {
         specified.setId(88L);
         specified.setArtifactId("spec".repeat(16));
         when(pipelineProductDbService.getById(88L)).thenReturn(specified);
-        when(fileStorage.getObject("spec".repeat(16)))
+        when(fileStorage.getObject(ObjectRef.of(SOURCE_ID, StorageType.MINIO.getCode(), "artifacts", "spec".repeat(16))))
                 .thenReturn(Objects.requireNonNull(JsonUtil.toJsonStr(document())).getBytes(StandardCharsets.UTF_8));
         when(preprocessor.preprocess(any(PreprocessContext.class))).thenReturn(successOutcome());
-        when(fileStorage.putObject(any(byte[].class))).thenReturn("out".repeat(16));
+        when(fileStorage.putObject(any(byte[].class)))
+                .thenReturn(ObjectRef.of(SOURCE_ID, StorageType.MINIO.getCode(), "artifacts", "out".repeat(16)));
         when(pipelineProductDbService.save(any(KbPipelineProduct.class))).thenAnswer(inv -> {
             inv.getArgument(0, KbPipelineProduct.class).setId(70L);
             return true;
@@ -193,7 +216,7 @@ class PreprocessTaskRunnerTest {
 
         runner.run(60L);
 
-        verify(fileStorage).getObject("spec".repeat(16));
+        verify(fileStorage).getObject(ObjectRef.of(SOURCE_ID, StorageType.MINIO.getCode(), "artifacts", "spec".repeat(16)));
         verify(pipelineProductDbService, never()).getByFileResultIdAndStage(any(), any());
         ArgumentCaptor<KbPipelineProduct> productCaptor = ArgumentCaptor.forClass(KbPipelineProduct.class);
         verify(pipelineProductDbService).save(productCaptor.capture());
@@ -222,7 +245,7 @@ class PreprocessTaskRunnerTest {
         when(pipelineTaskDbService.claim(60L)).thenReturn(1);
         when(fileResultDbService.getById(10L)).thenReturn(fileResult());
         when(pipelineProductDbService.getById(50L)).thenReturn(structureProduct());
-        when(fileStorage.getObject("abc".repeat(22)))
+        when(fileStorage.getObject(ObjectRef.of(SOURCE_ID, StorageType.MINIO.getCode(), "artifacts", "abc".repeat(22))))
                 .thenReturn(Objects.requireNonNull(JsonUtil.toJsonStr(document())).getBytes(StandardCharsets.UTF_8));
         PreprocessOutcome outcome = new PreprocessOutcome();
         outcome.setSuggestedStatus(PipelineTaskStatus.FAILED.name());

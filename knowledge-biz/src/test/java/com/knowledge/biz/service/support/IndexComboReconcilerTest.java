@@ -8,6 +8,8 @@ import com.knowledge.common.domain.embed.EmbeddingSet;
 import com.knowledge.common.domain.entity.KbChunkSet;
 import com.knowledge.common.domain.entity.KbEmbeddingSet;
 import com.knowledge.common.domain.entity.KbFileResult;
+import com.knowledge.common.domain.storage.ObjectRef;
+import com.knowledge.common.enums.storage.StorageType;
 import com.knowledge.worker.indexing.ComboSnapshot;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -39,6 +41,9 @@ import static org.mockito.Mockito.when;
  */
 @ExtendWith(MockitoExtension.class)
 class IndexComboReconcilerTest {
+
+    /** 产物所在的数据源 */
+    private static final Long SOURCE_ID = 1L;
 
     @Mock
     private KbFileResultDbService fileResultDbService;
@@ -73,6 +78,10 @@ class IndexComboReconcilerTest {
         row.setId(2L);
         row.setFileResultId(10L);
         row.setStrategyVersion("embed-default-v1");
+        // 读向量产物按记录里的数据源与桶名定位：行对象必须带上这两段
+        row.setStorageType(StorageType.MINIO.getCode());
+        row.setStorageSourceId(SOURCE_ID);
+        row.setBucket("artifacts");
         return row;
     }
 
@@ -170,7 +179,7 @@ class IndexComboReconcilerTest {
         record.setVector(List.of(1.0f, 2.0f));
         record.setInputText("投标保证金叁万元");
         artifact.setRecords(List.of(record));
-        when(indexRowAssembler.readEmbeddingSet("artifact-2")).thenReturn(artifact);
+        when(indexRowAssembler.readEmbeddingSet(ObjectRef.ofEmbeddingSet(embed))).thenReturn(artifact);
         ComboSnapshot combo = ComboSnapshot.of("preproc-default-v1", "chunk-hybrid-v1", "embed-default-v1");
         combo.setFileScopeMode("LIST");
         combo.setFileResultIds(List.of(10L));

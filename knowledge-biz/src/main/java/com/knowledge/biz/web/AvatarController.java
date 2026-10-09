@@ -2,14 +2,15 @@ package com.knowledge.biz.web;
 
 import com.knowledge.auth.db.UserDbService;
 import com.knowledge.common.domain.entity.User;
+import com.knowledge.common.domain.storage.ObjectRef;
 import com.knowledge.common.dto.response.R;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
 import com.knowledge.common.exception.ThrowUtil;
 import com.knowledge.common.utils.AvatarUrlUtil;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.common.utils.SecurityUtil;
-import com.knowledge.filecenter.config.FileCenterConfig;
-import com.knowledge.filecenter.provider.StorageProvider;
+import com.knowledge.filecenter.service.FileStorage;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
@@ -50,9 +51,7 @@ public class AvatarController {
 
     private final UserDbService userDbService;
 
-    private final StorageProvider storageProvider;
-
-    private final FileCenterConfig fileCenterConfig;
+    private final FileStorage fileStorage;
 
     /** 上传头像：按文件头判定类型，成功返回可直接渲染的新地址 */
     @PostMapping
@@ -63,22 +62,29 @@ public class AvatarController {
         User user = currentUser();
         // 每次上传换一个新 key：路径不可变，浏览器可长缓存，也天然解决"换了头像还在用旧图"
         String key = AvatarUrlUtil.KEY_PREFIX + user.getId() + "/" + randomSegment() + "." + extension;
+        ObjectRef ref;
         try (InputStream in = file.getInputStream()) {
-            storageProvider.put(fileCenterConfig.getFileBucket(), key, in, file.getSize(),
-                    contentTypeOf(extension));
+            ref = fileStorage.putRaw(key, in, file.getSize(), contentTypeOf(extension));
         } catch (IOException e) {
             throw new KnowledgeException(ErrorCode.SYSTEM_ERROR, "头像写入失败");
         }
-        user.setAvatar(key);
+        // key 与所属存储位置一并落库，读取时按记录选后端
+        user.setAvatar(ref.objectKey());
+        user.setAvatarStorageType(ref.storageType().getCode());
+        user.setAvatarStorageSourceId(ref.sourceId());
+        user.setAvatarBucket(ref.bucket());
         userDbService.updateById(user);
         return R.ok(AvatarUrlUtil.readUrl(user.getId(), key), "头像已更新");
     }
 
-    /** 移除头像：只清库里的 key（已上传的对象留待清理，存储端口暂未提供删除能力） */
+    /** 移除头像：四列一并清空（key + 存储类型 + 数据源 + 桶名）；已上传的对象留待清理，存储端口暂未提供删除能力 */
     @DeleteMapping
     public R<Void> remove() {
         User user = currentUser();
         user.setAvatar(null);
+        user.setAvatarStorageType(null);
+        user.setAvatarStorageSourceId(null);
+        user.setAvatarBucket(null);
         userDbService.updateById(user);
         return R.ok(null, "头像已移除");
     }
@@ -86,21 +92,24 @@ public class AvatarController {
     /**
      * 读取头像：未设置头像与用户不存在都回 404，两种情况响应完全一致，
      * 探测不出"某个 userId 是否存在"。
+     *
+     * <p>记录里的对象位置不完整、对象已被清掉或存储不可用同样回 404（按没有头像处理）。
      */
     @GetMapping("/{userId}")
     public ResponseEntity<byte[]> read(@PathVariable Long userId) {
         User user = userDbService.getById(userId);
-        String key = user == null ? null : user.getAvatar();
-        if (key == null) {
-            return ResponseEntity.notFound().build();
-        }
-        try (InputStream in = storageProvider.get(fileCenterConfig.getFileBucket(), key)) {
+        try {
+            ObjectRef ref = ObjectRef.ofAvatar(user);
+            if (NullUtil.isNull(ref)) {
+                return ResponseEntity.notFound().build();
+            }
+            byte[] content = fileStorage.getObject(ref);
             return ResponseEntity.ok()
-                    .contentType(mediaTypeOf(key))
+                    .contentType(mediaTypeOf(ref.objectKey()))
                     .cacheControl(CacheControl.maxAge(Duration.ofDays(365)).cachePublic().immutable())
-                    .eTag(key)
-                    .body(in.readAllBytes());
-        } catch (IOException | RuntimeException e) {
+                    .eTag(ref.objectKey())
+                    .body(content);
+        } catch (RuntimeException e) {
             // 对象被清掉或存储不可用：按"没有头像"处理，前端回落到姓名首字
             return ResponseEntity.notFound().build();
         }

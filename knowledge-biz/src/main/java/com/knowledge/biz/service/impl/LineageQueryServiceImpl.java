@@ -23,6 +23,7 @@ import com.knowledge.common.domain.parse.CapabilitySnapshot;
 import com.knowledge.common.domain.parse.ParseResult;
 import com.knowledge.common.domain.chunk.ChunkSet;
 import com.knowledge.common.domain.preprocess.PreprocessView;
+import com.knowledge.common.domain.storage.ObjectRef;
 import com.knowledge.common.domain.structure.UnifiedDocument;
 import com.knowledge.common.dto.response.lineage.LineageCapabilityVO;
 import com.knowledge.common.dto.response.lineage.LineageEdgeVO;
@@ -113,13 +114,13 @@ public class LineageQueryServiceImpl implements LineageQueryService {
                 .collect(Collectors.toMap(KbEmbeddingSet::getArtifactId, s -> s, (a, b) -> a));
         Map<Long, long[]> stepAgg = aggregateStepLogs(tasks);
         Map<Long, ParseResult> parseResultByTaskId = readProductBodies(tasks, productById, PipelineStage.PARSE, "解析",
-                artifactId -> ParseStatsSupport.readArtifact(fileStorage, artifactId));
+                product -> ParseStatsSupport.readArtifact(fileStorage, ObjectRef.ofProduct(product)));
         Map<Long, UnifiedDocument> documentByTaskId = readProductBodies(tasks, productById, PipelineStage.STRUCTURE,
-                "组装", artifactId -> StructureStatsSupport.readDocument(fileStorage, artifactId));
+                "组装", product -> StructureStatsSupport.readDocument(fileStorage, ObjectRef.ofProduct(product)));
         Map<Long, PreprocessView> viewByTaskId = readProductBodies(tasks, productById, PipelineStage.PREPROCESS,
-                "预处理", artifactId -> PreprocessStatsSupport.readView(fileStorage, artifactId));
+                "预处理", product -> PreprocessStatsSupport.readView(fileStorage, ObjectRef.ofProduct(product)));
         Map<Long, ChunkSet> chunkSetByTaskId = readProductBodies(tasks, productById, PipelineStage.CHUNK, "切片",
-                artifactId -> ChunkStatsSupport.readChunkSet(fileStorage, artifactId));
+                product -> ChunkStatsSupport.readChunkSet(fileStorage, ObjectRef.ofProduct(product)));
         // 切片节点要上游视图的"进入切片 / 跳过"元素数：上游产物已在本批读过，不再重复读对象
         Map<Long, PreprocessView> upstreamViewByTaskId =
                 upstreamViewsOf(tasks, taskIdByProductId, viewByTaskId);
@@ -239,12 +240,12 @@ public class LineageQueryServiceImpl implements LineageQueryService {
      * @param productById 产物 ID → 产物行
      * @param stage       目标环节（只处理该环节的任务）
      * @param label       日志里的环节名
-     * @param reader      产物引用 → 产物本体（读不到返回 null）
+     * @param reader      产物行 → 产物本体（读不到返回 null）
      * @return 任务 ID → 产物本体（无产物或读取失败的任务不出现在结果里）
      */
     private <T> Map<Long, T> readProductBodies(List<KbPipelineTask> tasks,
                                                Map<Long, KbPipelineProduct> productById, PipelineStage stage,
-                                               String label, Function<String, T> reader) {
+                                               String label, Function<KbPipelineProduct, T> reader) {
         Map<Long, T> result = new HashMap<>();
         for (KbPipelineTask task : tasks) {
             if (!stage.name().equals(task.getStage()) || task.getProductId() == null) {
@@ -254,7 +255,7 @@ public class LineageQueryServiceImpl implements LineageQueryService {
             if (product == null || StrUtil.isBlank(product.getArtifactId())) {
                 continue;
             }
-            T body = reader.apply(product.getArtifactId());
+            T body = reader.apply(product);
             if (NullUtil.isNotNull(body)) {
                 result.put(task.getId(), body);
             } else {

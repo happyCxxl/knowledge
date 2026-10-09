@@ -5,17 +5,21 @@ import com.knowledge.biz.service.db.KbPipelineProductDbService;
 import com.knowledge.biz.service.db.KbPipelineStepLogDbService;
 import com.knowledge.biz.service.db.KbPipelineTaskDbService;
 import com.knowledge.biz.service.db.KbSourceFileDbService;
+import com.knowledge.biz.service.support.ChainStorageSupport;
 import com.knowledge.common.domain.entity.KbFileResult;
 import com.knowledge.common.domain.entity.KbPipelineProduct;
 import com.knowledge.common.domain.entity.KbPipelineTask;
 import com.knowledge.common.domain.entity.KbSourceFile;
 import com.knowledge.common.domain.parse.ParseOutcome;
 import com.knowledge.common.domain.parse.ParseResult;
+import com.knowledge.common.domain.storage.ObjectRef;
 import com.knowledge.common.domain.task.StepLogInfo;
+import com.knowledge.common.enums.storage.StorageType;
 import com.knowledge.common.enums.task.PipelineTaskErrorCode;
 import com.knowledge.common.enums.task.PipelineTaskStatus;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
+import com.knowledge.filecenter.provider.StorageRouter;
 import com.knowledge.filecenter.service.FileStorage;
 import com.knowledge.worker.parser.ParseContext;
 import com.knowledge.worker.parser.ParseProperties;
@@ -49,6 +53,10 @@ class ParseTaskRunnerTest {
 
     @Mock
     private KbPipelineTaskDbService pipelineTaskDbService;
+
+    /** 档案与产物所在的数据源 */
+    private static final Long SOURCE_ID = 1L;
+
     @Mock
     private KbFileResultDbService fileResultDbService;
     @Mock
@@ -60,14 +68,19 @@ class ParseTaskRunnerTest {
     @Mock
     private FileStorage fileStorage;
     @Mock
+    private StorageRouter storageRouter;
+    @Mock
     private ParsePipeline parsePipeline;
 
     private ParseTaskRunner runner;
 
     @BeforeEach
     void setUp() {
+        // 存储守卫用真实实例 + mock 依赖：链类型取不到（默认 mock 返回 null）时不拦
+        ChainStorageSupport chainStorage = new ChainStorageSupport(fileResultDbService, sourceFileDbService,
+                fileStorage, storageRouter);
         runner = new ParseTaskRunner(pipelineTaskDbService, fileResultDbService, sourceFileDbService,
-                new ProductPersistence(pipelineProductDbService, pipelineTaskDbService, fileStorage),
+                new ProductPersistence(pipelineProductDbService, pipelineTaskDbService, chainStorage, fileStorage),
                 fileStorage, parsePipeline,
                 new ParseProperties(), new StepLogPersistence(stepLogDbService));
     }
@@ -146,7 +159,8 @@ class ParseTaskRunnerTest {
         when(pipelineTaskDbService.claim(20L)).thenReturn(1);
         stubFileChain();
         when(parsePipeline.run(any(ParseContext.class))).thenReturn(successOutcome());
-        when(fileStorage.putObject(any(byte[].class))).thenReturn("9f2c".repeat(16));
+        when(fileStorage.putObject(any(byte[].class)))
+                .thenReturn(ObjectRef.of(SOURCE_ID, StorageType.MINIO.getCode(), "artifacts", "9f2c".repeat(16)));
         when(pipelineProductDbService.save(any(KbPipelineProduct.class))).thenAnswer(inv -> {
             inv.getArgument(0, KbPipelineProduct.class).setId(40L);
             return true;
@@ -160,6 +174,10 @@ class ParseTaskRunnerTest {
         assertEquals("PARSE", captor.getValue().getStage());
         assertEquals("9f2c".repeat(16), captor.getValue().getArtifactId());
         assertEquals("9f2c".repeat(16), captor.getValue().getContentHash());
+        // 产物行记下对象位置：读取路径据此定位（缺这几段会报 40455）
+        assertEquals(StorageType.MINIO.getCode(), captor.getValue().getStorageType());
+        assertEquals(SOURCE_ID, captor.getValue().getStorageSourceId());
+        assertEquals("artifacts", captor.getValue().getBucket());
         verify(pipelineTaskDbService).finish(20L, PipelineTaskStatus.SUCCESS.name(), null, null);
         verify(pipelineTaskDbService).updateProductId(20L, 40L);
         // 手动逐环节口径：PARSE 完成后停在终态，不再自动登记 STRUCTURE

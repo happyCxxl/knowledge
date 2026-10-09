@@ -5,6 +5,8 @@ import com.knowledge.biz.service.db.KbFileResultDbService;
 import com.knowledge.biz.service.db.KbPipelineProductDbService;
 import com.knowledge.biz.service.db.KbPipelineStepLogDbService;
 import com.knowledge.biz.service.db.KbPipelineTaskDbService;
+import com.knowledge.biz.service.db.KbSourceFileDbService;
+import com.knowledge.biz.service.support.ChainStorageSupport;
 import com.knowledge.biz.service.support.FileResultAccessGuard;
 import com.knowledge.biz.service.support.TaskDetailSupport;
 import com.knowledge.biz.task.TaskQueueSupport;
@@ -15,11 +17,14 @@ import com.knowledge.common.domain.entity.KbFileResult;
 import com.knowledge.common.domain.entity.KbPipelineProduct;
 import com.knowledge.common.domain.entity.KbPipelineStepLog;
 import com.knowledge.common.domain.entity.KbPipelineTask;
+import com.knowledge.common.domain.storage.ObjectRef;
 import com.knowledge.common.dto.response.parse.ParseDetailVO;
+import com.knowledge.common.enums.storage.StorageType;
 import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.enums.task.PipelineTaskStatus;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
+import com.knowledge.filecenter.provider.StorageRouter;
 import com.knowledge.filecenter.service.FileStorage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -50,6 +55,9 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class ParseControlServiceImplTest {
 
+    /** 产物所在的数据源 */
+    private static final Long SOURCE_ID = 1L;
+
     @Mock
     private KbFileResultDbService fileResultDbService;
     @Mock
@@ -63,6 +71,10 @@ class ParseControlServiceImplTest {
     @Mock
     private KnowledgeBaseDbService knowledgeBaseDbService;
     @Mock
+    private KbSourceFileDbService sourceFileDbService;
+    @Mock
+    private StorageRouter storageRouter;
+    @Mock
     private FileStorage fileStorage;
 
     private ParseControlServiceImpl service;
@@ -73,8 +85,10 @@ class ParseControlServiceImplTest {
         SecurityTestSupport.loginViewer();
         boundKnowledgeBase(10L);
         FileResultAccessGuard accessGuard = new FileResultAccessGuard(fileResultDbService, knowledgeBaseDbService);
+        ChainStorageSupport chainStorage = new ChainStorageSupport(fileResultDbService, sourceFileDbService,
+                fileStorage, storageRouter);
         service = new ParseControlServiceImpl(pipelineProductDbService,
-                new TaskTriggerSupport(pipelineTaskDbService, taskQueue),
+                new TaskTriggerSupport(pipelineTaskDbService, chainStorage, taskQueue),
                 new TaskDetailSupport(pipelineTaskDbService, stepLogDbService, pipelineProductDbService), fileStorage,
                 accessGuard);
     }
@@ -214,10 +228,15 @@ class ParseControlServiceImplTest {
         KbPipelineProduct product = new KbPipelineProduct();
         product.setArtifactId("9f2c".repeat(16));
         product.setContentHash("9f2c".repeat(16));
+        // 产物行记下对象位置：详情读取按数据源与对象键定位
+        product.setStorageType(StorageType.MINIO.getCode());
+        product.setStorageSourceId(SOURCE_ID);
+        product.setBucket("artifacts");
         when(pipelineProductDbService.getById(50L)).thenReturn(product);
         String json = "{\"quality\":{\"warnings\":[{\"code\":\"SCANNED_PAGE\",\"level\":\"WARN\","
                 + "\"message\":\"第 page 2 无文本层（扫描页），OCR 暂未支持\"}]}}";
-        when(fileStorage.getObject("9f2c".repeat(16))).thenReturn(json.getBytes(StandardCharsets.UTF_8));
+        when(fileStorage.getObject(ObjectRef.of(SOURCE_ID, StorageType.MINIO.getCode(), "artifacts", "9f2c".repeat(16))))
+                .thenReturn(json.getBytes(StandardCharsets.UTF_8));
 
         ParseDetailVO detail = service.parseDetail(10L, null);
 
@@ -230,6 +249,27 @@ class ParseControlServiceImplTest {
         assertEquals(512, detail.getSteps().getFirst().getAvgLen());
         assertEquals(1, detail.getWarnings().size());
         assertTrue(detail.getWarnings().getFirst().contains("SCANNED_PAGE"));
+    }
+
+    @Test
+    void detailWithIncompleteProductLocationShouldReject40455() {
+        KbPipelineTask task = new KbPipelineTask();
+        task.setId(20L);
+        task.setFileResultId(10L);
+        task.setStage(PipelineStage.PARSE.name());
+        task.setStatus(PipelineTaskStatus.SUCCESS.name());
+        task.setProductId(50L);
+        when(fileResultDbService.getById(10L)).thenReturn(fileResult());
+        when(pipelineTaskDbService.getByFileResultIdAndStage(10L, PipelineStage.PARSE.name())).thenReturn(task);
+        // 产物行缺 storageType / storageSourceId / bucket：位置不完整，读取路径按「存储后端未配置」拒绝
+        KbPipelineProduct product = new KbPipelineProduct();
+        product.setArtifactId("9f2c".repeat(16));
+        when(pipelineProductDbService.getById(50L)).thenReturn(product);
+
+        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.parseDetail(10L, null));
+
+        assertEquals(ErrorCode.STORAGE_BACKEND_UNCONFIGURED, e.getErrorCode());
+        verify(fileStorage, never()).getObject(any(ObjectRef.class));
     }
 
     @Test

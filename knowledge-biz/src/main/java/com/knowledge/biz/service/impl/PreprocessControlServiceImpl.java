@@ -5,6 +5,7 @@ import com.knowledge.biz.service.db.KbPipelineProductDbService;
 import com.knowledge.biz.service.support.PreprocessStatsSupport;
 import com.knowledge.biz.service.support.PreprocessVoAssembler;
 import com.knowledge.biz.service.support.StageStrategySupport;
+import com.knowledge.biz.service.support.StatsSupport;
 import com.knowledge.biz.service.support.FileResultAccessGuard;
 import com.knowledge.biz.service.support.TaskDetailSupport;
 import com.knowledge.biz.task.TaskTriggerSupport;
@@ -13,11 +14,13 @@ import com.knowledge.common.domain.entity.KbPipelineProduct;
 import com.knowledge.common.domain.entity.KbPipelineStrategyVersion;
 import com.knowledge.common.domain.entity.KbPipelineTask;
 import com.knowledge.common.domain.preprocess.PreprocessView;
+import com.knowledge.common.domain.storage.ObjectRef;
 import com.knowledge.common.dto.response.preprocess.PreprocessDetailVO;
 import com.knowledge.common.dto.response.preprocess.PreprocessTriggerVO;
 import com.knowledge.common.dto.response.task.StageTriggerVO;
 import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.error.ErrorCode;
+import com.knowledge.common.exception.KnowledgeException;
 import com.knowledge.common.exception.ThrowUtil;
 import com.knowledge.common.utils.JsonUtil;
 import com.knowledge.common.utils.NullUtil;
@@ -90,7 +93,7 @@ public class PreprocessControlServiceImpl implements PreprocessControlService {
         KbPipelineProduct product = detailSupport.productOfTask(task);
         if (NullUtil.isNotNull(product)) {
             detailSupport.withProductRef(vo, product);
-            view = readView(product.getArtifactId(), vo);
+            view = readView(product, vo);
         }
         // 统计与摘要读产物现算：与执行树预处理节点同一份口径，不落产物；产物读不到时不陈述结论
         Map<String, Object> stageStats = PreprocessStatsSupport.stats(vo.getStartedAt(), vo.getFinishedAt(), view);
@@ -100,24 +103,30 @@ public class PreprocessControlServiceImpl implements PreprocessControlService {
     }
 
     /**
-     * 读派生视图产物并委托 VO 组装器提取统计/视图元素（读取失败记日志并留空，不阻断详情）。
+     * 读派生视图产物并委托 VO 组装器提取统计/视图元素。
+     *
+     * <p>存储类读取失败（40454 / 40455）向上抛出；其余读取失败记日志并留空，不阻断详情。
      *
      * @return 产物本体；读不到返回 null（统计与摘要随之为空）
      */
-    private PreprocessView readView(String artifactId, PreprocessDetailVO vo) {
+    private PreprocessView readView(KbPipelineProduct product, PreprocessDetailVO vo) {
         try {
-            byte[] content = fileStorage.getObject(artifactId);
+            byte[] content = fileStorage.getObject(ObjectRef.ofProduct(product));
             PreprocessView view = JsonUtil.toObject(
                     new String(content, StandardCharsets.UTF_8), PreprocessView.class);
             if (NullUtil.isNull(view)) {
-                log.debug("预处理视图产物反序列化为空, artifactId={}", artifactId);
+                log.debug("预处理视图产物反序列化为空, artifactId={}", product.getArtifactId());
                 return null;
             }
             vo.setSummary(voAssembler.toSummary(view));
             vo.setElements(voAssembler.toElementVOs(view));
             return view;
         } catch (Exception e) {
-            log.warn("读取预处理视图产物失败, artifactId={}", artifactId, e);
+            KnowledgeException storageFailure = StatsSupport.storageFailureOf(e);
+            if (NullUtil.isNotNull(storageFailure)) {
+                throw storageFailure;
+            }
+            log.warn("读取预处理视图产物失败, artifactId={}", product.getArtifactId(), e);
             return null;
         }
     }

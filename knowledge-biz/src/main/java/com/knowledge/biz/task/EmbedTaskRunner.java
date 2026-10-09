@@ -19,6 +19,7 @@ import com.knowledge.common.domain.entity.KbEmbeddingSet;
 import com.knowledge.common.domain.entity.KbFileResult;
 import com.knowledge.common.domain.entity.KbPipelineProduct;
 import com.knowledge.common.domain.entity.KbPipelineTask;
+import com.knowledge.common.domain.storage.ObjectRef;
 import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.enums.task.PipelineTaskErrorCode;
 import com.knowledge.common.utils.JsonUtil;
@@ -98,7 +99,7 @@ public class EmbedTaskRunner {
             EmbedStrategy strategy = strategyParser.parse(task.getStrategySnapshot());
             ChunkSet chunkSet;
             try {
-                byte[] content = fileStorage.getObject(chunkProduct.getArtifactId());
+                byte[] content = fileStorage.getObject(ObjectRef.ofProduct(chunkProduct));
                 chunkSet = JsonUtil.toObject(new String(content, StandardCharsets.UTF_8), ChunkSet.class);
             } catch (Exception e) {
                 log.warn("读取上游切片产物失败, taskId={}, artifactId={}", taskId, chunkProduct.getArtifactId(), e);
@@ -130,7 +131,8 @@ public class EmbedTaskRunner {
                     this::finishFailed);
         } catch (Exception e) {
             log.error("向量化任务执行异常, taskId={}", taskId, e);
-            finishFailed(taskId, PipelineTaskErrorCode.EMBED_FAILED.name(), String.valueOf(e.getMessage()));
+            finishFailed(taskId, TaskRunnerSupport.failureCode(e, PipelineTaskErrorCode.EMBED_FAILED),
+                    String.valueOf(e.getMessage()));
         }
     }
 
@@ -149,7 +151,7 @@ public class EmbedTaskRunner {
                 fileResultId, strategy.fullVersion(), embedProperties.getReuseBacktrackLimit());
         for (KbEmbeddingSet row : rows) {
             try {
-                byte[] content = fileStorage.getObject(row.getArtifactId());
+                byte[] content = fileStorage.getObject(ObjectRef.ofEmbeddingSet(row));
                 EmbeddingSet set = JsonUtil.toObject(new String(content, StandardCharsets.UTF_8), EmbeddingSet.class);
                 if (set != null) {
                     candidates.add(set);
@@ -182,7 +184,7 @@ public class EmbedTaskRunner {
                 chunkProduct.getId(), JsonUtil.toJsonStr(strategy), embeddingSet);
 
         KbEmbeddingSet setRow = EmbedRowSupport.setRow(fileResult.getId(), embeddingSet,
-                embeddingSet.getStrategyVersion(), product.getArtifactId());
+                embeddingSet.getStrategyVersion(), ObjectRef.ofProduct(product));
         embeddingSetDbService.save(setRow);
 
         List<KbEmbeddingRecord> recordRows = new ArrayList<>();

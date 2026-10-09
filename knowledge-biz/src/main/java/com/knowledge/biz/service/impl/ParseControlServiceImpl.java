@@ -9,6 +9,7 @@ import com.knowledge.biz.task.TaskTriggerSupport;
 import com.knowledge.common.domain.entity.KbPipelineProduct;
 import com.knowledge.common.domain.entity.KbPipelineTask;
 import com.knowledge.common.domain.parse.ParseResult;
+import com.knowledge.common.domain.storage.ObjectRef;
 import com.knowledge.common.dto.response.parse.ParseDetailVO;
 import com.knowledge.common.dto.response.task.StageTriggerVO;
 import com.knowledge.common.enums.task.PipelineStage;
@@ -71,7 +72,7 @@ public class ParseControlServiceImpl implements ParseControlService {
         KbPipelineProduct product = detailSupport.productOfTask(task);
         if (NullUtil.isNotNull(product)) {
             detailSupport.withProductRef(vo, product);
-            ParseResult parseResult = ParseStatsSupport.readArtifact(fileStorage, product.getArtifactId());
+            ParseResult parseResult = ParseStatsSupport.readArtifact(fileStorage, ObjectRef.ofProduct(product));
             vo.setWarnings(warningsOf(parseResult));
             vo.setParseStats(ParseStatsSupport.stats(vo.getStartedAt(), vo.getFinishedAt(), parseResult));
             vo.setParseSummary(ParseStatsSupport.summary(vo.getErrorMsg(), vo.getParseStats(), vo.getStatus()));

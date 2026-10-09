@@ -15,6 +15,7 @@ import com.knowledge.common.domain.chunk.ChunkSet;
 import com.knowledge.common.domain.entity.*;
 import com.knowledge.common.domain.preprocess.PreprocessView;
 import com.knowledge.common.domain.rules.ChunkRules;
+import com.knowledge.common.domain.storage.ObjectRef;
 import com.knowledge.common.dto.response.chunk.ChunkDetailVO;
 import com.knowledge.common.dto.response.chunk.ChunkTriggerVO;
 import com.knowledge.common.dto.response.task.StageTriggerVO;
@@ -95,7 +96,7 @@ public class ChunkControlServiceImpl implements ChunkControlService {
         KbPipelineProduct product = detailSupport.productOfTask(task);
         if (NullUtil.isNotNull(product)) {
             // 产物侧现读一次：统计与来源元素个数 / 兜底原因都只在这份产物里（kb_chunk 无对应列）
-            chunkSet = ChunkStatsSupport.readChunkSet(fileStorage, product.getArtifactId());
+            chunkSet = ChunkStatsSupport.readChunkSet(fileStorage, ObjectRef.ofProduct(product));
             KbChunkSet chunkSetRow = chunkSetDbService.getByArtifactId(product.getArtifactId());
             if (NullUtil.isNotNull(chunkSetRow)) {
                 List<KbChunk> chunks = chunkDbService.listByChunkSetId(chunkSetRow.getId());
@@ -134,7 +135,7 @@ public class ChunkControlServiceImpl implements ChunkControlService {
         }
         KbPipelineProduct upstream = pipelineProductDbService.getById(task.getUpstreamProductId());
         return NullUtil.isNull(upstream)
-                ? null : PreprocessStatsSupport.readView(fileStorage, upstream.getArtifactId());
+                ? null : PreprocessStatsSupport.readView(fileStorage, ObjectRef.ofProduct(upstream));
     }
 
     /** 策略解析四档：显式指定（40433 校验存在/类型/启用）→ KB 绑定（开关开启时，失效回退告警）→ 启用中最新 → 内置默认。 */

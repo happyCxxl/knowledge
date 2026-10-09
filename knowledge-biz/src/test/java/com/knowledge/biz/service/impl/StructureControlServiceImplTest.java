@@ -5,6 +5,8 @@ import com.knowledge.biz.service.db.KbFileResultDbService;
 import com.knowledge.biz.service.db.KbPipelineProductDbService;
 import com.knowledge.biz.service.db.KbPipelineStepLogDbService;
 import com.knowledge.biz.service.db.KbPipelineTaskDbService;
+import com.knowledge.biz.service.db.KbSourceFileDbService;
+import com.knowledge.biz.service.support.ChainStorageSupport;
 import com.knowledge.biz.service.support.FileResultAccessGuard;
 import com.knowledge.biz.service.support.StructureVoAssembler;
 import com.knowledge.biz.service.support.TaskDetailSupport;
@@ -16,11 +18,14 @@ import com.knowledge.common.domain.entity.KbFileResult;
 import com.knowledge.common.domain.entity.KbPipelineProduct;
 import com.knowledge.common.domain.entity.KbPipelineStepLog;
 import com.knowledge.common.domain.entity.KbPipelineTask;
+import com.knowledge.common.domain.storage.ObjectRef;
 import com.knowledge.common.dto.response.structure.StructureDetailVO;
+import com.knowledge.common.enums.storage.StorageType;
 import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.enums.task.PipelineTaskStatus;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
+import com.knowledge.filecenter.provider.StorageRouter;
 import com.knowledge.filecenter.service.FileStorage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -50,6 +55,9 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class StructureControlServiceImplTest {
 
+    /** 档案与产物所在的数据源 */
+    private static final Long SOURCE_ID = 1L;
+
     @Mock
     private KbFileResultDbService fileResultDbService;
     @Mock
@@ -63,6 +71,10 @@ class StructureControlServiceImplTest {
     @Mock
     private KnowledgeBaseDbService knowledgeBaseDbService;
     @Mock
+    private KbSourceFileDbService sourceFileDbService;
+    @Mock
+    private StorageRouter storageRouter;
+    @Mock
     private FileStorage fileStorage;
 
     private StructureControlServiceImpl service;
@@ -73,8 +85,10 @@ class StructureControlServiceImplTest {
         SecurityTestSupport.loginViewer();
         boundKnowledgeBase(10L);
         FileResultAccessGuard accessGuard = new FileResultAccessGuard(fileResultDbService, knowledgeBaseDbService);
+        ChainStorageSupport chainStorage = new ChainStorageSupport(fileResultDbService, sourceFileDbService,
+                fileStorage, storageRouter);
         service = new StructureControlServiceImpl(pipelineProductDbService,
-                new TaskTriggerSupport(pipelineTaskDbService, taskQueue),
+                new TaskTriggerSupport(pipelineTaskDbService, chainStorage, taskQueue),
                 new TaskDetailSupport(pipelineTaskDbService, stepLogDbService, pipelineProductDbService), fileStorage,
                 new StructureVoAssembler(), accessGuard);
     }
@@ -220,6 +234,10 @@ class StructureControlServiceImplTest {
         KbPipelineProduct product = new KbPipelineProduct();
         product.setArtifactId("def".repeat(16));
         product.setContentHash("def".repeat(16));
+        // 产物行记下对象位置：详情读取按数据源与对象键定位
+        product.setStorageType(StorageType.MINIO.getCode());
+        product.setStorageSourceId(SOURCE_ID);
+        product.setBucket("artifacts");
         when(pipelineProductDbService.getById(50L)).thenReturn(product);
         String json = "{\"elements\":["
                 + "{\"id\":\"h-1\",\"type\":\"TITLE\",\"text\":\"第一章\",\"level\":1},"
@@ -230,7 +248,8 @@ class StructureControlServiceImplTest {
                 + "\"relations\":[{\"type\":\"PARENT_CHILD\",\"from\":\"h-1\",\"to\":\"n-1\"}],"
                 + "\"quality\":{\"warnings\":[{\"code\":\"NOISE_PAGE\",\"level\":\"WARN\",\"message\":\"噪声页\"}],"
                 + "\"conflicts\":[{\"primaryElementId\":\"n-1\",\"backupElementId\":\"n-2\",\"message\":\"无法裁决\"}]}}";
-        when(fileStorage.getObject("def".repeat(16))).thenReturn(json.getBytes(StandardCharsets.UTF_8));
+        when(fileStorage.getObject(ObjectRef.of(SOURCE_ID, StorageType.MINIO.getCode(), "artifacts", "def".repeat(16))))
+                .thenReturn(json.getBytes(StandardCharsets.UTF_8));
 
         StructureDetailVO detail = service.structureDetail(10L, null);
 
@@ -291,6 +310,54 @@ class StructureControlServiceImplTest {
         // 归属校验放行后进入业务分支：没有解析产物时报"产物不存在"，而不是归属的 40401
         KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.structure(10L, null));
         assertEquals(ErrorCode.FILE_RESULT_NOT_FOUND, e.getErrorCode());
+    }
+
+    @Test
+    void detailWithIncompleteProductLocationShouldReject40455() {
+        when(fileResultDbService.getById(10L)).thenReturn(fileResult());
+        KbPipelineTask task = new KbPipelineTask();
+        task.setId(51L);
+        task.setStage(PipelineStage.STRUCTURE.name());
+        task.setStatus(PipelineTaskStatus.SUCCESS.name());
+        task.setProductId(50L);
+        when(pipelineTaskDbService.getByFileResultIdAndStage(10L, PipelineStage.STRUCTURE.name())).thenReturn(task);
+        // 产物行缺 storageType / bucket：位置不完整，读取路径按「存储后端未配置」拒绝
+        KbPipelineProduct product = new KbPipelineProduct();
+        product.setArtifactId("def".repeat(16));
+        when(pipelineProductDbService.getById(50L)).thenReturn(product);
+
+        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.structureDetail(10L, null));
+
+        assertEquals(ErrorCode.STORAGE_BACKEND_UNCONFIGURED, e.getErrorCode());
+        verify(fileStorage, never()).getObject(any(ObjectRef.class));
+    }
+
+    @Test
+    void detailWithUnreadableProductShouldKeepOutlineEmpty() {
+        when(fileResultDbService.getById(10L)).thenReturn(fileResult());
+        KbPipelineTask task = new KbPipelineTask();
+        task.setId(51L);
+        task.setStage(PipelineStage.STRUCTURE.name());
+        task.setStatus(PipelineTaskStatus.SUCCESS.name());
+        task.setProductId(50L);
+        when(pipelineTaskDbService.getByFileResultIdAndStage(10L, PipelineStage.STRUCTURE.name())).thenReturn(task);
+        KbPipelineProduct product = new KbPipelineProduct();
+        product.setArtifactId("def".repeat(16));
+        product.setStorageType(StorageType.MINIO.getCode());
+        product.setStorageSourceId(SOURCE_ID);
+        product.setBucket("artifacts");
+        when(pipelineProductDbService.getById(50L)).thenReturn(product);
+        // 非存储类读取失败（对象流异常）：记日志留空，不阻断详情
+        when(fileStorage.getObject(ObjectRef.of(SOURCE_ID, StorageType.MINIO.getCode(), "artifacts", "def".repeat(16))))
+                .thenThrow(new IllegalStateException("对象流不可用"));
+
+        StructureDetailVO detail = service.structureDetail(10L, null);
+
+        assertEquals(51L, detail.getTaskId());
+        assertNotNull(detail.getOutline());
+        assertTrue(detail.getOutline().isEmpty());
+        assertNotNull(detail.getWarnings());
+        assertTrue(detail.getWarnings().isEmpty());
     }
 
     /** 让指定知识库归当前登录用户所有（归属校验要能过） */

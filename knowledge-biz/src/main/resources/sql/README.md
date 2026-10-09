@@ -6,7 +6,7 @@
 
 1. `DROP DATABASE IF EXISTS knowledge` + `CREATE DATABASE knowledge` + `USE knowledge`——库名固定为 `knowledge`，与
    `knowledge-biz/src/main/resources/application.yml` 中 `spring.datasource.url` 一致；
-2. 按依赖顺序建 19 张表（被引用的表在前，无外键约束）；
+2. 按依赖顺序建 21 张表（被引用的表在前，无外键约束）；
 3. 写入应用运行必需的初始数据（4 条环节策略版本 + 1 个管理员账号）。
 
 **脚本会删除同名库，库内原有数据全部丢弃；可重复执行，每次执行结果一致。**
@@ -35,29 +35,31 @@ docker compose up -d
 
 也可直接在客户端（Navicat / DataGrip / IDEA 数据库工具）里整体执行本文件。
 
-## 三、19 张表
+## 三、21 张表
 
-| #  | 表名                           | 一句话职责                                                          |
-|----|--------------------------------|---------------------------------------------------------------------|
-| 1  | `kb_knowledge_base`            | 知识库：一个业务场景一行，承载策略绑定、默认检索规则与一级发布指针  |
-| 2  | `kb_audit_log`                 | 操作审计：管理员关键操作留痕，append-only                           |
-| 3  | `kb_file_object`               | 文件档案：上传文件元数据（桶名、对象键、内容指纹），append-only     |
-| 4  | `kb_source_file`               | 来源文件：文件引用与 sha256 指纹，append-only                       |
-| 5  | `kb_file_result`               | 文件结果：一次提交一行，同文件重复提交产生多行                      |
-| 6  | `kb_submit_log`                | 提交日志：每次提交一条（无论成败），`request_id` 为幂等键           |
-| 7  | `kb_pipeline_task`             | 处理链任务：一次环节触发一条任务及状态机                            |
-| 8  | `kb_pipeline_product`          | 阶段产物：产物本体在对象存储，表内存引用与血缘                      |
-| 9  | `kb_pipeline_step_log`         | 子步骤记录：环节内每个子步骤一条及统计                              |
-| 10 | `kb_pipeline_strategy_version` | 环节策略版本：PREPROCESS/CHUNK/EMBED/RETRIEVAL 四类策略的不可变快照 |
-| 11 | `kb_strategy_binding`          | 知识库-策略绑定：知识库按策略类型绑定一个策略版本                   |
-| 12 | `kb_chunk_set`                 | 切片产物集合：一次切片策略运行一行                                  |
-| 13 | `kb_chunk`                     | 切片：检索命中的最小单元                                            |
-| 14 | `kb_embedding_set`             | 向量产物集合：一次 EMBED 运行一行，存引用与血缘                     |
-| 15 | `kb_embedding_record`          | 向量记录：一个切片一条，向量本体只进集合文件                        |
-| 16 | `kb_index_set`                 | 索引集合：一知识库一行，承载二级发布指针                            |
-| 17 | `kb_index_version`             | 索引版本行：组合快照 + 状态机 + 发布/退役留痕                       |
-| 18 | `kb_retrieval_run`             | 检索运行记录：四元组 + 执行时刻结果快照（评测原始数据）             |
-| 19 | `kb_user`                      | 用户：登录账号、角色与令牌版本                                      |
+| #  | 表名                           | 一句话职责                                                                      |
+|----|--------------------------------|---------------------------------------------------------------------------------|
+| 1  | `kb_knowledge_base`            | 知识库：一个业务场景一行，承载策略绑定、默认检索规则与一级发布指针              |
+| 2  | `kb_audit_log`                 | 操作审计：管理员关键操作留痕，append-only                                       |
+| 3  | `kb_file_object`               | 文件档案：上传文件元数据（桶名、对象键、内容指纹），append-only                 |
+| 4  | `kb_source_file`               | 来源文件：文件引用与 sha256 指纹，append-only                                   |
+| 5  | `kb_file_result`               | 文件结果：一次提交一行，同文件重复提交产生多行                                  |
+| 6  | `kb_submit_log`                | 提交日志：每次提交一条（无论成败），`request_id` 为幂等键                       |
+| 7  | `kb_pipeline_task`             | 处理链任务：一次环节触发一条任务及状态机                                        |
+| 8  | `kb_pipeline_product`          | 阶段产物：产物本体在对象存储，表内存引用与血缘                                  |
+| 9  | `kb_pipeline_step_log`         | 子步骤记录：环节内每个子步骤一条及统计                                          |
+| 10 | `kb_pipeline_strategy_version` | 环节策略版本：PREPROCESS/CHUNK/EMBED/RETRIEVAL 四类策略的不可变快照             |
+| 11 | `kb_strategy_binding`          | 知识库-策略绑定：知识库按策略类型绑定一个策略版本                               |
+| 12 | `kb_chunk_set`                 | 切片产物集合：一次切片策略运行一行                                              |
+| 13 | `kb_chunk`                     | 切片：检索命中的最小单元                                                        |
+| 14 | `kb_embedding_set`             | 向量产物集合：一次 EMBED 运行一行，存引用与血缘                                 |
+| 15 | `kb_embedding_record`          | 向量记录：一个切片一条，向量本体只进集合文件                                    |
+| 16 | `kb_index_set`                 | 索引集合：一知识库一行，承载二级发布指针                                        |
+| 17 | `kb_index_version`             | 索引版本行：组合快照 + 状态机 + 发布/退役留痕                                   |
+| 18 | `kb_retrieval_run`             | 检索运行记录：四元组 + 执行时刻结果快照（评测原始数据）                         |
+| 19 | `kb_user`                      | 用户：登录账号、角色与令牌版本                                                  |
+| 20 | `kb_system_setting`            | 系统设置：键值形态的单行配置，表留在库里备用                                    |
+| 21 | `kb_storage_source`            | 存储数据源：一行一个实例（含连接参数），`is_current` 那一行决定新对象的写入位置 |
 
 ## 四、初始数据
 
@@ -82,21 +84,25 @@ docker compose up -d
 这 4 条是策略管理页面的初始可选项，也是新建知识库时可直接绑定的默认策略；
 各环节的解析器在库内查不到启用版本时会回落到同名同版本的内置默认，因此脚本执行失败或漏执行时不会导致环节无法运行。
 
-其余表不插入任何数据：知识库、绑定、索引与产物均由使用过程中产生。
+其余表不插入任何数据：知识库、绑定、索引与产物均由使用过程中产生。`kb_storage_source` 初始为空，此时文件服务在后端启动时按 `application.yml` 的 `file-center` 两段参数 seed 两行（`MinIO` 与 `本地磁盘`），`file-center.storage-type` 指明的那一行是当前启用；之后当前启用读库里的 `is_current`，在「系统设置」页改过之后以库为准。`kb_system_setting` 初始为空且当前没有读写它的功能。
 
 ## 五、重建库之后必须清空对象存储
 
 数据库与对象存储是两套独立存储，产物本体（解析产物、切片集合、向量集合）与上传文件都不在 MySQL 里：
 
-- 文件服务配置见 `application.yml` 的 `file-center`：`storage-type: local` 时数据在 `file-center.local-root`（默认
-  `./data/file-center`）；切到 `minio` 时数据在 MinIO 的 `files` / `artifacts` 桶（`docker/volumes/knowledge-minio`）。
+- 文件服务配置见 `application.yml` 的 `file-center`：`minio` 与 `local` 两段参数只在数据源表为空时充当 seed 来源（`file-center.storage-type` 指明 seed 后哪一行是当前启用）。本地形态的数据在 `local.root-dir`（默认 `./data/file-center`），MinIO 形态的数据在 `files` / `artifacts` 桶（`docker/volumes/knowledge-minio`）。记录里带了数据源 ID 与存储类型，读取按记录里的数据源走，与当前启用的是哪一行无关。
 - 库重建后自增主键与雪花 ID 全部重新开始，旧对象恰好可能被新记录引用到，**新库会指向旧产物**，出现内容错乱且难以排查。
 
-因此重建库（无论用 `init.sql` 还是 `docker compose down -v`）时必须同时清空对象存储：
+因此重建库（无论用 `init.sql` 还是重建容器）时必须同时清空对象存储：
 
 ```powershell
 # 本地存储形态
 Remove-Item -Recurse -Force .\data\file-center\*
 
-# MinIO 形态：清空 files 与 artifacts 桶（MinIO 控制台 http://localhost:9001，或 docker compose down -v 一并删卷）
+# MinIO 形态：清空 files 与 artifacts 桶（MinIO 控制台 http://localhost:9001，或清空挂载目录）
+Remove-Item -Recurse -Force .\docker\volumes\knowledge-minio\*
 ```
+
+> MySQL 数据目录与 MinIO 数据目录都是 `docker/volumes/` 下的 bind mount，`docker compose down -v` 不会删除它们。
+> 重建库的做法：`docker compose down` → 清空 `docker/volumes/mysql`（连带上面的对象存储目录）→ `docker compose up -d`，
+> 首次初始化会重跑 `init.sql`。

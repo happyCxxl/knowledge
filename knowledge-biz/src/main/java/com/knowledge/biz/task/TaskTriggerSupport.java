@@ -1,6 +1,7 @@
 package com.knowledge.biz.task;
 
 import com.knowledge.biz.service.db.KbPipelineTaskDbService;
+import com.knowledge.biz.service.support.ChainStorageSupport;
 import com.knowledge.common.domain.entity.KbPipelineTask;
 import com.knowledge.common.dto.response.task.StageTriggerVO;
 import com.knowledge.common.enums.task.PipelineStage;
@@ -15,7 +16,9 @@ import org.springframework.stereotype.Component;
 
 /**
  * 环节任务触发共用助手（手动逐环节触发接口族共用）：
- * 防重/补投唤醒 + 新建 QUEUED 任务入队，口径与各环节一致。
+ * 存储一致性校验 + 防重/补投唤醒 + 新建 QUEUED 任务入队，口径与各环节一致。
+ *
+ * <p>存储一致性校验委托 {@link ChainStorageSupport}（产物写入入口共用同一份判定）。
  *
  * @author cxxl
  */
@@ -25,11 +28,13 @@ import org.springframework.stereotype.Component;
 public class TaskTriggerSupport {
 
     private final KbPipelineTaskDbService pipelineTaskDbService;
+    private final ChainStorageSupport chainStorageSupport;
     private final TaskQueueSupport taskQueue;
 
     /**
-     * 触发（RUNNING → 40431；QUEUED → 补投唤醒；banOnSuccess=true 时 SUCCESS/PARTIAL_SUCCESS → 40437；
-     * 其余终态/无任务 → 新建 QUEUED 任务入队，旧任务/旧产物保留）。
+     * 触发前先校验存储一致性（链的数据源与当前启用的数据源不一致 → 40453），再按状态分派：
+     * RUNNING → 40431；QUEUED → 补投唤醒；banOnSuccess=true 时 SUCCESS/PARTIAL_SUCCESS → 40437；
+     * 其余终态/无任务 → 新建 QUEUED 任务入队，旧任务/旧产物保留。
      *
      * @param fileResultId     文件结果 ID
      * @param stage            环节（PipelineStage）
@@ -41,6 +46,7 @@ public class TaskTriggerSupport {
      */
     public StageTriggerVO trigger(Long fileResultId, PipelineStage stage, Long upstreamProductId,
                                   String strategySnapshot, String stageLabel, boolean banOnSuccess) {
+        chainStorageSupport.requireStorageMatch(fileResultId);
         KbPipelineTask existing = pipelineTaskDbService.getByFileResultIdAndStage(fileResultId, stage.name());
         if (NullUtil.isNotNull(existing)) {
             ThrowUtil.throwIf(PipelineTaskStatus.RUNNING.name().equals(existing.getStatus()),

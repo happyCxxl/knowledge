@@ -20,9 +20,11 @@ import com.knowledge.common.domain.parse.ParseElement;
 import com.knowledge.common.domain.parse.ParseResult;
 import com.knowledge.common.domain.parse.ParseSource;
 import com.knowledge.common.domain.parse.QualityInfo;
+import com.knowledge.common.domain.storage.ObjectRef;
 import com.knowledge.common.dto.response.lineage.LineageNodeVO;
 import com.knowledge.common.dto.response.lineage.LineageVO;
 import com.knowledge.common.enums.parse.ElementType;
+import com.knowledge.common.enums.storage.StorageType;
 import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.enums.task.PipelineTaskStatus;
 import com.knowledge.common.error.ErrorCode;
@@ -59,6 +61,9 @@ import static org.mockito.Mockito.when;
  */
 @ExtendWith(MockitoExtension.class)
 class LineageQueryServiceImplTest {
+
+    /** 产物所在的数据源 */
+    private static final Long SOURCE_ID = 1L;
 
     @Mock
     private KbFileResultDbService fileResultDbService;
@@ -109,6 +114,10 @@ class LineageQueryServiceImplTest {
         product.setArtifactId(artifactId);
         product.setContentHash(artifactId);
         product.setCapabilitySnapshot(capability);
+        // 读取按记录里的数据源与桶名定位：行对象必须带上这两段
+        product.setStorageType(StorageType.MINIO.getCode());
+        product.setStorageSourceId(SOURCE_ID);
+        product.setBucket("artifacts");
         return product;
     }
 
@@ -263,7 +272,7 @@ class LineageQueryServiceImplTest {
         ParseResult parseResult = new ParseResult();
         parseResult.setSources(List.of(source));
         parseResult.setQuality(quality);
-        when(fileStorage.getObject("art-p"))
+        when(fileStorage.getObject(ObjectRef.of(SOURCE_ID, StorageType.MINIO.getCode(), "artifacts", "art-p")))
                 .thenReturn(JsonUtil.toJsonStr(parseResult).getBytes(StandardCharsets.UTF_8));
 
         LineageVO vo = service.lineage(10L);
@@ -302,7 +311,7 @@ class LineageQueryServiceImplTest {
         parseResult.setSources(List.of(source));
         parseResult.setQuality(new QualityInfo());
         parseResult.setFile(new FileReference("f-1", "a.pdf", "sha", "application/pdf", 128));
-        when(fileStorage.getObject("art-p"))
+        when(fileStorage.getObject(ObjectRef.of(SOURCE_ID, StorageType.MINIO.getCode(), "artifacts", "art-p")))
                 .thenReturn(JsonUtil.toJsonStr(parseResult).getBytes(StandardCharsets.UTF_8));
 
         LineageVO vo = service.lineage(10L);
@@ -335,7 +344,7 @@ class LineageQueryServiceImplTest {
                         "{\"parserName\":\"pdfbox\",\"parserVersion\":\"3.0.4\"}")));
         when(chunkSetDbService.listByFileResultId(10L)).thenReturn(List.of());
         when(embeddingSetDbService.listByFileResultId(10L)).thenReturn(List.of());
-        when(fileStorage.getObject("art-p"))
+        when(fileStorage.getObject(ObjectRef.of(SOURCE_ID, StorageType.MINIO.getCode(), "artifacts", "art-p")))
                 .thenThrow(new KnowledgeException(ErrorCode.FILE_NOT_FOUND, "对象读取失败"));
 
         LineageVO vo = service.lineage(10L);
@@ -344,6 +353,28 @@ class LineageQueryServiceImplTest {
         assertAll(
                 () -> assertNull(node.getParseStats(), status + ": 产物不可读时不下发统计"),
                 () -> assertNull(node.getParseSummary(), status + ": 产物不可读时不下发摘要"));
+    }
+
+    /**
+     * 存储类读取失败（40454 对象在所属存储中不存在）：不吞掉，向上抛给统一异常处理 ——
+     * 与"其它读取失败留空"是同一条读路径上的两种口径，不能混为一谈。
+     */
+    @Test
+    void missingStorageObjectShouldPropagate40454() {
+        KbPipelineTask parseTask = task(20L, PipelineStage.PARSE.name(), null, 10L, null);
+        when(fileResultDbService.getById(10L)).thenReturn(fileResultOfKb10());
+        when(pipelineTaskDbService.listByFileResultId(10L)).thenReturn(List.of(parseTask));
+        when(pipelineProductDbService.listByFileResultId(10L)).thenReturn(List.of(
+                product(10L, PipelineStage.PARSE.name(), "art-p",
+                        "{\"parserName\":\"pdfbox\",\"parserVersion\":\"3.0.4\"}")));
+        when(chunkSetDbService.listByFileResultId(10L)).thenReturn(List.of());
+        when(embeddingSetDbService.listByFileResultId(10L)).thenReturn(List.of());
+        when(fileStorage.getObject(ObjectRef.of(SOURCE_ID, StorageType.MINIO.getCode(), "artifacts", "art-p")))
+                .thenThrow(new KnowledgeException(ErrorCode.STORAGE_OBJECT_MISSING, "对象已不存在"));
+
+        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.lineage(10L));
+
+        assertEquals(ErrorCode.STORAGE_OBJECT_MISSING, e.getErrorCode());
     }
 
     /**

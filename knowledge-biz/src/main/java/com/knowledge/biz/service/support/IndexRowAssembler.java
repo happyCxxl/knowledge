@@ -6,6 +6,7 @@ import com.knowledge.common.domain.embed.EmbeddingRecord;
 import com.knowledge.common.domain.embed.EmbeddingSet;
 import com.knowledge.common.domain.entity.KbChunkSet;
 import com.knowledge.common.domain.entity.KbEmbeddingSet;
+import com.knowledge.common.domain.storage.ObjectRef;
 import com.knowledge.common.utils.JsonUtil;
 import com.knowledge.common.utils.NullUtil;
 import com.knowledge.filecenter.service.FileStorage;
@@ -39,12 +40,12 @@ public class IndexRowAssembler {
      * @return 产物读取失败 → null；无 SUCCESS/CACHED 记录 → 空列表
      */
     public List<IndexRow> assemble(Long fileResultId, String owner, KbChunkSet chunkRow, KbEmbeddingSet embedRow) {
-        EmbeddingSet embedSet = readEmbeddingSet(embedRow.getArtifactId());
+        EmbeddingSet embedSet = readEmbeddingSet(ObjectRef.ofEmbeddingSet(embedRow));
         if (NullUtil.isNull(embedSet) || NullUtil.isNull(embedSet.getRecords())) {
             log.warn("===> IndexRowAssembler 向量产物缺失或记录为空, artifactId={}", embedRow.getArtifactId());
             return null;
         }
-        Map<String, Chunk> chunkById = readChunkIndex(chunkRow.getArtifactId());
+        Map<String, Chunk> chunkById = readChunkIndex(ObjectRef.ofChunkSet(chunkRow));
         List<IndexRow> rows = new ArrayList<>();
         for (EmbeddingRecord record : embedSet.getRecords()) {
             if (!"SUCCESS".equals(record.getStatus()) && !"CACHED".equals(record.getStatus())) {
@@ -67,24 +68,24 @@ public class IndexRowAssembler {
         return rows;
     }
 
-    /** 向量产物 artifact → EmbeddingSet（读取失败返回 null） */
-    public EmbeddingSet readEmbeddingSet(String artifactId) {
+    /** 向量产物位置 → EmbeddingSet（读取失败返回 null） */
+    public EmbeddingSet readEmbeddingSet(ObjectRef ref) {
         try {
-            byte[] content = fileStorage.getObject(artifactId);
+            byte[] content = fileStorage.getObject(ref);
             if (NullUtil.isNull(content)) {
                 return null;
             }
             return JsonUtil.toObject(new String(content, StandardCharsets.UTF_8), EmbeddingSet.class);
         } catch (Exception e) {
-            log.warn("向量产物读取失败, artifactId={}", artifactId, e);
+            log.warn("向量产物读取失败, object={}", ref.path(), e);
             return null;
         }
     }
 
-    /** 切片产物 → chunkId 索引（读取失败返回 null，增强字段降级为空） */
-    public Map<String, Chunk> readChunkIndex(String artifactId) {
+    /** 切片产物位置 → chunkId 索引（读取失败返回 null，增强字段降级为空） */
+    public Map<String, Chunk> readChunkIndex(ObjectRef ref) {
         try {
-            byte[] content = fileStorage.getObject(artifactId);
+            byte[] content = fileStorage.getObject(ref);
             if (NullUtil.isNull(content)) {
                 return null;
             }
@@ -98,7 +99,7 @@ public class IndexRowAssembler {
             }
             return index;
         } catch (Exception e) {
-            log.warn("切片产物读取失败, artifactId={}", artifactId, e);
+            log.warn("切片产物读取失败, object={}", ref.path(), e);
             return null;
         }
     }

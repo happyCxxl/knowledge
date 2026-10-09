@@ -38,6 +38,14 @@ public interface KbPipelineTaskDbService extends InfraDbService<KbPipelineTask> 
     List<KbPipelineTask> listByFileResultIdsAndStage(List<Long> fileResultIds, String stage);
 
     /**
+     * 查指定状态的任务（id 升序；只取任务 ID、文件结果与状态三列）。
+     *
+     * @param statuses 状态集合（PipelineTaskStatus 枚举名；为空返回空列表，不查库）
+     * @return 任务列表
+     */
+    List<KbPipelineTask> listByStatuses(List<String> statuses);
+
+    /**
      * 查过期未执行的 QUEUED 任务（启动补偿/低频兜底用）。
      *
      * @param threshold 创建时间阈值（早于该时间视为过期）

@@ -10,6 +10,7 @@ import com.knowledge.common.domain.embed.EmbeddingSet;
 import com.knowledge.common.domain.entity.KbChunkSet;
 import com.knowledge.common.domain.entity.KbEmbeddingSet;
 import com.knowledge.common.domain.entity.KbFileResult;
+import com.knowledge.common.domain.storage.ObjectRef;
 import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.indexing.ComboSnapshot;
 import lombok.RequiredArgsConstructor;
@@ -178,7 +179,7 @@ public class IndexComboReconciler {
                 return new ComboExpectation(Set.of(), 0, 0, false, products.gap(), true, null, null, null);
             }
             dims.add(ObjectUtil.defaultIfNull(products.embedRow().getDimension(), 0));
-            EmbeddingSet embedSet = indexRowAssembler.readEmbeddingSet(products.embedRow().getArtifactId());
+            EmbeddingSet embedSet = indexRowAssembler.readEmbeddingSet(ObjectRef.ofEmbeddingSet(products.embedRow()));
             if (NullUtil.isNull(embedSet) || NullUtil.isNull(embedSet.getRecords())) {
                 return new ComboExpectation(Set.of(), 0, 0, false,
                         "文件 " + fileId + " 向量产物读取失败", true, null, null, null);

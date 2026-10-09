@@ -3,11 +3,13 @@ package com.knowledge.filecenter.service.impl;
 import com.baomidou.mybatisplus.core.toolkit.IdWorker;
 import com.knowledge.common.domain.entity.KbFileObject;
 import com.knowledge.common.domain.input.FileMetadata;
+import com.knowledge.common.domain.storage.ObjectRef;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
-import com.knowledge.filecenter.config.FileCenterConfig;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.filecenter.db.KbFileObjectDbService;
 import com.knowledge.filecenter.provider.StorageProvider;
+import com.knowledge.filecenter.provider.StorageRouter;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -16,28 +18,29 @@ import java.io.IOException;
 import java.io.InputStream;
 
 /**
- * 文件存储实现：fileId 寻址（对象写入 MinIO，元数据写入 kb_file_object 档案表）；
- * sha256 内容寻址对象读写继承自 {@link AbstractFileStorage}。
+ * 文件存储实现：fileId 寻址（对象写当前启用的数据源，元数据写 kb_file_object 档案表）；
+ * 内容寻址与指定 key 的对象读写继承自 {@link AbstractFileStorage}。
+ *
+ * <p>类名与后端无关：注入的 StorageRouter 按数据源定义决定字节落在 MinIO 还是本地磁盘。
  *
  * @author cxxl
  */
 @Service
-public class MinioFileStorage extends AbstractFileStorage {
+public class DefaultFileStorage extends AbstractFileStorage {
 
-    private final KbFileObjectDbService fileObjectDbService;
-
-    public MinioFileStorage(StorageProvider provider, FileCenterConfig properties,
-                            KbFileObjectDbService fileObjectDbService) {
-        super(provider, properties);
-        this.fileObjectDbService = fileObjectDbService;
+    public DefaultFileStorage(StorageRouter router, KbFileObjectDbService fileObjectDbService) {
+        super(router, fileObjectDbService);
     }
 
     @Override
     public String putFile(MultipartFile file) {
         String fileId = IdWorker.getIdStr();
+        StorageProvider provider = router.writer();
+        Long sourceId = router.currentSourceId();
+        String bucket = router.currentFileBucket();
         String sha256;
         try (InputStream in = new BufferedInputStream(file.getInputStream())) {
-            sha256 = putWithDigest(properties.getFileBucket(), fileId, in, file.getSize(), file.getContentType());
+            sha256 = putWithDigest(bucket, fileId, in, file.getSize(), file.getContentType());
         } catch (IOException e) {
             throw new KnowledgeException(ErrorCode.SYSTEM_ERROR, "文件上传失败: " + file.getOriginalFilename());
         }
@@ -48,7 +51,9 @@ public class MinioFileStorage extends AbstractFileStorage {
         object.setMimeType(file.getContentType());
         object.setFileSize(file.getSize());
         object.setSha256(sha256);
-        object.setBucket(properties.getFileBucket());
+        object.setStorageType(provider.type().getCode());
+        object.setStorageSourceId(sourceId);
+        object.setBucket(bucket);
         object.setObjectKey(fileId);
         fileObjectDbService.save(object);
         return fileId;
@@ -56,12 +61,7 @@ public class MinioFileStorage extends AbstractFileStorage {
 
     @Override
     public InputStream open(String fileId) {
-        KbFileObject object = requireObject(fileId);
-        try {
-            return provider.get(object.getBucket(), object.getObjectKey());
-        } catch (Exception e) {
-            throw new KnowledgeException(ErrorCode.SYSTEM_ERROR, "文件读取失败: " + fileId);
-        }
+        return openRef(ObjectRef.ofFile(requireObject(fileId)));
     }
 
     @Override
@@ -79,15 +79,6 @@ public class MinioFileStorage extends AbstractFileStorage {
 
     @Override
     public boolean exists(String fileId) {
-        return fileObjectDbService.getByFileId(fileId) != null;
-    }
-
-    /** 取档案，不存在抛业务错误 */
-    private KbFileObject requireObject(String fileId) {
-        KbFileObject object = fileObjectDbService.getByFileId(fileId);
-        if (object == null) {
-            throw new KnowledgeException(ErrorCode.FILE_NOT_FOUND);
-        }
-        return object;
+        return NullUtil.isNotNull(fileObjectDbService.getByFileId(fileId));
     }
 }

@@ -10,6 +10,7 @@ import com.knowledge.biz.service.db.KbEmbeddingRecordDbService;
 import com.knowledge.biz.service.db.KbEmbeddingSetDbService;
 import com.knowledge.biz.service.db.KbPipelineProductDbService;
 import com.knowledge.biz.service.support.FileResultAccessGuard;
+import com.knowledge.biz.service.support.StatsSupport;
 import com.knowledge.biz.service.support.TaskDetailSupport;
 import com.knowledge.common.domain.entity.KbChunk;
 import com.knowledge.common.domain.entity.KbChunkSet;
@@ -24,6 +25,7 @@ import com.knowledge.common.domain.parse.ParseSource;
 import com.knowledge.common.domain.preprocess.PreprocessView;
 import com.knowledge.common.domain.preprocess.TraceEntry;
 import com.knowledge.common.domain.preprocess.ViewElement;
+import com.knowledge.common.domain.storage.ObjectRef;
 import com.knowledge.common.domain.structure.UnifiedDocument;
 import com.knowledge.common.domain.structure.UnifiedElement;
 import com.knowledge.common.dto.request.stage.ChunkContentFilter;
@@ -31,6 +33,7 @@ import com.knowledge.common.dto.response.stagecontent.StageContentItemVO;
 import com.knowledge.common.dto.response.stagecontent.StageContentVO;
 import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.error.ErrorCode;
+import com.knowledge.common.exception.KnowledgeException;
 import com.knowledge.common.exception.ThrowUtil;
 import com.knowledge.common.utils.JsonUtil;
 import com.knowledge.common.utils.NullUtil;
@@ -75,6 +78,21 @@ public class StageContentQueryServiceImpl implements StageContentQueryService {
         return stageContent(fileResultId, stage, taskId, docPage, page, limit, null, null);
     }
 
+    /**
+     * 产物内容查询：按环节取该次运行产物的内容条目（分页 + 状态/文档页/切片过滤）。
+     *
+     * <p>存储类读取失败（40454 / 40455）向上抛出；其余读取失败记日志并留空条目，不阻断详情。
+     *
+     * @param fileResultId 文件结果 ID
+     * @param stage        环节（FILE_CHAIN_STAGES 白名单）
+     * @param taskId       任务 ID（可空，缺省取该环节最新任务）
+     * @param docPage      文档页过滤（可空）
+     * @param page         页码（可空，缺省第 1 页）
+     * @param limit        每页条数（可空，缺省上限）
+     * @param status       处置状态过滤（可空）
+     * @param chunkFilter  切片内容过滤（可空）
+     * @return 产物内容分页
+     */
     @Override
     public StageContentVO stageContent(Long fileResultId, String stage, Long taskId, Long docPage,
                                        Integer page, Integer limit, String status, ChunkContentFilter chunkFilter) {
@@ -110,15 +128,19 @@ public class StageContentQueryServiceImpl implements StageContentQueryService {
         try {
             if (PipelineStage.CHUNK.name().equals(stage)) {
                 // 切片：过滤与分页都下推到 kb_chunk（切片集合可能很大），total 按过滤后的口径给
-                fillChunkPage(vo, product.getArtifactId(), chunkFilter, pageNo, pageSize);
+                fillChunkPage(vo, ObjectRef.ofProduct(product), chunkFilter, pageNo, pageSize);
             } else {
                 // 页码与状态过滤都先于分页：total 与翻页都按过滤后的口径给
                 List<StageContentItemVO> all = filterByStatus(
-                        filterByDocPage(buildItems(stage, product.getArtifactId()), docPage), status);
+                        filterByDocPage(buildItems(stage, product), docPage), status);
                 vo.setTotal(all.size());
                 vo.setItems(slice(all, pageNo, pageSize));
             }
         } catch (Exception e) {
+            KnowledgeException storageFailure = StatsSupport.storageFailureOf(e);
+            if (NullUtil.isNotNull(storageFailure)) {
+                throw storageFailure;
+            }
             log.warn("产物内容读取失败, fileResultId={}, stage={}, artifactId={}",
                     fileResultId, stage, product.getArtifactId(), e);
             vo.setItems(new ArrayList<>());
@@ -171,20 +193,21 @@ public class StageContentQueryServiceImpl implements StageContentQueryService {
         return new ArrayList<>(all.subList(from, Math.min(from + limit, all.size())));
     }
 
-    private List<StageContentItemVO> buildItems(String stage, String artifactId) {
+    private List<StageContentItemVO> buildItems(String stage, KbPipelineProduct product) {
+        ObjectRef ref = ObjectRef.ofProduct(product);
         return switch (stage) {
-            case "PARSE" -> parseItems(artifactId);
-            case "STRUCTURE" -> structureItems(artifactId);
-            case "PREPROCESS" -> preprocessItems(artifactId);
-            case "EMBED" -> embedItemsBySet(embeddingSetDbService.getByArtifactId(artifactId));
+            case "PARSE" -> parseItems(ref);
+            case "STRUCTURE" -> structureItems(ref);
+            case "PREPROCESS" -> preprocessItems(ref);
+            case "EMBED" -> embedItemsBySet(embeddingSetDbService.getByArtifactId(ref.objectKey()));
             default -> List.of();
         };
     }
 
     // ---------------- 解析：sources 平铺元素 ----------------
 
-    private List<StageContentItemVO> parseItems(String artifactId) {
-        ParseResult result = readArtifact(artifactId, ParseResult.class);
+    private List<StageContentItemVO> parseItems(ObjectRef ref) {
+        ParseResult result = readArtifact(ref, ParseResult.class);
         List<StageContentItemVO> items = new ArrayList<>();
         if (NullUtil.isNull(result) || NullUtil.isNull(result.getSources())) {
             return items;
@@ -247,8 +270,8 @@ public class StageContentQueryServiceImpl implements StageContentQueryService {
 
     // ---------------- 组装：章节树元素 ----------------
 
-    private List<StageContentItemVO> structureItems(String artifactId) {
-        UnifiedDocument document = readArtifact(artifactId, UnifiedDocument.class);
+    private List<StageContentItemVO> structureItems(ObjectRef ref) {
+        UnifiedDocument document = readArtifact(ref, UnifiedDocument.class);
         List<StageContentItemVO> items = new ArrayList<>();
         if (NullUtil.isNull(document) || NullUtil.isNull(document.getElements())) {
             return items;
@@ -353,8 +376,8 @@ public class StageContentQueryServiceImpl implements StageContentQueryService {
 
     // ---------------- 预处理：视图元素（display + normalized + 状态） ----------------
 
-    private List<StageContentItemVO> preprocessItems(String artifactId) {
-        PreprocessView view = readArtifact(artifactId, PreprocessView.class);
+    private List<StageContentItemVO> preprocessItems(ObjectRef ref) {
+        PreprocessView view = readArtifact(ref, PreprocessView.class);
         List<StageContentItemVO> items = new ArrayList<>();
         if (NullUtil.isNull(view) || NullUtil.isNull(view.getElements())) {
             return items;
@@ -409,9 +432,9 @@ public class StageContentQueryServiceImpl implements StageContentQueryService {
      *
      * <p>total 取过滤后的总条数，与 items 同一口径（先过滤再分页）。
      */
-    private void fillChunkPage(StageContentVO vo, String artifactId, ChunkContentFilter filter,
+    private void fillChunkPage(StageContentVO vo, ObjectRef ref, ChunkContentFilter filter,
                                int pageNo, int pageSize) {
-        KbChunkSet chunkSet = chunkSetDbService.getByArtifactId(artifactId);
+        KbChunkSet chunkSet = chunkSetDbService.getByArtifactId(ref.objectKey());
         if (NullUtil.isNull(chunkSet)) {
             return;
         }
@@ -487,8 +510,15 @@ public class StageContentQueryServiceImpl implements StageContentQueryService {
         return extra;
     }
 
-    private <T> T readArtifact(String artifactId, Class<T> clazz) {
-        byte[] content = fileStorage.getObject(artifactId);
+    /**
+     * 读产物本体：对象位置取自产物行（存储类型 + 桶名 + sha256）。
+     *
+     * @param ref   产物对象位置
+     * @param clazz 产物本体类型
+     * @return 产物本体；读不到返回 null
+     */
+    private <T> T readArtifact(ObjectRef ref, Class<T> clazz) {
+        byte[] content = fileStorage.getObject(ref);
         if (NullUtil.isNull(content)) {
             return null;
         }

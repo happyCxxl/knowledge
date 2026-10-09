@@ -41,6 +41,15 @@ public class User extends BaseInfo {
     /** 头像对象 key（avatar/{userId}/{随机段}.{扩展名}）；null = 未设置，界面回落姓名首字 */
     private String avatar;
 
+    /** 头像存储类型（StorageType 枚举码）；未设置头像为空 */
+    private String avatarStorageType;
+
+    /** 头像数据源实例 ID（kb_storage_source.id）；未设置头像为空 */
+    private Long avatarStorageSourceId;
+
+    /** 头像桶名（local 下为一级子目录）；未设置头像为空 */
+    private String avatarBucket;
+
     /** 密码（BCrypt 哈希） */
     private String password;
 

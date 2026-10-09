@@ -57,6 +57,15 @@ public class KbEmbeddingSet {
     /** 产物存储引用（sha256 寻址 key） */
     private String artifactId;
 
+    /** 存储类型（StorageType 枚举码：minio / local；冗余留作展示与降级） */
+    private String storageType;
+
+    /** 数据源实例 ID（kb_storage_source.id）：读取按它定位后端 */
+    private Long storageSourceId;
+
+    /** 存储桶名（local 下为一级子目录） */
+    private String bucket;
+
     /** 创建时间（DB 默认填充） */
     private LocalDateTime createTime;
 }

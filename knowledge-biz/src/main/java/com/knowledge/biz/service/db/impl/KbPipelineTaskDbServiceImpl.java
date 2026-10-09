@@ -6,6 +6,7 @@ import com.knowledge.biz.mapper.KbPipelineTaskMapper;
 import com.knowledge.biz.service.db.KbPipelineTaskDbService;
 import com.knowledge.common.domain.entity.KbPipelineTask;
 import com.knowledge.common.enums.task.PipelineTaskStatus;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.infra.persistence.InfraDbServiceImpl;
 import org.springframework.stereotype.Service;
 
@@ -40,6 +41,18 @@ public class KbPipelineTaskDbServiceImpl extends InfraDbServiceImpl<KbPipelineTa
         queryWrapper.in(KbPipelineTask::getFileResultId, fileResultIds)
                 .eq(KbPipelineTask::getStage, stage)
                 .orderByDesc(KbPipelineTask::getId);
+        return list(queryWrapper);
+    }
+
+    @Override
+    public List<KbPipelineTask> listByStatuses(List<String> statuses) {
+        if (NullUtil.isNull(statuses) || statuses.isEmpty()) {
+            return List.of();
+        }
+        LambdaQueryWrapper<KbPipelineTask> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.select(KbPipelineTask::getId, KbPipelineTask::getFileResultId, KbPipelineTask::getStatus)
+                .in(KbPipelineTask::getStatus, statuses)
+                .orderByAsc(KbPipelineTask::getId);
         return list(queryWrapper);
     }
 

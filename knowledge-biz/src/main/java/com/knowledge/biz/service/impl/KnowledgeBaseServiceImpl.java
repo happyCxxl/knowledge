@@ -31,6 +31,8 @@ import com.knowledge.common.domain.input.FileMetadata;
 import com.knowledge.common.domain.input.FileValidationResult;
 import com.knowledge.common.domain.rules.KnowledgeBaseRules;
 import com.knowledge.common.domain.rules.StageFunnelRules;
+import com.knowledge.common.domain.storage.StorageRef;
+import com.knowledge.common.enums.storage.StorageType;
 import com.knowledge.common.dto.request.input.FileSubmitRequest;
 import com.knowledge.common.dto.request.knowledge.KnowledgeBaseCreateDto;
 import com.knowledge.common.dto.request.knowledge.KnowledgeBaseUpdateDto;
@@ -59,6 +61,7 @@ import com.knowledge.common.utils.NullUtil;
 import com.knowledge.common.utils.SecurityUtil;
 import com.knowledge.common.utils.JsonUtil;
 
+import com.knowledge.filecenter.provider.StorageRouter;
 import com.knowledge.filecenter.service.FileStorage;
 import com.knowledge.worker.chunking.strategy.ChunkStrategy;
 import com.knowledge.worker.embedding.strategy.EmbedStrategy;
@@ -133,6 +136,8 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     private final FileValidatorPort fileValidator;
 
     private final FileStorage fileStorage;
+
+    private final StorageRouter storageRouter;
 
     private final InputVoAssembler inputVoAssembler;
 
@@ -549,8 +554,8 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     }
 
     /**
-     * 文件结果分页查询：分页取 kb_file_result，批量装配来源文件信息与
-     * 五环节（PARSE/STRUCTURE/PREPROCESS/CHUNK/EMBED）最新任务状态。
+     * 文件结果分页查询：分页取 kb_file_result，批量装配来源文件信息、存储口径
+     * 与五环节（PARSE/STRUCTURE/PREPROCESS/CHUNK/EMBED）最新任务状态。
      *
      * <p>stage 参数经 {@link StageFunnelRules#resolveUpstreamStage(String)} 做合法性校验（非法值 40001）；
      * 按上游产物过滤在解析环节（产物表）落地后启用。
@@ -559,7 +564,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
      * @param size           每页条数
      * @param knowledgeBaseId 知识库 ID
      * @param stage          环节（可选）
-     * @return 文件结果分页 VO（含来源文件信息与各环节状态列表）
+     * @return 文件结果分页 VO（含来源文件信息、所属数据源与当前启用的数据源及其显示名、各环节状态列表）
      */
     @Override
     public IPage<FileResultVO> pageFileResults(long current, long size, Long knowledgeBaseId, String stage) {
@@ -573,6 +578,29 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                 : sourceFileDbService.listByIds(sourceIds).stream()
                         .collect(Collectors.toMap(KbSourceFile::getId, Function.identity()));
         IPage<FileResultVO> voPage = page.convert(result -> inputVoAssembler.toFileResultVO(result, sourceMap.get(result.getSourceFileId())));
+
+        // 存储口径：所属数据源按来源文件的 fileId 批量取档案，当前启用的数据源取运行时生效值
+        List<String> chainFileIds = sourceMap.values().stream()
+                .map(KbSourceFile::getFileId)
+                .filter(StrUtil::isNotBlank)
+                .distinct()
+                .toList();
+        Map<String, StorageRef> chainRefs = chainFileIds.isEmpty() ? Map.of()
+                : fileStorage.refsOf(chainFileIds);
+        Long currentSourceId = storageRouter.currentSourceId();
+        StorageType currentType = storageRouter.writeType();
+        String currentStorageType = NullUtil.isNull(currentType) ? null : currentType.getCode();
+        String currentStorageSourceName = storageRouter.currentName();
+        voPage.getRecords().forEach(vo -> {
+            StorageRef ref = NullUtil.isNull(vo.getFileId()) ? null : chainRefs.get(vo.getFileId());
+            Long archiveSourceId = NullUtil.isNull(ref) ? null : ref.sourceId();
+            vo.setStorageType(NullUtil.isNull(ref) ? null : ref.storageType());
+            vo.setStorageSourceId(archiveSourceId);
+            vo.setStorageSourceName(storageSourceName(archiveSourceId));
+            vo.setCurrentStorageSourceId(currentSourceId);
+            vo.setCurrentStorageType(currentStorageType);
+            vo.setCurrentStorageSourceName(currentStorageSourceName);
+        });
 
         // 环节状态：列表行附各环节最新任务状态（PARSE→STRUCTURE→PREPROCESS→CHUNK→EMBED 五环节）
         List<Long> resultIds = voPage.getRecords().stream().map(FileResultVO::getId).toList();
@@ -601,6 +629,16 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             }
         });
         return voPage;
+    }
+
+    /**
+     * 数据源显示名：取注册表里的名称，取不到（ID 为空或数据源未注册）返回 null。
+     *
+     * @param sourceId 数据源 ID（可空）
+     * @return 数据源显示名；ID 为空或未注册时为 null
+     */
+    private String storageSourceName(Long sourceId) {
+        return NullUtil.isNull(sourceId) ? null : storageRouter.nameOf(sourceId);
     }
 
     /** 按 fileId 复用来源文件；并发撞 uk_file_id 时重查复用（同文件不重复建档）。 */

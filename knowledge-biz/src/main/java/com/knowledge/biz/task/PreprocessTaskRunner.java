@@ -7,6 +7,7 @@ import com.knowledge.common.domain.entity.KbFileResult;
 import com.knowledge.common.domain.entity.KbPipelineProduct;
 import com.knowledge.common.domain.entity.KbPipelineTask;
 import com.knowledge.common.domain.preprocess.PreprocessOutcome;
+import com.knowledge.common.domain.storage.ObjectRef;
 import com.knowledge.common.domain.structure.UnifiedDocument;
 import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.enums.task.PipelineTaskErrorCode;
@@ -75,7 +76,7 @@ public class PreprocessTaskRunner {
             PreprocessStrategy strategy = strategyParser.parse(task.getStrategySnapshot());
             UnifiedDocument document;
             try {
-                byte[] content = fileStorage.getObject(structureProduct.getArtifactId());
+                byte[] content = fileStorage.getObject(ObjectRef.ofProduct(structureProduct));
                 document = JsonUtil.toObject(new String(content, StandardCharsets.UTF_8), UnifiedDocument.class);
             } catch (Exception e) {
                 log.warn("读取上游统一结构产物失败, taskId={}, artifactId={}", taskId, structureProduct.getArtifactId(), e);
@@ -103,7 +104,8 @@ public class PreprocessTaskRunner {
                     this::finishFailed);
         } catch (Exception e) {
             log.error("预处理任务执行异常, taskId={}", taskId, e);
-            finishFailed(taskId, PipelineTaskErrorCode.PREPROCESS_FAILED.name(), String.valueOf(e.getMessage()));
+            finishFailed(taskId, TaskRunnerSupport.failureCode(e, PipelineTaskErrorCode.PREPROCESS_FAILED),
+                    String.valueOf(e.getMessage()));
         }
     }
 

@@ -1,11 +1,15 @@
 package com.knowledge.biz.service.support;
 
 import cn.hutool.core.util.StrUtil;
+import com.knowledge.common.domain.storage.ObjectRef;
 import com.knowledge.common.dto.response.lineage.LineageNodeVO;
 import com.knowledge.common.enums.task.PipelineTaskStatus;
+import com.knowledge.common.error.ErrorCode;
+import com.knowledge.common.exception.KnowledgeException;
 import com.knowledge.common.utils.JsonUtil;
 import com.knowledge.common.utils.NullUtil;
 import com.knowledge.filecenter.service.FileStorage;
+import lombok.extern.slf4j.Slf4j;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -21,32 +25,57 @@ import java.util.function.Supplier;
  *
  * @author cxxl
  */
+@Slf4j
 public final class StatsSupport {
 
     private StatsSupport() {
     }
 
     /**
-     * 读产物本体；产物引用为空、对象读不到或 JSON 解析失败都返回 null。
+     * 读产物本体。存储类读取失败（40454 / 40455）原样抛出；对象位置为空、其余读取失败或
+     * JSON 解析失败记日志并返回 null。
      *
      * @param fileStorage 对象存储
-     * @param artifactId  产物引用（sha256），可空
+     * @param ref         产物对象位置（含存储类型与桶名），可空
      * @param type        产物本体类型
      * @return 产物本体；取不到返回 null
+     * @throws KnowledgeException 对象在所属存储中不存在（40454）或记录所属后端未配置（40455）
      */
-    public static <T> T readArtifact(FileStorage fileStorage, String artifactId, Class<T> type) {
-        if (fileStorage == null || StrUtil.isBlank(artifactId)) {
+    public static <T> T readArtifact(FileStorage fileStorage, ObjectRef ref, Class<T> type) {
+        if (NullUtil.isNull(fileStorage) || NullUtil.isNull(ref)) {
             return null;
         }
         try {
-            byte[] content = fileStorage.getObject(artifactId);
+            byte[] content = fileStorage.getObject(ref);
             if (NullUtil.isNull(content)) {
                 return null;
             }
             return JsonUtil.toObject(new String(content, StandardCharsets.UTF_8), type);
         } catch (Exception e) {
+            KnowledgeException storageFailure = storageFailureOf(e);
+            if (NullUtil.isNotNull(storageFailure)) {
+                throw storageFailure;
+            }
+            log.warn("产物读取失败, object={}", ref.path(), e);
             return null;
         }
+    }
+
+    /**
+     * 存储类读取失败识别：对象在所属存储中不存在（40454）或记录所属后端未配置（40455）。
+     *
+     * <p>详情类接口对读取失败一律留空、不阻断，这两类要向上抛出，由统一异常处理给出明确错误码。
+     *
+     * @param e 读取过程中抛出的异常
+     * @return 命中则返回该异常，可原样抛出；其余情况返回 null
+     */
+    public static KnowledgeException storageFailureOf(Exception e) {
+        if (!(e instanceof KnowledgeException failure)) {
+            return null;
+        }
+        ErrorCode code = failure.getErrorCode();
+        return code == ErrorCode.STORAGE_OBJECT_MISSING || code == ErrorCode.STORAGE_BACKEND_UNCONFIGURED
+                ? failure : null;
     }
 
     /**

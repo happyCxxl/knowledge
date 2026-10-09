@@ -42,7 +42,7 @@ CREATE TABLE kb_knowledge_base
 CREATE TABLE kb_audit_log
 (
     id             BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键（雪花，应用显式传 id）',
-    action_type    VARCHAR(32)  NOT NULL COMMENT '操作类型：CREATE/UPDATE/DISABLE/ENABLE/DELETE/BIND/PUBLISH_INDEX/ROLLBACK_INDEX/RECYCLE_INDEX/RETRIEVAL_RULE_PUBLISH',
+    action_type    VARCHAR(32)  NOT NULL COMMENT '操作类型：见 AuditActionType 枚举（知识库 / 索引 / 检索规则 / 用户 / 系统设置）',
     object_type    VARCHAR(32)  NOT NULL COMMENT '对象类型',
     object_id      VARCHAR(64)  NOT NULL COMMENT '对象 ID',
     before_summary VARCHAR(1024)         DEFAULT NULL COMMENT '变更前摘要',
@@ -69,8 +69,10 @@ CREATE TABLE kb_file_object
     file_name   VARCHAR(255) NOT NULL                COMMENT '文件名',
     mime_type   VARCHAR(128)          DEFAULT NULL   COMMENT 'MIME 类型',
     file_size   BIGINT                DEFAULT NULL   COMMENT '文件大小（字节）',
-    sha256      CHAR(64)     NOT NULL                COMMENT '内容指纹（sha256）',
-    bucket      VARCHAR(64)  NOT NULL                COMMENT '存储桶名',
+    sha256       CHAR(64)     NOT NULL                COMMENT '内容指纹（sha256）',
+    storage_type      VARCHAR(32)  NOT NULL                COMMENT '存储类型（StorageType 枚举码：minio / local；冗余留作展示与降级）',
+    storage_source_id BIGINT       NOT NULL                COMMENT '数据源实例 ID（kb_storage_source.id）：读取按它定位后端',
+    bucket            VARCHAR(64)  NOT NULL                COMMENT '存储桶名（local 下为一级子目录）',
     object_key  VARCHAR(128) NOT NULL                COMMENT '对象键',
     create_by   VARCHAR(64)           DEFAULT NULL   COMMENT '上传人',
     create_time DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '上传时间',
@@ -169,6 +171,9 @@ CREATE TABLE kb_pipeline_product
     upstream_product_id BIGINT                DEFAULT NULL   COMMENT '上游产物 ID（可空）',
     capability_snapshot varchar(1024)                  DEFAULT NULL   COMMENT '能力/策略版本快照',
     artifact_id         VARCHAR(255) NOT NULL                COMMENT '产物存储引用（sha256 寻址 key）',
+    storage_type        VARCHAR(32)  NOT NULL                COMMENT '存储类型（StorageType 枚举码：minio / local；冗余留作展示与降级）',
+    storage_source_id   BIGINT       NOT NULL                COMMENT '数据源实例 ID（kb_storage_source.id）：读取按它定位后端',
+    bucket              VARCHAR(64)  NOT NULL                COMMENT '存储桶名（local 下为一级子目录）',
     content_hash        CHAR(64)     NOT NULL                COMMENT '产物内容指纹（sha256）',
     status              VARCHAR(32)  NOT NULL DEFAULT 'ACTIVE' COMMENT '状态',
     create_time         DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
@@ -245,6 +250,9 @@ CREATE TABLE kb_chunk_set
     total_chars            INT          NOT NULL DEFAULT 0      COMMENT '总字符数',
     status                 VARCHAR(32)  NOT NULL DEFAULT 'ACTIVE' COMMENT '状态',
     artifact_id            VARCHAR(255) NOT NULL                COMMENT 'ChunkSet 归档 JSON 引用（sha256）',
+    storage_type           VARCHAR(32)  NOT NULL                COMMENT '存储类型（StorageType 枚举码：minio / local；冗余留作展示与降级）',
+    storage_source_id      BIGINT       NOT NULL                COMMENT '数据源实例 ID（kb_storage_source.id）：读取按它定位后端',
+    bucket                 VARCHAR(64)  NOT NULL                COMMENT '存储桶名（local 下为一级子目录）',
     create_time            DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
     PRIMARY KEY (id),
     KEY idx_fr (file_result_id)
@@ -286,6 +294,9 @@ CREATE TABLE kb_embedding_set
     cached_count     INT           NOT NULL DEFAULT 0 COMMENT '复用命中数',
     status           VARCHAR(16)   NOT NULL DEFAULT 'ACTIVE' COMMENT '状态：ACTIVE',
     artifact_id      VARCHAR(255)  NOT NULL COMMENT 'EmbeddingSet 归档 JSON 引用（sha256）',
+    storage_type     VARCHAR(32)   NOT NULL COMMENT '存储类型（StorageType 枚举码：minio / local；冗余留作展示与降级）',
+    storage_source_id BIGINT       NOT NULL COMMENT '数据源实例 ID（kb_storage_source.id）：读取按它定位后端',
+    bucket           VARCHAR(64)   NOT NULL COMMENT '存储桶名（local 下为一级子目录）',
     create_time      DATETIME(3)   NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
     PRIMARY KEY (id),
     KEY idx_fr (file_result_id),
@@ -381,6 +392,9 @@ CREATE TABLE kb_user
     email         VARCHAR(128)          DEFAULT NULL   COMMENT '邮箱',
     phone         VARCHAR(32)           DEFAULT NULL   COMMENT '手机号',
     avatar        VARCHAR(255)          DEFAULT NULL   COMMENT '头像对象 key：avatar/{userId}/{随机段}.{扩展名}',
+    avatar_storage_type      VARCHAR(32)      DEFAULT NULL   COMMENT '头像存储类型（StorageType 枚举码：minio / local）；未设置头像为空',
+    avatar_storage_source_id BIGINT           DEFAULT NULL   COMMENT '头像数据源实例 ID（kb_storage_source.id）；未设置头像为空',
+    avatar_bucket            VARCHAR(64)      DEFAULT NULL   COMMENT '头像桶名（local 下为一级子目录）；未设置头像为空',
     password      VARCHAR(128) NOT NULL                COMMENT '密码（BCrypt 哈希）',
     status        TINYINT      NOT NULL DEFAULT 1      COMMENT '状态：1 启用 / 0 停用',
     role          VARCHAR(32)  NOT NULL DEFAULT 'USER' COMMENT '角色码值：ADMIN 管理员 / USER 普通用户',
@@ -396,7 +410,44 @@ CREATE TABLE kb_user
 ) COMMENT ='用户：登录账号';
 
 -- ============================================================================
--- 九、初始数据
+-- 九、系统设置与存储数据源
+-- ============================================================================
+
+CREATE TABLE kb_system_setting
+(
+    id            BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键（雪花，应用显式传 id）',
+    setting_key   VARCHAR(64)  NOT NULL COMMENT '配置键（SystemSettingKey 枚举名）',
+    setting_value VARCHAR(255) NOT NULL COMMENT '配置值（字符串，取值域由对应领域服务校验）',
+    create_by     VARCHAR(64)           DEFAULT NULL COMMENT '创建人',
+    create_time   DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    update_by     VARCHAR(64)           DEFAULT NULL COMMENT '最后修改人',
+    update_time   DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_setting_key (setting_key)
+)  COMMENT ='系统设置：键值形态；新增设置只加枚举与领域服务，表结构不动';
+
+CREATE TABLE kb_storage_source
+(
+    id           BIGINT        NOT NULL AUTO_INCREMENT COMMENT '主键（雪花，应用显式传 id）',
+    name         VARCHAR(64)   NOT NULL COMMENT '数据源名称（界面展示，全表唯一）',
+    storage_type VARCHAR(32)   NOT NULL COMMENT '存储类型（StorageType 枚举码：minio / local）',
+    config_json  VARCHAR(2048) NOT NULL COMMENT '连接参数（JSON，按类型定义；含密钥，接口不回显明文）',
+    is_current   TINYINT(1)    NOT NULL DEFAULT 0 COMMENT '是否当前启用：1 是 / 0 否（全表至多一行 1）',
+    status       VARCHAR(16)   NOT NULL DEFAULT 'ENABLED' COMMENT '状态：ENABLED 启用 / DISABLED 停用',
+    last_probe_ok TINYINT(1)            DEFAULT NULL COMMENT '最近一次连接探测结果：1 成功 / 0 失败 / NULL 未探测过',
+    last_probe_at DATETIME(3)           DEFAULT NULL COMMENT '最近一次连接探测时间（NULL = 未探测过）',
+    del_flag     VARCHAR(1)    NOT NULL DEFAULT '0' COMMENT '删除标记：0 正常 / 1 已删',
+    create_by    VARCHAR(64)            DEFAULT NULL COMMENT '创建人',
+    create_time  DATETIME(3)   NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    update_by    VARCHAR(64)            DEFAULT NULL COMMENT '更新人',
+    update_time  DATETIME(3)   NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_name (name),
+    KEY idx_del_flag (del_flag)
+)  COMMENT ='存储数据源：一行 = 一个数据源实例（含连接参数）；当前启用的一行决定新对象的写入后端';
+
+-- ============================================================================
+-- 十、初始数据
 -- ============================================================================
 
 -- 管理员账号：用户名 admin / 密码 Admin@123（BCrypt 哈希），首次登录后请立即改密

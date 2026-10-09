@@ -4,6 +4,7 @@ import com.knowledge.common.domain.embed.EmbeddingRecord;
 import com.knowledge.common.domain.embed.EmbeddingSet;
 import com.knowledge.common.domain.entity.KbEmbeddingRecord;
 import com.knowledge.common.domain.entity.KbEmbeddingSet;
+import com.knowledge.common.domain.storage.ObjectRef;
 import com.knowledge.common.enums.task.RowStatus;
 
 /**
@@ -19,15 +20,15 @@ public final class EmbedRowSupport {
     }
 
     /**
-     * 集合账本行（文件 + 集合 + 产物引用，状态 ACTIVE）。
+     * 集合账本行（文件 + 集合 + 产物引用与对象位置，状态 ACTIVE）。
      *
      * @param fileResultId    文件结果 ID
      * @param set             向量化集合（环节产物）
      * @param strategyVersion 生效策略版本（种子注入用内置版本口径）
-     * @param artifactId      产物对象 ID
+     * @param ref             产物对象位置
      */
     public static KbEmbeddingSet setRow(Long fileResultId, EmbeddingSet set, String strategyVersion,
-                                        String artifactId) {
+                                        ObjectRef ref) {
         KbEmbeddingSet row = new KbEmbeddingSet();
         row.setFileResultId(fileResultId);
         row.setChunkSetRef(set.getChunkSetRef());
@@ -40,7 +41,10 @@ public final class EmbedRowSupport {
         row.setRecordCount(set.getRecordCount());
         row.setCachedCount(set.getCachedCount());
         row.setStatus(RowStatus.ACTIVE.name());
-        row.setArtifactId(artifactId);
+        row.setArtifactId(ref.objectKey());
+        row.setStorageType(ref.storageType().getCode());
+        row.setStorageSourceId(ref.sourceId());
+        row.setBucket(ref.bucket());
         return row;
     }
 

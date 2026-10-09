@@ -3,17 +3,20 @@ package com.knowledge.biz.service.impl;
 import com.knowledge.biz.service.StructureControlService;
 import com.knowledge.biz.service.db.KbPipelineProductDbService;
 import com.knowledge.biz.service.support.FileResultAccessGuard;
+import com.knowledge.biz.service.support.StatsSupport;
 import com.knowledge.biz.service.support.StructureStatsSupport;
 import com.knowledge.biz.service.support.StructureVoAssembler;
 import com.knowledge.biz.service.support.TaskDetailSupport;
 import com.knowledge.biz.task.TaskTriggerSupport;
 import com.knowledge.common.domain.entity.KbPipelineProduct;
 import com.knowledge.common.domain.entity.KbPipelineTask;
+import com.knowledge.common.domain.storage.ObjectRef;
 import com.knowledge.common.domain.structure.UnifiedDocument;
 import com.knowledge.common.dto.response.structure.StructureDetailVO;
 import com.knowledge.common.dto.response.task.StageTriggerVO;
 import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.error.ErrorCode;
+import com.knowledge.common.exception.KnowledgeException;
 import com.knowledge.common.exception.ThrowUtil;
 import com.knowledge.common.utils.JsonUtil;
 import com.knowledge.common.utils.NullUtil;
@@ -79,7 +82,7 @@ public class StructureControlServiceImpl implements StructureControlService {
         KbPipelineProduct product = detailSupport.productOfTask(task);
         if (NullUtil.isNotNull(product)) {
             detailSupport.withProductRef(vo, product);
-            document = readDocument(product.getArtifactId(), vo);
+            document = readDocument(product, vo);
         }
         // 统计与摘要读产物现算：与执行树组装节点同一份口径，不落产物；产物读不到时不陈述结论
         Map<String, Object> stageStats =
@@ -104,13 +107,15 @@ public class StructureControlServiceImpl implements StructureControlService {
     }
 
     /**
-     * 读统一文档产物并委托 VO 组装器提取统计/告警/冲突/文档内容大纲（读取失败记日志并留空，不阻断详情）。
+     * 读统一文档产物并委托 VO 组装器提取统计/告警/冲突/文档内容大纲。
      *
-     * @return 产物本体；读不到返回 null（调用侧据此不陈述结论）
+     * <p>存储类读取失败（40454 / 40455）向上抛出；其余读取失败记日志并留空，不阻断详情。
+     *
+     * @return 产物本体；读不到返回 null
      */
-    private UnifiedDocument readDocument(String artifactId, StructureDetailVO vo) {
+    private UnifiedDocument readDocument(KbPipelineProduct product, StructureDetailVO vo) {
         try {
-            byte[] content = fileStorage.getObject(artifactId);
+            byte[] content = fileStorage.getObject(ObjectRef.ofProduct(product));
             UnifiedDocument document = JsonUtil.toObject(
                     new String(content, StandardCharsets.UTF_8), UnifiedDocument.class);
             if (NullUtil.isNull(document)) {
@@ -122,7 +127,11 @@ public class StructureControlServiceImpl implements StructureControlService {
             vo.setOutline(voAssembler.toOutline(document));
             return document;
         } catch (Exception e) {
-            log.warn("读取统一文档产物失败, artifactId={}", artifactId, e);
+            KnowledgeException storageFailure = StatsSupport.storageFailureOf(e);
+            if (NullUtil.isNotNull(storageFailure)) {
+                throw storageFailure;
+            }
+            log.warn("读取统一文档产物失败, artifactId={}", product.getArtifactId(), e);
             return null;
         }
     }

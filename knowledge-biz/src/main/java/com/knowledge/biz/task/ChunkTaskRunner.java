@@ -15,6 +15,7 @@ import com.knowledge.common.domain.entity.KbPipelineProduct;
 import com.knowledge.common.domain.entity.KbPipelineTask;
 import com.knowledge.common.domain.preprocess.PreprocessView;
 import com.knowledge.common.domain.rules.ChunkRules;
+import com.knowledge.common.domain.storage.ObjectRef;
 import com.knowledge.common.domain.structure.UnifiedDocument;
 import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.enums.task.PipelineTaskErrorCode;
@@ -90,7 +91,7 @@ public class ChunkTaskRunner {
             ChunkStrategy strategy = strategyParser.parse(task.getStrategySnapshot());
             PreprocessView view;
             try {
-                byte[] content = fileStorage.getObject(preprocessProduct.getArtifactId());
+                byte[] content = fileStorage.getObject(ObjectRef.ofProduct(preprocessProduct));
                 view = JsonUtil.toObject(new String(content, StandardCharsets.UTF_8), PreprocessView.class);
             } catch (Exception e) {
                 log.warn("读取上游预处理视图产物失败, taskId={}, artifactId={}", taskId, preprocessProduct.getArtifactId(), e);
@@ -120,7 +121,8 @@ public class ChunkTaskRunner {
                     this::finishFailed);
         } catch (Exception e) {
             log.error("切片任务执行异常, taskId={}", taskId, e);
-            finishFailed(taskId, PipelineTaskErrorCode.CHUNK_FAILED.name(), String.valueOf(e.getMessage()));
+            finishFailed(taskId, TaskRunnerSupport.failureCode(e, PipelineTaskErrorCode.CHUNK_FAILED),
+                    String.valueOf(e.getMessage()));
         }
     }
 
@@ -140,7 +142,7 @@ public class ChunkTaskRunner {
             if (NullUtil.isNull(structureProduct)) {
                 return null;
             }
-            byte[] content = fileStorage.getObject(structureProduct.getArtifactId());
+            byte[] content = fileStorage.getObject(ObjectRef.ofProduct(structureProduct));
             return JsonUtil.toObject(new String(content, StandardCharsets.UTF_8), UnifiedDocument.class);
         } catch (Exception e) {
             log.warn("读取结构参照产物失败（titlePath/图注降级）, fileResultId={}",
@@ -164,6 +166,9 @@ public class ChunkTaskRunner {
         chunkSetRow.setTotalChars(chunkSet.getChunks().stream().mapToInt(Chunk::getCharCount).sum());
         chunkSetRow.setStatus(RowStatus.ACTIVE.name());
         chunkSetRow.setArtifactId(product.getArtifactId());
+        chunkSetRow.setStorageType(product.getStorageType());
+        chunkSetRow.setStorageSourceId(product.getStorageSourceId());
+        chunkSetRow.setBucket(product.getBucket());
         chunkSetDbService.save(chunkSetRow);
 
         List<KbChunk> chunkRows = new ArrayList<>();

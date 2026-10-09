@@ -8,6 +8,8 @@ import com.knowledge.biz.service.db.KbFileResultDbService;
 import com.knowledge.biz.service.db.KbPipelineProductDbService;
 import com.knowledge.biz.service.db.KbPipelineStepLogDbService;
 import com.knowledge.biz.service.db.KbPipelineTaskDbService;
+import com.knowledge.biz.service.db.KbSourceFileDbService;
+import com.knowledge.biz.service.support.ChainStorageSupport;
 import com.knowledge.common.domain.chunk.Chunk;
 import com.knowledge.common.domain.chunk.ChunkSet;
 import com.knowledge.common.domain.embed.EmbedOutcome;
@@ -19,11 +21,14 @@ import com.knowledge.common.domain.entity.KbEmbeddingSet;
 import com.knowledge.common.domain.entity.KbFileResult;
 import com.knowledge.common.domain.entity.KbPipelineProduct;
 import com.knowledge.common.domain.entity.KbPipelineTask;
+import com.knowledge.common.domain.storage.ObjectRef;
 import com.knowledge.common.domain.task.StepLogInfo;
+import com.knowledge.common.enums.storage.StorageType;
 import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.enums.task.PipelineTaskErrorCode;
 import com.knowledge.common.enums.task.PipelineTaskStatus;
 import com.knowledge.common.utils.JsonUtil;
+import com.knowledge.filecenter.provider.StorageRouter;
 import com.knowledge.filecenter.service.FileStorage;
 import com.knowledge.model.catalog.StaticModelCatalog;
 import com.knowledge.worker.chunking.ChunkProperties;
@@ -64,10 +69,15 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class EmbedTaskRunnerTest {
 
+    /** 档案与产物所在的数据源 */
+    private static final Long SOURCE_ID = 1L;
+
     @Mock
     private KbPipelineTaskDbService pipelineTaskDbService;
     @Mock
     private KbFileResultDbService fileResultDbService;
+    @Mock
+    private KbSourceFileDbService sourceFileDbService;
     @Mock
     private KbPipelineProductDbService pipelineProductDbService;
     @Mock
@@ -81,6 +91,8 @@ class EmbedTaskRunnerTest {
     @Mock
     private FileStorage fileStorage;
     @Mock
+    private StorageRouter storageRouter;
+    @Mock
     private EmbedderPort embedder;
     @Mock
     private IndexSetService indexSetService;
@@ -90,6 +102,9 @@ class EmbedTaskRunnerTest {
     @BeforeEach
     void setUp() {
         EmbedProperties embedProperties = new EmbedProperties();
+        // 存储守卫用真实实例 + mock 依赖：链类型取不到（默认 mock 返回 null）时不拦
+        ChainStorageSupport chainStorage = new ChainStorageSupport(fileResultDbService, sourceFileDbService,
+                fileStorage, storageRouter);
         runner = new EmbedTaskRunner(pipelineTaskDbService, fileResultDbService,
                 pipelineProductDbService, chunkSetDbService, embeddingSetDbService,
                 embeddingRecordDbService, fileStorage, indexSetService, embedder,
@@ -97,7 +112,7 @@ class EmbedTaskRunnerTest {
                 new ChunkStrategyParser(new ChunkProperties()),
                 embedProperties, new ChunkProperties(),
                 new StepLogPersistence(stepLogDbService),
-                new ProductPersistence(pipelineProductDbService, pipelineTaskDbService, fileStorage));
+                new ProductPersistence(pipelineProductDbService, pipelineTaskDbService, chainStorage, fileStorage));
     }
 
     private KbPipelineTask queuedTask() {
@@ -113,6 +128,9 @@ class EmbedTaskRunnerTest {
         KbPipelineProduct product = new KbPipelineProduct();
         product.setId(50L);
         product.setArtifactId("abc".repeat(22));
+        product.setStorageType(StorageType.MINIO.getCode());
+        product.setStorageSourceId(SOURCE_ID);
+        product.setBucket("artifacts");
         return product;
     }
 
@@ -185,7 +203,7 @@ class EmbedTaskRunnerTest {
         when(fileResultDbService.getById(10L)).thenReturn(fileResult);
         when(pipelineProductDbService.getByFileResultIdAndStage(10L, PipelineStage.CHUNK.name()))
                 .thenReturn(chunkProduct());
-        when(fileStorage.getObject("abc".repeat(22)))
+        when(fileStorage.getObject(ObjectRef.of(SOURCE_ID, StorageType.MINIO.getCode(), "artifacts", "abc".repeat(22))))
                 .thenReturn(Objects.requireNonNull(JsonUtil.toJsonStr(chunkSet())).getBytes(StandardCharsets.UTF_8));
     }
 
@@ -194,7 +212,8 @@ class EmbedTaskRunnerTest {
         KbChunkSet chunkSetRow = new KbChunkSet();
         chunkSetRow.setId(60L);
         when(chunkSetDbService.getLatestByFileResultId(10L)).thenReturn(chunkSetRow);
-        when(fileStorage.putObject(any(byte[].class))).thenReturn("def".repeat(22));
+        when(fileStorage.putObject(any(byte[].class)))
+                .thenReturn(ObjectRef.of(SOURCE_ID, StorageType.MINIO.getCode(), "artifacts", "def".repeat(22)));
         when(pipelineProductDbService.save(any(KbPipelineProduct.class))).thenAnswer(inv -> {
             inv.getArgument(0, KbPipelineProduct.class).setId(80L);
             return true;
@@ -268,11 +287,14 @@ class EmbedTaskRunnerTest {
         KbEmbeddingSet historyRow = new KbEmbeddingSet();
         historyRow.setEmbeddingSetId("es-old");
         historyRow.setArtifactId("hist".repeat(21));
+        historyRow.setStorageType(StorageType.MINIO.getCode());
+        historyRow.setStorageSourceId(SOURCE_ID);
+        historyRow.setBucket("artifacts");
         when(embeddingSetDbService.listHistoryByFileResultIdAndStrategyVersion(10L, "embed-default-v1", 10))
                 .thenReturn(List.of(historyRow));
         EmbeddingSet historySet = new EmbeddingSet();
         historySet.setEmbeddingSetId("es-old");
-        when(fileStorage.getObject("hist".repeat(21)))
+        when(fileStorage.getObject(ObjectRef.of(SOURCE_ID, StorageType.MINIO.getCode(), "artifacts", "hist".repeat(21))))
                 .thenReturn(Objects.requireNonNull(JsonUtil.toJsonStr(historySet)).getBytes(StandardCharsets.UTF_8));
         when(embedder.embed(any(EmbedContext.class))).thenReturn(successOutcome());
 
@@ -294,7 +316,7 @@ class EmbedTaskRunnerTest {
         when(fileResultDbService.getById(10L)).thenReturn(fileResult);
         when(pipelineProductDbService.getByFileResultIdAndStage(10L, PipelineStage.CHUNK.name()))
                 .thenReturn(chunkProduct());
-        when(fileStorage.getObject("abc".repeat(22)))
+        when(fileStorage.getObject(ObjectRef.of(SOURCE_ID, StorageType.MINIO.getCode(), "artifacts", "abc".repeat(22))))
                 .thenReturn(Objects.requireNonNull(JsonUtil.toJsonStr(chunkSet())).getBytes(StandardCharsets.UTF_8));
         stubPersist();
         when(embedder.embed(any(EmbedContext.class))).thenReturn(successOutcome());

@@ -6,6 +6,7 @@ import com.knowledge.biz.service.db.KbPipelineTaskDbService;
 import com.knowledge.common.domain.entity.KbPipelineProduct;
 import com.knowledge.common.domain.entity.KbPipelineTask;
 import com.knowledge.common.domain.parse.ParseResult;
+import com.knowledge.common.domain.storage.ObjectRef;
 import com.knowledge.common.domain.structure.AssembleOutcome;
 import com.knowledge.common.domain.structure.UnifiedDocument;
 import com.knowledge.common.enums.task.PipelineStage;
@@ -68,7 +69,7 @@ public class StructureTaskRunner {
             }
             ParseResult parseResult;
             try {
-                byte[] content = fileStorage.getObject(parseProduct.getArtifactId());
+                byte[] content = fileStorage.getObject(ObjectRef.ofProduct(parseProduct));
                 parseResult = JsonUtil.toObject(new String(content, StandardCharsets.UTF_8), ParseResult.class);
             } catch (Exception e) {
                 log.warn("读取上游解析产物失败, taskId={}, artifactId={}", taskId, parseProduct.getArtifactId(), e);
@@ -99,12 +100,12 @@ public class StructureTaskRunner {
         }
     }
 
-    /** 失败归口的任务错误码：上游文件/结果缺失按"上游不可读"归口，其余按组装执行异常兜底 */
+    /** 失败归口的任务错误码：上游文件/结果缺失按"上游不可读"归口，存储不一致走共享映射，其余按组装执行异常兜底 */
     private String errorCodeOf(Exception e) {
         if (e instanceof KnowledgeException knowledge && isUpstreamMissing(knowledge.getErrorCode())) {
             return PipelineTaskErrorCode.STRUCTURE_UPSTREAM_UNREADABLE.name();
         }
-        return PipelineTaskErrorCode.STRUCTURE_FAILED.name();
+        return TaskRunnerSupport.failureCode(e, PipelineTaskErrorCode.STRUCTURE_FAILED);
     }
 
     /** 上游缺失判定：产物所在文件或文件结果已经不存在 */

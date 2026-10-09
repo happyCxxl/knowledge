@@ -1,6 +1,6 @@
 package com.knowledge.filecenter.provider;
 
-import com.knowledge.filecenter.config.FileCenterConfig;
+import com.knowledge.common.enums.storage.StorageType;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -12,6 +12,8 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -20,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 本地磁盘存储提供者测试：两层目录布局、覆盖写、存在性与路径逃逸防护。
+ * 本地磁盘存储提供者测试：两层目录布局、覆盖写、存在性、路径逃逸防护与存储根取值。
  *
  * <p>用 {@link TempDir} 而不是固定路径：测试不写进仓库目录，也不会互相干扰。
  *
@@ -35,15 +37,26 @@ class LocalStorageProviderTest {
 
     @BeforeEach
     void setUp() {
-        FileCenterConfig properties = new FileCenterConfig();
-        properties.setStorageType("local");
-        properties.setLocalRoot(root.toString());
-        provider = new LocalStorageProvider(properties);
+        provider = new LocalStorageProvider(localDef(root.toString()));
+    }
+
+    /** 本地磁盘数据源定义：存储根指向临时目录 */
+    private static StorageSourceDef localDef(String rootDir) {
+        Map<String, String> params = new LinkedHashMap<>();
+        params.put(StorageSourceDef.KEY_ROOT_DIR, rootDir);
+        params.put(StorageSourceDef.KEY_FILE_DIR, "files");
+        params.put(StorageSourceDef.KEY_ARTIFACT_DIR, "artifacts");
+        return new StorageSourceDef(1L, "本地磁盘", StorageType.LOCAL, params);
     }
 
     @AfterEach
     void tearDown() {
         provider = null;
+    }
+
+    @Test
+    void shouldReportLocalStorageType() {
+        assertEquals(StorageType.LOCAL, provider.type());
     }
 
     @Test
@@ -55,6 +68,16 @@ class LocalStorageProviderTest {
         // 两层布局与对象存储一致：root/{bucket}/{key}
         assertTrue(Files.isRegularFile(root.resolve("artifacts").resolve("abc123")));
         assertTrue(provider.exists("artifacts", "abc123"));
+    }
+
+    @Test
+    void shouldCreateStorageRootOnInitialize() {
+        Path nested = root.resolve("nested").resolve("store");
+        assertFalse(Files.exists(nested));
+
+        new LocalStorageProvider(localDef(nested.toString())).initialize();
+
+        assertTrue(Files.isDirectory(nested));
     }
 
     @Test

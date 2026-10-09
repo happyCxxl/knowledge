@@ -3,6 +3,7 @@ package com.knowledge.biz.service.support;
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.knowledge.common.domain.parse.Provenance;
+import com.knowledge.common.domain.storage.ObjectRef;
 import com.knowledge.common.domain.structure.DocumentInfo;
 import com.knowledge.common.domain.structure.DocumentRelation;
 import com.knowledge.common.domain.structure.UnifiedDocument;
@@ -98,14 +99,14 @@ public final class StructureStatsSupport {
     }
 
     /**
-     * 读组装产物本体（统一文档）；产物引用为空、对象读不到或 JSON 解析失败都返回 null。
+     * 读组装产物本体（统一文档）；对象位置为空、对象读不到或 JSON 解析失败都返回 null。
      *
      * @param fileStorage 对象存储
-     * @param artifactId  产物引用（sha256），可空
+     * @param ref         产物对象位置（含存储类型与桶名），可空
      * @return 产物本体；取不到返回 null
      */
-    public static UnifiedDocument readDocument(FileStorage fileStorage, String artifactId) {
-        return StatsSupport.readArtifact(fileStorage, artifactId, UnifiedDocument.class);
+    public static UnifiedDocument readDocument(FileStorage fileStorage, ObjectRef ref) {
+        return StatsSupport.readArtifact(fileStorage, ref, UnifiedDocument.class);
     }
 
     /**

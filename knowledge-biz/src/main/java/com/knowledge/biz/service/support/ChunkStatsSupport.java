@@ -7,6 +7,7 @@ import com.knowledge.common.domain.chunk.ChunkSet;
 import com.knowledge.common.domain.preprocess.PreprocessView;
 import com.knowledge.common.domain.preprocess.ViewElement;
 import com.knowledge.common.domain.rules.PreprocessViewRules;
+import com.knowledge.common.domain.storage.ObjectRef;
 import com.knowledge.common.enums.chunk.ChunkContentType;
 import com.knowledge.common.enums.chunk.ChunkRoute;
 import com.knowledge.common.enums.chunk.PipelineKey;
@@ -121,14 +122,14 @@ public final class ChunkStatsSupport {
     }
 
     /**
-     * 读切片集合产物；产物引用为空、对象读不到或 JSON 解析失败都返回 null。
+     * 读切片集合产物；对象位置为空、对象读不到或 JSON 解析失败都返回 null。
      *
      * @param fileStorage 对象存储
-     * @param artifactId  产物引用（sha256），可空
+     * @param ref         产物对象位置（含存储类型与桶名），可空
      * @return 切片集合；取不到返回 null
      */
-    public static ChunkSet readChunkSet(FileStorage fileStorage, String artifactId) {
-        return StatsSupport.readArtifact(fileStorage, artifactId, ChunkSet.class);
+    public static ChunkSet readChunkSet(FileStorage fileStorage, ObjectRef ref) {
+        return StatsSupport.readArtifact(fileStorage, ref, ChunkSet.class);
     }
 
     /**

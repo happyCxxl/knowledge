@@ -6,6 +6,7 @@ import com.knowledge.common.domain.parse.ParseElement;
 import com.knowledge.common.domain.parse.ParseResult;
 import com.knowledge.common.domain.parse.ParseSource;
 import com.knowledge.common.domain.parse.QualityInfo;
+import com.knowledge.common.domain.storage.ObjectRef;
 import com.knowledge.common.dto.response.lineage.LineageParseStatsVO;
 import com.knowledge.common.enums.parse.ElementType;
 import com.knowledge.common.utils.NullUtil;
@@ -30,14 +31,14 @@ public final class ParseStatsSupport {
     }
 
     /**
-     * 读解析产物本体；产物引用为空、对象读不到或 JSON 解析失败都返回 null。
+     * 读解析产物本体；对象位置为空、对象读不到或 JSON 解析失败都返回 null。
      *
      * @param fileStorage 对象存储
-     * @param artifactId  产物引用（sha256），可空
+     * @param ref         产物对象位置（含存储类型与桶名），可空
      * @return 产物本体；取不到返回 null
      */
-    public static ParseResult readArtifact(FileStorage fileStorage, String artifactId) {
-        return StatsSupport.readArtifact(fileStorage, artifactId, ParseResult.class);
+    public static ParseResult readArtifact(FileStorage fileStorage, ObjectRef ref) {
+        return StatsSupport.readArtifact(fileStorage, ref, ParseResult.class);
     }
 
     /**

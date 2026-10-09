@@ -1,8 +1,7 @@
 package com.knowledge.filecenter.provider;
 
-import com.knowledge.filecenter.config.FileCenterConfig;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.stereotype.Service;
+import com.knowledge.common.enums.storage.StorageType;
+import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -10,16 +9,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
-import java.util.Objects;
 
 /**
- * 本地磁盘存储提供者：把 {@code bucket} 当子目录、{@code key} 当文件名落到本地目录。
+ * 本地磁盘存储提供者：把 {@code bucket} 当一级子目录、{@code key} 当文件名落到存储根下。
  *
- * <p>**bucket 直接复用为目录名**：{@code kb_file_object.bucket} 已把桶名记在档案里
- * （MinIO 实现写的是 {@code properties.getFileBucket()}），读取时也从档案取，
- * DB 契约不变，只是"桶"变成目录层级。
- *
- * <p>**目录布局**：{@code {local-root}/{bucket}/{key}}，与对象存储的两级结构一一对应。
+ * <p>**目录布局**：{@code {root}/{bucket}/{key}}，与对象存储的两级结构一一对应。
+ * 存储根取自数据源定义的参数；桶名取自记录（写入时落库），读取不回落到定义里的桶名。
  *
  * <p>**路径逃逸防护**：{@code key}（fileId 或 sha256）统一做路径规范化 + 前缀校验，
  * 含 {@code ..} 等越界串一律拒绝。
@@ -29,8 +24,7 @@ import java.util.Objects;
  *
  * @author cxxl
  */
-@Service
-@ConditionalOnProperty(name = "file-center.storage-type", havingValue = "local")
+@Slf4j
 public class LocalStorageProvider implements StorageProvider {
 
     /** 临时文件后缀：先写这个再原子移动到目标名，避免读到写了一半的对象 */
@@ -38,8 +32,23 @@ public class LocalStorageProvider implements StorageProvider {
 
     private final Path root;
 
-    public LocalStorageProvider(FileCenterConfig properties) {
-        this.root = Paths.get(properties.getLocalRoot()).toAbsolutePath().normalize();
+    public LocalStorageProvider(StorageSourceDef def) {
+        this.root = Paths.get(def.param(StorageSourceDef.KEY_ROOT_DIR)).toAbsolutePath().normalize();
+    }
+
+    @Override
+    public StorageType type() {
+        return StorageType.LOCAL;
+    }
+
+    @Override
+    public void initialize() {
+        try {
+            Files.createDirectories(root);
+        } catch (IOException e) {
+            throw new IllegalStateException("本地存储根目录创建失败: " + root, e);
+        }
+        log.info("本地存储根目录: {}", root);
     }
 
     @Override
@@ -78,14 +87,6 @@ public class LocalStorageProvider implements StorageProvider {
     /**
      * 解析对象路径并校验没有逃出根目录。
      *
-     * @param bucket 桶名（本地实现里是根目录下的一级子目录）
-     * @param key    对象名（fileId 或 sha256）
-     * @return 规范化后的绝对路径
-     * @throws IllegalArgumentException 路径为空或越出根目录
-     */
-    /**
-     * 解析对象路径并校验没有逃出根目录。
-     *
      * <p>**前置校验 + 事后兜底**：{@code ..} 与绝对路径在拼进 root 之前先拒，
      * 拼接后再用 {@code startsWith} 校验一次。
      *
@@ -121,9 +122,7 @@ public class LocalStorageProvider implements StorageProvider {
         return false;
     }
 
-    /**
-     * 取对象路径的父目录：无父目录时抛明确错误，不返回 null。
-     */
+    /** 取对象路径的父目录：无父目录时抛明确错误，不返回 null */
     private Path parentOf(Path target) {
         Path parent = target.getParent();
         if (parent == null) {
@@ -138,15 +137,5 @@ public class LocalStorageProvider implements StorageProvider {
         } catch (IOException ignored) {
             // 清理失败不影响主流程；残留的 .part 文件不会被 exists/get 命中
         }
-    }
-
-    @Override
-    public boolean equals(Object other) {
-        return other instanceof LocalStorageProvider provider && Objects.equals(root, provider.root);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(root);
     }
 }
