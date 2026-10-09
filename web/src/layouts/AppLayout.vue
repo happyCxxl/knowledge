@@ -351,6 +351,19 @@ const navItems: NavItem[] = [
   },
   {
     kind: 'leaf',
+    // 系统设置：平台级开关，第一个区块是存储类型切换
+    label: '系统设置',
+    path: '/settings',
+    iconPaths: [
+      'M2.4 4.8h1.9M7.1 4.8h6.5',
+      'M2.4 11.2h6.5M12.4 11.2h1.2',
+      'M5.5 2.9 8 5.4 5.5 7.9 3 5.4Z',
+      'M11.5 9.3 14 11.8 11.5 14.3 9 11.8Z',
+    ],
+    adminOnly: true,
+  },
+  {
+    kind: 'leaf',
     // 个人中心：账号信息、联系方式与改密；放在主导航末项，人人可见
     label: '个人中心',
     path: '/profile',
@@ -412,7 +425,7 @@ function toggleGroup(item: NavGroup): void {
 /**
  * 返回目标的集中定义：key 为当前路由名，value 为上一层。
  *
- * <p>层级：处理链页 → 知识库列表 → 首页；用户管理 → 首页；首页无上层。
+ * <p>层级：处理链页 → 知识库列表 → 首页；用户管理 → 首页；系统设置 → 首页；首页无上层。
  * 用表而不是逐页写按钮，保证全局只有一处逻辑。
  */
 const BACK_TARGETS: Record<string, { path: string; label: string }> = {
@@ -422,6 +435,7 @@ const BACK_TARGETS: Record<string, { path: string; label: string }> = {
   RetrievalEval: { path: '/knowledge-base', label: '知识库' },
   StrategyManagement: { path: '/home', label: '首页' },
   UserManagement: { path: '/home', label: '首页' },
+  SystemSetting: { path: '/home', label: '首页' },
   Profile: { path: '/home', label: '首页' },
 };
 

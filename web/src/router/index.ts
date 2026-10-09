@@ -73,6 +73,14 @@ const router = createRouter({
           meta: { title: '用户管理', adminOnly: true },
         },
         {
+          // 系统设置：平台级开关，第一个区块是存储类型切换
+          path: 'settings',
+          name: 'SystemSetting',
+          component: () => import('@/views/system/SystemSettingView.vue'),
+          // 仅管理员可进入；非管理员回落工作台（菜单项的 adminOnly 与本处声明需同时具备）
+          meta: { title: '系统设置', adminOnly: true },
+        },
+        {
           // 个人中心：账号信息、联系方式与修改密码；入口在布局壳的用户菜单
           path: 'profile',
           name: 'Profile',

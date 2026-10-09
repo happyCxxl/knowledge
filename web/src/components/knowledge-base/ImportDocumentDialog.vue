@@ -336,7 +336,7 @@ async function startImport(): Promise<void> {
  * 生成一次提交的幂等键。
  *
  * <p>**每次提交一个唯一值**，与文件是否重复无关：同一份文件重新上传会拿到新的 fileId，
- * 对系统来说就是两份文件（`MinioFileStorage.store` 每次 `IdWorker.getIdStr()`），
+ * 对系统来说就是两份文件（`DefaultFileStorage.putFile` 每次 `IdWorker.getIdStr()`），
  * 新建档；幂等键只用来防"同一次请求被重复送达"（网络重试、并发重发）。
  *
  * <p>用时间戳 + 随机后缀，不用 `crypto.randomUUID()`：后者只在安全上下文（https/localhost）

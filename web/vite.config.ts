@@ -64,6 +64,9 @@ export default defineConfig({
       // 靠 bypass 按 Accept 头区分导航与接口 —— 漏配这条会让接口请求落到 SPA 回退上，
       // 表现为前端拿到一坨 HTML、页面数据全空（且控制台不报错，很难发现）
       '^/home/': { target: BACKEND, bypass: bypassNavigation },
+      // 系统设置接口（/system/storage-sources 与它的预览、启用）：/settings 是 SPA 路由而
+      // /system 同时是接口前缀，同样靠 bypass 区分导航与接口；漏配的后果与上面 /home 那条相同
+      '^/system/': { target: BACKEND, bypass: bypassNavigation },
     },
   },
 });
