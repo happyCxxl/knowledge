@@ -8,7 +8,7 @@ import java.util.Map;
 /**
  * 存储数据源条目 VO：数据源清单里的一行。
  *
- * <p>连接参数只给非密钥部分的摘要，密钥回「已配置」标记，不回显明文。
+ * <p>连接参数按键值原样下发，密钥类参数同样包含在内。
  *
  * @author cxxl
  */
@@ -36,9 +36,6 @@ public class StorageSourceVO {
     /** 必填参数是否齐全（密钥按库里已存值判断） */
     private boolean configured;
 
-    /** 密钥类参数是否已配置 */
-    private boolean credentialConfigured;
-
     /** 是否已接入运行时路由（未停用且参数齐全） */
     private boolean registered;
 
@@ -48,6 +45,6 @@ public class StorageSourceVO {
     /** 最近一次连接探测时间（ISO-8601 文本，与实体时间字段的序列化口径一致）；从未探测为空 */
     private String probeAt;
 
-    /** 参数摘要（不含密钥明文） */
+    /** 连接参数（按键取值，含密钥类参数） */
     private Map<String, String> params = new LinkedHashMap<>();
 }

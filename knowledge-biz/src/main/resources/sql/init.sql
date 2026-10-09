@@ -431,7 +431,7 @@ CREATE TABLE kb_storage_source
     id           BIGINT        NOT NULL AUTO_INCREMENT COMMENT '主键（雪花，应用显式传 id）',
     name         VARCHAR(64)   NOT NULL COMMENT '数据源名称（界面展示，全表唯一）',
     storage_type VARCHAR(32)   NOT NULL COMMENT '存储类型（StorageType 枚举码：minio / local）',
-    config_json  VARCHAR(2048) NOT NULL COMMENT '连接参数（JSON，按类型定义；含密钥，接口不回显明文）',
+    config_json  VARCHAR(2048) NOT NULL COMMENT '连接参数（JSON，按类型定义；含密钥，接口按原值返回）',
     is_current   TINYINT(1)    NOT NULL DEFAULT 0 COMMENT '是否当前启用：1 是 / 0 否（全表至多一行 1）',
     status       VARCHAR(16)   NOT NULL DEFAULT 'ENABLED' COMMENT '状态：ENABLED 启用 / DISABLED 停用',
     last_probe_ok TINYINT(1)            DEFAULT NULL COMMENT '最近一次连接探测结果：1 成功 / 0 失败 / NULL 未探测过',
@@ -477,3 +477,14 @@ INSERT INTO kb_pipeline_strategy_version (type, name, version, config_snapshot, 
 VALUES ('RETRIEVAL', 'hybrid-rrf-k60-top10-parent', 'v1',
         '{"channel":"HYBRID","fusion":{"mode":"RRF","rrfK":60,"perChannelLimit":50},"preprocess":{"mode":"NONE"},"rerank":{"mode":"NONE"},"postprocess":{"mode":"PARENT_EXPAND"},"topK":10,"scoreThreshold":0}',
         'ACTIVE');
+
+-- 存储数据源：MinIO 与本地磁盘两行，参数与 application.yml 的 file-center.minio.* / file-center.local.* 同值
+-- 当前启用写在 is_current 上（全表至多一行为 1）；两列探测结论留空表示尚未探测，应用启动时探活当前启用那行并回写
+-- 表被清空时应用启动会按上述配置重新播种这两行，此处写入后应用只按 is_current 决定当前启用
+INSERT INTO kb_storage_source (id, name, storage_type, config_json, is_current, status, del_flag)
+VALUES (1, 'MinIO', 'minio',
+        '{"endpoint":"http://localhost:9000","accessKey":"minioadmin","secretKey":"minioadmin","fileBucket":"files","artifactBucket":"artifacts"}',
+        1, 'ENABLED', '0'),
+       (2, '本地磁盘', 'local',
+        '{"rootDir":"./data/file-center","fileDir":"files","artifactDir":"artifacts"}',
+        0, 'ENABLED', '0');

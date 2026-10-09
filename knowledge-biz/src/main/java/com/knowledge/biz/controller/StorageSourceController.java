@@ -37,7 +37,7 @@ public class StorageSourceController {
 
     @GetMapping
     @AdminOnly
-    @Operation(summary = "数据源列表", description = "全部数据源：名称、类型、状态、是否当前启用、参数摘要（不含密钥）、运行时接入标记与最近一次探测结论；不探活")
+    @Operation(summary = "数据源列表", description = "全部数据源：名称、类型、状态、是否当前启用、连接参数（按键取值，含密钥类参数）、运行时接入标记与最近一次探测结论；不探活")
     public R<List<StorageSourceVO>> list() {
         return R.ok(storageSourceService.list());
     }

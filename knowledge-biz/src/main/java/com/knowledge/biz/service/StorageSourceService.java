@@ -16,7 +16,7 @@ import java.util.List;
  */
 public interface StorageSourceService {
 
-    /** 数据源清单（含参数摘要、启用与接入标记、最近一次探测结论） */
+    /** 数据源清单（含连接参数、启用与接入标记、最近一次探测结论） */
     List<StorageSourceVO> list();
 
     /**

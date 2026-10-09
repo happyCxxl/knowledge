@@ -136,7 +136,7 @@ public class StorageSourceServiceImpl implements StorageSourceService {
         storageSourceDbService.markCurrent(id);
         // 探活已通过：结论随这次切换一起落库
         storageSourceDbService.recordProbe(id, true, LocalDateTime.now());
-        audit(AuditActionType.STORAGE_SWITCH, id, "当前启用 " + sourceName(beforeId),
+        audit(id, "当前启用 " + sourceName(beforeId),
                 "当前启用 " + target.getName() + "；不可继续执行的任务：排队中 " + impact[0]
                         + " 个、执行中 " + impact[1] + " 个");
         storageRouter.markCurrent(id);
@@ -235,33 +235,15 @@ public class StorageSourceServiceImpl implements StorageSourceService {
         vo.setCurrent(isCurrent(row));
         vo.setRegistered(storageRouter.registered(row.getId()));
         vo.setConfigured(NullUtil.isNotNull(type) && StorageSourceDef.missingKeys(type, params).isEmpty());
-        vo.setCredentialConfigured(NullUtil.isNotNull(type) && credentialsConfigured(type, params));
         vo.setProbeOk(row.getLastProbeOk());
         vo.setProbeAt(probeAtText(row.getLastProbeAt()));
-        vo.setParams(paramSummary(type, params));
+        vo.setParams(params);
         return vo;
     }
 
     /** 连接探测时间的下发口径：ISO-8601 文本，与实体时间字段的序列化结果一致；从未探测为空 */
     private String probeAtText(LocalDateTime probeAt) {
         return NullUtil.isNull(probeAt) ? null : probeAt.toString();
-    }
-
-    /** 密钥类参数是否都已配置 */
-    private boolean credentialsConfigured(StorageType type, Map<String, String> params) {
-        return StorageSourceDef.credentialKeys(type).stream()
-                .noneMatch(key -> StorageSourceDef.isBlank(params.get(key)));
-    }
-
-    /** 参数摘要：密钥类参数不进响应体，只由「已配置」标记体现 */
-    private Map<String, String> paramSummary(StorageType type, Map<String, String> params) {
-        if (NullUtil.isNull(type)) {
-            // 类型码值无法识别时认不出哪些参数是密钥，摘要整份不返回
-            return new LinkedHashMap<>();
-        }
-        Map<String, String> summary = new LinkedHashMap<>(params);
-        StorageSourceDef.credentialKeys(type).forEach(summary::remove);
-        return summary;
     }
 
     // ---------------- 数据源定义与行 ----------------
@@ -387,8 +369,8 @@ public class StorageSourceServiceImpl implements StorageSourceService {
         return NullUtil.isNull(type) ? null : type.getCode();
     }
 
-    private void audit(AuditActionType action, Long sourceId, String before, String after) {
-        kbAuditLogDbService.saveAudit(action, AUDIT_OBJECT_TYPE, sourceId, before, after);
+    private void audit(Long sourceId, String before, String after) {
+        kbAuditLogDbService.saveAudit(AuditActionType.STORAGE_SWITCH, AUDIT_OBJECT_TYPE, sourceId, before, after);
     }
 
     private boolean isEnabled(KbStorageSource row) {

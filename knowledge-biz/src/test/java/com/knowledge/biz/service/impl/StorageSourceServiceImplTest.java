@@ -34,6 +34,7 @@ import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -55,7 +56,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * 存储数据源服务单测：空表 seed / 未停用行注册与当前启用标记 / 回落注册 /
- * 清单的参数摘要与探测结论 / 切换预览不落库与目标的可用性校验 /
+ * 清单的连接参数与探测结论 / 切换预览不落库与目标的可用性校验 /
  * 切换的先清后置、探测回写、注册与审计。
  *
  * @author cxxl
@@ -232,10 +233,10 @@ class StorageSourceServiceImplTest {
         verify(storageRouter).markCurrent(any(Long.class));
     }
 
-    // ---------------- 清单与摘要 ----------------
+    // ---------------- 清单与参数 ----------------
 
     @Test
-    void listShouldMarkCurrentRegisteredAndHideCredentials() {
+    void listShouldMarkCurrentRegisteredAndReturnMinioParamsWithKeys() {
         KbStorageSource minio = row(LOCAL_ID, "演示 MinIO", StorageType.MINIO, minioParams(),
                 StorageSourceStatus.ENABLED, 1);
         minio.setLastProbeOk(true);
@@ -253,14 +254,32 @@ class StorageSourceServiceImplTest {
         assertTrue(vo.isCurrent());
         assertTrue(vo.isRegistered());
         assertTrue(vo.isConfigured());
-        assertTrue(vo.isCredentialConfigured());
         // 最近一次探测结论随行下发，清单本身不做实时探测
         assertEquals(true, vo.getProbeOk());
         assertEquals("2026-10-09T10:30:15.123", vo.getProbeAt());
-        // 参数摘要不含密钥明文，密钥只体现为「已配置」标记
+        // 连接参数齐全：minio 行的键集合含两个密钥键
+        assertEquals(Set.of(StorageSourceDef.KEY_ENDPOINT, StorageSourceDef.KEY_ACCESS_KEY,
+                StorageSourceDef.KEY_SECRET_KEY, StorageSourceDef.KEY_FILE_BUCKET,
+                StorageSourceDef.KEY_ARTIFACT_BUCKET), vo.getParams().keySet());
+        // 密钥键与值都随参数下发
+        assertEquals("ak", vo.getParams().get(StorageSourceDef.KEY_ACCESS_KEY));
+        assertEquals("sk", vo.getParams().get(StorageSourceDef.KEY_SECRET_KEY));
         assertEquals("http://127.0.0.1:1", vo.getParams().get(StorageSourceDef.KEY_ENDPOINT));
-        assertFalse(vo.getParams().containsKey(StorageSourceDef.KEY_ACCESS_KEY));
-        assertFalse(vo.getParams().containsKey(StorageSourceDef.KEY_SECRET_KEY));
+    }
+
+    @Test
+    void listShouldReturnLocalParamsWithFullKeySet() {
+        KbStorageSource local = row(LOCAL_ID, "本地磁盘", StorageType.LOCAL,
+                localParams(root.resolve("local-full").toString()), StorageSourceStatus.ENABLED, 0);
+        when(storageSourceDbService.listAll()).thenReturn(List.of(local));
+
+        StorageSourceVO vo = service.list().getFirst();
+
+        // local 行没有密钥键，键集合就是三个目录参数
+        assertEquals(Set.of(StorageSourceDef.KEY_ROOT_DIR, StorageSourceDef.KEY_FILE_DIR,
+                StorageSourceDef.KEY_ARTIFACT_DIR), vo.getParams().keySet());
+        assertEquals("files", vo.getParams().get(StorageSourceDef.KEY_FILE_DIR));
+        assertEquals("artifacts", vo.getParams().get(StorageSourceDef.KEY_ARTIFACT_DIR));
     }
 
     @Test
@@ -300,7 +319,6 @@ class StorageSourceServiceImplTest {
         StorageSourceVO vo = service.list().getFirst();
 
         assertFalse(vo.isConfigured());
-        assertFalse(vo.isCredentialConfigured());
         assertFalse(vo.isCurrent());
     }
 

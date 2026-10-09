@@ -27,10 +27,10 @@ public record StorageSourceDef(Long id, String name, StorageType type, Map<Strin
     /** MinIO 服务端点参数名 */
     public static final String KEY_ENDPOINT = "endpoint";
 
-    /** MinIO 访问密钥参数名（密钥类：接口不回显） */
+    /** MinIO 访问密钥参数名 */
     public static final String KEY_ACCESS_KEY = "accessKey";
 
-    /** MinIO 私有密钥参数名（密钥类：接口不回显） */
+    /** MinIO 私有密钥参数名 */
     public static final String KEY_SECRET_KEY = "secretKey";
 
     /** MinIO 文件对象桶名参数名 */
@@ -47,9 +47,6 @@ public record StorageSourceDef(Long id, String name, StorageType type, Map<Strin
 
     /** 本地磁盘内容寻址对象目录名参数名 */
     public static final String KEY_ARTIFACT_DIR = "artifactDir";
-
-    /** MinIO 密钥类参数（接口不回显明文） */
-    private static final List<String> MINIO_CREDENTIALS = List.of(KEY_ACCESS_KEY, KEY_SECRET_KEY);
 
     /** MinIO 必填参数 */
     private static final List<String> MINIO_REQUIRED =
@@ -114,19 +111,6 @@ public record StorageSourceDef(Long id, String name, StorageType type, Map<Strin
         return switch (type) {
             case MINIO -> MINIO_REQUIRED;
             case LOCAL -> LOCAL_REQUIRED;
-        };
-    }
-
-    /**
-     * 该类型的密钥类参数名（接口不回显明文）。
-     *
-     * @param type 存储类型
-     * @return 密钥类参数名清单；该类型无密钥类参数时为空列表
-     */
-    public static List<String> credentialKeys(StorageType type) {
-        return switch (type) {
-            case MINIO -> MINIO_CREDENTIALS;
-            case LOCAL -> List.of();
         };
     }
 

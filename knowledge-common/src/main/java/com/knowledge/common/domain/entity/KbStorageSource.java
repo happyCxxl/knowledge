@@ -36,7 +36,7 @@ public class KbStorageSource extends BaseInfo {
     /** 存储类型（StorageType 枚举码：minio / local） */
     private String storageType;
 
-    /** 连接参数（JSON，按类型定义；含密钥，接口不回显明文） */
+    /** 连接参数（JSON，按类型定义；含密钥） */
     private String configJson;
 
     /** 是否当前启用：1 是 / 0 否 */
