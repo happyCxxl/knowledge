@@ -351,7 +351,7 @@ const navItems: NavItem[] = [
   },
   {
     kind: 'leaf',
-    // 系统设置：平台级开关，第一个区块是存储类型切换
+    // 系统设置：平台级开关，登录用户都能进；页面内各设置卡按权限自行决定是否渲染
     label: '系统设置',
     path: '/settings',
     iconPaths: [
@@ -360,7 +360,6 @@ const navItems: NavItem[] = [
       'M5.5 2.9 8 5.4 5.5 7.9 3 5.4Z',
       'M11.5 9.3 14 11.8 11.5 14.3 9 11.8Z',
     ],
-    adminOnly: true,
   },
   {
     kind: 'leaf',

@@ -16,15 +16,13 @@ export interface StorageSourceVO {
   current: boolean;
   /** 必填参数是否齐全 */
   configured: boolean;
-  /** 密钥类参数是否已配置 */
-  credentialConfigured: boolean;
   /** 是否已注册进运行时路由（未停用且参数齐全） */
   registered: boolean;
   /** 最近一次连接探测的结果；null 表示从未探测过 */
   probeOk: boolean | null;
   /** 最近一次连接探测的时间 */
   probeAt: string | null;
-  /** 参数摘要：密钥类参数不在其中 */
+  /** 全部参数：键值对含密钥类参数 */
   params: Record<string, string>;
 }
 

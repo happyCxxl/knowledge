@@ -3,7 +3,7 @@ import type { StorageSourceSwitchVO, StorageSourceVO } from '@/types/system';
 
 /** 系统设置接口（仅管理员） */
 
-/** 查询存储源清单：含参数摘要与运行时接入标记，不探活 */
+/** 查询存储源清单：含全部参数与运行时接入标记，不探活 */
 export async function getStorageSourceList(): Promise<StorageSourceVO[]> {
   const response = await http.get<StorageSourceVO[]>('/system/storage-sources');
   return response.data;

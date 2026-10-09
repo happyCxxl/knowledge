@@ -3,84 +3,85 @@
     <div class="page-head">
       <div>
         <h1 class="page-title">系统设置</h1>
+        <p class="page-desc">管理你的系统通用设置</p>
       </div>
     </div>
 
     <div class="setting-body">
-      <section class="setting-card">
-        <h2 class="setting-card-title">文件服务写入后端</h2>
+      <!-- 设置卡容器：卡片依次排列，一行放不下换行；卡片尺寸取容器上的两个尺寸变量 -->
+      <div class="setting-cards">
+        <!-- 存储源卡：仅管理员可改 -->
+        <section v-if="authStore.isAdmin" class="setting-card">
+          <h2 class="setting-card-title">存储源</h2>
 
-        <!-- 启用入口：下拉只列已启用的存储源，选中项就是当前项时按钮置灰 -->
-        <div class="setting-pick">
-          <span class="setting-field-label">存储源</span>
-          <el-select
-            v-model="pickedId"
-            class="setting-select"
-            placeholder="暂无启用的存储源"
-            :disabled="enabledSources.length === 0"
-          >
-            <el-option
-              v-for="source in enabledSources"
-              :key="source.id"
-              :label="sourceLabel(source)"
-              :value="source.id"
-            />
-          </el-select>
-          <button
-            class="setting-btn-primary"
-            type="button"
-            :disabled="enableDisabled"
-            @click="handleEnable"
-          >
-            {{ enableLabel }}
-          </button>
-        </div>
-
-        <!-- 当前启用块：内嵌浅底面板，随内容撑开，字段多时面板内滚动 -->
-        <div class="setting-panel">
-          <div class="setting-panel-head">
-            <span class="setting-panel-k">当前启用</span>
-            <template v-if="currentSource !== null">
-              <span class="setting-panel-name">{{ currentSource.name }}</span>
-              <span class="setting-spacer"></span>
-              <span
-                class="setting-chip"
-                :class="{
-                  'is-warn': sourceStateTone(currentSource) === 'warn',
-                  'is-mute': sourceStateTone(currentSource) === 'mute',
-                }"
-                :title="sourceStateTitle(currentSource)"
-              >
-                {{ sourceStateText(currentSource) }}
-              </span>
-            </template>
+          <!-- 启用入口：下拉只列已启用的存储源，选中项就是当前项时按钮置灰 -->
+          <div class="setting-pick">
+            <span class="setting-field-label">存储源</span>
+            <el-select
+              v-model="pickedId"
+              class="setting-select"
+              placeholder="暂无启用的存储源"
+              :disabled="enabledSources.length === 0"
+            >
+              <el-option
+                v-for="source in enabledSources"
+                :key="source.id"
+                :label="sourceLabel(source)"
+                :value="source.id"
+              />
+            </el-select>
+            <button
+              class="setting-btn-primary"
+              type="button"
+              :disabled="enableDisabled"
+              @click="handleEnable"
+            >
+              {{ enableLabel }}
+            </button>
           </div>
-          <div class="setting-panel-body">
-            <p v-if="currentSource === null" class="setting-empty">
-              {{ loading ? '加载中…' : '暂无启用的存储源' }}
-            </p>
-            <template v-else>
-              <div class="setting-kv">
-                <span class="setting-kv-k">类型</span>
-                <span class="setting-kv-v">
-                  {{ currentSource.storageTypeName }}
-                  <span class="setting-mono setting-type-code">{{
-                    currentSource.storageType
-                  }}</span>
+
+          <!-- 当前启用块：内嵌浅底面板，撑满卡片剩余高度，字段多时面板内滚动 -->
+          <div class="setting-panel">
+            <div class="setting-panel-head">
+              <span class="setting-panel-k">当前启用</span>
+              <template v-if="currentSource !== null">
+                <span class="setting-panel-name">{{ currentSource.name }}</span>
+                <span class="setting-spacer"></span>
+                <span
+                  class="setting-chip"
+                  :class="{
+                    'is-warn': sourceStateTone(currentSource) === 'warn',
+                    'is-mute': sourceStateTone(currentSource) === 'mute',
+                  }"
+                  :title="sourceStateTitle(currentSource)"
+                >
+                  {{ sourceStateLabel(currentSource) }}
                 </span>
-              </div>
-              <div v-if="currentSource.credentialConfigured" class="setting-kv">
-                <span class="setting-kv-k">密钥</span>
-                <span class="setting-kv-v is-dim">已配置</span>
-              </div>
-              <div v-for="entry in paramEntries" :key="entry.label" class="setting-kv">
-                <span class="setting-kv-k">{{ entry.label }}</span>
-                <span class="setting-kv-v setting-mono">{{ entry.value }}</span>
-              </div>
-            </template>
+              </template>
+            </div>
+            <div class="setting-panel-body">
+              <p v-if="currentSource === null" class="setting-empty">
+                {{ loading ? '加载中…' : '暂无启用的存储源' }}
+              </p>
+              <template v-else>
+                <div class="setting-kv">
+                  <span class="setting-kv-k">类型</span>
+                  <span class="setting-kv-v">
+                    {{ currentSource.storageTypeName }}
+                  </span>
+                </div>
+                <div v-for="entry in paramEntries" :key="entry.label" class="setting-kv">
+                  <span class="setting-kv-k">{{ entry.label }}</span>
+                  <span class="setting-kv-v setting-mono">{{ entry.value }}</span>
+                </div>
+              </template>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      </div>
+
+      <!-- 空态：非管理员没有可改的设置卡片，在卡片容器外显示一行灰字 -->
+      <p v-if="!authStore.isAdmin" class="setting-empty">暂无你可以修改的设置</p>
     </div>
 
     <!-- 启用确认：先取影响面，确认后才真正切换 -->
@@ -130,14 +131,20 @@ import {
   getStorageSourceList,
   updateStorageSourceCurrent,
 } from '@/api/system';
+import { useAuthStore } from '@/stores/auth';
 import type { StorageSourceSwitchVO, StorageSourceVO } from '@/types/system';
 import { formatDate, formatTime } from '@/utils/date';
 
-// 系统设置：一张卡管文件服务的写入后端；启用走两步 —— 先取影响面，确认后再切换
+// 系统设置：设置卡的容器；存储源卡管文件服务的写入后端，启用走两步 —— 先取影响面，确认后再切换
+
+// 登录用户状态：设置卡可见性与清单请求都按角色判定
+const authStore = useAuthStore();
 
 /** 参数键的展示名：只覆盖已知键，未知键显示原始键 */
 const PARAM_LABELS = new Map<string, string>([
   ['endpoint', '服务端点'],
+  ['accessKey', '访问密钥'],
+  ['secretKey', '私有密钥'],
   ['fileBucket', '文件桶'],
   ['artifactBucket', '产物桶'],
   ['rootDir', '根目录'],
@@ -162,7 +169,7 @@ const pickedIsCurrent = computed(
   () => pickedId.value !== '' && pickedId.value === currentSource.value?.id,
 );
 
-/** 当前启用存储源的参数摘要：键换成展示名，密钥类参数不在其中 */
+/** 当前启用存储源的全部参数：键换成展示名，含密钥类参数；参数值只在参数行内渲染 */
 const paramEntries = computed(() =>
   Object.entries(currentSource.value?.params ?? {}).map(([key, value]) => ({
     label: paramLabel(key),
@@ -179,31 +186,7 @@ const enableDisabled = computed(
 );
 
 /**
- * 行的状态文案：四态结论，带最近一次探测时间。
- *
- * @param source 清单里的存储源
- * @returns 已接入、连接失败、未测试或未接入，附探测时间
- */
-function sourceStateText(source: StorageSourceVO): string {
-  const label = sourceStateLabel(source);
-  if (source.probeAt === null) {
-    return label;
-  }
-  return `${label} · 最近探测 ${probeStamp(source.probeAt)}`;
-}
-
-/**
- * 探测时间戳：yyyy-MM-dd 只留月日，拼成 MM-DD HH:mm。
- *
- * @param value 后端 ISO 时间
- * @returns 月日与时分
- */
-function probeStamp(value: string): string {
-  return `${formatDate(value).slice(5)} ${formatTime(value)}`;
-}
-
-/**
- * 行的状态文案：未注册进运行时读作未接入，注册后按最近一次连接探测的结论读。
+ * 四态结论：未注册进运行时读作未接入，注册后按最近一次连接探测的结果读。
  *
  * @param source 清单里的存储源
  * @returns 已接入、连接失败、未测试或未接入
@@ -219,7 +202,7 @@ function sourceStateLabel(source: StorageSourceVO): string {
 }
 
 /**
- * 行的状态色调：已接入绿点，连接失败黄点，未测试与未接入灰点。
+ * 状态色调：已接入绿点，连接失败黄点，未测试与未接入灰点。
  *
  * @param source 清单里的存储源
  * @returns ok、warn 或 mute
@@ -235,7 +218,7 @@ function sourceStateTone(source: StorageSourceVO): string {
 }
 
 /**
- * 行的状态悬停提示：连接失败时给出最近一次探测时间。
+ * 状态悬停提示：连接失败时给出最近一次探测时间。
  *
  * @param source 清单里的存储源
  * @returns 悬停提示
@@ -258,13 +241,13 @@ function paramLabel(key: string): string {
 }
 
 /**
- * 下拉选项文案：名称 + 类型码。
+ * 下拉选项文案：存储源名称。
  *
  * @param source 清单里的存储源
  * @returns 选项文案
  */
 function sourceLabel(source: StorageSourceVO): string {
-  return `${source.name} · ${source.storageType}`;
+  return source.name;
 }
 
 /** 取一次存储源清单；选中项不在候选里时回落到当前启用的存储源 */
@@ -273,7 +256,7 @@ async function loadSources(): Promise<void> {
   try {
     const list = await getStorageSourceList();
     sources.value = list;
-    const candidates = list.filter((item) => item.status === 'ENABLED');
+    const candidates = enabledSources.value;
     const kept = candidates.find((item) => item.id === pickedId.value);
     const current = candidates.find((item) => item.current);
     if (kept === undefined) {
@@ -321,14 +304,18 @@ async function confirmEnable(): Promise<void> {
 }
 
 onMounted(() => {
+  // 存储源接口仅管理员可用：非管理员进这个页面时不取清单
+  if (!authStore.isAdmin) {
+    return;
+  }
   void loadSources();
 });
 </script>
 
 <style scoped lang="css">
 /*
- * 页面骨架取自全局 styles/page-shell.css（根元素用 .page、标题用 .page-title）；
- * 卡片与卡内控件由本页私有类承载，卡片表面取值与个人中心的 .profile-card 同一套。
+ * 页面骨架用全局 styles/page-shell.css 的 .page / .page-head / .page-title / .page-desc；
+ * 卡片与卡内控件由本页私有类承载，卡片表面取值与 ProfileView.vue 的 .profile-card 同一套。
  */
 
 /* 卡片区：一屏放不下时只滚这里 */
@@ -338,12 +325,28 @@ onMounted(() => {
   overflow: auto;
 }
 
-/* 卡片：高度随内容，长到上限后卡内面板自己滚 */
+/*
+ * 设置卡的统一尺寸：所有设置卡片共用这一组固定宽高，新增卡片复用同一组变量，不各自设宽高。
+ * .setting-card 取这两个变量设 width / height 并自带 box-sizing: border-box，描边盒即 275×305。
+ */
+.setting-cards {
+  --setting-card-w: 275px;
+  --setting-card-h: 305px;
+
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-content: flex-start;
+}
+
+/* 卡片：盒子固定 275×305，内容只影响卡内面板（参数多时面板自己滚） */
 .setting-card {
   display: flex;
   flex-direction: column;
-  width: 390px;
-  max-height: 300px;
+  width: var(--setting-card-w);
+  height: var(--setting-card-h);
+  box-sizing: border-box;
+  overflow: hidden;
   padding: 14px 16px;
   border: 1px solid rgb(255 255 255 / 10%);
   border-radius: var(--kb-radius);
@@ -363,7 +366,7 @@ onMounted(() => {
   font-weight: 650;
 }
 
-/* 标题前的小色块：卡片的视觉锚点 */
+/* 标题前的小色块 */
 .setting-card-title::before {
   width: 6px;
   height: 6px;
@@ -391,7 +394,7 @@ onMounted(() => {
   flex: 1;
 }
 
-/* 文字控件统一字体栈：button 默认用系统字体，不写会与页面其它文字不一致 */
+/* 按钮文字：与页面其它文字同一套字体栈 */
 .setting-btn-primary,
 .setting-btn-ghost {
   font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
@@ -427,10 +430,10 @@ onMounted(() => {
   font-size: 12px;
 }
 
-/* 当前启用块：内嵌浅底面板，随内容撑开 */
+/* 当前启用块：内嵌浅底面板，撑满卡头与启用入口之后的剩余高度 */
 .setting-panel {
   display: flex;
-  flex: 1 1 auto;
+  flex: 1;
   flex-direction: column;
   gap: 10px;
   min-height: 0;
@@ -457,11 +460,11 @@ onMounted(() => {
   white-space: nowrap;
 }
 
-/* 名称：窄卡里长名称单行省略，状态胶囊不被挤出面板 */
+/* 名称：窄卡里长名称单行省略 */
 .setting-panel-name {
   min-width: 0;
   overflow: hidden;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -471,7 +474,7 @@ onMounted(() => {
   flex: 1;
 }
 
-/* 状态胶囊：描边小标签，点是四态结论的落点；文案单行不折 */
+/* 状态胶囊：描边小标签，左侧圆点按四态取色；文案单行不折 */
 .setting-chip {
   display: inline-flex;
   gap: 6px;
@@ -506,10 +509,10 @@ onMounted(() => {
   background: var(--kb-text-4);
 }
 
-/* 参数区：一行一项铺开，内容超出时面板内滚动 */
+/* 参数区：单列逐行铺开，撑满面板剩余高度；内容超出时面板内滚动，卡片尺寸不变 */
 .setting-panel-body {
   display: grid;
-  flex: 1 1 auto;
+  flex: 1;
   gap: 8px;
   align-content: start;
   min-height: 0;
@@ -545,17 +548,8 @@ onMounted(() => {
   white-space: nowrap;
 }
 
-.setting-kv-v.is-dim {
-  color: var(--kb-text-3);
-}
-
 .setting-mono {
   font-family: ui-monospace, 'JetBrains Mono', Consolas, monospace;
-}
-
-/* 类型码：跟在类型显示名之后，压暗一档 */
-.setting-type-code {
-  color: var(--kb-text-4);
 }
 
 /* 遮罩：铺满视口，点空白处关闭 */
