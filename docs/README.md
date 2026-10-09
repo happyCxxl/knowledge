@@ -2,13 +2,14 @@
 
 本文档是 `docs/` 的**唯一根文档**，承担两件事：说明页面文档怎么组织（含索引与维护约定）、记录跨所有页面的全局口径。页面独有的内容一律放在各自页面目录里，这里不复述。
 
-`docs/` 下有两类平行文档，按视角分开放：
+`docs/` 下有四类平行文档，按视角分开放：
 
-| 目录        | 视角                                       | 一个单元是什么                                    |
-|-------------|--------------------------------------------|---------------------------------------------------|
-| `pages/`    | 页面梳理：界面能做什么、调哪个接口、怎么验 | 一个功能单元（页面 / 路由），见下表页面索引       |
-| `stages/`   | 环节功能逻辑：管线内部怎么算、产出什么     | 一个执行链环节（解析 / 组装 / 预处理 / 切片 / …） |
-| `research/` | 市面方案对照与出处                         | 一份调研主题                                      |
+| 目录        | 视角                                                 | 一个单元是什么                                    |
+|-------------|------------------------------------------------------|---------------------------------------------------|
+| `pages/`    | 页面梳理：界面能做什么、调哪个接口、怎么验           | 一个功能单元（页面 / 路由），见下表页面索引       |
+| `stages/`   | 环节功能逻辑：管线内部怎么算、产出什么               | 一个执行链环节（解析 / 组装 / 预处理 / 切片 / …） |
+| `research/` | 市面方案对照与出处                                   | 一份调研主题                                      |
+| `design/`   | 方案设计与取舍：现状、目标态、备选方案对比与落地路径 | 一个议题                                          |
 
 环节文档只写环节内部的口径（流程、判定、契约、阈值），接口字段与页面交互留在 `pages/` 侧；两份文档互相引用，不复述同一段内容。
 
@@ -55,6 +56,7 @@
 | 07   | 策略管理                                            | `/strategy`                     | `../web/src/views/strategy/StrategyManagementView.vue`  | `StrategyVersionController`                                                                                                                                                                                                                                                                                | 待梳理 |
 | 08   | 用户管理（仅管理员）                                | `/user`                         | `../web/src/views/user/UserManagementView.vue`          | `UserController`                                                                                                                                                                                                                                                                                           | 待梳理 |
 | 09   | 个人中心                                            | `/profile`                      | `../web/src/views/profile/ProfileView.vue`              | `UserController`（个人信息与改密，仅本人）                                                                                                                                                                                                                                                                 | 已梳理 |
+| 10   | 系统设置（仅管理员）                                | `/settings`                     | `../web/src/views/system/SystemSettingView.vue`         | `StorageSourceController`（存储数据源：列举存储源并启用）                                                                                                                                                                                                                                                  | 已梳理 |
 
 顺序按用户使用动线排。一个路由里若装了互相独立的功能，会拆成多份文件；「Controller（初判）」是文件归属的初步判断，逐页梳理时以实际调用为准，可能修正。
 
@@ -69,6 +71,7 @@
 - 04-3 预处理环节 → `pages/预处理环节/README.md`
 - 04-4 切片环节 → `pages/切片环节/README.md`
 - 09 个人中心 → `pages/个人中心/README.md`
+- 10 系统设置 → `pages/系统设置/README.md`
 - 其余功能单元（04-0、05~08）梳理后在此补上
 
 ## 全局约定
@@ -95,44 +98,58 @@
 
 登记在 `../knowledge-common/src/main/java/com/knowledge/common/error/ErrorCode.java`，**新错误码必须在此登记**。分段：`40001` 参数、`401xx` 认证、`402xx` 限流、`404xx` 业务、`40500` 系统兜底。下表「默认提示语」列为源码中的原文，前端未给自定义消息时展示它。
 
-| code  | 常量                                   | 默认提示语                                         |
-|-------|----------------------------------------|----------------------------------------------------|
-| 40001 | `PARAM_INVALID`                        | 参数错误                                           |
-| 40101 | `UNAUTHORIZED`                         | 未认证或令牌无效                                   |
-| 40102 | `USERNAME_EXISTS`                      | 用户名已存在                                       |
-| 40103 | `LOGIN_FAILED`                         | 用户名或密码错误                                   |
-| 40104 | `FORBIDDEN`                            | 权限不足，无法访问该功能                           |
-| 40105 | `USER_NOT_FOUND`                       | 用户不存在                                         |
-| 40106 | `ROLE_INVALID`                         | 角色不合法                                         |
-| 40107 | `USER_SELF_OPERATION_FORBIDDEN`        | 不能对当前登录账号执行该操作                       |
-| 40108 | `LAST_ADMIN_FORBIDDEN`                 | 系统需保留至少一个启用的管理员账号                 |
-| 40109 | `USER_STATUS_INVALID`                  | 用户状态不合法                                     |
-| 40110 | `OLD_PASSWORD_MISMATCH`                | 当前密码不正确                                     |
-| 40111 | `LOGIN_TOO_FREQUENT`                   | 登录尝试过于频繁，请稍后再试                       |
-| 40201 | `RATE_LIMITED`                         | 请求过于频繁，请稍后再试                           |
-| 40401 | `KB_NOT_FOUND`                         | 知识库不存在                                       |
-| 40402 | `KB_STATUS_ILLEGAL`                    | 知识库状态不合法                                   |
-| 40410 | `FILE_NOT_FOUND`                       | 文件不存在                                         |
-| 40420 | `REQUEST_ID_MISSING`                   | 缺少幂等键                                         |
-| 40421 | `KB_NOT_ACTIVE`                        | 知识库未启用，不可提交文档                         |
-| 40431 | `TASK_ALREADY_PENDING`                 | 任务进行中，请勿重复触发                           |
-| 40432 | `FILE_RESULT_NOT_FOUND`                | 文件结果不存在                                     |
-| 40433 | `STRATEGY_VERSION_NOT_FOUND`           | 策略版本不存在或未启用                             |
-| 40434 | `EMBED_UPSTREAM_MISSING`               | 切片产物不存在，请先触发切片                       |
-| 40435 | `EMBED_MODEL_INCOMPATIBLE`             | 切片最大片长超过模型窗口，请更换模型或调整切片策略 |
-| 40437 | `PARSE_ALREADY_SUCCEEDED`              | 解析已成功或部分成功，无需再次触发                 |
-| 40441 | `INDEX_VERSION_NOT_FOUND`              | 索引版本不存在                                     |
-| 40442 | `INDEX_ONLINE_DELETE_FORBIDDEN`        | 在线发布版本禁止删除                               |
-| 40443 | `INDEX_BUILDING_CONFLICT`              | 该索引版本构建中，禁止重复操作                     |
-| 40444 | `INDEX_COMBO_INCOMPLETE`               | 组合产物不完整，无法构建                           |
-| 40446 | `INDEX_NOT_PUBLISHED`                  | 未发布任何索引版本                                 |
-| 40447 | `INDEX_COLLECTION_SCHEMA_MISMATCH`     | 索引集合结构与声明不一致，请重建集合               |
-| 40448 | `INDEX_COMBO_SNAPSHOT_LEGACY`          | 索引组合快照缺失环节策略维度，请废弃重灌后重试     |
-| 40449 | `INDEX_FROZEN_SCOPE_PUBLISH_FORBIDDEN` | 指定文件范围的评测冻结集禁止发布/回退              |
-| 40450 | `RETRIEVAL_RULE_NOT_FOUND`             | 检索规则不存在                                     |
-| 40451 | `RETRIEVAL_CAPABILITY_LOCKED`          | 该检索能力尚未启用                                 |
-| 40452 | `STRATEGY_BOUND_DELETE_FORBIDDEN`      | 策略已被知识库绑定，禁止删除（可停用代替）         |
-| 40500 | `SYSTEM_ERROR`                         | 系统异常，请稍后重试                               |
+| code  | 常量                                   | 默认提示语                                           |
+|-------|----------------------------------------|------------------------------------------------------|
+| 40001 | `PARAM_INVALID`                        | 参数错误                                             |
+| 40101 | `UNAUTHORIZED`                         | 未认证或令牌无效                                     |
+| 40102 | `USERNAME_EXISTS`                      | 用户名已存在                                         |
+| 40103 | `LOGIN_FAILED`                         | 用户名或密码错误                                     |
+| 40104 | `FORBIDDEN`                            | 权限不足，无法访问该功能                             |
+| 40105 | `USER_NOT_FOUND`                       | 用户不存在                                           |
+| 40106 | `ROLE_INVALID`                         | 角色不合法                                           |
+| 40107 | `USER_SELF_OPERATION_FORBIDDEN`        | 不能对当前登录账号执行该操作                         |
+| 40108 | `LAST_ADMIN_FORBIDDEN`                 | 系统需保留至少一个启用的管理员账号                   |
+| 40109 | `USER_STATUS_INVALID`                  | 用户状态不合法                                       |
+| 40110 | `OLD_PASSWORD_MISMATCH`                | 当前密码不正确                                       |
+| 40111 | `LOGIN_TOO_FREQUENT`                   | 登录尝试过于频繁，请稍后再试                         |
+| 40201 | `RATE_LIMITED`                         | 请求过于频繁，请稍后再试                             |
+| 40401 | `KB_NOT_FOUND`                         | 知识库不存在                                         |
+| 40402 | `KB_STATUS_ILLEGAL`                    | 知识库状态不合法                                     |
+| 40410 | `FILE_NOT_FOUND`                       | 文件不存在                                           |
+| 40420 | `REQUEST_ID_MISSING`                   | 缺少幂等键                                           |
+| 40421 | `KB_NOT_ACTIVE`                        | 知识库未启用，不可提交文档                           |
+| 40431 | `TASK_ALREADY_PENDING`                 | 任务进行中，请勿重复触发                             |
+| 40432 | `FILE_RESULT_NOT_FOUND`                | 文件结果不存在                                       |
+| 40433 | `STRATEGY_VERSION_NOT_FOUND`           | 策略版本不存在或未启用                               |
+| 40434 | `EMBED_UPSTREAM_MISSING`               | 切片产物不存在，请先触发切片                         |
+| 40435 | `EMBED_MODEL_INCOMPATIBLE`             | 切片最大片长超过模型窗口，请更换模型或调整切片策略   |
+| 40437 | `PARSE_ALREADY_SUCCEEDED`              | 解析已成功或部分成功，无需再次触发                   |
+| 40441 | `INDEX_VERSION_NOT_FOUND`              | 索引版本不存在                                       |
+| 40442 | `INDEX_ONLINE_DELETE_FORBIDDEN`        | 在线发布版本禁止删除                                 |
+| 40443 | `INDEX_BUILDING_CONFLICT`              | 该索引版本构建中，禁止重复操作                       |
+| 40444 | `INDEX_COMBO_INCOMPLETE`               | 组合产物不完整，无法构建                             |
+| 40446 | `INDEX_NOT_PUBLISHED`                  | 未发布任何索引版本                                   |
+| 40447 | `INDEX_COLLECTION_SCHEMA_MISMATCH`     | 索引集合结构与声明不一致，请重建集合                 |
+| 40448 | `INDEX_COMBO_SNAPSHOT_LEGACY`          | 索引组合快照缺失环节策略维度，请废弃重灌后重试       |
+| 40449 | `INDEX_FROZEN_SCOPE_PUBLISH_FORBIDDEN` | 指定文件范围的评测冻结集禁止发布/回退                |
+| 40450 | `RETRIEVAL_RULE_NOT_FOUND`             | 检索规则不存在                                       |
+| 40451 | `RETRIEVAL_CAPABILITY_LOCKED`          | 该检索能力尚未启用                                   |
+| 40452 | `STRATEGY_BOUND_DELETE_FORBIDDEN`      | 策略已被知识库绑定，禁止删除（可停用代替）           |
+| 40453 | `STORAGE_TYPE_MISMATCH`                | 任务所属数据源与当前启用的数据源不一致，无法继续执行 |
+| 40454 | `STORAGE_OBJECT_MISSING`               | 产物对象在所属存储中不存在                           |
+| 40455 | `STORAGE_BACKEND_UNCONFIGURED`         | 记录所属的存储后端未配置                             |
+| 40457 | `STORAGE_SOURCE_NOT_FOUND`             | 存储数据源不存在                                     |
+| 40458 | `STORAGE_SOURCE_ILLEGAL`               | 存储数据源状态不允许该操作                           |
+| 40459 | `STORAGE_SOURCE_PROBE_FAILED`          | 存储数据源连接失败                                   |
+| 40500 | `SYSTEM_ERROR`                         | 系统异常，请稍后重试                                 |
+
+**任务级错误码**（落在 `kb_pipeline_task.error_code`，与上表的接口码不是同一列）：各环节自己的码见各环节文档；跨环节的公共码有三条——
+
+| 码                      | 含义                                                                 |
+|-------------------------|----------------------------------------------------------------------|
+| `TASK_ENQUEUE_FAILED`   | 任务没排进队列（队列 / Redis 故障）；库里不留"排不上队"的 QUEUED     |
+| `EXECUTOR_TIMEOUT`      | 看门狗判死：执行超时或进程中断留下的孤儿任务                         |
+| `TASK_STORAGE_MISMATCH` | 链的数据源与当前启用的数据源不一致，产物写入被拒（五个环节都会出现） |
 
 ### 三、前端请求层
 
@@ -187,22 +204,22 @@
 
 ### 七、前后端契约的硬口径
 
-| 口径                  | 说明                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-|-----------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **Long 按阈值序列化** | `LongIdJsonConfig`：超过 JS 安全整数上界 `2^53-1` 的整数输出字符串，其余保持数字。雪花 ID 以字符串下发，计数 / 字节数 / 耗时 / 分页号仍是数字。前端把 ID 当字符串回传即可，Jackson 反序列化到 `Long` 能正确转换。                                                                                                                                                                                                                                                                                                                                                                               |
-| **逻辑删除**          | `BaseInfo.delFlag` 带 `@TableLogic(value = DelFlag.Code.NORMAL, delval = DelFlag.Code.DELETED)`，MyBatis-Plus 自动为查询补 `del_flag = '0'`；删除是 UPDATE，不是 DELETE。码值只在 `DelFlag` 里定义一处（`NORMAL` / `DELETED`，写入取 `getCode()`、判定走 `isDeleted(...)`），业务代码统一走枚举。                                                                                                                                                                                                                                                                                               |
-| **公共字段自动填充**  | `KnowledgeMetaObjectHandler` 填 `del_flag`、`create_by`、`create_time`、`update_by`、`update_time`；`create_by` / `update_by` 取当前认证用户名，**无认证上下文时（如注册）为 null**。                                                                                                                                                                                                                                                                                                                                                                                                           |
-| **主键**              | 雪花算法，`@TableId(type = IdType.ASSIGN_ID)`，由应用生成后显式插入。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| **分页**              | 请求参数 `current`（默认 1）、`size`（默认 10）；响应是 MyBatis-Plus 的 `IPage<T>`，前端对应 `PageResult<T>`（`records` / `total` / `size` / `current` / `pages`）。                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| **密码规则**          | 新密码长度统一 **8-10 位**：注册、管理员新增、管理员重置、本人改密四处同一口径。登录不做长度校验，存量短密码仍可登录。                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| **码值走枚举**        | 业务代码不写码值字面量：用户状态用 `UserStatus`（1 启用 / 0 停用，前端 `USER_STATUS`）、用户角色用 `UserRole`（ADMIN / USER）、知识库状态用 `KnowledgeBaseStatus`。`of()` 解析空值或未知码值时，**写路径抛业务错误码、读路径按最保守语义处理**。                                                                                                                                                                                                                                                                                                                                                |
-| **接口文档**          | springdoc 注解（`@Operation` / `@Parameter` / `@Tag`）写在 Controller 上；查询参数成组时收进共享查询对象（`PageQueryDto` / `StageTriggerQueryDto` / `StageDetailQueryDto`）并用 `@ParameterObject` 展开；`/swagger-ui.html` 与 `/v3/api-docs/**` 免登录。                                                                                                                                                                                                                                                                                                                                       |
-| **幂等键**            | 提交类写接口用 `requestId` 做幂等：**一次提交一个**（提交端生成，通常 UUID），**同一次提交的重试沿用同一个值、换一次提交换新值**；服务端靠 `kb_submit_log.request_id` 唯一约束 + 查重回放实现（同键重复到达返回首次记录，不重复落库；并发撞唯一键也转回放而不是报错）。它**不是按业务对象去重的手段**：同一份文件重新上传会拿到新的 fileId（`MinioFileStorage.store` 每次 `IdWorker.getIdStr()`），对系统而言就是两份文件、应当各建一条档案 —— 把键写成"文件名 + 大小 + 修改时间"之类的文件指纹，会让再导入静默变成幂等回放（界面显示成功、实际未建档）。为空报 `REQUEST_ID_MISSING`（40420）。 |
+| 口径                  | 说明                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+|-----------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Long 按阈值序列化** | `LongIdJsonConfig`：超过 JS 安全整数上界 `2^53-1` 的整数输出字符串，其余保持数字。雪花 ID 以字符串下发，计数 / 字节数 / 耗时 / 分页号仍是数字。前端把 ID 当字符串回传即可，Jackson 反序列化到 `Long` 能正确转换。                                                                                                                                                                                                                                                                                                                                                                                   |
+| **逻辑删除**          | `BaseInfo.delFlag` 带 `@TableLogic(value = DelFlag.Code.NORMAL, delval = DelFlag.Code.DELETED)`，MyBatis-Plus 自动为查询补 `del_flag = '0'`；删除是 UPDATE，不是 DELETE。码值只在 `DelFlag` 里定义一处（`NORMAL` / `DELETED`，写入取 `getCode()`、判定走 `isDeleted(...)`），业务代码统一走枚举。                                                                                                                                                                                                                                                                                                   |
+| **公共字段自动填充**  | `KnowledgeMetaObjectHandler` 填 `del_flag`、`create_by`、`create_time`、`update_by`、`update_time`；`create_by` / `update_by` 取当前认证用户名，**无认证上下文时（如注册）为 null**。                                                                                                                                                                                                                                                                                                                                                                                                               |
+| **主键**              | 雪花算法，`@TableId(type = IdType.ASSIGN_ID)`，由应用生成后显式插入。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| **分页**              | 请求参数 `current`（默认 1）、`size`（默认 10）；响应是 MyBatis-Plus 的 `IPage<T>`，前端对应 `PageResult<T>`（`records` / `total` / `size` / `current` / `pages`）。                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| **密码规则**          | 新密码长度统一 **8-10 位**：注册、管理员新增、管理员重置、本人改密四处同一口径。登录不做长度校验，存量短密码仍可登录。                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| **码值走枚举**        | 业务代码不写码值字面量：用户状态用 `UserStatus`（1 启用 / 0 停用，前端 `USER_STATUS`）、用户角色用 `UserRole`（ADMIN / USER）、知识库状态用 `KnowledgeBaseStatus`。`of()` 解析空值或未知码值时，**写路径抛业务错误码、读路径按最保守语义处理**。                                                                                                                                                                                                                                                                                                                                                    |
+| **接口文档**          | springdoc 注解（`@Operation` / `@Parameter` / `@Tag`）写在 Controller 上；查询参数成组时收进共享查询对象（`PageQueryDto` / `StageTriggerQueryDto` / `StageDetailQueryDto`）并用 `@ParameterObject` 展开；`/swagger-ui.html` 与 `/v3/api-docs/**` 免登录。                                                                                                                                                                                                                                                                                                                                           |
+| **幂等键**            | 提交类写接口用 `requestId` 做幂等：**一次提交一个**（提交端生成，通常 UUID），**同一次提交的重试沿用同一个值、换一次提交换新值**；服务端靠 `kb_submit_log.request_id` 唯一约束 + 查重回放实现（同键重复到达返回首次记录，不重复落库；并发撞唯一键也转回放而不是报错）。它**不是按业务对象去重的手段**：同一份文件重新上传会拿到新的 fileId（`DefaultFileStorage.putFile` 每次 `IdWorker.getIdStr()`），对系统而言就是两份文件、应当各建一条档案 —— 把键写成"文件名 + 大小 + 修改时间"之类的文件指纹，会让再导入静默变成幂等回放（界面显示成功、实际未建档）。为空报 `REQUEST_ID_MISSING`（40420）。 |
 
 ### 八、开发期联调
 
 - 前端 dev server：`127.0.0.1:5173`（Vite）；后端：`localhost:4388`。
-- 跨域靠 Vite 代理（`../web/vite.config.ts`），已配置前缀：`/auth`、`/files`、`/file-results`、`/knowledge-base`、`/strategy-versions`、`^/user/`、`^/home/`。
+- 跨域靠 Vite 代理（`../web/vite.config.ts`），已配置前缀：`/auth`、`/files`、`/file-results`、`/knowledge-base`、`/strategy-versions`、`/system`、`^/user/`、`^/home/`。
 - **`/knowledge-base`、`/home`、`/user` 既是 SPA 路由又是接口前缀**，靠 `bypass` 按 `Accept` 头区分：含 `text/html` 的导航请求交回 SPA 回退，接口请求才转发后端。
 - 新增接口前缀必须同时加代理。漏加时代理不生效：请求落到 SPA 回退，前端拿到 HTML、页面数据全空，**控制台不报错**。
 
@@ -224,6 +241,7 @@
 | 二级 | 知识库管理 | `/knowledge-base` | 全部     |
 | 二级 | 策略管理   | `/strategy`       | 全部     |
 | 一级 | 用户管理   | `/user`           | 仅管理员 |
+| 一级 | 系统设置   | `/settings`       | 仅管理员 |
 | 一级 | 个人中心   | `/profile`        | 全部     |
 
 - 下钻页（`/knowledge-base/:id/stages`、`.../index`、`.../retrieval`）**不单独占菜单项**，归到二级「知识库管理」下点亮。
@@ -266,3 +284,4 @@
 | `research/预处理环节-开源方案调研.md` | 预处理环节的市面做法对照与本轮审计映射（含核实后不成立的项）与出处     |
 | `stages/切片环节/README.md`           | 切片环节的环节定位、代码索引与待定项；主体见同目录 `01-功能逻辑.md`    |
 | `research/切片环节-开源方案调研.md`   | 切片环节的市面做法对照（Unstructured / Docling 已展开核对）与审计映射  |
+| `design/对象存储多后端-方案对比.md`   | 对象存储多后端的现状、根因、目标态、方案对比与落地路径                 |
