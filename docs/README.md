@@ -56,7 +56,7 @@
 | 07   | 策略管理                                            | `/strategy`                     | `../web/src/views/strategy/StrategyManagementView.vue`  | `StrategyVersionController`                                                                                                                                                                                                                                                                                | 待梳理 |
 | 08   | 用户管理（仅管理员）                                | `/user`                         | `../web/src/views/user/UserManagementView.vue`          | `UserController`                                                                                                                                                                                                                                                                                           | 待梳理 |
 | 09   | 个人中心                                            | `/profile`                      | `../web/src/views/profile/ProfileView.vue`              | `UserController`（个人信息与改密，仅本人）                                                                                                                                                                                                                                                                 | 已梳理 |
-| 10   | 系统设置（仅管理员）                                | `/settings`                     | `../web/src/views/system/SystemSettingView.vue`         | `StorageSourceController`（存储数据源：列举存储源并启用）                                                                                                                                                                                                                                                  | 已梳理 |
+| 10   | 系统设置（所有用户可见，卡片按权限）                | `/settings`                     | `../web/src/views/system/SystemSettingView.vue`         | `StorageSourceController`（存储数据源：列举存储源并启用）                                                                                                                                                                                                                                                  | 已梳理 |
 
 顺序按用户使用动线排。一个路由里若装了互相独立的功能，会拆成多份文件；「Controller（初判）」是文件归属的初步判断，逐页梳理时以实际调用为准，可能修正。
 
@@ -234,15 +234,15 @@
 
 侧栏是**两级菜单**（`../web/src/layouts/AppLayout.vue` 的 `navItems`）：没有二级项的是一级叶子项，带二级项的是一级分组（自身不下钻，点标题开合）。当前结构：
 
-| 层级 | 菜单       | 路由              | 可见性   |
-|------|------------|-------------------|----------|
-| 一级 | 首页       | `/home`           | 全部     |
-| 一级 | 知识库     | 分组，无自身路由  | 全部     |
-| 二级 | 知识库管理 | `/knowledge-base` | 全部     |
-| 二级 | 策略管理   | `/strategy`       | 全部     |
-| 一级 | 用户管理   | `/user`           | 仅管理员 |
-| 一级 | 系统设置   | `/settings`       | 仅管理员 |
-| 一级 | 个人中心   | `/profile`        | 全部     |
+| 层级 | 菜单       | 路由              | 可见性                     |
+|------|------------|-------------------|----------------------------|
+| 一级 | 首页       | `/home`           | 全部                       |
+| 一级 | 知识库     | 分组，无自身路由  | 全部                       |
+| 二级 | 知识库管理 | `/knowledge-base` | 全部                       |
+| 二级 | 策略管理   | `/strategy`       | 全部                       |
+| 一级 | 用户管理   | `/user`           | 仅管理员                   |
+| 一级 | 系统设置   | `/settings`       | 全部（页内卡片按权限显示） |
+| 一级 | 个人中心   | `/profile`        | 全部                       |
 
 - 下钻页（`/knowledge-base/:id/stages`、`.../index`、`.../retrieval`）**不单独占菜单项**，归到二级「知识库管理」下点亮。
 - **新增一级模块**（提示词版本管理、Agent 对话等）在 `navItems` 里加一项：内容多就照「知识库」的样子加一个分组，只有一个页面就用叶子项。
