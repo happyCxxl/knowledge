@@ -64,6 +64,8 @@ public final class ParseStatsSupport {
             }
             unitCount = Math.max(unitCount, ObjectUtil.defaultIfNull(source.getUnitCount(), 0));
         }
+        // 正文口径 = PARAGRAPH + LIST + FIGURE_CAPTION；后两类是字典位，当前解析器不产出（计数恒 0），
+        // 留在口径里，图注与列表接入后不必再改统计
         int body = typeCount.getOrDefault(ElementType.PARAGRAPH.name(), 0)
                 + typeCount.getOrDefault(ElementType.LIST.name(), 0)
                 + typeCount.getOrDefault(ElementType.FIGURE_CAPTION.name(), 0);

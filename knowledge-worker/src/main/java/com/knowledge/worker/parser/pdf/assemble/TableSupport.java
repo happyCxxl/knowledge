@@ -41,7 +41,7 @@ final class TableSupport {
     static void degrade(List<PageLine> lines, PageContent page, List<ParseElement> elements,
                         ParseSource source, String fileId, String evidence) {
         ParseFact fact = new ParseFact();
-        fact.setType(SignalType.TABLE.name());
+        fact.setType(SignalType.TABLE);
         fact.setRegion("page " + page.pageNo());
         fact.setEvidence(evidence);
         source.getFacts().add(fact);

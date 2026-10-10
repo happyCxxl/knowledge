@@ -1,6 +1,5 @@
 package com.knowledge.biz.task;
 
-import cn.hutool.core.util.StrUtil;
 import com.knowledge.biz.service.db.KbPipelineProductDbService;
 import com.knowledge.biz.service.db.KbPipelineTaskDbService;
 import com.knowledge.common.domain.entity.KbPipelineProduct;
@@ -74,7 +73,7 @@ public class StructureTaskRunner {
             } catch (Exception e) {
                 log.warn("读取上游解析产物失败, taskId={}, artifactId={}", taskId, parseProduct.getArtifactId(), e);
                 finishFailed(taskId, PipelineTaskErrorCode.STRUCTURE_UPSTREAM_UNREADABLE.name(),
-                        "上游解析产物读取失败: " + failureText(e));
+                        "上游解析产物读取失败: " + TaskRunnerSupport.failureText(e));
                 return;
             }
             if (NullUtil.isNull(parseResult)) {
@@ -96,7 +95,7 @@ public class StructureTaskRunner {
                     this::finishFailed);
         } catch (Exception e) {
             log.error("组装任务执行异常, taskId={}", taskId, e);
-            finishFailed(taskId, errorCodeOf(e), failureText(e));
+            finishFailed(taskId, errorCodeOf(e), TaskRunnerSupport.failureText(e));
         }
     }
 
@@ -111,16 +110,6 @@ public class StructureTaskRunner {
     /** 上游缺失判定：产物所在文件或文件结果已经不存在 */
     private boolean isUpstreamMissing(ErrorCode errorCode) {
         return errorCode == ErrorCode.FILE_NOT_FOUND || errorCode == ErrorCode.FILE_RESULT_NOT_FOUND;
-    }
-
-    /** 失败文案：业务异常用它自己的原因；其它异常带类名；消息为空时退化为类名，不落 "null" */
-    private String failureText(Exception e) {
-        String message = StrUtil.trimToNull(e.getMessage());
-        if (e instanceof KnowledgeException) {
-            return NullUtil.isNull(message) ? e.getClass().getSimpleName() : message;
-        }
-        return NullUtil.isNull(message) ? e.getClass().getSimpleName()
-                : e.getClass().getSimpleName() + ": " + message;
     }
 
     /** 上游解析产物解析：任务指定 upstreamProductId 优先，查不到或缺省回退该环节最新产物。 */

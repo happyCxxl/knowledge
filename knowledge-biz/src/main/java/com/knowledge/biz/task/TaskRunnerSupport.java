@@ -82,6 +82,21 @@ public final class TaskRunnerSupport {
     }
 
     /**
+     * 失败文案：业务异常用它自己的原因；其它异常带类名；消息为空时退化为类名（不落字面量 null）。
+     *
+     * @param e 执行器捕获到的异常
+     * @return 落库用的失败原因
+     */
+    public static String failureText(Exception e) {
+        String message = StrUtil.trimToNull(e.getMessage());
+        if (e instanceof KnowledgeException) {
+            return NullUtil.isNull(message) ? e.getClass().getSimpleName() : message;
+        }
+        return NullUtil.isNull(message) ? e.getClass().getSimpleName()
+                : e.getClass().getSimpleName() + ": " + message;
+    }
+
+    /**
      * 失败回写：把任务置 FAILED 并落失败原因（原因统一截断到 {@value #MAX_ERROR_MESSAGE_LENGTH} 字符，
      * 空串按 null 落库）。
      *

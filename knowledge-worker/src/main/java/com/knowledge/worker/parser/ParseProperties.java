@@ -33,9 +33,6 @@ public class ParseProperties {
     /** 图片页判定：文本 bbox 面积 ÷ 页面面积 */
     private double textAreaRatioThreshold = 0.05;
 
-    /** 版面异常判定：同一行带内 y 差 ÷ 行高 */
-    private double layoutYTolerance = 0.3;
-
     /** 成功单元占比门槛（≥90% PARTIAL_SUCCESS，<90% FAILED） */
     private double successUnitRatio = 0.9;
 

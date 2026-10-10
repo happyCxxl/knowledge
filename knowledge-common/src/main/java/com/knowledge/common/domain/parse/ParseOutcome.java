@@ -18,7 +18,7 @@ public class ParseOutcome extends StageOutcome {
     /** 解析结果封装（写产物存储的 JSON 本体） */
     private ParseResult parseResult;
 
-    /** 判定单元总数（PDF 页数 / Excel sheet 数 / Word 恒 1） */
+    /** 判定单元总数（PDF 页数 / Excel sheet 数 / Word 按 officePageChars 折算的虚拟单元数） */
     private int unitCount;
 
     /** 失败单元数（参与 90% 门槛） */

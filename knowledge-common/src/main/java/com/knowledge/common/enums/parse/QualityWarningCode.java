@@ -28,7 +28,7 @@ public enum QualityWarningCode {
     /** 表格规则失败，区域降级为段落，不计失败 */
     TABLE_RULE_FALLBACK,
 
-    /** 版面规则失败，按顺序输出，不计失败 */
+    /** 版面规则失败，按顺序输出，不计失败（预留：当前无事实产出方，见 SignalType.LAYOUT） */
     LAYOUT_RULE_FALLBACK,
 
     // ---- 组装环节 ----

@@ -65,7 +65,7 @@ public abstract class AbstractPoiDocumentParser implements DocumentParserPort {
     /** 组装嵌入图片解析事实信号（OCR_IMAGE，图片仅引用无文字，由管线判定器汇总）。 */
     protected ParseFact fact(String region, String evidence) {
         ParseFact fact = new ParseFact();
-        fact.setType(SignalType.OCR_IMAGE.name());
+        fact.setType(SignalType.OCR_IMAGE);
         fact.setRegion(region);
         fact.setEvidence(evidence);
         return fact;

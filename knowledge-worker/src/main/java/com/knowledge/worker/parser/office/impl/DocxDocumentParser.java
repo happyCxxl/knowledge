@@ -102,7 +102,7 @@ public class DocxDocumentParser extends AbstractPoiDocumentParser {
                 index++;
             }
         } catch (Exception e) {
-            log.warn(kind.errorLog() + ", fileId={}", fileId, e);
+            log.warn("{}, fileId={}", kind.errorLog(), fileId, e);
         }
     }
 
@@ -136,6 +136,13 @@ public class DocxDocumentParser extends AbstractPoiDocumentParser {
             Double size = run.getFontSizeAsDouble();
             font.setSize(NullUtil.isNotNull(size) && size > 0 ? size : null);
             font.setBold(NullUtil.isNotNull(run.isBold()) ? run.isBold() : null);
+            // 无字体事实的 run（纯格式/换行/书签 run）不作为代表字体，继续找下一个：
+            // 未加粗的 run 给的是 false 而不是 null，故只有 true 才算一条字体事实
+            boolean hasFontFacts = NullUtil.isNotNull(font.getName()) || NullUtil.isNotNull(font.getSize())
+                    || Boolean.TRUE.equals(font.getBold());
+            if (!hasFontFacts) {
+                continue;
+            }
             element.setFont(font);
             break;
         }

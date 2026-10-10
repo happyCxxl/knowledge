@@ -62,30 +62,23 @@
 - **空白页与纯矢量页不区分**：无文本也无图片的页面一律按空白页处理（矢量图表页也在内）；是否用矢量覆盖再细分尚未决定。
 - **可打印 ASCII 乱码是盲区**：乱码判据只认替换字符 / 私用区 / 未分配码点，字体缺 ToUnicode 时错位出的 `ÿþ`、`¤` 这类合法码点会漏判；是否补文档级字符集偏离口径尚未决定。
 - **图片未识别告警逐张产**：`OCR_IMAGE` 事实按图片逐张产（PDF 与 Office 同口径），多图文档的告警条数会很多；是否按页 / 按文档聚合尚未决定。
-- **`CapabilitySnapshot` 能力项恒空**：产物字段、血缘与前端展示都已就位，解析器只写 `parserName` / `parserVersion`，`ocr` / `layout` / `table` 三项无人写入；接入能力前是否补「未接入」显式取值尚未决定。
-- **`ParseElement.headerRepeated` 无赋值点**：字段与下游读取（组装环节续表判定）都在，当前没有解析器写它；补写还是从契约移除尚未决定。
+- **`CapabilitySnapshot` 能力项恒空**：产物字段、血缘与前端展示都已就位，解析器只写 `parserName` / `parserVersion`，`ocr` / `layout` / `table` 三项无人写入 —— **取值口径已定**：三项为 `null` 即「未接入该能力」（`CapabilitySnapshot` 类注释即契约），能力接入后由 provider 回填。
+- **`ParseElement.headerRepeated` 无赋值点**：字段与下游读取（组装环节续表判定）都在，字段注释已标明当前无解析器赋值；补写还是从契约移除需与组装环节一起定。
 - **分栏能力只到端口、没有实现选择**：`PageLayoutAnalyzer` 当前只有投影法规则实现，没有按开关切换实现的能力；是否补注册表同范式的实现选择尚未决定。PDFBox 自带的文章线索（beads，仅当文件声明时存在）是否接入也尚未决定。
 - **Excel 公式的取值取向**：当前先求值、拿不到才回落文件里的缓存值，`NOW()` / `RAND()` 这类易变函数给出的是重新计算值而非保存时的显示值；是否改为缓存值优先尚未决定。
 - **`.xls` 公式的缓存值无法辨别**：HSSF 的公式记录总带一个数值缓存（从未计算过就是 0），与真实结果区分不开；是否对旧格式一律求值尚未决定。
 
 核对代码时读出的**注释与实现不一致、或行为未有定论**的点，记在这里待定（均以代码实现为准，文档按实现写）：
 
-| 位置                                                    | 现象                                                                                   | 待定                     |
-|---------------------------------------------------------|----------------------------------------------------------------------------------------|--------------------------|
-| `Signal.threshold`                                      | 注释写「触发阈值（实际值 vs 配置值）」，实现给指标信号填整段指标快照、给事实信号填 `-` | 改注释还是改载荷         |
-| `ParseProperties.layoutYTolerance`                      | 全仓库没有读写引用                                                                     | 接回版面异常判定还是移除 |
-| `SignalType.LAYOUT`                                     | 子类型与 handler 都在，没有任何解析器写这条事实                                        | 补产出方还是收掉         |
-| 降级告警文案                                            | 按「第 {region} …」拼接，region 自带 `page ` 前缀，渲染成「第 page 3 …」               | 是否统一 region 形态     |
-| `ParseSource.unitCount` / `ParseOutcome.unitCount` 注释 | 写「Word 恒 1」，实现按 `officePageChars` 折算虚拟单元                                 | 改注释还是改实现         |
-| `ParseSource.pageMetrics` 注释                          | 写「PDF 专用」，Office 两路实际也回填                                                  | 改注释                   |
-| Office 的 `textAreaRatio` / `imageAreaRatio`            | 恒 0，「文字占比低」这条疑似图片判据对 Office 永不成立                                 | 是否给 Office 补口径     |
-| Word 的图片归属                                         | 全档图片数全记在首个单元，不按位置归属                                                 | 是否按位置归属           |
-| Word 的单元字符预算                                     | 表格单元格文本与页眉页脚文本不进预算                                                   | 是否纳入                 |
-| `DocxDocumentParser.toDocxParagraphElement`             | 注释写「取首个有数据的 run」，实现是首个非 null run 即取                               | 改注释还是改实现         |
-| Excel 的 `isHeader` 与 `headerRow`                      | 数据首行不在第 0 行时，两者不自洽                                                      | 取值口径                 |
-| Excel 的 `cols`                                         | 取首行 `getLastCellNum`，未判该行是否为 null                                           | 是否补防护               |
-| 合并区被覆盖格 / `vMerge=continue` 格                   | 不产元素，其文本不进产物                                                               | 是否补文本               |
-| DOC 表格 `cols`、DOCX 与 DOC 的表头                     | `cols` 未设置；`headerRow` 恒 0，解析环节没有表头判定                                  | 是否补口径               |
-| DOC 段落、DOC 与 Excel 的页眉页脚                       | DOC 段落无 `style`、无 `tocCandidate`；DOC 与 Excel 不读页眉页脚                       | 是否补齐                 |
-| Excel 图片                                              | 不产事实、不置 `needsOcr`，图片文字未识别在信号层没有表示                              | 是否补                   |
-| `FallbackSupport.parsePage` 注释                        | 称「Word / Excel 无页概念」，实际 Office 已回填 1 基 `page` 并据此登记清单             | 改注释                   |
+| 位置                                         | 现象                                                                     | 待定                 |
+|----------------------------------------------|--------------------------------------------------------------------------|----------------------|
+| 降级告警文案                                 | 按「第 {region} …」拼接，region 自带 `page ` 前缀，渲染成「第 page 3 …」 | 是否统一 region 形态 |
+| Office 的 `textAreaRatio` / `imageAreaRatio` | 恒 0，「文字占比低」这条疑似图片判据对 Office 永不成立                   | 是否给 Office 补口径 |
+| Word 的图片归属                              | 全档图片数全记在首个单元，不按位置归属                                   | 是否按位置归属       |
+| Word 的单元字符预算                          | 表格单元格文本与页眉页脚文本不进预算                                     | 是否纳入             |
+| Excel 的 `isHeader` 与 `headerRow`           | 数据首行不在第 0 行时，两者不自洽                                        | 取值口径             |
+| Excel 的 `cols`                              | 取首行 `getLastCellNum`，未判该行是否为 null                             | 是否补防护           |
+| 合并区被覆盖格 / `vMerge=continue` 格        | 不产元素，其文本不进产物                                                 | 是否补文本           |
+| DOC 表格 `cols`、DOCX 与 DOC 的表头          | `cols` 未设置；`headerRow` 恒 0，解析环节没有表头判定                    | 是否补口径           |
+| DOC 段落、DOC 与 Excel 的页眉页脚            | DOC 段落无 `style`、无 `tocCandidate`；DOC 与 Excel 不读页眉页脚         | 是否补齐             |
+| Excel 图片                                   | 不产事实、不置 `needsOcr`，图片文字未识别在信号层没有表示                | 是否补               |

@@ -96,7 +96,7 @@ public class ParseTaskRunner {
         } catch (Exception e) {
             log.error("解析任务执行异常, taskId={}", taskId, e);
             finishFailed(taskId, TaskRunnerSupport.failureCode(e, PipelineTaskErrorCode.PARSE_FAILED),
-                    String.valueOf(e.getMessage()));
+                    TaskRunnerSupport.failureText(e));
         }
     }
 

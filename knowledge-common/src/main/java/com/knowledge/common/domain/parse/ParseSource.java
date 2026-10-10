@@ -17,7 +17,7 @@ import java.util.List;
 @Data
 public class ParseSource {
 
-    /** 路名：native / ocr / layout / table */
+    /** 路名（ParseSourceType 枚举值：native / ocr / layout / table；与事实类型 SignalType 同名的取值语义不同） */
     private String source;
 
     /** 具体解析器/提供方（如 pdfbox-3.0.4） */
@@ -29,13 +29,13 @@ public class ParseSource {
     /** 该路产出的元素列表 */
     private List<ParseElement> elements = new ArrayList<>();
 
-    /** 页级原始指标（PDF 专用；判定器按阈值转信号） */
+    /** 单元级原始指标（PDF 与 Office 都回填；判定器按阈值转信号） */
     private List<PageMetric> pageMetrics = new ArrayList<>();
 
     /** 解析期发现的事实信号（结构缺口/表格规则失败等；判定器汇总） */
     private List<ParseFact> facts = new ArrayList<>();
 
-    /** 判定单元总数（PDF 页数 / Excel sheet 数 / Word 恒 1；由解析器回填） */
+    /** 判定单元总数（PDF 页数 / Excel sheet 数 / Word 按 officePageChars 折算的虚拟单元数；由解析器回填） */
     private Integer unitCount;
 
     /** 页面尺寸（PDF 解析器回填；组装环节构建 UnifiedDocument.pages 的输入） */

@@ -26,6 +26,6 @@ public enum SignalSubtype {
     /** 表格规则失败：列对齐聚类失败，区域降级为段落 */
     TABLE_RULE_FAILED,
 
-    /** 版面规则失败：版面异常，按顺序输出 */
+    /** 版面规则失败：版面异常，按顺序输出（预留：当前无事实产出方，见 SignalType.LAYOUT） */
     LAYOUT_RULE_FAILED
 }

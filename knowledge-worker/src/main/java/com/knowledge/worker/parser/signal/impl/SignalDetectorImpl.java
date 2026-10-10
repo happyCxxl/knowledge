@@ -65,7 +65,10 @@ public class SignalDetectorImpl implements SignalDetector {
         // ② 解析事实 → 信号（表格规则失败 / 版面异常 / 结构缺口；子类型按事实类型推导）
         if (NullUtil.isNotNull(nativeSource.getFacts())) {
             for (ParseFact fact : nativeSource.getFacts()) {
-                signals.add(Signal.of(SignalType.valueOf(fact.getType()), fact.getRegion(), fact.getEvidence(), "-",
+                if (NullUtil.isNull(fact.getType())) {
+                    continue;
+                }
+                signals.add(Signal.of(fact.getType(), fact.getRegion(), fact.getEvidence(), "-",
                         subtypeOfFact(fact.getType())));
             }
         }
@@ -87,8 +90,8 @@ public class SignalDetectorImpl implements SignalDetector {
     }
 
     /** 解析事实类型 → 信号子类型（OCR_IMAGE 事实均为嵌入图片；无对应子类型返回 null）。 */
-    private SignalSubtype subtypeOfFact(String factType) {
-        return switch (SignalType.valueOf(factType)) {
+    private SignalSubtype subtypeOfFact(SignalType factType) {
+        return switch (factType) {
             case OCR_IMAGE -> SignalSubtype.IMAGE_EMBEDDED;
             case TABLE -> SignalSubtype.TABLE_RULE_FAILED;
             case LAYOUT -> SignalSubtype.LAYOUT_RULE_FAILED;

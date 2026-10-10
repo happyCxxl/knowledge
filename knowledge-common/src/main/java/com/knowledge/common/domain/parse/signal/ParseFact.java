@@ -1,5 +1,6 @@
 package com.knowledge.common.domain.parse.signal;
 
+import com.knowledge.common.enums.parse.SignalType;
 import lombok.Data;
 
 /**
@@ -12,8 +13,8 @@ import lombok.Data;
 @Data
 public class ParseFact {
 
-    /** 事实类型（与 SignalType 同名语义：OCR_TEXT/OCR_IMAGE/TABLE/LAYOUT） */
-    private String type;
+    /** 事实类型：该事实转成的信号类型（SignalType 枚举，由解析器回填；为空时判定器忽略该事实） */
+    private SignalType type;
 
     /** 区域描述（页/元素引用） */
     private String region;

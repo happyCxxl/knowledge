@@ -262,6 +262,31 @@ class DocxDocumentParserTest {
         }
     }
 
+    @Test
+    void paragraphFontShouldComeFromFirstRunWithFontFacts() throws Exception {
+        byte[] data;
+        try (XWPFDocument doc = new XWPFDocument()) {
+            XWPFParagraph paragraph = doc.createParagraph();
+            XWPFRun plain = paragraph.createRun();
+            plain.setText("无字体事实的 run");
+            XWPFRun styled = paragraph.createRun();
+            styled.setText("带字体事实的 run");
+            styled.setFontSize(14.0);
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            doc.write(out);
+            data = out.toByteArray();
+        }
+
+        ParseSource source = parser.parse(context(data));
+
+        ParseElement paragraph = source.getElements().stream()
+                .filter(e -> ElementType.PARAGRAPH.name().equals(e.getType()))
+                .findFirst().orElse(null);
+        assertNotNull(paragraph);
+        assertNotNull(paragraph.getFont());
+        assertEquals(14.0, paragraph.getFont().getSize(), () -> "font=" + paragraph.getFont());
+    }
+
     /** 8×8 PNG（图片单元用例的输入） */
     private byte[] pngBytes() throws Exception {
         BufferedImage image = new BufferedImage(8, 8, BufferedImage.TYPE_INT_RGB);

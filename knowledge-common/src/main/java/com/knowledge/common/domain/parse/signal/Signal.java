@@ -26,7 +26,7 @@ public class Signal {
     /** 命中依据（仅展示） */
     private String evidence;
 
-    /** 触发阈值（实际值 vs 配置值，如 "12<50"） */
+    /** 阈值快照（仅展示）：指标信号填指标快照文案（字符数/图片口径的实测值与配置值），事实信号填 "-" */
     private String threshold;
 
     /** 信号子类型（SignalSubtype 枚举名；控制流依据，可空） */

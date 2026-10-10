@@ -16,6 +16,6 @@ public enum SignalType {
     /** 表格规则失败 → 表格模型 */
     TABLE,
 
-    /** 版面规则失败 → 版面模型 */
+    /** 版面规则失败 → 版面模型（预留：当前无事实产出方，版面能力接入后由 provider 产 ParseFact） */
     LAYOUT
 }

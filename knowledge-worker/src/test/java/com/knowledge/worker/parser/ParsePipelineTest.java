@@ -223,7 +223,7 @@ class ParsePipelineTest {
     @Test
     void tableFactShouldWarnWithoutFailing() {
         ParseFact fact = new ParseFact();
-        fact.setType(SignalType.TABLE.name());
+        fact.setType(SignalType.TABLE);
         fact.setRegion("page 1");
         fact.setEvidence("列对齐聚类失败（疑似无边框/复杂表格）");
         ParsePipeline pipeline = pipeline(fakeParser(List.of(normalPage(1)), List.of(fact)));
@@ -239,7 +239,7 @@ class ParsePipelineTest {
     @Test
     void layoutFactShouldWarnWithoutFailing() {
         ParseFact fact = new ParseFact();
-        fact.setType(SignalType.LAYOUT.name());
+        fact.setType(SignalType.LAYOUT);
         fact.setRegion("page 1");
         fact.setEvidence("版面规则失败");
         ParsePipeline pipeline = pipeline(fakeParser(List.of(normalPage(1)), List.of(fact)));
@@ -254,7 +254,7 @@ class ParsePipelineTest {
     @Test
     void embeddedImageFactShouldWarnWithoutFailing() {
         ParseFact fact = new ParseFact();
-        fact.setType(SignalType.OCR_IMAGE.name());
+        fact.setType(SignalType.OCR_IMAGE);
         fact.setRegion("图 1");
         fact.setEvidence("-");
         ParsePipeline pipeline = pipeline(fakeParser(List.of(normalPage(1)), List.of(fact)));
@@ -264,6 +264,19 @@ class ParsePipelineTest {
         assertEquals(PipelineTaskStatus.SUCCESS.name(), outcome.getSuggestedStatus());
         assertEquals(0, outcome.getFailedUnits());
         assertEquals("IMAGE_TEXT_UNRECOGNIZED", outcome.getParseResult().getQuality().getWarnings().getFirst().getCode());
+    }
+
+    @Test
+    void factWithoutTypeShouldBeIgnored() {
+        ParseFact fact = new ParseFact();
+        fact.setRegion("page 1");
+        fact.setEvidence("未标注类型的事实");
+        ParsePipeline pipeline = pipeline(fakeParser(List.of(normalPage(1)), List.of(fact)));
+
+        ParseOutcome outcome = pipeline.run(context("application/pdf"));
+
+        assertEquals(PipelineTaskStatus.SUCCESS.name(), outcome.getSuggestedStatus());
+        assertEquals(0, outcome.getParseResult().getQuality().getWarnings().size());
     }
 
     @Test

@@ -14,7 +14,7 @@ final class FallbackSupport {
     private FallbackSupport() {
     }
 
-    /** 信号 region 解析页码（"page 3"→3）；解析不到返回 null（Word/Excel 无页概念）。 */
+    /** 信号 region 解析页码（"page 3"→3）；解析不到返回 null（元素级 region 如 "paragraph[3]" 无单元号） */
     static Integer parsePage(String region) {
         try {
             String num = region.replace("page", "").trim();

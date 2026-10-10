@@ -3,6 +3,7 @@ import com.knowledge.common.domain.input.FileReference;
 import com.knowledge.common.domain.parse.ParseElement;
 import com.knowledge.common.domain.parse.ParseSource;
 import com.knowledge.common.enums.parse.ElementType;
+import com.knowledge.common.enums.parse.SignalType;
 import com.knowledge.common.domain.parse.signal.PageMetric;
 import com.knowledge.worker.parser.ParseContext;
 import com.knowledge.worker.parser.ParseProperties;
@@ -679,7 +680,7 @@ class PdfBoxDocumentParserTest {
         assertTrue(image.getNeedsOcr());
         assertNotNull(image.getBbox());
         assertTrue(image.getProvenance().getPath().contains("/image[0]"));
-        assertTrue(source.getFacts().stream().anyMatch(f -> "OCR_IMAGE".equals(f.getType())));
+        assertTrue(source.getFacts().stream().anyMatch(f -> SignalType.OCR_IMAGE == f.getType()));
     }
 
     @Test

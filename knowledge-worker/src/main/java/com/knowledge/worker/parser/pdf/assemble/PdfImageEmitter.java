@@ -53,7 +53,7 @@ public final class PdfImageEmitter {
                     "pdf#page(" + page.pageNo() + ")/image[" + index + "]"));
             elements.add(image);
             ParseFact fact = new ParseFact();
-            fact.setType(SignalType.OCR_IMAGE.name());
+            fact.setType(SignalType.OCR_IMAGE);
             fact.setRegion("page " + page.pageNo() + " image " + index);
             fact.setEvidence("嵌入图片仅引用无文字（占页面积 " + String.format("%.2f", ratio) + "）");
             source.getFacts().add(fact);
