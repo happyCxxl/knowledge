@@ -77,6 +77,7 @@ public class PdfPageExtractor {
                 .toList();
         List<Double> gutters = detectGutters(stripper.chars, pageWidth, pageHeight,
                 PageLayoutAnalyzer.Options.of(context.getProperties()));
+        LineTexts.Options lineTextOptions = LineTexts.Options.of(context.getProperties());
         List<PageLine> rawLines = new ArrayList<>();
         List<CharInfo> lineChars = new ArrayList<>();
         double lineY = -1;
@@ -88,14 +89,14 @@ public class PdfPageExtractor {
                 lineChars.add(c);
                 lineY = (lineY + c.y()) / 2;
             } else {
-                rawLines.addAll(buildLines(pageNo, lineChars, gutters));
+                rawLines.addAll(buildLines(pageNo, lineChars, gutters, lineTextOptions));
                 lineChars = new ArrayList<>();
                 lineChars.add(c);
                 lineY = c.y();
             }
         }
         if (!lineChars.isEmpty()) {
-            rawLines.addAll(buildLines(pageNo, lineChars, gutters));
+            rawLines.addAll(buildLines(pageNo, lineChars, gutters, lineTextOptions));
         }
         List<PageLine> lines = orderLines(rawLines, gutters, pageWidth, pageHeight);
 
@@ -122,17 +123,18 @@ public class PdfPageExtractor {
     }
 
     /** 按栏沟切行：整组字符横跨栏沟（跨栏行）时出一整行，其余按栏分组各出一行 */
-    private List<PageLine> buildLines(int pageNo, List<CharInfo> lineChars, List<Double> gutters) {
+    private List<PageLine> buildLines(int pageNo, List<CharInfo> lineChars, List<Double> gutters,
+                                      LineTexts.Options lineTextOptions) {
         if (gutters.isEmpty()
                 || lineChars.stream().anyMatch(c -> PageLayoutAnalyzer.crossesAny(c.x(), c.width(), gutters))) {
-            return List.of(buildLine(pageNo, lineChars));
+            return List.of(buildLine(pageNo, lineChars, lineTextOptions));
         }
         Map<Integer, List<CharInfo>> byColumn = new LinkedHashMap<>();
         for (CharInfo c : lineChars) {
             byColumn.computeIfAbsent(PageLayoutAnalyzer.columnOf(c.x(), c.width(), gutters),
                     k -> new ArrayList<>()).add(c);
         }
-        return byColumn.values().stream().map(group -> buildLine(pageNo, group)).toList();
+        return byColumn.values().stream().map(group -> buildLine(pageNo, group, lineTextOptions)).toList();
     }
 
     /** 阅读顺序重排：跨栏行分带，带内按栏序与栏内纵向顺序（单栏页保持纵向顺序） */
@@ -150,7 +152,7 @@ public class PdfPageExtractor {
     }
 
     /** 行构建：行内 x 排序 → token 分词（字符间距超阈值断词）→ 目录行特征判定 */
-    private PageLine buildLine(int pageNo, List<CharInfo> lineChars) {
+    private PageLine buildLine(int pageNo, List<CharInfo> lineChars, LineTexts.Options lineTextOptions) {
         lineChars.sort(Comparator.comparingDouble(CharInfo::x));
         double x = lineChars.getFirst().x();
         BBox bounds = PdfGeometry.boundsOf(lineChars, CharInfo::x, CharInfo::y, CharInfo::width, CharInfo::height);
@@ -182,7 +184,7 @@ public class PdfPageExtractor {
         if (!tokenText.isEmpty()) {
             tokens.add(new Token(tokenText.toString(), tokenStart, tokenEnd));
         }
-        String text = LineTexts.lineText(lineChars);
+        String text = LineTexts.lineText(lineChars, lineTextOptions);
         boolean tocCandidate = TocLineFeature.isTocLine(text);
         return new PageLine(pageNo, x, bounds.getY(), bounds.getWidth(), bounds.getHeight(), text, fontSize,
                 first.fontName(), first.bold(), tokens, List.copyOf(lineChars), tocCandidate);

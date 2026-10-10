@@ -48,6 +48,7 @@ public final class TextTableBuilder {
         // 每行列边界：行左边界 + 内部列起点 + 行右边界（覆盖整行，列对齐外的字符不丢）
         List<List<Double>> rowBoundaries = new ArrayList<>();
         List<List<String>> rowTexts = new ArrayList<>();
+        LineTexts.Options lineTextOptions = LineTexts.Options.of(properties);
         for (PageLine line : block) {
             List<Double> boundaries = new ArrayList<>();
             boundaries.add(line.x());
@@ -56,7 +57,7 @@ public final class TextTableBuilder {
             }
             boundaries.add(line.x() + line.width());
             rowBoundaries.add(boundaries);
-            rowTexts.add(cellTexts(line, boundaries));
+            rowTexts.add(cellTexts(line, boundaries, lineTextOptions));
         }
         if (TableSupport.blankTable(rowTexts, properties)) {
             TableSupport.degrade(block, page, elements, source, fileId, "空白率过高（疑似框线/表单区域）");
@@ -98,14 +99,14 @@ public final class TextTableBuilder {
     }
 
     /** 行内按边界切格：格内字符重建为文本（边界覆盖整行） */
-    private static List<String> cellTexts(PageLine line, List<Double> boundaries) {
+    private static List<String> cellTexts(PageLine line, List<Double> boundaries, LineTexts.Options options) {
         List<String> texts = new ArrayList<>();
         for (int i = 0; i + 1 < boundaries.size(); i++) {
             double from = boundaries.get(i);
             double to = boundaries.get(i + 1);
             texts.add(LineTexts.lineText(line.chars().stream()
                     .filter(ch -> ch.x() >= from && ch.x() < to)
-                    .toList()));
+                    .toList(), options));
         }
         return texts;
     }

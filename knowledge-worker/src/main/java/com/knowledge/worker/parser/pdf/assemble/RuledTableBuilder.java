@@ -46,7 +46,7 @@ public final class RuledTableBuilder {
             rowTexts.add(new ArrayList<>());
         }
         for (CellRect rect : rects) {
-            String text = ruledCellText(run, grid, rect);
+            String text = ruledCellText(run, grid, rect, LineTexts.Options.of(properties));
             texts.put(rect, text);
             rowTexts.get(rect.row()).add(text);
         }
@@ -146,7 +146,7 @@ public final class RuledTableBuilder {
     }
 
     /** 格内文本：行中心落在格行带的文本行，其落在格列区间的字符重建为文本，多行按行间规则拼接 */
-    private static String ruledCellText(List<PageLine> run, Grid grid, CellRect rect) {
+    private static String ruledCellText(List<PageLine> run, Grid grid, CellRect rect, LineTexts.Options options) {
         double left = grid.columns().get(rect.col());
         double right = grid.columns().get(rect.col() + rect.colSpan());
         double top = grid.rows().get(rect.row());
@@ -159,7 +159,7 @@ public final class RuledTableBuilder {
             }
             String piece = LineTexts.lineText(line.chars().stream()
                     .filter(ch -> ch.x() >= left && ch.x() < right)
-                    .toList());
+                    .toList(), options);
             if (piece.isEmpty()) {
                 continue;
             }

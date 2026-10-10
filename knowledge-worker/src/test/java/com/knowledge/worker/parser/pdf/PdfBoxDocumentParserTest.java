@@ -291,6 +291,11 @@ class PdfBoxDocumentParserTest {
         }
     }
 
+    /** 行文本重建阈值：取解析阈值默认值 */
+    private LineTexts.Options lineTextOptions() {
+        return LineTexts.Options.of(new ParseProperties());
+    }
+
     @Test
     void englishWordBoundariesShouldKeepSpaces() {
         List<CharInfo> chars = new ArrayList<>();
@@ -298,7 +303,7 @@ class PdfBoxDocumentParserTest {
         chars.addAll(word("one", 110));
         chars.addAll(word("body", 130));
 
-        assertEquals("Chapter one body", LineTexts.lineText(chars));
+        assertEquals("Chapter one body", LineTexts.lineText(chars, lineTextOptions()));
     }
 
     @Test
@@ -309,7 +314,7 @@ class PdfBoxDocumentParserTest {
         chars.add(ch('识', 82, true, true));
         chars.add(ch('库', 92, true, true));
 
-        assertEquals("知识库", LineTexts.lineText(chars));
+        assertEquals("知识库", LineTexts.lineText(chars, lineTextOptions()));
     }
 
     @Test
@@ -320,7 +325,7 @@ class PdfBoxDocumentParserTest {
         chars.add(ch('库', 92, true, true));
         chars.addAll(word("knowledge", 110));
 
-        assertEquals("知识库 knowledge", LineTexts.lineText(chars));
+        assertEquals("知识库 knowledge", LineTexts.lineText(chars, lineTextOptions()));
     }
 
     @Test
