@@ -58,26 +58,27 @@
 
       <!-- 固定高度滚动区：高度由祖先链的确定高度决定，不随记录数变化；
            el-table 拿到确定高度后表头冻结、表体内部滚动 -->
-      <div class="user-table-body">
+      <div class="page-table-body">
+        <!-- 列宽与对齐口径见 styles/page-shell.css 的「列表表格」一节：8 列同 min-width 即等宽 -->
         <el-table
           v-loading="loading"
-          class="user-table"
+          class="page-table"
           height="100%"
           :data="records"
           :border="false"
         >
-          <el-table-column prop="username" label="用户名" min-width="160" />
-          <el-table-column label="姓名" min-width="110">
+          <el-table-column prop="username" label="用户名" min-width="150" align="center" />
+          <el-table-column label="姓名" min-width="150" align="center">
             <template #default="{ row }">{{ row.displayName || '-' }}</template>
           </el-table-column>
-          <el-table-column label="角色" width="110">
+          <el-table-column label="角色" min-width="150" align="center">
             <template #default="{ row }">
               <el-tag :type="row.role === 'ADMIN' ? 'warning' : 'info'" effect="plain" size="small">
                 {{ row.role === 'ADMIN' ? '管理员' : '普通用户' }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="状态" width="100">
+          <el-table-column label="状态" min-width="150" align="center">
             <template #default="{ row }">
               <el-tag
                 :type="row.status === USER_STATUS.ENABLED ? 'success' : 'info'"
@@ -88,16 +89,16 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="创建人" width="120">
+          <el-table-column label="创建人" min-width="150" align="center">
             <template #default="{ row }">{{ row.createBy || '-' }}</template>
           </el-table-column>
-          <el-table-column label="创建时间" width="170">
+          <el-table-column label="创建时间" min-width="150" align="center">
             <template #default="{ row }">{{ formatTime(row.createTime) }}</template>
           </el-table-column>
-          <el-table-column label="更新时间" width="170">
+          <el-table-column label="更新时间" min-width="150" align="center">
             <template #default="{ row }">{{ formatTime(row.updateTime) }}</template>
           </el-table-column>
-          <el-table-column label="操作" width="140" fixed="right">
+          <el-table-column label="操作" min-width="150" align="center" fixed="right">
             <!--
               插槽里的 row 是 el-table 的 DefaultRow（不是 any，也不能给插槽 props 收窄类型 —— 那违反参数逆变），
               交给 isSelf / openEdit / handleDelete 这几个强类型函数时逐个显式断言成 UserVO
@@ -127,7 +128,7 @@
             </template>
           </el-table-column>
           <template #empty>
-            <div class="user-empty">{{ loading ? '加载中…' : '暂无用户' }}</div>
+            <div class="page-table-empty">{{ loading ? '加载中…' : '暂无用户' }}</div>
           </template>
         </el-table>
       </div>
@@ -482,32 +483,8 @@ onMounted(() => {
   font-size: 12px;
 }
 
-/* 表体滚动区：flex:1 + min-height:0 拿到确定高度，el-table 据此固定表头并内部滚动 */
-.user-table-body {
-  flex: 1;
-  min-height: 0;
-}
-
-.user-table {
-  --el-table-bg-color: transparent;
-  --el-table-tr-bg-color: transparent;
-  --el-table-header-bg-color: var(--kb-bg-1);
-  --el-table-border-color: var(--kb-line);
-  --el-table-text-color: var(--kb-text-1);
-  --el-table-header-text-color: var(--kb-text-2);
-  --el-table-row-hover-bg-color: rgb(52 211 153 / 6%);
-
-  background: transparent;
-}
-
 .user-row-btn {
   padding: 0 6px;
-}
-
-.user-empty {
-  padding: 44px 0;
-  color: var(--kb-text-3);
-  font-size: 13px;
 }
 
 .user-dialog-select {

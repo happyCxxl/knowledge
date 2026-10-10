@@ -183,7 +183,7 @@ if [ "$run_frontend" = "1" ]; then
   started=$(date +%s)
   echo ""
   echo ">>>> [$step/$total] 前端全量检查：pnpm lint"
-  echo "     （prettier / eslint / vue-tsc / stylelint / ls-lint / 命名 / 规范，共七项）"
+  echo "     （prettier / eslint / vue-tsc / stylelint / ls-lint / 命名 / 规范 / 表格口径，共八项）"
   if (
     cd "$root/web"
     pnpm lint

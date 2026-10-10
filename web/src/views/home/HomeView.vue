@@ -49,36 +49,37 @@
         表体 flex:1 + min-height:0：高度由面板决定，**与本页记录数无关** ——
         末页只有两三条时容器也保持同高，翻页不会跳。窗口太矮时是表格内部滚动。
         加载态用 v-loading 遮罩，不能用 v-if 换掉表格（翻页会闪）；空态走 #empty 插槽。
+        容器、表格主题与列宽/对齐口径见 styles/page-shell.css 的「列表表格」一节。
       -->
-      <div class="home-table-body">
+      <div class="page-table-body">
         <el-table
           v-loading="submitLoading"
-          class="home-table"
+          class="page-table"
           :data="submits"
           :border="false"
           height="100%"
         >
-          <el-table-column label="文件名" :min-width="COL.fileName">
+          <el-table-column label="文件名" min-width="200" align="center">
             <template #default="{ row }">
               <span class="home-file home-ellipsis" :title="row.fileName">{{
                 row.fileName || '（文件名不可得）'
               }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="文件类型" :width="COL.fileType">
+          <el-table-column label="文件类型" min-width="200" align="center">
             <template #default="{ row }">
               <!-- 类型来自来源文件的 MIME（不按扩展名猜）；校验失败的行取不到，显示占位符 -->
               <span class="home-mono home-dim">{{ row.fileType ?? '—' }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="知识库" :min-width="COL.kbName">
+          <el-table-column label="知识库" min-width="200" align="center">
             <template #default="{ row }">
               <span class="home-dim home-ellipsis" :title="row.knowledgeBaseName">{{
                 row.knowledgeBaseName
               }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="结果" :min-width="COL.result">
+          <el-table-column label="结果" min-width="200" align="center">
             <template #default="{ row }">
               <span
                 class="home-act"
@@ -89,13 +90,15 @@
               <span v-if="row.failReasonLabel" class="home-reason">{{ row.failReasonLabel }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="提交时间" :width="COL.createTime">
+          <el-table-column label="提交时间" min-width="200" align="center">
             <template #default="{ row }">
               <span class="home-mono home-dim">{{ formatSubmitTime(row.createTime) }}</span>
             </template>
           </el-table-column>
           <template #empty>
-            <div class="home-empty">{{ submitLoading ? '加载中…' : '还没有提交记录' }}</div>
+            <div class="page-table-empty">
+              {{ submitLoading ? '加载中…' : '还没有提交记录' }}
+            </div>
           </template>
         </el-table>
       </div>
@@ -145,34 +148,6 @@ const authStore = useAuthStore();
 
 /** 固定每页条数（页长不随窗口高度变化，翻页用页码） */
 const PAGE_SIZE = 10;
-
-/**
- * 表格列宽（px）。
- *
- * <p>两类值分工明确：
- *
- * <ul>
- *   <li>**定长内容 → 固定 `width`**：文件类型是 3~4 个字符的枚举名（PDF / DOCX / XLSX），
- *       提交时间是 `yyyy-MM-dd HH:mm` 定长 16 字符 —— 让它们随窗口变宽只会多出留白；</li>
- *   <li>**长度不可控 → `min-width` 吃富余**：文件名可能来长名，交给 `.home-ellipsis` 截断；
- *       知识库名与结果（徽标 + 失败原因）按"刚好放得下"给最小值。</li>
- * </ul>
- *
- * <p>**表头对齐方式跟随单元格，不单独设 `header-align`**：Element Plus 不传时继承 `align`（左对齐）；
- * 单独写 `center` 会让列头浮在内容上方的中间。
- */
-const COL = {
-  /** 文件名：不可控，吃富余宽度，超长截断 */
-  fileName: 260,
-  /** 文件类型：`PDF` / `DOCX` / `XLSX` 等 3~4 字符，定宽 */
-  fileType: 100,
-  /** 知识库名：短且稳定（最长 65px + 内边距） */
-  kbName: 140,
-  /** 结果：通过/未通过徽标 + 失败原因（最长 147px + 内边距） */
-  result: 200,
-  /** 提交时间：`yyyy-MM-dd HH:mm` 定长（16 字符约 110px + 内边距） */
-  createTime: 150,
-} as const;
 
 const username = computed(() => authStore.username ?? '');
 const summary = ref<HomeSummary | null>(null);
@@ -250,6 +225,7 @@ onMounted(() => {
  *   .page-head / .page-title / .page-desc  头部
  *   .page-assets / .page-asset*            资产带（竖排 标签/数值/副文案）
  *   .page-panel / .page-toolbar / .page-panel-foot  内容面板
+ *   .page-table / .page-table-body / .page-table-empty  最近提交表格
  * 本页只保留业务样式。
  */
 
@@ -259,46 +235,12 @@ onMounted(() => {
   font-weight: 650;
 }
 
-/*
- * 表体：flex:1 + min-height:0 拿到确定高度，el-table 据此固定表头并按内容滚动。
- * **高度与本页记录数无关**（只跟面板/窗口有关）：末页只有两三条时容器不会塌下去，
- * 翻页不会跳动；窗口太矮时是表格内部滚动，页面本身不被裁切。
- */
-.home-table-body {
-  flex: 1;
-  min-height: 0;
-}
-
 /* 分页：总数在左侧那行文字里，这里只放翻页按钮与当前页 */
 .home-pager {
   --el-pagination-button-bg-color: transparent;
   --el-pagination-text-color: var(--kb-text-2);
   --el-pagination-button-color: var(--kb-text-2);
   --el-pagination-hover-color: var(--kb-primary);
-}
-
-/* el-table 主题化：与用户管理页同一套变量覆盖 */
-.home-table {
-  --el-table-bg-color: transparent;
-  --el-table-tr-bg-color: transparent;
-  --el-table-header-bg-color: var(--kb-bg-1);
-  --el-table-border-color: var(--kb-line);
-  --el-table-text-color: var(--kb-text-1);
-  --el-table-header-text-color: var(--kb-text-2);
-  --el-table-row-hover-bg-color: rgb(52 211 153 / 6%);
-
-  /* 翻页时的加载遮罩：默认是白色蒙层，在深色底上会白闪一下，改成极淡的暗色 */
-  --el-loading-spinner-size: 26px;
-  --el-mask-color: rgb(10 14 18 / 45%);
-
-  background: transparent;
-}
-
-.home-empty {
-  padding: 26px 0;
-  color: var(--kb-text-3);
-  font-size: 13px;
-  text-align: center;
 }
 
 .home-mono {

@@ -167,6 +167,60 @@
 }
 
 /*
+ * ==================== 列表表格 ====================
+ *
+ * 列表页表格的骨架与主题，三个类名分工：
+ *
+ *   .page-table-body    面板里的滚动层：`flex: 1` + `min-height: 0` 给出确定高度，
+ *                       el-table 据此冻结表头、表体内部滚动；高度与本页记录数无关
+ *   .page-table         挂在 el-table 根元素上：表格变量覆盖 + 暗色加载遮罩
+ *   .page-table-empty   `#empty` 插槽里的空态文案
+ *
+ * **列宽口径**：同一张表的每一列写同一个 `min-width`（数值字面量），且不写 `width`。
+ * Element Plus 把富余宽度**按各列 `min-width` 的比例**分给"没有数值 `width`"的列，
+ * 各列取同值时即等宽；某列一旦写了 `width`，该列就退出这次分配、改由固定值接管，
+ * 等宽随之被打破；写百分比（`width="20%"`）会让分配算出 `NaN`，同样不可用。
+ * 要调这张表的列宽就整张表一起调。
+ *
+ * **对齐口径**：每列写 `align="center"`，表头跟随单元格一起居中（Element Plus 在未写
+ * `header-align` 时取 `align`）；需要左对齐的列不写 `align`。
+ *
+ * 表格变量的覆盖**必须落在 el-table 根元素本身**（即挂 `.page-table` 的那个元素）：
+ * Element Plus 在 `.el-table` 上重设了这批变量，声明在祖先元素上会被它的组件级声明盖掉。
+ */
+
+/* noinspection CssUnusedSymbol */
+.page-table-body {
+  flex: 1;
+  min-height: 0;
+}
+
+/* noinspection CssUnusedSymbol */
+.page-table {
+  --el-table-bg-color: transparent;
+  --el-table-tr-bg-color: transparent;
+  --el-table-header-bg-color: var(--kb-bg-1);
+  --el-table-border-color: var(--kb-line);
+  --el-table-text-color: var(--kb-text-1);
+  --el-table-header-text-color: var(--kb-text-2);
+  --el-table-row-hover-bg-color: rgb(52 211 153 / 6%);
+
+  /* 加载遮罩：默认是白色蒙层，在暗色底上会白闪一下，改成极淡的暗色 */
+  --el-loading-spinner-size: 26px;
+  --el-mask-color: rgb(10 14 18 / 45%);
+
+  background: transparent;
+}
+
+/* noinspection CssUnusedSymbol */
+.page-table-empty {
+  padding: 26px 0;
+  color: var(--kb-text-3);
+  font-size: 13px;
+  text-align: center;
+}
+
+/*
  * ==================== 按钮与刷新 ====================
  *
  * 按钮与刷新由骨架层提供：按钮加类名即用（`.page-btn-primary` 主操作、
