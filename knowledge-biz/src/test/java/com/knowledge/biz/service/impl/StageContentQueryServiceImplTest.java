@@ -329,6 +329,50 @@ class StageContentQueryServiceImplTest {
         assertEquals(ErrorCode.PARAM_INVALID, e.getErrorCode());
     }
 
+    @Test
+    void parseExtraShouldCarryTableCells() {
+        stubParseArtifactWithTable();
+
+        StageContentVO vo = service.stageContent(10L, "PARSE", null, null, null, null);
+
+        Map<String, Object> extra = vo.getItems().get(0).getExtra();
+        assertTrue(extra.containsKey("cells"));
+        String cells = String.valueOf(extra.get("cells"));
+        assertTrue(cells.contains("Contract No."), () -> "cells=" + cells);
+        assertTrue(cells.contains("ABC-1234"), () -> "cells=" + cells);
+    }
+
+    /** 造一份带表格单元格的解析产物：一个 2×2 表格，格内有文本 */
+    private void stubParseArtifactWithTable() {
+        when(fileResultDbService.getById(10L)).thenReturn(fileResultOfKb10());
+        when(pipelineTaskDbService.getByFileResultIdAndStage(10L, PipelineStage.PARSE.name()))
+                .thenReturn(latestTask(PipelineStage.PARSE.name()));
+        KbPipelineProduct product = productRow("art-parse");
+        when(pipelineProductDbService.getById(50L)).thenReturn(product);
+        ParseElement table = ParseElement.of("t1_0_0", ElementType.TABLE);
+        table.setPage(1);
+        table.setRows(2);
+        table.setCols(2);
+        List<ParseElement> cells = new ArrayList<>();
+        String[] texts = {"Contract No.", "ABC-1234", "Amount", "1,234,567"};
+        for (int index = 0; index < texts.length; index++) {
+            ParseElement cell = ParseElement.of("t1_0_0_" + index, ElementType.TABLE_CELL);
+            cell.setText(texts[index]);
+            cell.setRow(index / 2);
+            cell.setCol(index % 2);
+            cells.add(cell);
+        }
+        table.setCells(cells);
+        ParseSource source = new ParseSource();
+        source.setSource("native");
+        source.setProvider("pdfbox-3.0.4");
+        source.setElements(List.of(table));
+        ParseResult result = new ParseResult();
+        result.setSources(List.of(source));
+        when(fileStorage.getObject(ObjectRef.ofProduct(product)))
+                .thenReturn(Objects.requireNonNull(JsonUtil.toJsonStr(result)).getBytes(StandardCharsets.UTF_8));
+    }
+
     /** 造一份含 elementCount 个元素的解析产物，并让 41 号 PARSE 任务取到它 */
     private void stubParseArtifact(int elementCount) {
         when(fileResultDbService.getById(10L)).thenReturn(fileResultOfKb10());

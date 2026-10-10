@@ -358,7 +358,23 @@
                       :class="{ 'is-expanded': expanded.has(item.key) }"
                       :title="item.text"
                       >{{ item.text }}</pre>
-                    <span v-else class="parse-drawer-element-meta">（无文本）</span>
+                    <span v-else-if="item.tableGrid.length === 0" class="parse-drawer-element-meta"
+                      >（无文本）</span
+                    >
+                    <table v-if="item.tableGrid.length > 0" class="parse-drawer-element-grid">
+                      <tbody>
+                        <tr v-for="(row, rowIndex) in item.tableGrid" :key="rowIndex">
+                          <td
+                            v-for="(cell, colIndex) in row"
+                            :key="colIndex"
+                            class="parse-drawer-element-cell"
+                            :class="{ 'is-head': cell !== null && cell.isHeader }"
+                          >
+                            {{ cell?.text ?? '' }}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
                   </li>
                 </ul>
               </div>
@@ -1183,6 +1199,7 @@ const visibleItems = computed(() => {
         page: pageOf(item.extra),
         source: rowSourceText(item.extra),
         grid: rows !== null && cols !== null ? `${rows}×${cols}` : '',
+        tableGrid: elementTableGrid(item.extra, rows, cols),
       };
     })
     .filter(
@@ -1470,6 +1487,47 @@ function maxCellIndex(
   pick: (cell: StructureCellItem) => number | null,
 ): number {
   return cells.reduce((max, cell) => Math.max(max, pick(cell) ?? 0), 0);
+}
+
+/**
+ * 解析元素行的表格网格：单元格明细来自 extra.cells（JSON 串，后端按产物原样下发）。
+ * **不设格数上限**：解析详情要如实展示表格内容，大表也整表渲染。
+ */
+function elementTableGrid(
+  extra: Record<string, unknown> | null | undefined,
+  rows: number | null,
+  cols: number | null,
+): (DocCell | null)[][] {
+  const raw = extra?.cells;
+  if (typeof raw !== 'string' || raw === '') {
+    return [];
+  }
+  let cells: StructureCellItem[];
+  try {
+    cells = JSON.parse(raw) as StructureCellItem[];
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(cells) || cells.length === 0) {
+    return [];
+  }
+  const rowCount = Math.max(rows ?? 0, maxCellIndex(cells, (cell) => cell.row) + 1);
+  const colCount = Math.max(cols ?? 0, maxCellIndex(cells, (cell) => cell.col) + 1);
+  if (rowCount <= 0 || colCount <= 0) {
+    return [];
+  }
+  const grid: (DocCell | null)[][] = Array.from({ length: rowCount }, () =>
+    Array.from({ length: colCount }, () => null),
+  );
+  for (const cell of cells) {
+    const row = cell.row ?? 0;
+    const col = cell.col ?? 0;
+    if (row < 0 || col < 0 || row >= rowCount || col >= colCount) {
+      continue;
+    }
+    grid[row][col] = { text: cell.text ?? '', isHeader: cell.isHeader === true };
+  }
+  return grid;
 }
 
 /** 表格占位文案：无单元格明细时给行列数与说明（行列数缺失时只给说明） */
@@ -3406,6 +3464,30 @@ onBeforeUnmount(() => {
   display: block;
   -webkit-line-clamp: unset;
   line-clamp: unset;
+}
+
+/* 解析元素行的表格网格：单元格文本原样展示（不设格数上限，大表整表渲染） */
+.parse-drawer-element-grid {
+  width: 100%;
+  margin-top: 8px;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.parse-drawer-element-cell {
+  padding: 5px 7px;
+  border: 1px solid var(--kb-line);
+  color: var(--kb-text-1);
+  font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+  font-size: 11px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  vertical-align: top;
+}
+
+.parse-drawer-element-cell.is-head {
+  background: rgb(255 255 255 / 3%);
+  color: var(--kb-text-2);
 }
 
 .parse-drawer-page-btn {

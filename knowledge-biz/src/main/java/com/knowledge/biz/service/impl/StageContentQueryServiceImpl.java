@@ -227,7 +227,7 @@ public class StageContentQueryServiceImpl implements StageContentQueryService {
         return items;
     }
 
-    /** 解析环节专属字段 + 公共页网格字段 + 原文定位锚点 */
+    /** 解析环节专属字段 + 公共页网格字段 + 原文定位锚点 + 表格单元格明细 */
     private Map<String, Object> parseExtra(ParseSource source, ParseElement element) {
         Map<String, Object> extra = new LinkedHashMap<>();
         extra.put("source", source.getSource());
@@ -235,6 +235,10 @@ public class StageContentQueryServiceImpl implements StageContentQueryService {
         putPageGrid(extra, element.getPage(), element.getRows(), element.getCols());
         putBbox(extra, element.getBbox());
         putOfficeAnchor(extra, element);
+        // 表格单元格明细（TABLE 元素内嵌）：解析详情按行列渲染网格，单元格与文本原样下发、不做截断
+        if (NullUtil.isNotNull(element.getCells()) && !element.getCells().isEmpty()) {
+            extra.put("cells", JsonUtil.toJsonStr(element.getCells()));
+        }
         return extra;
     }
 
