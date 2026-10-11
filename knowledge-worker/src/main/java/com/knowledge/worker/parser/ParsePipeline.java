@@ -128,7 +128,7 @@ public class ParsePipeline {
 
         // ⑤ 成功占比门槛评估
         evaluate(outcome, nativeSource, failedUnits, quality);
-        summarizeQuality(outcome, nativeSource, quality); // ⑥ 坏页比例达门槛时补一条维度汇总告警
+        summarizeQuality(nativeSource, quality); // ⑥ 坏页比例达门槛时补一条维度汇总告警
 
         // 失败诊断留痕：告警明细进质量检查子步骤（落 kb_pipeline_step_log.error，可查询）
         if (PipelineTaskStatus.FAILED.name().equals(outcome.getSuggestedStatus())) {
@@ -175,7 +175,7 @@ public class ParsePipeline {
      * 质量维度汇总：坏页比例（登记失败页数 ÷ 内容单元）达到 `qualityBadPageRatioThreshold` 时，
      * 额外追加一条 `QUALITY_BAD_PAGE_RATIO` 汇总告警，消息按维度列出各类计数（逐条告警语义不变）。
      */
-    private void summarizeQuality(ParseOutcome outcome, ParseSource nativeSource, QualityInfo quality) {
+    private void summarizeQuality(ParseSource nativeSource, QualityInfo quality) {
         int unitCount = NullUtil.isNull(nativeSource.getUnitCount()) ? 0 : nativeSource.getUnitCount();
         int contentUnits = unitCount - (int) quality.getBlankPages().stream().distinct().count();
         if (contentUnits <= 0) {
