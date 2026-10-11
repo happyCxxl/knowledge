@@ -30,6 +30,12 @@ public class ParseProperties {
     /** 乱码页判定：非 CJK/ASCII/常用中文标点字符占比 */
     private double garbledRateThreshold = 0.2;
 
+    /** 乱码页判定：可打印乱码带（拉丁补充区）字符占比门槛，达到即按该比例计乱码率 */
+    private double printableGarbledRateThreshold = 0.3;
+
+    /** 乱码页判定：来自「Type0 且缺 ToUnicode 映射」字体的字符占比门槛（达到即按 CID 映射失败单列处置） */
+    private double cidMappingMinRatio = 0.3;
+
     /** 图片页判定：文本 bbox 面积 ÷ 页面面积 */
     private double textAreaRatioThreshold = 0.05;
 

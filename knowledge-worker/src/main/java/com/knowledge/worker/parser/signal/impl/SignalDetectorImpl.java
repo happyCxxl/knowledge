@@ -55,9 +55,17 @@ public class SignalDetectorImpl implements SignalDetector {
                             "chars=" + metric.getCharCount() + "," + imageEvidence,
                             SignalSubtype.IMAGE_LOW_RATIO));
                 } else if (metric.getGarbledRatio() > p.getGarbledRateThreshold()) {
+                    // 乱码页：字符主要来自缺 Unicode 映射的 CID 字体时单列子类型，降级分支可区分根因
+                    boolean cidMappingFailed = metric.getCidMappingRatio() >= p.getCidMappingMinRatio();
                     signals.add(Signal.of(SignalType.OCR_TEXT, page,
-                            "乱码率超阈值", String.format("%.2f>%.2f", metric.getGarbledRatio(), p.getGarbledRateThreshold()),
-                            SignalSubtype.GARBLED));
+                            cidMappingFailed ? "CID 字体缺 Unicode 映射" : "乱码率超阈值",
+                            cidMappingFailed
+                                    ? String.format("cidMapping=%.2f(≥%.2f),garbled=%.2f>%.2f",
+                                            metric.getCidMappingRatio(), p.getCidMappingMinRatio(),
+                                            metric.getGarbledRatio(), p.getGarbledRateThreshold())
+                                    : String.format("%.2f>%.2f", metric.getGarbledRatio(),
+                                            p.getGarbledRateThreshold()),
+                            cidMappingFailed ? SignalSubtype.CID_MAPPING_FAILED : SignalSubtype.GARBLED));
                 }
             }
         }

@@ -33,6 +33,37 @@ public final class TextUtil {
     }
 
     /**
+     * 是否可打印乱码带字符：拉丁补充区（U+00A0–U+00FF）。
+     * 字体缺 Unicode 映射时错位出的码点（`ÿþ¤¥¦§¨©`）集中落在此区，而自然语言正文里该区占比很低。
+     */
+    public static boolean isPrintableMojibakeChar(int codePoint) {
+        return codePoint >= 0xA0 && codePoint <= 0xFF;
+    }
+
+    /**
+     * 可打印乱码率：可打印乱码带码点数 ÷ 非空白码点总数（无有效字符时返回 0）。
+     * 与 {@link #garbledRatio(String)} 同一分母口径（非空白字符），供字体映射错位页的判定使用。
+     */
+    public static double printableMojibakeRatio(String text) {
+        if (text == null || text.isEmpty()) {
+            return 0;
+        }
+        int nonBlank = 0;
+        int mojibake = 0;
+        for (int i = 0; i < text.length(); ) {
+            int cp = text.codePointAt(i);
+            if (!Character.isWhitespace(cp)) {
+                nonBlank++;
+                if (isPrintableMojibakeChar(cp)) {
+                    mojibake++;
+                }
+            }
+            i += Character.charCount(cp);
+        }
+        return nonBlank > 0 ? (double) mojibake / nonBlank : 0;
+    }
+
+    /**
      * 文本乱码率：非常用字符码点数 ÷ 非空白码点总数（无有效字符时返回 0）。
      */
     public static double garbledRatio(String text) {

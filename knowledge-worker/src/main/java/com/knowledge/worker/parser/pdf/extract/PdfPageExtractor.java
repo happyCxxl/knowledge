@@ -23,10 +23,12 @@ import org.apache.pdfbox.text.TextPosition;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 单页提取：字符 + 坐标 + 字体 → 页级指标（字符数/乱码率/文字占比/图片面积）→
@@ -43,6 +45,11 @@ public class PdfPageExtractor {
 
     public PdfPageExtractor(PageLayoutAnalyzer layoutAnalyzer) {
         this.layoutAnalyzer = layoutAnalyzer;
+    }
+
+    /** 占比（分母为 0 时返回 0） */
+    private static double ratio(int count, int total) {
+        return total > 0 ? (double) count / total : 0;
     }
 
     /** 提取一页：字符级指标 → 行聚合 → 栏切分 → 阅读顺序 → 文字占比 */
@@ -62,18 +69,33 @@ public class PdfPageExtractor {
         // 页级指标（字符统计先行；文字占比改在行聚合后按行级 bbox 计算，见下方）
         PageMetric metric = new PageMetric();
         metric.setPage(pageNo);
+        Set<String> unmappedFonts = stripper.unmappedFontNames();
         int nonBlank = 0;
         int nonCommon = 0;
+        int printableMojibake = 0;
+        int unmapped = 0;
         for (CharInfo c : stripper.chars) {
-            if (!Character.isWhitespace(c.codePoint())) {
-                nonBlank++;
-                if (TextUtil.isNonCommonChar(c.codePoint())) {
-                    nonCommon++;
-                }
+            if (Character.isWhitespace(c.codePoint())) {
+                continue;
+            }
+            nonBlank++;
+            if (TextUtil.isNonCommonChar(c.codePoint())) {
+                nonCommon++;
+            }
+            if (TextUtil.isPrintableMojibakeChar(c.codePoint())) {
+                printableMojibake++;
+            }
+            if (unmappedFonts.contains(c.fontName())) {
+                unmapped++;
             }
         }
         metric.setCharCount(nonBlank);
-        metric.setGarbledRatio(nonBlank > 0 ? (double) nonCommon / nonBlank : 0);
+        metric.setCidMappingRatio(ratio(unmapped, nonBlank));
+        // 乱码率：不可读码点占比；可打印乱码带达阈值时按两者较大取（字体映射错位页由此不再漏判）
+        double unreadableRatio = ratio(nonCommon, nonBlank);
+        double printableRatio = ratio(printableMojibake, nonBlank);
+        metric.setGarbledRatio(printableRatio >= context.getProperties().getPrintableGarbledRateThreshold()
+                ? Math.max(unreadableRatio, printableRatio) : unreadableRatio);
         RuleLines.Graphics graphics = RuleLines.collect(page, pageHeight);
         metric.setImageAreaRatio(RuleLines.imageAreaRatio(graphics.imageBoxes(), pageWidth, pageHeight));
 
@@ -365,6 +387,9 @@ public class PdfPageExtractor {
 
         private final List<CharInfo> chars = new ArrayList<>();
 
+        /** 字体名 → 是否有 Unicode 映射（逐字符回调查一次即缓存） */
+        private final Map<String, Boolean> unicodeMapped = new LinkedHashMap<>();
+
         private PositionStripper() {
             super();
         }
@@ -377,6 +402,8 @@ public class PdfPageExtractor {
             for (TextPosition tp : positions) {
                 String unicode = tp.getUnicode();
                 boolean bold = tp.getFont().getName().toLowerCase(Locale.ROOT).contains("bold");
+                unicodeMapped.computeIfAbsent(tp.getFont().getName(),
+                        key -> !PdfFontMapping.lacksUnicodeMapping(tp.getFont()));
                 for (int i = 0; i < unicode.length(); ) {
                     int cp = unicode.codePointAt(i);
                     chars.add(new CharInfo(tp.getXDirAdj(), tp.getYDirAdj(), tp.getWidthDirAdj(),
@@ -384,6 +411,17 @@ public class PdfPageExtractor {
                     i += Character.charCount(cp);
                 }
             }
+        }
+
+        /** 缺 Unicode 映射的字体名集合（页级指标统计用） */
+        private Set<String> unmappedFontNames() {
+            Set<String> names = new HashSet<>();
+            unicodeMapped.forEach((name, mapped) -> {
+                if (!mapped) {
+                    names.add(name);
+                }
+            });
+            return names;
         }
     }
 }

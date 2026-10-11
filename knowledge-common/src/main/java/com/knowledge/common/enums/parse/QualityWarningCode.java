@@ -13,6 +13,9 @@ public enum QualityWarningCode {
     /** 乱码页：乱码率超阈值，计失败页 */
     GARBLED_PAGE,
 
+    /** 乱码页（CID 映射失败）：字体缺 ToUnicode 映射，计失败页 */
+    CID_MAPPING_FAILED_PAGE,
+
     /** 扫描页：无文本层且图片覆盖高，OCR 预留暂不支持，计失败页 */
     SCANNED_PAGE,
 

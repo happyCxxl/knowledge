@@ -16,8 +16,11 @@ public class PageMetric {
     /** 非空白字符数 */
     private int charCount;
 
-    /** 乱码率（0~1：替换字符/私用区/未分配码点 ÷ 非空白字符数） */
+    /** 乱码率（0~1：替换字符/私用区/未分配码点，或可打印乱码带码点 ÷ 非空白字符数） */
     private double garbledRatio;
+
+    /** CID 映射失败率（0~1：来自「Type0 且缺 ToUnicode 映射」字体的字符 ÷ 非空白字符数；其余路径不填） */
+    private double cidMappingRatio;
 
     /** 文本 bbox 面积 ÷ 页面面积（0~1） */
     private double textAreaRatio;

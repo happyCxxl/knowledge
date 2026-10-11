@@ -44,4 +44,14 @@ class TextUtilTest {
         // 2 个替换字符 + 4 个正常字符 + 1 个空白：2/6；若空白进分母会算成 2/7
         assertEquals(1.0 / 3.0, TextUtil.garbledRatio("\uFFFD\uFFFD正常 文本"), 0.0001);
     }
+
+    @Test
+    void printableMojibakeRatioShouldCatchLatinSupplementBand() {
+        // 字体映射错位出的可打印乱码：整行落在拉丁补充区
+        assertEquals(1.0, TextUtil.printableMojibakeRatio("ÿþ¤¥¦§¨©"), 0.0001);
+        // 中文与西文正文里该区占比很低（空白不进分母）
+        assertEquals(0.0, TextUtil.printableMojibakeRatio("投标报价（含税）叁佰万元"), 0.0001);
+        assertEquals(0.0, TextUtil.printableMojibakeRatio("Bidding price 30"), 0.0001);
+        assertEquals(1.0 / 9.0, TextUtil.printableMojibakeRatio("café 30 EUR"), 0.0001);
+    }
 }

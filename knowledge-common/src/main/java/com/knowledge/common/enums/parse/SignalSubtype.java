@@ -17,6 +17,9 @@ public enum SignalSubtype {
     /** 乱码页：不可读码点占比超阈值 */
     GARBLED,
 
+    /** 乱码页（CID 映射失败）：字体缺 ToUnicode 映射，提取文本按映射失败处置 */
+    CID_MAPPING_FAILED,
+
     /** 文字极少或文字占比低：疑似图片页（仅告警） */
     IMAGE_LOW_RATIO,
 

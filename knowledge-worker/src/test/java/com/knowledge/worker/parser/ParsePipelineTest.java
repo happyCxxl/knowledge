@@ -14,6 +14,7 @@ import com.knowledge.worker.parser.ParseProperties;
 import com.knowledge.worker.parser.signal.impl.SignalDetectorImpl;
 import com.knowledge.worker.parser.signal.SignalFallbackHandler;
 import com.knowledge.worker.parser.signal.fallback.BlankFallbackHandler;
+import com.knowledge.worker.parser.signal.fallback.CidMappingFallbackHandler;
 import com.knowledge.worker.parser.signal.fallback.GarbledFallbackHandler;
 import com.knowledge.worker.parser.signal.fallback.ImageEmbeddedFallbackHandler;
 import com.knowledge.worker.parser.signal.fallback.ImageLowRatioFallbackHandler;
@@ -49,10 +50,10 @@ class ParsePipelineTest {
         signalDetector = new SignalDetectorImpl();
     }
 
-    /** 七个信号降级 handler 真实实例（无 mock） */
+    /** 八个信号降级 handler 真实实例（无 mock） */
     private List<SignalFallbackHandler> fallbackHandlers() {
-        return List.of(new GarbledFallbackHandler(), new ScannedFallbackHandler(), new BlankFallbackHandler(),
-                new ImageEmbeddedFallbackHandler(), new ImageLowRatioFallbackHandler(),
+        return List.of(new GarbledFallbackHandler(), new CidMappingFallbackHandler(), new ScannedFallbackHandler(),
+                new BlankFallbackHandler(), new ImageEmbeddedFallbackHandler(), new ImageLowRatioFallbackHandler(),
                 new TableRuleFailedFallbackHandler(), new LayoutRuleFailedFallbackHandler());
     }
 
@@ -157,6 +158,13 @@ class ParsePipelineTest {
         metric.setCharCount(500);
         metric.setGarbledRatio(0.9);
         metric.setTextAreaRatio(0.3);
+        return metric;
+    }
+
+    /** 乱码页且字符主要来自缺 Unicode 映射的 CID 字体 */
+    private PageMetric cidMappingFailedPage() {
+        PageMetric metric = garbledPage();
+        metric.setCidMappingRatio(0.95);
         return metric;
     }
 
@@ -294,6 +302,24 @@ class ParsePipelineTest {
         assertEquals(1, outcome.getFailedUnits());
         assertEquals(1, outcome.getParseResult().getQuality().getFailedPages().size());
         assertEquals("GARBLED_PAGE", outcome.getParseResult().getQuality().getWarnings().getFirst().getCode());
+    }
+
+    /** CID 映射失败页：按映射失败口径出告警，仍计失败单元 */
+    @Test
+    void cidMappingFailedPageShouldWarnWithOwnCode() {
+        List<PageMetric> metrics = new java.util.ArrayList<>();
+        metrics.add(cidMappingFailedPage());
+        for (int i = 2; i <= 10; i++) {
+            metrics.add(normalPage(i));
+        }
+        ParsePipeline pipeline = pipeline(fakeParser(metrics, List.of()));
+
+        ParseOutcome outcome = pipeline.run(context("application/pdf"));
+
+        assertEquals(PipelineTaskStatus.PARTIAL_SUCCESS.name(), outcome.getSuggestedStatus());
+        assertEquals(1, outcome.getFailedUnits());
+        assertEquals("CID_MAPPING_FAILED_PAGE",
+                outcome.getParseResult().getQuality().getWarnings().getFirst().getCode());
     }
 
     @Test
