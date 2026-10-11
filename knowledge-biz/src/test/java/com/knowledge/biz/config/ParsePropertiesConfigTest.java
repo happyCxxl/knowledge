@@ -1,6 +1,7 @@
 package com.knowledge.biz.config;
 
 import com.knowledge.worker.parser.ParseProperties;
+import com.knowledge.worker.parser.capability.CapabilityProperties;
 import org.junit.jupiter.api.Test;
 import org.yaml.snakeyaml.Yaml;
 
@@ -24,15 +25,26 @@ class ParsePropertiesConfigTest {
     @Test
     void applicationYmlShouldCoverAllParseProperties() throws Exception {
         Map<String, Object> parse = parseBlock();
-        ParseProperties defaults = new ParseProperties();
+        assertPropertiesCovered(parse, new ParseProperties());
+        assertPropertiesCovered(nested(parse, "capability"), new CapabilityProperties());
+    }
 
-        for (Field field : ParseProperties.class.getDeclaredFields()) {
+    /** 配置项逐个对上代码默认值，且不许缺项 */
+    private void assertPropertiesCovered(Map<String, Object> block, Object defaults) throws Exception {
+        for (Field field : defaults.getClass().getDeclaredFields()) {
             String key = camelToKebab(field.getName());
-            assertTrue(parse.containsKey(key), () -> "application.yml 缺配置项: " + key);
+            assertTrue(block.containsKey(key), () -> "application.yml 缺配置项: " + key);
             field.setAccessible(true);
-            assertEquals(String.valueOf(field.get(defaults)), String.valueOf(parse.get(key)),
+            assertEquals(String.valueOf(field.get(defaults)), String.valueOf(block.get(key)),
                     () -> "配置项与代码默认值不一致: " + key);
         }
+    }
+
+    /** 取嵌套段（缺失时返回空表，由缺项断言报出来） */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> nested(Map<String, Object> parent, String key) {
+        Object value = parent.get(key);
+        return value instanceof Map ? (Map<String, Object>) value : Map.of();
     }
 
     /** `knowledge.parse` 段（读文本时先替换 Maven 资源过滤占位符，SnakeYAML 不接受裸 @） */

@@ -116,6 +116,14 @@ knowledge:
     column-min-chars: 10
     column-min-page-chars: 100
     column-max-count: 4
+    # 模型能力开关与 sidecar 接入参数（三项开关默认关；地址为空即只走内置降级）
+    capability:
+      ocr-enabled: false
+      layout-enabled: false
+      table-enabled: false
+      sidecar-base-url: ""
+      connect-timeout-millis: 1000
+      read-timeout-millis: 5000
 
 # 文件服务：数据源首次初始化的缺省来源
 # 数据源表为空时按本段参数 seed 两行（MinIO / 本地磁盘），storage-type 指的那种类型置为当前启用；
