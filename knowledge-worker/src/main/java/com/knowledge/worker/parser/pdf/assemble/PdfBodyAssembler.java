@@ -4,10 +4,12 @@ import com.knowledge.common.domain.parse.FontInfo;
 import com.knowledge.common.domain.parse.ParseElement;
 import com.knowledge.common.domain.parse.ParseSource;
 import com.knowledge.common.domain.parse.Provenance;
+import com.knowledge.common.domain.parse.capability.PageImage;
 import com.knowledge.common.enums.parse.ElementType;
 import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.parser.ParseProperties;
 import com.knowledge.worker.parser.capability.CapabilityRegistry;
+import com.knowledge.worker.parser.capability.LayoutCapabilityAttempt;
 import com.knowledge.worker.parser.pdf.detect.HeaderFooterDetector;
 import com.knowledge.worker.parser.pdf.detect.RuleLines;
 import com.knowledge.worker.parser.pdf.detect.TableCandidateDetector;
@@ -32,6 +34,30 @@ import java.util.Set;
 public final class PdfBodyAssembler {
 
     private PdfBodyAssembler() {
+    }
+
+    /**
+     * 复杂页的版面能力兜底：栏数达到门槛才问模型阅读顺序，拿到顺序就按模型区域重排正文行序，
+     * 并把能力引用与留痕事实记到本路；未接入、非复杂页或结果不可用都保持几何顺序不变。
+     */
+    private static List<PageLine> applyLayoutCapability(List<PageLine> bodyLines, PageContent page,
+                                                        ParseSource source, ParseProperties properties,
+                                                        CapabilityRegistry capabilityRegistry) {
+        if (capabilityRegistry == null || !LayoutComplexity.isComplex(bodyLines, properties)) {
+            return bodyLines;
+        }
+        PageImage image = new PageImage();
+        image.setPage(page.pageNo());
+        image.setWidth(page.pageWidth());
+        image.setHeight(page.pageHeight());
+        LayoutCapabilityAttempt.Outcome outcome =
+                LayoutCapabilityAttempt.attempt(capabilityRegistry, image, page.pageNo());
+        source.getFacts().add(outcome.fact());
+        if (!outcome.enhanced()) {
+            return bodyLines;
+        }
+        source.getCapabilities().add(outcome.usage());
+        return LayoutOrderSupport.reorder(bodyLines, outcome.regions(), outcome.order());
     }
 
     /** 单页元素组装：页眉/页脚元素（每页各一条） → 正文按 y 顺序推进（表格候选块与段落互斥结算） */
@@ -84,7 +110,7 @@ public final class PdfBodyAssembler {
         List<Region> regions = RuleLines.regions(page.segments(), properties.getTableLineCoverRatio());
         List<PageLine> run = new ArrayList<>();
         Region runRegion = null;
-        for (PageLine line : bodyLines) {
+        for (PageLine line : applyLayoutCapability(bodyLines, page, source, properties, capabilityRegistry)) {
             Region region = regionOf(regions, line);
             if (region != runRegion) {
                 flushRun(run, runRegion, page, elements, source, fileId, properties, capabilityRegistry);

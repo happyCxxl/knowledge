@@ -67,6 +67,9 @@ knowledge:
     scan-page-image-ratio: 0.5
     # 纯矢量页判定：无文本无图片时矢量图形覆盖率达该值即按纯矢量页处理（不计失败）
     vector-page-min-ratio: 0.05
+    # 版面能力路由：栏数达该值才判复杂页（几何优先，复杂页才问模型阅读顺序）
+    layout-model-min-columns: 3
+    layout-column-start-tolerance: 12.0
     # Office 单元折算：Word 每多少非空白字符 = 1 个判定单元
     office-page-chars: 3000
     # 图片元素门槛：占页面积比（低于该比例的图片不产元素）
