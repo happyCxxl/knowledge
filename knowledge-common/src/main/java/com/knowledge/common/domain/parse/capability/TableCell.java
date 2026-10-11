@@ -1,9 +1,10 @@
 package com.knowledge.common.domain.parse.capability;
 
+import com.knowledge.common.domain.parse.BBox;
 import lombok.Data;
 
 /**
- * 表格单元格（结构识别结果单元）。
+ * 表格单元格（结构识别结果单元）：行列号 + 合并跨度 + 文本 + 表头标记 + 格级包围盒与置信度。
  *
  * @author cxxl
  */
@@ -27,4 +28,10 @@ public class TableCell {
 
     /** 是否表头 */
     private Boolean isHeader;
+
+    /** 单元格包围盒（pt，左上原点；结构模型按格给框） */
+    private BBox bbox;
+
+    /** 单元格置信度（0~1；模型不提供时为 null） */
+    private Double confidence;
 }
