@@ -82,6 +82,8 @@ knowledge:
     # 短文档门槛：内容单元不超过该值时改看坏页绝对数（坏页不超过第二项且仍有可读单元即不判失败）
     short-document-max-units: 3
     short-document-max-failed-units: 1
+    # 质量维度汇总：坏页比例（失败页 ÷ 内容单元）达该值时追加一条汇总告警
+    quality-bad-page-ratio-threshold: 0.3
     # 行聚合与段落聚合：y 容差（pt）、行距 ÷ 行高上限
     line-ytolerance: 2.0
     paragraph-gap-ratio: 1.5

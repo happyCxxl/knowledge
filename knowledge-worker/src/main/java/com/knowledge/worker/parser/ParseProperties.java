@@ -57,6 +57,9 @@ public class ParseProperties {
     /** 短文档门槛：坏页不超过该值且仍有可读单元时不判失败 */
     private int shortDocumentMaxFailedUnits = 1;
 
+    /** 质量维度汇总：坏页比例（失败页 ÷ 内容单元）达到该值时追加一条汇总告警 */
+    private double qualityBadPageRatioThreshold = 0.3;
+
     /** 行聚合 y 容差（pt；待样本标定） */
     private double lineYTolerance = 2.0;
 

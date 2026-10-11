@@ -34,6 +34,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * 解析管线编排单测：路由、门槛三档、纯扫描件、信号降级处置（六 handler 真实实例）。
@@ -278,6 +279,41 @@ class ParsePipelineTest {
         ParseOutcome outcome = pipeline.run(context("application/pdf"));
 
         assertEquals(PipelineTaskStatus.FAILED.name(), outcome.getSuggestedStatus());
+    }
+
+    /** 坏页比例达门槛：加一条维度汇总告警；干净文档不加 */
+    @Test
+    void badPageRatioShouldAddDimensionSummaryWarning() {
+        List<PageMetric> metrics = new java.util.ArrayList<>();
+        for (int i = 1; i <= 4; i++) {
+            PageMetric bad = garbledPage();
+            bad.setPage(i);
+            metrics.add(bad);
+        }
+        for (int i = 5; i <= 10; i++) {
+            metrics.add(normalPage(i));
+        }
+        ParsePipeline pipeline = pipeline(fakeParser(metrics, List.of()));
+
+        ParseOutcome outcome = pipeline.run(context("application/pdf"));
+
+        List<String> codes = outcome.getParseResult().getQuality().getWarnings().stream()
+                .map(w -> w.getCode()).toList();
+        assertTrue(codes.contains("QUALITY_BAD_PAGE_RATIO"), () -> "codes=" + codes);
+        String summary = outcome.getParseResult().getQuality().getWarnings().stream()
+                .filter(w -> "QUALITY_BAD_PAGE_RATIO".equals(w.getCode())).findFirst().orElseThrow().getMessage();
+        assertTrue(summary.contains("GARBLED_PAGE 4"), () -> "summary=" + summary);
+    }
+
+    @Test
+    void cleanDocumentShouldNotAddDimensionSummaryWarning() {
+        ParsePipeline pipeline = pipeline(fakeParser(
+                List.of(normalPage(1), normalPage(2)), List.of()));
+
+        ParseOutcome outcome = pipeline.run(context("application/pdf"));
+
+        assertTrue(outcome.getParseResult().getQuality().getWarnings().isEmpty(),
+                () -> "warnings=" + outcome.getParseResult().getQuality().getWarnings());
     }
 
     @Test

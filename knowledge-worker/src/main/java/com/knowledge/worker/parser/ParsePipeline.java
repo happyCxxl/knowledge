@@ -6,9 +6,11 @@ import com.knowledge.common.domain.parse.ParseOutcome;
 import com.knowledge.common.domain.parse.ParseResult;
 import com.knowledge.common.domain.parse.ParseSource;
 import com.knowledge.common.domain.parse.QualityInfo;
+import com.knowledge.common.domain.parse.QualityWarning;
 import com.knowledge.common.domain.task.StepLogInfo;
 import com.knowledge.common.domain.parse.signal.Signal;
 import com.knowledge.common.enums.parse.ParseStepName;
+import com.knowledge.common.enums.parse.QualityWarningCode;
 import com.knowledge.common.enums.parse.SignalSubtype;
 import com.knowledge.common.enums.task.PipelineTaskErrorCode;
 import com.knowledge.common.enums.task.PipelineTaskStatus;
@@ -21,7 +23,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -124,6 +128,7 @@ public class ParsePipeline {
 
         // ⑤ 成功占比门槛评估
         evaluate(outcome, nativeSource, failedUnits, quality);
+        summarizeQuality(outcome, nativeSource, quality); // ⑥ 坏页比例达门槛时补一条维度汇总告警
 
         // 失败诊断留痕：告警明细进质量检查子步骤（落 kb_pipeline_step_log.error，可查询）
         if (PipelineTaskStatus.FAILED.name().equals(outcome.getSuggestedStatus())) {
@@ -164,6 +169,39 @@ public class ParsePipeline {
         } catch (IllegalArgumentException e) {
             return null;
         }
+    }
+
+    /**
+     * 质量维度汇总：坏页比例（登记失败页数 ÷ 内容单元）达到 `qualityBadPageRatioThreshold` 时，
+     * 额外追加一条 `QUALITY_BAD_PAGE_RATIO` 汇总告警，消息按维度列出各类计数（逐条告警语义不变）。
+     */
+    private void summarizeQuality(ParseOutcome outcome, ParseSource nativeSource, QualityInfo quality) {
+        int unitCount = NullUtil.isNull(nativeSource.getUnitCount()) ? 0 : nativeSource.getUnitCount();
+        int contentUnits = unitCount - (int) quality.getBlankPages().stream().distinct().count();
+        if (contentUnits <= 0) {
+            return;
+        }
+        double badRatio = (double) quality.getFailedPages().size() / contentUnits;
+        if (badRatio < properties.getQualityBadPageRatioThreshold()) {
+            return;
+        }
+        quality.getWarnings().add(QualityWarning.of(QualityWarningCode.QUALITY_BAD_PAGE_RATIO, null, "WARN",
+                String.format("坏页 %d/%d 个内容单元（%.2f ≥ %.2f）：%s", quality.getFailedPages().size(),
+                        contentUnits, badRatio, properties.getQualityBadPageRatioThreshold(),
+                        dimensionCounts(quality))));
+    }
+
+    /** 汇总清单文案：各告警码条数（质量维度计数），全零时给「无异常维度」 */
+    private String dimensionCounts(QualityInfo quality) {
+        Map<String, Long> counts = quality.getWarnings().stream()
+                .collect(Collectors.groupingBy(QualityWarning::getCode, LinkedHashMap::new,
+                        Collectors.counting()));
+        if (counts.isEmpty()) {
+            return "无异常维度";
+        }
+        return counts.entrySet().stream()
+                .map(entry -> entry.getKey() + " " + entry.getValue())
+                .collect(Collectors.joining(" / "));
     }
 
     /**

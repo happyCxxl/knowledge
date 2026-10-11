@@ -37,6 +37,9 @@ public enum QualityWarningCode {
     /** 版面规则失败，按顺序输出，不计失败（预留：当前无事实产出方，见 SignalType.LAYOUT） */
     LAYOUT_RULE_FALLBACK,
 
+    /** 质量维度汇总：坏页比例达门槛，按维度列出各类计数（仅告警，不改变逐条告警语义） */
+    QUALITY_BAD_PAGE_RATIO,
+
     // ---- 组装环节 ----
 
     /** 标题候选：规则拿不准，已按正文处理 */
