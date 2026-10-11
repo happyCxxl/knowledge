@@ -37,11 +37,15 @@ public final class TextTableBuilder {
             return;
         }
         List<List<Token>> tokenMatrix = block.stream().map(PageLine::tokens).toList();
+        List<Double> blockFontSizes = block.stream().map(PageLine::fontSize).toList();
+        // 列聚类容差按块内最大字号折算：大字号行的 token 起点抖动更大，固定像素值会把它拆成虚列
+        double columnTolerance = properties.getTableColumnToleranceRatio()
+                * Math.max(blockFontSizes.stream().mapToDouble(Double::doubleValue).max().orElse(0), 1);
         int minSupportRows = Math.max(2,
                 (int) Math.ceil(block.size() * properties.getTableColumnSupportRatio()));
-        List<Double> columnX = TableCandidateDetector.supportedColumns(tokenMatrix, minSupportRows);
+        List<Double> columnX = TableCandidateDetector.supportedColumns(tokenMatrix, minSupportRows, columnTolerance);
         if (columnX.size() < TableCandidateDetector.MIN_TOKENS
-                || !TableCandidateDetector.enoughLinesCoverColumns(tokenMatrix, columnX)) {
+                || !TableCandidateDetector.enoughLinesCoverColumns(tokenMatrix, columnX, columnTolerance)) {
             TableSupport.degrade(block, page, elements, source, fileId, "列对齐聚类失败（疑似无边框/复杂表格）");
             return;
         }
@@ -63,7 +67,7 @@ public final class TextTableBuilder {
             TableSupport.degrade(block, page, elements, source, fileId, "空白率过高（疑似框线/表单区域）");
             return;
         }
-        Integer headerRow = detectHeaderRow(rowTexts, block.stream().map(PageLine::fontSize).toList(),
+        Integer headerRow = detectHeaderRow(rowTexts, blockFontSizes,
                 properties.getTableHeaderMaxNumericRatio());
         ParseElement table = ParseElement.of("t" + page.pageNo() + "_" + Integer.toHexString(block.hashCode()),
                 ElementType.TABLE);

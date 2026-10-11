@@ -10,7 +10,7 @@ import java.util.List;
 /**
  * PDF 表格候选检测（package-private，PdfBoxDocumentParser 专用助手）：
  * 行级"宽列距"启发式判候选 → 列 x 聚类 → 覆盖度校验。
- * 当前简化：无边框/复杂表格聚类失败时出 TABLE 事实，由管线降级为段落 + 告警。
+ * 列聚类容差按字号折算、由入参给出（大字号行的 token 起点抖动更大），不写固定像素值。
  *
  * @author cxxl
  */
@@ -18,9 +18,6 @@ public final class TableCandidateDetector {
 
     /** 表格候选：单行 token 数下限 */
     public static final int MIN_TOKENS = 2;
-
-    /** 列聚类容差（pt） */
-    public static final double COLUMN_TOLERANCE = 3.0;
 
     private TableCandidateDetector() {
     }
@@ -41,7 +38,7 @@ public final class TableCandidateDetector {
     }
 
     /** 列聚类：所有 token 起点按容差合并为列 x 列表（升序）。 */
-    public static List<Double> clusterColumns(List<List<Token>> tokenMatrix) {
+    public static List<Double> clusterColumns(List<List<Token>> tokenMatrix, double tolerance) {
         List<Double> starts = new ArrayList<>();
         for (List<Token> line : tokenMatrix) {
             for (Token token : line) {
@@ -52,7 +49,7 @@ public final class TableCandidateDetector {
         List<Double> clusters = new ArrayList<>();
         double current = -1;
         for (double s : starts) {
-            if (current < 0 || s - current > COLUMN_TOLERANCE) {
+            if (current < 0 || s - current > tolerance) {
                 clusters.add(s);
                 current = s;
             } else {
@@ -68,14 +65,16 @@ public final class TableCandidateDetector {
      *
      * @param tokenMatrix   块内各行 token
      * @param minSupportRows 列被保留所需的最少行数
+     * @param tolerance     起点合并容差（按字号折算后传入）
      * @return 保留的列起点（升序）
      */
-    public static List<Double> supportedColumns(List<List<Token>> tokenMatrix, int minSupportRows) {
+    public static List<Double> supportedColumns(List<List<Token>> tokenMatrix, int minSupportRows,
+                                                double tolerance) {
         List<Double> kept = new ArrayList<>();
-        for (double column : clusterColumns(tokenMatrix)) {
+        for (double column : clusterColumns(tokenMatrix, tolerance)) {
             int support = 0;
             for (List<Token> line : tokenMatrix) {
-                if (NullUtil.isNotNull(findTokenInColumn(line, column))) {
+                if (NullUtil.isNotNull(findTokenInColumn(line, column, tolerance))) {
                     support++;
                 }
             }
@@ -87,12 +86,13 @@ public final class TableCandidateDetector {
     }
 
     /** 表格置信校验：至少 2 行完整覆盖全部列，且覆盖行数 ≥ 60%（不足则判规则失败降级）。 */
-    public static boolean enoughLinesCoverColumns(List<List<Token>> tokenMatrix, List<Double> columns) {
+    public static boolean enoughLinesCoverColumns(List<List<Token>> tokenMatrix, List<Double> columns,
+                                                  double tolerance) {
         int covered = 0;
         for (List<Token> line : tokenMatrix) {
             boolean covers = true;
             for (double col : columns) {
-                if (NullUtil.isNull(findTokenInColumn(line, col))) {
+                if (NullUtil.isNull(findTokenInColumn(line, col, tolerance))) {
                     covers = false;
                     break;
                 }
@@ -105,10 +105,10 @@ public final class TableCandidateDetector {
     }
 
     /** 取列起点与目标 x 对齐（容差内）的首个 token。 */
-    public static Token findTokenInColumn(List<Token> tokens, double columnX) {
+    public static Token findTokenInColumn(List<Token> tokens, double columnX, double tolerance) {
         Token best = null;
         for (Token token : tokens) {
-            if (Math.abs(token.xStart() - columnX) <= COLUMN_TOLERANCE) {
+            if (Math.abs(token.xStart() - columnX) <= tolerance) {
                 if (NullUtil.isNull(best)) {
                     best = token;
                 }

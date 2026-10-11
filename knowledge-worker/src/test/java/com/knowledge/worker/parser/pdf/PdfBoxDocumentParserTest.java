@@ -438,7 +438,30 @@ class PdfBoxDocumentParserTest {
                 List.of(new Token("C", 10, 20), new Token("D", 100, 110)),
                 List.of(new Token("E", 10, 20), new Token("X", 200, 210)));
 
-        assertEquals(List.of(10.0, 100.0), TableCandidateDetector.supportedColumns(matrix, 2));
+        assertEquals(List.of(10.0, 100.0), TableCandidateDetector.supportedColumns(matrix, 2, 3.0));
+    }
+
+    @Test
+    void columnToleranceShouldFollowFontSize() {
+        // 同一列起点在三行间抖动 10→14→18：24pt 字号下容差 6pt 能合成一列
+        List<List<Token>> jittered = List.of(
+                List.of(new Token("A", 10, 20), new Token("B", 100, 110)),
+                List.of(new Token("C", 14, 24), new Token("D", 100, 110)),
+                List.of(new Token("E", 18, 28), new Token("F", 100, 110)));
+
+        assertEquals(List.of(10.0, 100.0), TableCandidateDetector.clusterColumns(jittered, 6.0));
+        // 固定 3pt 下同一列被拆成三个虚列、支持度全不足，该列整体落空
+        assertEquals(List.of(100.0), TableCandidateDetector.supportedColumns(jittered, 2, 3.0));
+    }
+
+    @Test
+    void smallFontToleranceShouldNotMergeNeighbourColumns() {
+        List<List<Token>> matrix = List.of(
+                List.of(new Token("A", 10, 20), new Token("B", 12.5, 22)),
+                List.of(new Token("C", 10, 20), new Token("D", 12.5, 22)));
+
+        assertEquals(2, TableCandidateDetector.clusterColumns(matrix, 2.0).size());
+        assertEquals(1, TableCandidateDetector.clusterColumns(matrix, 3.0).size());
     }
 
     @Test
