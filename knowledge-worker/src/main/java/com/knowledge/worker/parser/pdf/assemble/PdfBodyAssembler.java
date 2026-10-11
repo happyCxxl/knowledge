@@ -54,7 +54,7 @@ public final class PdfBodyAssembler {
                 continue;
             }
             String footerKey = HeaderFooterDetector.footerBase(HeaderFooterDetector.normalizeKey(line.text()));
-            if (footers.matches(footerKey, line)) {
+            if (footers.matches(footerKey, line, page, properties)) {
                 elements.add(bandElement(
                         ElementType.FOOTER, line.text().trim(), "pdf#bottom-area", page.pageNo(), line, fileId,
                         page.geometry()));
@@ -72,7 +72,7 @@ public final class PdfBodyAssembler {
                     }
                     String footerKey = HeaderFooterDetector.footerBase(
                             HeaderFooterDetector.normalizeKey(line.text()));
-                    return !footers.matches(footerKey, line);
+                    return !footers.matches(footerKey, line, page, properties);
                 })
                 .toList();
 

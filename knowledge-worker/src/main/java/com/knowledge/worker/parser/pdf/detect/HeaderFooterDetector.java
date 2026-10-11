@@ -2,6 +2,7 @@ package com.knowledge.worker.parser.pdf.detect;
 
 import cn.hutool.core.util.StrUtil;
 import com.knowledge.worker.parser.ParseContext;
+import com.knowledge.worker.parser.ParseProperties;
 
 import com.knowledge.worker.parser.pdf.model.PageContent;
 import com.knowledge.worker.parser.pdf.model.PageLine;
@@ -16,7 +17,8 @@ import java.util.Set;
 /**
  * PDF 页眉页脚识别（PdfBoxDocumentParser 专用助手）：
  * 页顶/页底区域内按文本聚合，出现页数达阈值即判页眉/页脚（同一页重复出现只计一页）；
- * 页脚剥离行尾页码后按"基础文本"聚合；页码按「形态 + 页底带 + 跨页同址」判定，同页多条纯数字行不判。
+ * 页脚剥离行尾页码后按"基础文本"聚合；页码按「形态 + 页底带 + 跨页同址 + 内容空洞度」判定，
+ * 同页多条纯数字行不判，紧贴正文的页底数字行按正文处理。
  *
  * @author cxxl
  */
@@ -24,12 +26,6 @@ public final class HeaderFooterDetector {
 
     /** 页码行共享键（页码元素按页各产一条） */
     public static final String PAGE_NUMBER_KEY = "__page_number__";
-
-    /** 页码同址判定容差（pt） */
-    private static final double PAGE_NUMBER_X_TOLERANCE = 5.0;
-
-    /** 页码跨页判定所需的最少页数 */
-    private static final int PAGE_NUMBER_MIN_PAGES = 2;
 
     /**
      * 比较键空白归一化：去首尾空白、连续空白压成一个空格、去掉零宽字符。
@@ -71,51 +67,91 @@ public final class HeaderFooterDetector {
     }
 
     /**
-     * 页脚识别（与页眉同套）：页底 footerAreaRatio 区域内按"基础文本"聚合——
-     * 页脚常与页码同行（"XX项目 3"），页码使每页行文本不同，需剥离行尾页码后再判多页重复；
-     * 纯页码行走页码模式：同页至多一条，且跨页中心在容差内成组、组内页数达阈值才判。
+     * 页脚识别：页底 footerAreaRatio 区域内分两步——
+     * ① 页脚文本：非页码行按"基础文本"聚合（页脚常与页码同行，"XX项目 3" 剥离行尾页码后再判多页重复）；
+     * ② 页码：纯数字行按「跨页中心在容差内成组、组内页数达阈值」确认，且候选行需过内容空洞度门限
+     * （与正上方的正文行留出空白），紧贴正文的页底数字行不进页码候选。
      */
     public static FooterKeys detectFooters(List<PageContent> pages, ParseContext context) {
-        double footerBand = context.getProperties().getFooterAreaRatio();
+        ParseProperties properties = context.getProperties();
         Map<String, Set<Integer>> pagesByText = new LinkedHashMap<>();
-        Map<Integer, PageLine> pageNumberLineByPage = new LinkedHashMap<>();
-        Map<Integer, Integer> pageNumberCountByPage = new LinkedHashMap<>();
         for (PageContent page : pages) {
-            double bandY = page.pageHeight() * (1 - footerBand);
-            for (PageLine line : page.lines()) {
-                if (line.y() + line.height() < bandY) {
-                    continue;
-                }
+            for (PageLine line : footerBandLines(page, properties.getFooterAreaRatio())) {
                 String text = normalizeKey(line.text());
-                if (StrUtil.isBlank(text)) {
-                    continue;
-                }
                 if (isPageNumberLine(text)) {
-                    pageNumberCountByPage.merge(page.pageNo(), 1, Integer::sum);
-                    pageNumberLineByPage.putIfAbsent(page.pageNo(), line);
                     continue;
                 }
                 pagesByText.computeIfAbsent(footerBase(text), k -> new HashSet<>()).add(page.pageNo());
             }
         }
-        int minPages = context.getProperties().getRunningTextMinPages();
+        int minPages = properties.getRunningTextMinPages();
         Set<String> texts = new LinkedHashSet<>();
         pagesByText.forEach((text, pageNos) -> {
             if (pageNos.size() >= minPages) {
                 texts.add(text);
             }
         });
-        return new FooterKeys(texts,
-                pageNumberCenters(pageNumberLineByPage, pageNumberCountByPage, minPages));
+
+        Map<Integer, PageLine> lineByPage = new LinkedHashMap<>();
+        Map<Integer, Integer> countByPage = new LinkedHashMap<>();
+        for (PageContent page : pages) {
+            for (PageLine line : footerBandLines(page, properties.getFooterAreaRatio())) {
+                if (!isPageNumberLine(normalizeKey(line.text()))
+                        || !isolated(page, line, texts, properties.getPageNumberIsolationRatio())) {
+                    continue;
+                }
+                countByPage.merge(page.pageNo(), 1, Integer::sum);
+                lineByPage.putIfAbsent(page.pageNo(), line);
+            }
+        }
+        return new FooterKeys(texts, pageNumberCenters(lineByPage, countByPage, properties));
+    }
+
+    /** 页底带内的行（版面坐标，左上原点；空白行不算） */
+    private static List<PageLine> footerBandLines(PageContent page, double footerBand) {
+        double bandY = page.pageHeight() * (1 - footerBand);
+        return page.lines().stream()
+                .filter(line -> line.y() + line.height() >= bandY && StrUtil.isNotBlank(line.text()))
+                .toList();
+    }
+
+    /**
+     * 内容空洞度：候选行与正上方最近的正文行之间留有 ≥ 行高 × 比例 的空白。
+     * 页脚文本行（跨页重复的基础文本）属页脚家具，不计入正上方正文。
+     */
+    private static boolean isolated(PageContent page, PageLine candidate, Set<String> footerTexts, double ratio) {
+        double top = candidate.y();
+        double nearestBottom = -1;
+        for (PageLine line : page.lines()) {
+            if (line.y() + line.height() > top || !overlapsHorizontally(line, candidate)) {
+                continue;
+            }
+            if (footerTexts.contains(footerBase(normalizeKey(line.text())))) {
+                continue;
+            }
+            nearestBottom = Math.max(nearestBottom, line.y() + line.height());
+        }
+        if (nearestBottom < 0) {
+            return true;
+        }
+        return top - nearestBottom >= candidate.height() * ratio;
+    }
+
+    /** 两行横向是否交叠（"正上方"的判据） */
+    private static boolean overlapsHorizontally(PageLine line, PageLine candidate) {
+        return line.x() < candidate.x() + candidate.width() && line.x() + line.width() > candidate.x();
     }
 
     /** 页码模式确认：同页至多一条，跨页中心容差内成组，组内页数达阈值即记该中心 */
     private static List<Double> pageNumberCenters(Map<Integer, PageLine> lineByPage,
-                                                  Map<Integer, Integer> countByPage, int minPages) {
+                                                  Map<Integer, Integer> countByPage,
+                                                  ParseProperties properties) {
         List<Double> centers = new ArrayList<>();
         if (countByPage.values().stream().anyMatch(count -> count > 1)) {
             return centers;
         }
+        int minPages = Math.max(properties.getPageNumberMinPages(), properties.getRunningTextMinPages());
+        double xTolerance = properties.getPageNumberXTolerance();
         List<PageLine> candidates = new ArrayList<>(lineByPage.values());
         boolean[] used = new boolean[candidates.size()];
         for (int i = 0; i < candidates.size(); i++) {
@@ -125,12 +161,12 @@ public final class HeaderFooterDetector {
             double center = centerOf(candidates.get(i));
             Set<Integer> groupPages = new HashSet<>();
             for (int j = i; j < candidates.size(); j++) {
-                if (!used[j] && Math.abs(centerOf(candidates.get(j)) - center) <= PAGE_NUMBER_X_TOLERANCE) {
+                if (!used[j] && Math.abs(centerOf(candidates.get(j)) - center) <= xTolerance) {
                     used[j] = true;
                     groupPages.add(candidates.get(j).page());
                 }
             }
-            if (groupPages.size() >= Math.max(PAGE_NUMBER_MIN_PAGES, minPages)) {
+            if (groupPages.size() >= minPages) {
                 centers.add(center);
             }
         }
@@ -160,20 +196,26 @@ public final class HeaderFooterDetector {
                 || text.matches("^第\\s*[0-9一二三四五六七八九十百]+\\s*页$");
     }
 
-    /** 页脚判定结果：重复文本基础键 + 已确认的页码横向中心（页码按行位置命中） */
+    /** 页脚判定结果：重复文本基础键 + 已确认的页码横向中心（页码按行位置与内容空洞度命中） */
     public record FooterKeys(Set<String> texts, List<Double> pageNumberCenters) {
 
-        /** 行是否命中页脚：基础文本键命中，或页码中心命中 */
-        public boolean matches(String footerBaseKey, PageLine line) {
+        /** 行是否命中页脚：基础文本键命中，或页码中心命中且该行内容空洞 */
+        public boolean matches(String footerBaseKey, PageLine line, PageContent page, ParseProperties properties) {
             if (texts.contains(footerBaseKey)) {
                 return true;
             }
             if (!PAGE_NUMBER_KEY.equals(footerBaseKey)) {
                 return false;
             }
+            return isolated(page, line, texts, properties.getPageNumberIsolationRatio())
+                    && centerMatched(line, properties.getPageNumberXTolerance());
+        }
+
+        /** 横向中心是否落在已确认的页码中心容差内 */
+        private boolean centerMatched(PageLine line, double xTolerance) {
             double center = centerOf(line);
             for (double candidate : pageNumberCenters) {
-                if (Math.abs(candidate - center) <= PAGE_NUMBER_X_TOLERANCE) {
+                if (Math.abs(candidate - center) <= xTolerance) {
                     return true;
                 }
             }

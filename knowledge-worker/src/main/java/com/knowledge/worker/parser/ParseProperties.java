@@ -54,6 +54,15 @@ public class ParseProperties {
     /** 页眉/页脚判定：同文本重复出现的最小页数（按不同页计） */
     private int runningTextMinPages = 2;
 
+    /** 页码判定：跨页同址判定的横向中心容差（pt） */
+    private double pageNumberXTolerance = 5.0;
+
+    /** 页码判定：跨页同址成组所需的最少页数 */
+    private int pageNumberMinPages = 2;
+
+    /** 页码判定：内容空洞度——页码行与其正上方最近正文行之间的空白下限（行高倍数） */
+    private double pageNumberIsolationRatio = 1.5;
+
     /** 页眉候选区域：页面顶部高度占比 */
     private double headerAreaRatio = 0.08;
 
