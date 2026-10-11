@@ -1,5 +1,6 @@
 package com.knowledge.worker.parser.capability;
 
+import com.knowledge.common.domain.parse.capability.LayoutResult;
 import com.knowledge.common.domain.parse.capability.TableResult;
 import com.knowledge.common.domain.parse.signal.ParseFact;
 import com.knowledge.common.enums.parse.SignalType;
@@ -46,9 +47,42 @@ public final class CapabilityFacts {
         return fact;
     }
 
+    /**
+     * 版面补强事实：模型给出了区域分类与阅读顺序。
+     *
+     * @param region      页区域
+     * @param result      版面分析结果
+     * @return 补强事实
+     */
+    public static ParseFact layoutEnhanced(String region, LayoutResult result) {
+        ParseFact fact = fact(region, SignalType.LAYOUT);
+        fact.setEvidence(String.format("版面阅读顺序由能力补强（%s %s，%d 个区域）",
+                StrUtil.blankToDefault(result.getModel(), "model"),
+                StrUtil.blankToDefault(result.getVersion(), "-"),
+                result.getRegions() == null ? 0 : result.getRegions().size()));
+        return fact;
+    }
+
+    /**
+     * 版面降级留痕：能力不可用或结果不可用，按内置几何口径输出阅读顺序。
+     *
+     * @param region 页区域
+     * @param reason 失败原因
+     * @return 降级事实
+     */
+    public static ParseFact layoutDegraded(String region, String reason) {
+        ParseFact fact = fact(region, SignalType.LAYOUT);
+        fact.setEvidence("版面能力未产出顺序，已按内置几何口径输出（" + StrUtil.blankToDefault(reason, "未配置") + "）");
+        return fact;
+    }
+
     private static ParseFact fact(String region) {
+        return fact(region, SignalType.TABLE);
+    }
+
+    private static ParseFact fact(String region, SignalType type) {
         ParseFact fact = new ParseFact();
-        fact.setType(SignalType.TABLE);
+        fact.setType(type);
         fact.setRegion(region);
         return fact;
     }
