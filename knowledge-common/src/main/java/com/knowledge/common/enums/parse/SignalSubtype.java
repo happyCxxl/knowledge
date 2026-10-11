@@ -14,6 +14,9 @@ public enum SignalSubtype {
     /** 空白页：整页无文本且无图片覆盖（不计失败单元） */
     BLANK,
 
+    /** 纯矢量页：整页无文本无图片但有矢量图形覆盖（图表/示意图，不计失败单元） */
+    VECTOR_GRAPHIC,
+
     /** 乱码页：不可读码点占比超阈值 */
     GARBLED,
 

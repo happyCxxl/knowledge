@@ -101,6 +101,7 @@ public class PdfPageExtractor {
                 ? Math.max(unreadableRatio, printableRatio) : unreadableRatio);
         RuleLines.Graphics graphics = RuleLines.collect(page, pageHeight);
         metric.setImageAreaRatio(RuleLines.imageAreaRatio(graphics.imageBoxes(), pageWidth, pageHeight));
+        metric.setVectorAreaRatio(RuleLines.vectorAreaRatio(graphics.segments(), pageWidth, pageHeight));
 
         // 行聚合（y 容差聚类，同 y 内保持产出顺序 → 栏沟处按断口切行 → 行内按 x 排序 → token 分词）
         List<CharInfo> sorted = stripper.chars.stream()

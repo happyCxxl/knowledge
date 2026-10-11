@@ -65,6 +65,8 @@ knowledge:
     # 扫描页判定：单页非空白字符数下限与图片覆盖占比门槛
     scan-page-min-chars: 50
     scan-page-image-ratio: 0.5
+    # 纯矢量页判定：无文本无图片时矢量图形覆盖率达该值即按纯矢量页处理（不计失败）
+    vector-page-min-ratio: 0.05
     # Office 单元折算：Word 每多少非空白字符 = 1 个判定单元
     office-page-chars: 3000
     # 图片元素门槛：占页面积比（低于该比例的图片不产元素）

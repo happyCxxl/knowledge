@@ -27,6 +27,9 @@ public class ParseProperties {
     /** 扫描页判定：图片覆盖面积占比门槛（整页无文本时，达到该值判扫描页，低于该值判空白页） */
     private double scanPageImageRatio = 0.5;
 
+    /** 矢量页判定：整页无文本无图片时，矢量图形覆盖率达到该值判纯矢量页（不计失败，与真空白区分） */
+    private double vectorPageMinRatio = 0.05;
+
     /** Office 单元折算：Word 每多少非空白字符 = 1 个判定单元（Azure 文档智能页单位口径：3000 字符/页） */
     private int officePageChars = 3000;
 

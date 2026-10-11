@@ -763,6 +763,40 @@ class PdfBoxDocumentParserTest {
                 () -> "evidence=" + facts.getFirst().getEvidence());
     }
 
+    /** 纯矢量页：无文本无图片但成框的矢量线撑出成片覆盖 → 页级指标给出矢量覆盖率 */
+    @Test
+    void vectorOnlyPageShouldReportVectorAreaRatio() throws Exception {
+        ParseSource source = parser.parse(context(buildVectorChartPage()));
+
+        PageMetric metric = source.getPageMetrics().getFirst();
+        assertEquals(0, metric.getCharCount());
+        assertEquals(0.0, metric.getImageAreaRatio(), 0.0001);
+        assertTrue(metric.getVectorAreaRatio() >= 0.05, () -> "vector=" + metric.getVectorAreaRatio());
+    }
+
+    /** 造一页：无文本，只画一个 400×300pt 的矢量框（图表轮廓） */
+    private byte[] buildVectorChartPage() throws Exception {
+        try (PDDocument doc = new PDDocument()) {
+            PDPage page = new PDPage(new PDRectangle(595, 842));
+            doc.addPage(page);
+            try (PDPageContentStream cs = new PDPageContentStream(doc, page)) {
+                cs.setLineWidth(0.8f);
+                float left = 100;
+                float right = 500;
+                float top = 700;
+                float bottom = 400;
+                drawLine(cs, left, top, right, top);
+                drawLine(cs, left, bottom, right, bottom);
+                drawLine(cs, left, bottom, left, top);
+                drawLine(cs, right, bottom, right, top);
+                drawLine(cs, left, 500, right, 500);
+            }
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            doc.save(out);
+            return out.toByteArray();
+        }
+    }
+
     /** 造一页：两张各占页面积约 18% 的图（都过图片元素门槛） */
     private byte[] buildTwoImagePdf() throws Exception {
         try (PDDocument doc = new PDDocument()) {

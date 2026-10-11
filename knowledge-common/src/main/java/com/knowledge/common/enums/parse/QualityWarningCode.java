@@ -22,6 +22,9 @@ public enum QualityWarningCode {
     /** 空白页：无文本且无图片覆盖，不计失败页 */
     BLANK_PAGE,
 
+    /** 纯矢量页：无文本无图片但有矢量图形覆盖（图表/示意图），不计失败页 */
+    VECTOR_PAGE_SUSPECTED,
+
     /** 嵌入图片文字未识别（OCR 预留，暂仅记录引用与图注），不计失败 */
     IMAGE_TEXT_UNRECOGNIZED,
 

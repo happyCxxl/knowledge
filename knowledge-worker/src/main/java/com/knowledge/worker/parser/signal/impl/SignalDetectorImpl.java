@@ -39,10 +39,16 @@ public class SignalDetectorImpl implements SignalDetector {
                 String page = "page " + metric.getPage();
                 String imageEvidence = imageEvidence(metric, p);
                 if (metric.getCharCount() <= 0) {
-                    // 整单元无文本：按图片口径分流扫描单元与空白单元
+                    // 整单元无文本：按图片口径分流扫描单元，再按矢量覆盖分流纯矢量页与空白单元
                     if (hasImage(metric, p)) {
                         signals.add(Signal.of(SignalType.OCR_TEXT, page,
                                 "整单元无文本且含图片（扫描单元）", imageEvidence, SignalSubtype.SCANNED));
+                    } else if (metric.getVectorAreaRatio() >= p.getVectorPageMinRatio()) {
+                        signals.add(Signal.of(SignalType.OCR_TEXT, page,
+                                "整单元无文本无图片但有矢量图形覆盖（纯矢量页）",
+                                String.format("vectorArea=%.2f(≥%.2f)", metric.getVectorAreaRatio(),
+                                        p.getVectorPageMinRatio()),
+                                SignalSubtype.VECTOR_GRAPHIC));
                     } else {
                         signals.add(Signal.of(SignalType.OCR_TEXT, page,
                                 "整单元无文本且无图片（空白单元）", imageEvidence, SignalSubtype.BLANK));

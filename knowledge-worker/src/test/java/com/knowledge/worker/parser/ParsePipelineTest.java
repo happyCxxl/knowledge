@@ -21,6 +21,7 @@ import com.knowledge.worker.parser.signal.fallback.ImageLowRatioFallbackHandler;
 import com.knowledge.worker.parser.signal.fallback.LayoutRuleFailedFallbackHandler;
 import com.knowledge.worker.parser.signal.fallback.ScannedFallbackHandler;
 import com.knowledge.worker.parser.signal.fallback.TableRuleFailedFallbackHandler;
+import com.knowledge.worker.parser.signal.fallback.VectorPageFallbackHandler;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -51,11 +52,12 @@ class ParsePipelineTest {
         signalDetector = new SignalDetectorImpl();
     }
 
-    /** 八个信号降级 handler 真实实例（无 mock） */
+    /** 九个信号降级 handler 真实实例（无 mock） */
     private List<SignalFallbackHandler> fallbackHandlers() {
         return List.of(new GarbledFallbackHandler(), new CidMappingFallbackHandler(), new ScannedFallbackHandler(),
-                new BlankFallbackHandler(), new ImageEmbeddedFallbackHandler(), new ImageLowRatioFallbackHandler(),
-                new TableRuleFailedFallbackHandler(), new LayoutRuleFailedFallbackHandler());
+                new BlankFallbackHandler(), new VectorPageFallbackHandler(), new ImageEmbeddedFallbackHandler(),
+                new ImageLowRatioFallbackHandler(), new TableRuleFailedFallbackHandler(),
+                new LayoutRuleFailedFallbackHandler());
     }
 
     private ParseContext context(String mimeType) {
@@ -370,6 +372,26 @@ class ParsePipelineTest {
         assertEquals(1, outcome.getFailedUnits());
         assertEquals("CID_MAPPING_FAILED_PAGE",
                 outcome.getParseResult().getQuality().getWarnings().getFirst().getCode());
+    }
+
+    /** 纯矢量页：无文本无图片但有矢量覆盖 → 单独告警、不计失败、与空白页同样从分母剔除 */
+    @Test
+    void vectorOnlyPageShouldWarnWithoutFailing() {
+        PageMetric vectorPage = new PageMetric();
+        vectorPage.setPage(1);
+        vectorPage.setCharCount(0);
+        vectorPage.setVectorAreaRatio(0.4);
+        ParsePipeline pipeline = pipeline(fakeParser(
+                List.of(vectorPage, normalPage(2), normalPage(3)), List.of()));
+
+        ParseOutcome outcome = pipeline.run(context("application/pdf"));
+
+        assertEquals(PipelineTaskStatus.SUCCESS.name(), outcome.getSuggestedStatus());
+        assertEquals(0, outcome.getFailedUnits());
+        assertEquals(1, outcome.getParseResult().getQuality().getWarnings().size());
+        assertEquals("VECTOR_PAGE_SUSPECTED",
+                outcome.getParseResult().getQuality().getWarnings().getFirst().getCode());
+        assertEquals(1, outcome.getParseResult().getQuality().getBlankPages().size());
     }
 
     @Test

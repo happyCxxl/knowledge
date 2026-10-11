@@ -70,6 +70,28 @@ public final class RuleLines {
         return Math.min(area / (pageWidth * pageHeight), 1);
     }
 
+    /**
+     * 矢量图形覆盖率：线段包围盒（所有线段的外接矩形）面积 ÷ 页面面积（上限 1）。
+     * 图表、示意图这类纯矢量页靠它把「无文本无图片」的页与真空白页区分开：
+     * 成框成轴的线段会撑出成片区域，而单条页脚分隔线（高度为 0）不算覆盖。
+     */
+    public static double vectorAreaRatio(List<Segment> segments, double pageWidth, double pageHeight) {
+        if (segments.isEmpty() || pageWidth <= 0 || pageHeight <= 0) {
+            return 0;
+        }
+        double minX = Double.MAX_VALUE;
+        double maxX = -Double.MAX_VALUE;
+        double minY = Double.MAX_VALUE;
+        double maxY = -Double.MAX_VALUE;
+        for (Segment segment : segments) {
+            minX = Math.min(minX, Math.min(segment.x1(), segment.x2()));
+            maxX = Math.max(maxX, Math.max(segment.x1(), segment.x2()));
+            minY = Math.min(minY, Math.min(segment.y1(), segment.y2()));
+            maxY = Math.max(maxY, Math.max(segment.y1(), segment.y2()));
+        }
+        return Math.min((maxX - minX) * (maxY - minY) / (pageWidth * pageHeight), 1);
+    }
+
     /** 线框区域：相交线条聚成组件，取外接矩形并保留能形成至少 2 列 2 行网格的组件 */
     public static List<Region> regions(List<Segment> segments, double lineCoverRatio) {
         List<Segment> usable = segments.stream()
