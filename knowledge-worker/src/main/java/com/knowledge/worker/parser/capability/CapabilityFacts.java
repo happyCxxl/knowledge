@@ -1,6 +1,7 @@
 package com.knowledge.worker.parser.capability;
 
 import com.knowledge.common.domain.parse.capability.LayoutResult;
+import com.knowledge.common.domain.parse.capability.StructuredOcrResult;
 import com.knowledge.common.domain.parse.capability.TableResult;
 import com.knowledge.common.domain.parse.signal.ParseFact;
 import com.knowledge.common.enums.parse.SignalType;
@@ -73,6 +74,35 @@ public final class CapabilityFacts {
     public static ParseFact layoutDegraded(String region, String reason) {
         ParseFact fact = fact(region, SignalType.LAYOUT);
         fact.setEvidence("版面能力未产出顺序，已按内置几何口径输出（" + StrUtil.blankToDefault(reason, "未配置") + "）");
+        return fact;
+    }
+
+    /**
+     * OCR 补强事实：能力给出了逐行文本。
+     *
+     * @param region 页区域
+     * @param result 识别结果
+     * @return 补强事实
+     */
+    public static ParseFact ocrEnhanced(String region, StructuredOcrResult result) {
+        ParseFact fact = fact(region, SignalType.OCR_TEXT);
+        fact.setEvidence(String.format("文字由能力补出（%s %s，%d 行）",
+                StrUtil.blankToDefault(result.getModel(), "model"),
+                StrUtil.blankToDefault(result.getVersion(), "-"),
+                result.getLines() == null ? 0 : result.getLines().size()));
+        return fact;
+    }
+
+    /**
+     * OCR 降级留痕：能力不可用或结果不可用，该页保持原样（图片只记引用与图注）。
+     *
+     * @param region 页区域
+     * @param reason 失败原因
+     * @return 降级事实
+     */
+    public static ParseFact ocrDegraded(String region, String reason) {
+        ParseFact fact = fact(region, SignalType.OCR_TEXT);
+        fact.setEvidence("文字能力未补出内容（" + StrUtil.blankToDefault(reason, "未配置") + "）");
         return fact;
     }
 

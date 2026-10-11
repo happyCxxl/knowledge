@@ -2,15 +2,24 @@ package com.knowledge.worker.parser;
 
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
+import com.knowledge.common.domain.parse.BBox;
 import com.knowledge.common.domain.parse.CapabilitySnapshot;
+import com.knowledge.common.domain.parse.PageDimension;
+import com.knowledge.common.domain.parse.ParseElement;
 import com.knowledge.common.domain.parse.ParseOutcome;
 import com.knowledge.common.domain.parse.ParseResult;
 import com.knowledge.common.domain.parse.ParseSource;
 import com.knowledge.common.domain.parse.QualityInfo;
 import com.knowledge.common.domain.parse.QualityWarning;
 import com.knowledge.common.domain.parse.capability.CapabilityUsage;
+import com.knowledge.common.domain.parse.capability.OcrLine;
+import com.knowledge.common.domain.parse.capability.OcrRegion;
+import com.knowledge.common.domain.parse.capability.ProviderContext;
+import com.knowledge.common.domain.parse.capability.StructuredOcrResult;
+import com.knowledge.common.domain.parse.signal.PageMetric;
 import com.knowledge.common.domain.task.StepLogInfo;
 import com.knowledge.common.domain.parse.signal.Signal;
+import com.knowledge.common.enums.parse.ElementType;
 import com.knowledge.common.enums.parse.ParseStepName;
 import com.knowledge.common.enums.parse.QualityWarningCode;
 import com.knowledge.common.enums.parse.SignalSubtype;
@@ -18,6 +27,9 @@ import com.knowledge.common.enums.task.PipelineTaskErrorCode;
 import com.knowledge.common.enums.task.PipelineTaskStatus;
 import com.knowledge.common.enums.task.StepStatus;
 import com.knowledge.common.utils.NullUtil;
+import com.knowledge.worker.parser.capability.CapabilityFacts;
+import com.knowledge.worker.parser.capability.CapabilityRegistry;
+import com.knowledge.worker.parser.capability.StructuredOcrProvider;
 import com.knowledge.worker.parser.signal.SignalDetector;
 import com.knowledge.worker.parser.signal.SignalFallbackHandler;
 import com.knowledge.worker.pipeline.StepLogHelper;
@@ -47,6 +59,7 @@ public class ParsePipeline {
     private final SignalDetector signalDetector;
     private final List<SignalFallbackHandler> fallbackHandlers;
     private final ParseProperties properties;
+    private final CapabilityRegistry capabilityRegistry;
 
     public ParseOutcome run(ParseContext context) {
         ParseOutcome outcome = new ParseOutcome();
@@ -122,12 +135,9 @@ public class ParsePipeline {
         snapshot.setParserName(parser.capabilityName());
         snapshot.setParserVersion(parser.capabilityVersion());
         result.setCapabilitySnapshot(snapshot);
-        fillCapabilityRefs(snapshot, nativeSource);
-        ParseSource ocrPlaceholder = new ParseSource();
-        ocrPlaceholder.setSource("ocr");
-        ocrPlaceholder.setCandidateOrder(false);
-        ocrPlaceholder.setNote("预留未开放：接入后扫描/图片区域文字走本路，与 native 路重叠区域由组装环节裁决");
-        result.setSources(List.of(nativeSource, ocrPlaceholder));
+        ParseSource ocrSource = ocrSource(nativeSource);
+        result.setSources(List.of(nativeSource, ocrSource));
+        fillCapabilityRefs(snapshot, List.of(nativeSource, ocrSource));
 
         // ⑤ 成功占比门槛评估
         evaluate(outcome, nativeSource, failedUnits, quality);
@@ -175,20 +185,99 @@ public class ParsePipeline {
     }
 
     /**
-     * 能力快照回填：把本路实际用到的模型能力（模型名 + 版本）写进快照对应项，
+     * ocr 路：整页无文本且含图片的页交结构化 OCR，识别结果按行产 PARAGRAPH 元素（`needsOcr=false`）并记补强事实；
+     * 未接入能力、无可识别页或某页失败时按页记降级事实，路说明沿用占位文案。
+     * 与 native 路的重叠区域仍由组装环节裁决，本路不做合并。
+     */
+    private ParseSource ocrSource(ParseSource nativeSource) {
+        ParseSource ocr = new ParseSource();
+        ocr.setSource("ocr");
+        ocr.setCandidateOrder(false);
+        ocr.setNote("预留未开放：接入后扫描/图片区域文字走本路，与 native 路重叠区域由组装环节裁决");
+        StructuredOcrProvider provider = capabilityRegistry == null ? null : capabilityRegistry.ocr();
+        if (provider == null) {
+            return ocr;
+        }
+        int filledPages = 0;
+        for (PageMetric metric : ObjectUtil.defaultIfNull(nativeSource.getPageMetrics(), List.<PageMetric>of())) {
+            if (metric.getCharCount() > 0 || !hasImage(metric)) {
+                continue;
+            }
+            String region = "page " + metric.getPage();
+            OcrRegion ocrRegion = new OcrRegion();
+            ocrRegion.setPage(metric.getPage());
+            ocrRegion.setImageRef("page" + metric.getPage() + "-ocr");
+            ocrRegion.setBbox(pageBox(nativeSource, metric.getPage()));
+            StructuredOcrResult recognized = provider.recognize(ocrRegion, new ProviderContext());
+            if (NullUtil.isNull(recognized) || NullUtil.isNull(recognized.getLines())
+                    || recognized.getLines().isEmpty()) {
+                ocr.getFacts().add(CapabilityFacts.ocrDegraded(region, "调用失败或结果不完整"));
+                continue;
+            }
+            filledPages++;
+            for (OcrLine line : recognized.getLines()) {
+                ocr.getElements().add(ocrParagraph(line, metric.getPage()));
+            }
+            ocr.getFacts().add(CapabilityFacts.ocrEnhanced(region, recognized));
+            if (ocr.getCapabilities().isEmpty()) {
+                ocr.getCapabilities().add(
+                        new CapabilityUsage(CapabilityUsage.KIND_OCR, recognized.getModel(), recognized.getVersion()));
+            }
+        }
+        if (filledPages == 0) {
+            ocr.setNote("OCR 能力已接入但本档无可补文字的页（整页无文本且含图片的页）");
+        }
+        return ocr;
+    }
+
+    /** 识别行转段落元素：文本、页内包围盒与置信度，ID 与溯源归组装环节 */
+    private ParseElement ocrParagraph(OcrLine line, Integer pageNo) {
+        ParseElement element = ParseElement.of(ElementType.PARAGRAPH);
+        element.setText(line.getText());
+        element.setPage(pageNo);
+        element.setBbox(line.getBbox());
+        element.setConfidence(line.getConfidence());
+        element.setNeedsOcr(false);
+        return element;
+    }
+
+    /** 该单元是否含图片：Office 看内嵌图片数，PDF 看图片覆盖占比 */
+    private boolean hasImage(PageMetric metric) {
+        if (NullUtil.isNotNull(metric.getImageCount()) && metric.getImageCount() > 0) {
+            return true;
+        }
+        return metric.getImageAreaRatio() >= properties.getScanPageImageRatio();
+    }
+
+    /** 页包围盒：按页尺寸取整页（页尺寸缺失时给 null，区域仍可发起调用） */
+    private BBox pageBox(ParseSource nativeSource, Integer pageNo) {
+        for (PageDimension dimension : ObjectUtil.defaultIfNull(nativeSource.getPageDimensions(),
+                List.<PageDimension>of())) {
+            if (pageNo != null && pageNo.equals(dimension.getPage())) {
+                return new BBox(0, 0, dimension.getWidth(), dimension.getHeight());
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 能力快照回填：把各路实际用到的模型能力（模型名 + 版本）写进快照对应项，
      * 未走能力的类别保持 null（表示本次解析未使用该类能力）。
      */
-    private void fillCapabilityRefs(CapabilitySnapshot snapshot, ParseSource nativeSource) {
-        for (CapabilityUsage usage : ObjectUtil.defaultIfNull(nativeSource.getCapabilities(), List.<CapabilityUsage>of())) {
-            CapabilitySnapshot.CapabilityRef ref = new CapabilitySnapshot.CapabilityRef();
-            ref.setModel(usage.model());
-            ref.setVersion(usage.version());
-            if (usage.isKind(CapabilityUsage.KIND_OCR)) {
-                snapshot.setOcr(ref);
-            } else if (usage.isKind(CapabilityUsage.KIND_LAYOUT)) {
-                snapshot.setLayout(ref);
-            } else if (usage.isKind(CapabilityUsage.KIND_TABLE)) {
-                snapshot.setTable(ref);
+    private void fillCapabilityRefs(CapabilitySnapshot snapshot, List<ParseSource> sources) {
+        for (ParseSource source : sources) {
+            for (CapabilityUsage usage : ObjectUtil.defaultIfNull(source.getCapabilities(),
+                    List.<CapabilityUsage>of())) {
+                CapabilitySnapshot.CapabilityRef ref = new CapabilitySnapshot.CapabilityRef();
+                ref.setModel(usage.model());
+                ref.setVersion(usage.version());
+                if (usage.isKind(CapabilityUsage.KIND_OCR)) {
+                    snapshot.setOcr(ref);
+                } else if (usage.isKind(CapabilityUsage.KIND_LAYOUT)) {
+                    snapshot.setLayout(ref);
+                } else if (usage.isKind(CapabilityUsage.KIND_TABLE)) {
+                    snapshot.setTable(ref);
+                }
             }
         }
     }

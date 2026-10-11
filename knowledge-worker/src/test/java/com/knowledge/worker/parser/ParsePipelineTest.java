@@ -5,7 +5,13 @@ import com.knowledge.common.domain.parse.CapabilitySnapshot;
 import com.knowledge.common.domain.parse.ParseOutcome;
 import com.knowledge.common.domain.parse.ParseSource;
 import com.knowledge.common.domain.parse.capability.CapabilityUsage;
+import com.knowledge.common.domain.parse.capability.OcrLine;
+import com.knowledge.common.domain.parse.capability.StructuredOcrResult;
 import com.knowledge.common.domain.parse.signal.PageMetric;
+import com.knowledge.worker.parser.capability.CapabilityRegistry;
+import com.knowledge.worker.parser.capability.LayoutProvider;
+import com.knowledge.worker.parser.capability.StructuredOcrProvider;
+import com.knowledge.worker.parser.capability.TableStructureProvider;
 import com.knowledge.common.domain.parse.signal.ParseFact;
 import com.knowledge.common.enums.task.PipelineTaskErrorCode;
 import com.knowledge.common.enums.task.PipelineTaskStatus;
@@ -112,7 +118,85 @@ class ParsePipelineTest {
     }
 
     private ParsePipeline pipeline(DocumentParserPort parser) {
-        return new ParsePipeline(List.of(parser), signalDetector, fallbackHandlers(), properties);
+        return pipeline(parser, null);
+    }
+
+    /** 管线（可带能力注册表） */
+    private ParsePipeline pipeline(DocumentParserPort parser, CapabilityRegistry capabilityRegistry) {
+        return new ParsePipeline(List.of(parser), signalDetector, fallbackHandlers(), properties, capabilityRegistry);
+    }
+
+    /** OCR 路由：整页无文本且含图片的页交能力，识别结果进 ocr 路并回填快照的 ocr 项 */
+    @Test
+    void scannedPageShouldBeFilledIntoOcrSource() {
+        PageMetric scanned = new PageMetric();
+        scanned.setPage(1);
+        scanned.setCharCount(0);
+        scanned.setImageCount(1);
+        ParsePipeline pipeline = pipeline(fakeParser(List.of(scanned), List.of()), stubOcrRegistry());
+
+        ParseOutcome outcome = pipeline.run(context("application/pdf"));
+
+        ParseSource ocr = outcome.getParseResult().getSources().get(1);
+        assertEquals("ocr", ocr.getSource());
+        assertEquals(2, ocr.getElements().size(), () -> "elements=" + ocr.getElements());
+        assertEquals(1, ocr.getElements().getFirst().getPage());
+        assertEquals(Boolean.FALSE, ocr.getElements().getFirst().getNeedsOcr());
+        assertEquals(0.94, ocr.getElements().getFirst().getConfidence(), 0.0001);
+        assertTrue(ocr.getFacts().stream().anyMatch(fact -> fact.getEvidence().contains("文字由能力补出")),
+                () -> "facts=" + ocr.getFacts());
+        assertEquals("stub-ocr", ocr.getCapabilities().getFirst().model());
+        assertEquals("stub-ocr", outcome.getParseResult().getCapabilitySnapshot().getOcr().getModel());
+    }
+
+    /** 未接入 OCR：ocr 路保持预留占位（无元素、文案不变） */
+    @Test
+    void withoutOcrCapabilityShouldKeepPlaceholderSource() {
+        PageMetric scanned = new PageMetric();
+        scanned.setPage(1);
+        scanned.setCharCount(0);
+        scanned.setImageCount(1);
+        ParsePipeline pipeline = pipeline(fakeParser(List.of(scanned), List.of()));
+
+        ParseOutcome outcome = pipeline.run(context("application/pdf"));
+
+        ParseSource ocr = outcome.getParseResult().getSources().get(1);
+        assertEquals("ocr", ocr.getSource());
+        assertTrue(ocr.getElements().isEmpty());
+        assertTrue(ocr.getNote().contains("预留未开放"), () -> "note=" + ocr.getNote());
+        assertNull(outcome.getParseResult().getCapabilitySnapshot().getOcr());
+    }
+
+    /** 只接 OCR 能力的注册表：桩为每页返回两行（页码随区域走） */
+    private CapabilityRegistry stubOcrRegistry() {
+        return new CapabilityRegistry() {
+            @Override
+            public StructuredOcrProvider ocr() {
+                return (region, ctx) -> {
+                    StructuredOcrResult result = new StructuredOcrResult();
+                    result.setModel("stub-ocr");
+                    result.setVersion("1.2");
+                    OcrLine first = new OcrLine();
+                    first.setText("invoice no");
+                    first.setConfidence(0.94);
+                    OcrLine second = new OcrLine();
+                    second.setText("total 30");
+                    second.setConfidence(0.88);
+                    result.setLines(List.of(first, second));
+                    return result;
+                };
+            }
+
+            @Override
+            public LayoutProvider layout() {
+                return null;
+            }
+
+            @Override
+            public TableStructureProvider table() {
+                return null;
+            }
+        };
     }
 
     private PageMetric normalPage(int page) {
