@@ -1,6 +1,5 @@
 package com.knowledge.worker.parser.pdf.assemble;
 
-import com.knowledge.common.domain.parse.BBox;
 import com.knowledge.common.domain.parse.FontInfo;
 import com.knowledge.common.domain.parse.ParseElement;
 import com.knowledge.common.domain.parse.ParseSource;
@@ -14,6 +13,7 @@ import com.knowledge.worker.parser.pdf.detect.TableCandidateDetector;
 import com.knowledge.worker.parser.pdf.extract.LineTexts;
 import com.knowledge.worker.parser.pdf.model.PageContent;
 import com.knowledge.worker.parser.pdf.model.PageLine;
+import com.knowledge.worker.parser.pdf.model.PdfPageGeometry;
 import com.knowledge.worker.parser.pdf.model.Region;
 
 import java.util.ArrayList;
@@ -44,7 +44,8 @@ public final class PdfBodyAssembler {
             if (line.y() < headerBandY && headers.contains(key)) {
                 elements.add(bandElement(
                         "h" + page.pageNo() + "_" + Integer.toHexString(key.hashCode()),
-                        ElementType.HEADER, line.text().trim(), "pdf#top-area", page.pageNo(), line, fileId));
+                        ElementType.HEADER, line.text().trim(), "pdf#top-area", page.pageNo(), line, fileId,
+                        page.geometry()));
             }
         }
 
@@ -57,7 +58,8 @@ public final class PdfBodyAssembler {
             if (footers.matches(footerKey, line)) {
                 elements.add(bandElement(
                         "f" + page.pageNo() + "_" + Integer.toHexString(footerKey.hashCode()),
-                        ElementType.FOOTER, line.text().trim(), "pdf#bottom-area", page.pageNo(), line, fileId));
+                        ElementType.FOOTER, line.text().trim(), "pdf#bottom-area", page.pageNo(), line, fileId,
+                        page.geometry()));
             }
         }
 
@@ -132,7 +134,7 @@ public final class PdfBodyAssembler {
                 // 行距超阈值：先结算段落；表格候选块允许更大行距（表格行距可达数倍行高），
                 // 仅当新行不再具备宽列距（非表格候选）时才结算表格块
                 if (!paragraph.isEmpty()) {
-                    elements.add(toParagraphElement(paragraph, fileId));
+                    elements.add(toParagraphElement(paragraph, fileId, page.geometry()));
                     paragraph = new ArrayList<>();
                 }
                 if (!block.isEmpty() && (movedUp || !TableCandidateDetector.isCandidate(line))) {
@@ -142,7 +144,7 @@ public final class PdfBodyAssembler {
             }
             if (TableCandidateDetector.isCandidate(line)) {
                 if (!paragraph.isEmpty()) {
-                    elements.add(toParagraphElement(paragraph, fileId));
+                    elements.add(toParagraphElement(paragraph, fileId, page.geometry()));
                     paragraph = new ArrayList<>();
                 }
                 block.add(line);
@@ -159,7 +161,7 @@ public final class PdfBodyAssembler {
             TextTableBuilder.flush(block, page, elements, source, fileId, properties);
         }
         if (!paragraph.isEmpty()) {
-            elements.add(toParagraphElement(paragraph, fileId));
+            elements.add(toParagraphElement(paragraph, fileId, page.geometry()));
         }
     }
 
@@ -176,7 +178,7 @@ public final class PdfBodyAssembler {
     /**
      * 段落元素组装：多行聚合 + 字体事实（取首行）+ 目录行特征。
      */
-    static ParseElement toParagraphElement(List<PageLine> lines, String fileId) {
+    static ParseElement toParagraphElement(List<PageLine> lines, String fileId, PdfPageGeometry geometry) {
         PageLine first = lines.getFirst();
         PageLine last = lines.getLast();
         ParseElement element = ParseElement.of("p" + first.page() + "_" + lines.hashCode(), ElementType.PARAGRAPH);
@@ -195,7 +197,7 @@ public final class PdfBodyAssembler {
         double y = first.y();
         double maxX = lines.stream().mapToDouble(l -> l.x() + l.width()).max().orElse(0);
         double maxY = last.y() + last.height();
-        element.setBbox(new BBox(x, y, maxX - x, maxY - y));
+        element.setBbox(geometry.toViewport(x, y, maxX - x, maxY - y));
         FontInfo font = new FontInfo();
         font.setName(first.fontName());
         font.setSize(first.fontSize());
@@ -213,16 +215,18 @@ public final class PdfBodyAssembler {
      * @param type   HEADER / FOOTER
      * @param text   元素文本
      * @param area   区域溯源（页首区域 / 页底区域）
-     * @param pageNo 页码
-     * @param line   来源行（取包围盒）
-     * @param fileId 文件 ID
+     * @param pageNo   页码
+     * @param line     来源行（取包围盒）
+     * @param fileId   文件 ID
+     * @param geometry 页几何（版面坐标 → 视口坐标）
      */
     private static ParseElement bandElement(String id, ElementType type, String text, String area,
-                                            int pageNo, PageLine line, String fileId) {
+                                            int pageNo, PageLine line, String fileId,
+                                            PdfPageGeometry geometry) {
         ParseElement element = ParseElement.of(id, type);
         element.setText(text);
         element.setPage(pageNo);
-        element.setBbox(new BBox(line.x(), line.y(), line.width(), line.height()));
+        element.setBbox(geometry.toViewport(line.x(), line.y(), line.width(), line.height()));
         element.setProvenance(new Provenance(fileId, area));
         return element;
     }

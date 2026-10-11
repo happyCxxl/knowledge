@@ -48,7 +48,8 @@ public final class PdfImageEmitter {
             image.setPage(page.pageNo());
             image.setAssetRef("page" + page.pageNo() + "-image" + index);
             image.setNeedsOcr(true);
-            image.setBbox(new BBox(box.left(), box.top(), box.right() - box.left(), box.bottom() - box.top()));
+            image.setBbox(page.geometry().toViewport(new BBox(box.left(), box.top(),
+                    box.right() - box.left(), box.bottom() - box.top())));
             image.setProvenance(new Provenance(fileId,
                     "pdf#page(" + page.pageNo() + ")/image[" + index + "]"));
             elements.add(image);

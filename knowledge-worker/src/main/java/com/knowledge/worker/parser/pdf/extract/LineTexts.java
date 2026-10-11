@@ -20,17 +20,18 @@ public final class LineTexts {
     private LineTexts() {
     }
 
-    /** 行文本重建阈值：显著间隙的下限比例与占比门槛 */
-    public record Options(double spacingFloorRatio, double spacingGapShare) {
+    /** 行文本重建阈值：词间间隙比例、显著间隙的下限比例与占比门槛 */
+    public record Options(double wordGapRatio, double spacingFloorRatio, double spacingGapShare) {
 
-        /** 解析阈值映射：字符间隙下限比例、显著间隙占比门槛 */
+        /** 解析阈值映射：词间间隙比例、字符间隙下限比例、显著间隙占比门槛 */
         public static Options of(ParseProperties properties) {
-            return new Options(properties.getCharacterSpacingFloorRatio(),
+            return new Options(properties.getWordGapRatio(),
+                    properties.getCharacterSpacingFloorRatio(),
                     properties.getCharacterSpacingGapShare());
         }
     }
 
-    /** 行文本：按词边界补分隔符，真实空白压成一个空格；字距加宽的行不按词边界补 */
+    /** 行文本：按相邻字符间隙补词间空格，真实空白压成一个空格；字距加宽的行不按词边界补 */
     public static String lineText(List<CharInfo> sortedByX, Options options) {
         boolean characterSpacing = isCharacterSpacing(sortedByX, options);
         StringBuilder text = new StringBuilder();
@@ -39,8 +40,7 @@ public final class LineTexts {
             if (Character.isWhitespace(current.codePoint())) {
                 appendSpace(text);
             } else {
-                if (!characterSpacing && NullUtil.isNotNull(prev) && prev.wordEnd() && current.wordStart()
-                        && !(isCjk(prev.codePoint()) && isCjk(current.codePoint()))) {
+                if (!characterSpacing && isWordBoundary(prev, current, options)) {
                     appendSpace(text);
                 }
                 text.appendCodePoint(current.codePoint());
@@ -51,6 +51,18 @@ public final class LineTexts {
             text.setLength(text.length() - 1);
         }
         return text.toString();
+    }
+
+    /**
+     * 词边界判定：相邻字符间隙达到「字号 × 词间间隙比例」即算词间空格。
+     * 全部由几何算出，不依赖提取库的词回调 —— 旋转页上回调粒度会失真（把单词拆成单字符）。
+     */
+    private static boolean isWordBoundary(CharInfo prev, CharInfo current, Options options) {
+        if (NullUtil.isNull(prev) || (isCjk(prev.codePoint()) && isCjk(current.codePoint()))) {
+            return false;
+        }
+        double gap = current.x() - (prev.x() + prev.width());
+        return gap > options.wordGapRatio() * Math.max(current.fontSize(), 1);
     }
 
     /**

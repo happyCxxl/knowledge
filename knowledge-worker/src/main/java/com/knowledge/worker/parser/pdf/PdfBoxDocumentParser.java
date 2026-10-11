@@ -74,7 +74,7 @@ public class PdfBoxDocumentParser implements DocumentParserPort {
                 pages.add(pageContent);
                 source.getPageMetrics().add(pageContent.metric());
                 source.getPageDimensions().add(new PageDimension(pageContent.pageNo(),
-                        pageContent.pageWidth(), pageContent.pageHeight()));
+                        pageContent.geometry().viewportWidth(), pageContent.geometry().viewportHeight()));
             }
 
             // ② HEADER/FOOTER 识别：页顶/页底区域内跨页重复文本与页码模式（先算，正文聚合时排除）

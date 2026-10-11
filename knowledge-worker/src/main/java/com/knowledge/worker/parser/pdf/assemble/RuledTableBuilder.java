@@ -72,7 +72,7 @@ public final class RuledTableBuilder {
         double top = grid.rows().getFirst();
         double bottom = grid.rows().getLast();
         BBox bounds = new BBox(left, top, right - left, bottom - top);
-        table.setBbox(bounds);
+        table.setBbox(page.geometry().toViewport(bounds));
         table.setRows(grid.rowCount());
         table.setCols(grid.colCount());
         table.setHeaderRow(headerRow);
@@ -95,7 +95,8 @@ public final class RuledTableBuilder {
             double cellRight = grid.columns().get(rect.col() + rect.colSpan());
             double cellTop = grid.rows().get(rect.row());
             double cellBottom = grid.rows().get(rect.row() + rect.rowSpan());
-            cell.setBbox(new BBox(cellLeft, cellTop, cellRight - cellLeft, cellBottom - cellTop));
+            cell.setBbox(page.geometry().toViewport(
+                    new BBox(cellLeft, cellTop, cellRight - cellLeft, cellBottom - cellTop)));
             cell.setProvenance(new Provenance(fileId, "pdf#page(" + page.pageNo() + ")/table[0]/cell["
                     + rect.row() + "," + rect.col() + "]"));
             cells.add(cell);

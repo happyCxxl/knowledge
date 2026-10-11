@@ -65,7 +65,7 @@ class PdfCharacterSpacingTest {
     void realSpaceShouldSurviveCharacterSpacing() {
         List<CharInfo> chars = new ArrayList<>(spacedWord("Hello", 100, 7, 3));
         double spaceX = 100 + 5 * (7 + 3);
-        chars.add(new CharInfo(spaceX, 100, 3, 10, EM, "Helvetica", false, ' ', true, true));
+        chars.add(new CharInfo(spaceX, 100, 3, 10, EM, "Helvetica", false, ' '));
         chars.addAll(spacedWord("World", spaceX + 6, 7, 3));
 
         assertEquals("Hello World", LineTexts.lineText(chars, options()));
@@ -231,31 +231,27 @@ class PdfCharacterSpacingTest {
         return parser.parse(context);
     }
 
-    /** 字距加宽排版的字符事实：每个字符各成一次词回调、间隙固定 */
+    /** 字距加宽排版的字符事实：字符间隙固定且成片 */
     private List<CharInfo> spacedWord(String text, double x, double width, double gap) {
         List<CharInfo> result = new ArrayList<>();
         double cursor = x;
         for (int i = 0; i < text.length(); ) {
             int cp = text.codePointAt(i);
-            result.add(new CharInfo(cursor, 100, width, 10, EM, "Helvetica", false, cp, true, true));
+            result.add(new CharInfo(cursor, 100, width, 10, EM, "Helvetica", false, cp));
             cursor += width + gap;
             i += Character.charCount(cp);
         }
         return result;
     }
 
-    /** 紧排的一个词：首码点 wordStart、末码点 wordEnd */
+    /** 紧排的一个词：字符间隙 0（词间空格由测试数据另行留出间隙或插入空白字符） */
     private List<CharInfo> word(String text, double x) {
         List<CharInfo> result = new ArrayList<>();
         double cursor = x;
-        int count = text.codePointCount(0, text.length());
-        int index = 0;
         for (int i = 0; i < text.length(); ) {
             int cp = text.codePointAt(i);
-            result.add(new CharInfo(cursor, 100, 7, 10, EM, "Helvetica", false, cp,
-                    index == 0, index == count - 1));
+            result.add(new CharInfo(cursor, 100, 7, 10, EM, "Helvetica", false, cp));
             cursor += 7;
-            index++;
             i += Character.charCount(cp);
         }
         return result;

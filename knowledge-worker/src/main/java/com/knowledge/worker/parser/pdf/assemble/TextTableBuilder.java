@@ -33,7 +33,7 @@ public final class TextTableBuilder {
     static void flush(List<PageLine> block, PageContent page, List<ParseElement> elements,
                       ParseSource source, String fileId, ParseProperties properties) {
         if (block.size() < 2) {
-            elements.add(PdfBodyAssembler.toParagraphElement(block, fileId));
+            elements.add(PdfBodyAssembler.toParagraphElement(block, fileId, page.geometry()));
             return;
         }
         List<List<Token>> tokenMatrix = block.stream().map(PageLine::tokens).toList();
@@ -73,7 +73,7 @@ public final class TextTableBuilder {
                 ElementType.TABLE);
         table.setPage(page.pageNo());
         BBox bounds = PdfGeometry.boundsOf(block, PageLine::x, PageLine::y, PageLine::width, PageLine::height);
-        table.setBbox(bounds);
+        table.setBbox(page.geometry().toViewport(bounds));
         table.setRows(block.size());
         table.setCols(columnX.size());
         table.setHeaderRow(headerRow);
@@ -92,7 +92,8 @@ public final class TextTableBuilder {
                 // 单元格 bbox：列 x 范围 × 行带高度（组装环节续表列宽模式放宽规则输入）
                 double cellX = boundaries.get(c);
                 double cellWidth = boundaries.get(c + 1) - cellX;
-                cell.setBbox(new BBox(cellX, line.y(), Math.max(cellWidth, 0), line.height()));
+                cell.setBbox(page.geometry().toViewport(
+                        new BBox(cellX, line.y(), Math.max(cellWidth, 0), line.height())));
                 cell.setProvenance(new Provenance(fileId,
                         "pdf#page(" + page.pageNo() + ")/table[0]/cell[" + r + "," + c + "]"));
                 cells.add(cell);

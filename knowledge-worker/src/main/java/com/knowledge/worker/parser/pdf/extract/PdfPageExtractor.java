@@ -10,6 +10,7 @@ import com.knowledge.worker.parser.pdf.layout.PageLayoutAnalyzer;
 import com.knowledge.worker.parser.pdf.model.CharInfo;
 import com.knowledge.worker.parser.pdf.model.PageContent;
 import com.knowledge.worker.parser.pdf.model.PageLine;
+import com.knowledge.worker.parser.pdf.model.PdfPageGeometry;
 import com.knowledge.worker.parser.pdf.model.Token;
 import com.knowledge.worker.parser.support.TocLineFeature;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -50,8 +51,11 @@ public class PdfPageExtractor {
         stripper.getText(doc);
 
         PDPage page = doc.getPage(pageNo - 1);
-        double pageWidth = page.getMediaBox().getWidth();
-        double pageHeight = page.getMediaBox().getHeight();
+        // 版面尺寸取裁剪框（未设裁剪框时 PDFBox 回落到媒体框）：与渲染出来的可见页一致，
+        // 页眉页脚带比例、贴页底判定都按它算；产出元素时再按页几何换算到视口坐标
+        PdfPageGeometry geometry = PdfPageGeometry.of(page);
+        double pageWidth = geometry.textWidth();
+        double pageHeight = geometry.textHeight();
 
         // 页级指标（字符统计先行；文字占比改在行聚合后按行级 bbox 计算，见下方）
         PageMetric metric = new PageMetric();
@@ -109,7 +113,7 @@ public class PdfPageExtractor {
         }
         metric.setTextAreaRatio(pageWidth * pageHeight > 0 ? textArea / (pageWidth * pageHeight) : 0);
 
-        return new PageContent(pageNo, pageWidth, pageHeight, metric, lines, graphics.segments(),
+        return new PageContent(pageNo, pageWidth, pageHeight, geometry, metric, lines, graphics.segments(),
                 graphics.imageBoxes());
     }
 
@@ -204,19 +208,13 @@ public class PdfPageExtractor {
             List<TextPosition> positions = textPositions.stream()
                     .filter(tp -> NullUtil.isNotNull(tp.getUnicode()))
                     .toList();
-            int total = positions.stream()
-                    .mapToInt(tp -> tp.getUnicode().codePointCount(0, tp.getUnicode().length()))
-                    .sum();
-            int index = 0;
             for (TextPosition tp : positions) {
                 String unicode = tp.getUnicode();
                 boolean bold = tp.getFont().getName().toLowerCase(Locale.ROOT).contains("bold");
                 for (int i = 0; i < unicode.length(); ) {
                     int cp = unicode.codePointAt(i);
                     chars.add(new CharInfo(tp.getXDirAdj(), tp.getYDirAdj(), tp.getWidthDirAdj(),
-                            tp.getHeightDir(), tp.getFontSizeInPt(), tp.getFont().getName(), bold, cp,
-                            index == 0, index == total - 1));
-                    index++;
+                            tp.getHeightDir(), tp.getFontSizeInPt(), tp.getFont().getName(), bold, cp));
                     i += Character.charCount(cp);
                 }
             }

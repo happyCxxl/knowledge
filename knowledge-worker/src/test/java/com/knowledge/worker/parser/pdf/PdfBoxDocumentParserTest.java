@@ -893,8 +893,7 @@ class PdfBoxDocumentParserTest {
 
     /** 造一个字符事实（固定行高与字号） */
     private CharInfo ch(int codePoint, double x, boolean wordStart, boolean wordEnd) {
-        return new CharInfo(x, 700, 5, 10, 10, "Helvetica", false,
-                codePoint, wordStart, wordEnd);
+        return new CharInfo(x, 700, 5, 10, 10, "Helvetica", false, codePoint);
     }
 
     /** 造一个行事实（只用到文本） */

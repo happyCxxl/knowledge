@@ -45,6 +45,9 @@ public class ParseProperties {
     /** 行文本重建：字符间隙达到「字号 × 该比例」即视为显著间隙（用于识别字距加宽排版） */
     private double characterSpacingFloorRatio = 0.12;
 
+    /** 行文本重建：字符间隙达到「字号 × 该比例」即视为词间空格（不依赖 PDFBox 的词回调） */
+    private double wordGapRatio = 0.15;
+
     /** 行文本重建：显著间隙占该行字符间隙的比例达到该值即判为字距加宽排版（词边界不再补空格） */
     private double characterSpacingGapShare = 0.75;
 
