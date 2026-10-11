@@ -37,7 +37,7 @@ public final class TextTableBuilder {
             elements.add(PdfBodyAssembler.toParagraphElement(block, fileId, page.geometry()));
             return;
         }
-        List<List<PageLine>> rows = groupRows(block, properties.getTableRowInnerGapRatio());
+        List<List<PageLine>> rows = groupRows(block, properties.getTableRowInnerGapShare());
         List<List<Token>> rowTokens = rows.stream()
                 .map(row -> row.stream().flatMap(line -> line.tokens().stream()).toList())
                 .toList();
@@ -52,6 +52,11 @@ public final class TextTableBuilder {
         if (columns.size() < TableCandidateDetector.MIN_TOKENS
                 || !TableCandidateDetector.enoughLinesCoverColumns(rowTokens, columns)) {
             TableSupport.degrade(block, page, elements, source, fileId, "列对齐聚类失败（疑似无边框/复杂表格）");
+            return;
+        }
+        // 假表门限：正文分栏的每列被整行文字填满，表格单元格相对列宽是稀疏的
+        if (!TableCandidateDetector.sparseColumns(rowTokens, columns, properties.getTableColumnMaxFillRatio())) {
+            TableSupport.degrade(block, page, elements, source, fileId, "列内文本过密（疑似正文分栏）");
             return;
         }
         LineTexts.Options lineTextOptions = LineTexts.Options.of(properties);
@@ -115,10 +120,11 @@ public final class TextTableBuilder {
      * 行分组：行距不超过「字号 × 比例」且 token 全部落在上一行 x 范围内的行并进上一行 ——
      * 单元格内换行的续行由此归并成一行，行数、表头判定与覆盖度都按「逻辑行」计。
      */
-    private static List<List<PageLine>> groupRows(List<PageLine> block, double innerGapRatio) {
+    private static List<List<PageLine>> groupRows(List<PageLine> block, double innerGapShare) {
+        double innerGap = medianGap(block) * innerGapShare;
         List<List<PageLine>> rows = new ArrayList<>();
         for (PageLine line : block) {
-            if (rows.isEmpty() || !isContinuation(rows.getLast(), line, innerGapRatio)) {
+            if (rows.isEmpty() || !isContinuation(rows.getLast(), line, innerGap)) {
                 rows.add(new ArrayList<>(List.of(line)));
             } else {
                 rows.getLast().add(line);
@@ -127,9 +133,22 @@ public final class TextTableBuilder {
         return rows;
     }
 
-    private static boolean isContinuation(List<PageLine> row, PageLine line, double innerGapRatio) {
+    /** 块内相邻行间距的中位数：续行的行距明显小于它，表格行距则与之相当 */
+    private static double medianGap(List<PageLine> block) {
+        List<Double> gaps = new ArrayList<>();
+        for (int i = 1; i < block.size(); i++) {
+            gaps.add(Math.max(block.get(i).y() - (block.get(i - 1).y() + block.get(i - 1).height()), 0));
+        }
+        if (gaps.isEmpty()) {
+            return 0;
+        }
+        gaps.sort(Double::compare);
+        return gaps.get(gaps.size() / 2);
+    }
+
+    private static boolean isContinuation(List<PageLine> row, PageLine line, double innerGap) {
         PageLine previous = row.getLast();
-        if (line.y() - (previous.y() + previous.height()) > innerGapRatio * Math.max(line.fontSize(), 1)) {
+        if (line.y() - (previous.y() + previous.height()) > innerGap) {
             return false;
         }
         // 续行不越过上一行的右边界：整行宽度的下一行是新的表格行，不是续行

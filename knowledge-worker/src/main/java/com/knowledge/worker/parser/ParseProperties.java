@@ -75,8 +75,11 @@ public class ParseProperties {
     /** 表格行带判定：行内落在对齐位置上的 token 数下限（2 列的"对齐"与双栏正文无法区分，故取 3） */
     private int tableRowMinColumns = 3;
 
-    /** 表格行归并：同一行内的续行行距不超过「字号 × 该比例」即并进上一行（单元格内换行） */
-    private double tableRowInnerGapRatio = 1.8;
+    /** 表格行归并：续行行距不超过「块内行距中位数 × 该比例」即并进上一行（单元格内换行） */
+    private double tableRowInnerGapShare = 0.6;
+
+    /** 假表门限：列内文本跨度占列宽的中位数超过该值即判正文分栏（表格单元格相对列宽是稀疏的） */
+    private double tableColumnMaxFillRatio = 0.7;
 
     /** 假表门限：非空单元格占比低于该值即弃表（空白率门禁） */
     private double tableMinFilledRatio = 0.1;

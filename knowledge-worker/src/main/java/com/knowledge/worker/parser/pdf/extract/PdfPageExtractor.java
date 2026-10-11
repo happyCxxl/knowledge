@@ -239,6 +239,15 @@ public class PdfPageExtractor {
         if (anchors.size() < 2) {
             return result;
         }
+        // 假表门限：正文分栏的每列被整行文字填满，列内文本不稀疏时不认表格区域（保持栏内阅读顺序）
+        List<List<Token>> anchorTokens = anchors.stream().map(tokensPerBand::get).toList();
+        double fillTolerance = alignmentTolerance(bands, properties);
+        List<TableCandidateDetector.Column> anchorColumns = TableCandidateDetector.columns(anchorTokens,
+                properties.getTableAlignmentMinRows(), fillTolerance);
+        if (!TableCandidateDetector.sparseColumns(anchorTokens, anchorColumns,
+                properties.getTableColumnMaxFillRatio())) {
+            return result;
+        }
         // 表格区域：锚行区间 + 两侧紧邻的合格行带（行距不超过锚行间距）
         int first = anchors.getFirst();
         int last = anchors.getLast();

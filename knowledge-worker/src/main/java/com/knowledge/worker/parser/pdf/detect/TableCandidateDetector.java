@@ -113,8 +113,7 @@ public final class TableCandidateDetector {
     }
 
     /** 列的行支持度：token 中心点落在列区间内的行数 */
-    private static int supportRows(List<List<Token>> tokenMatrix, Column column) {
-        int support = 0;
+    private static int supportRows(List<List<Token>> tokenMatrix, Column column) {        int support = 0;
         for (List<Token> line : tokenMatrix) {
             if (line.stream().anyMatch(token -> contains(column, token))) {
                 support++;
@@ -132,5 +131,37 @@ public final class TableCandidateDetector {
             joined.add(new Column(columns.get(i).left(), right));
         }
         return joined;
+    }
+
+    /**
+     * 列内文本是否稀疏：每列取「token 跨度 ÷ 列宽」的中位数，半数以上列不超过上限即判为表格。
+     * 正文分栏的每列被整行文字填满（比例接近 1），表格单元格相对列宽是稀疏的。
+     */
+    public static boolean sparseColumns(List<List<Token>> tokenMatrix, List<Column> columns, double maxFillRatio) {
+        if (columns.isEmpty()) {
+            return false;
+        }
+        long sparse = columns.stream().filter(column -> fillRatio(tokenMatrix, column) <= maxFillRatio).count();
+        return sparse >= Math.ceil(columns.size() / 2.0);
+    }
+
+    /** 单列的文本填充比例：列内各行 token 跨度占列宽比例的中位数 */
+    private static double fillRatio(List<List<Token>> tokenMatrix, Column column) {
+        List<Double> ratios = new ArrayList<>();
+        double width = column.right() - column.left();
+        for (List<Token> line : tokenMatrix) {
+            List<Token> inside = line.stream().filter(token -> contains(column, token)).toList();
+            if (inside.isEmpty() || width <= 0) {
+                continue;
+            }
+            double left = inside.stream().mapToDouble(Token::xStart).min().orElse(0);
+            double right = inside.stream().mapToDouble(Token::xEnd).max().orElse(0);
+            ratios.add((right - left) / width);
+        }
+        if (ratios.isEmpty()) {
+            return 0;
+        }
+        ratios.sort(Double::compare);
+        return ratios.get(ratios.size() / 2);
     }
 }
