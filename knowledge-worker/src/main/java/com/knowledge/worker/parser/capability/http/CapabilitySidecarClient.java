@@ -25,6 +25,9 @@ public class CapabilitySidecarClient {
     /** 表格结构识别路径（与 sidecar 约定的能力路径） */
     public static final String TABLE_PATH = "/table";
 
+    /** 版面分析路径 */
+    public static final String LAYOUT_PATH = "/layout";
+
     private final CapabilityProperties properties;
     private final HttpClient httpClient;
 
