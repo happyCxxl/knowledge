@@ -45,6 +45,6 @@ final class TableSupport {
         fact.setRegion("page " + page.pageNo());
         fact.setEvidence(evidence);
         source.getFacts().add(fact);
-        elements.add(PdfBodyAssembler.toParagraphElement(lines, fileId, page.geometry()));
+        elements.add(PdfBodyAssembler.toParagraphElement(lines, fileId, page));
     }
 }

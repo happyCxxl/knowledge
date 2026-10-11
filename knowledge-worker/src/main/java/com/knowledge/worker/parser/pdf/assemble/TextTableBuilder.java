@@ -4,7 +4,6 @@ import cn.hutool.core.util.StrUtil;
 import com.knowledge.common.domain.parse.BBox;
 import com.knowledge.common.domain.parse.ParseElement;
 import com.knowledge.common.domain.parse.ParseSource;
-import com.knowledge.common.domain.parse.Provenance;
 import com.knowledge.common.enums.parse.ElementType;
 import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.parser.ParseProperties;
@@ -34,7 +33,7 @@ public final class TextTableBuilder {
     static void flush(List<PageLine> block, PageContent page, List<ParseElement> elements,
                       ParseSource source, String fileId, ParseProperties properties) {
         if (block.size() < 2) {
-            elements.add(PdfBodyAssembler.toParagraphElement(block, fileId, page.geometry()));
+            elements.add(PdfBodyAssembler.toParagraphElement(block, fileId, page));
             return;
         }
         List<List<PageLine>> rows = groupRows(block, properties.getTableRowInnerGapShare());
@@ -106,8 +105,6 @@ public final class TextTableBuilder {
                 double cellWidth = columns.get(c).right() - cellX;
                 cell.setBbox(page.geometry().toViewport(
                         new BBox(cellX, top, Math.max(cellWidth, 0), Math.max(bottom - top, 0))));
-                cell.setProvenance(new Provenance(fileId,
-                        "pdf#page(" + page.pageNo() + ")/table[0]/cell[" + r + "," + c + "]"));
                 cells.add(cell);
             }
         }

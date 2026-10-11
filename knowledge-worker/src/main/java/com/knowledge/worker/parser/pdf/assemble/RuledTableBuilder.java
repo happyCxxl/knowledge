@@ -3,7 +3,6 @@ package com.knowledge.worker.parser.pdf.assemble;
 import com.knowledge.common.domain.parse.BBox;
 import com.knowledge.common.domain.parse.ParseElement;
 import com.knowledge.common.domain.parse.ParseSource;
-import com.knowledge.common.domain.parse.Provenance;
 import com.knowledge.common.enums.parse.ElementType;
 import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.parser.ParseProperties;
@@ -95,8 +94,6 @@ public final class RuledTableBuilder {
             double cellBottom = grid.rows().get(rect.row() + rect.rowSpan());
             cell.setBbox(page.geometry().toViewport(
                     new BBox(cellLeft, cellTop, cellRight - cellLeft, cellBottom - cellTop)));
-            cell.setProvenance(new Provenance(fileId, "pdf#page(" + page.pageNo() + ")/table[0]/cell["
-                    + rect.row() + "," + rect.col() + "]"));
             cells.add(cell);
         }
         table.setCells(cells);

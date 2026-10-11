@@ -132,7 +132,7 @@ public final class PdfBodyAssembler {
                 // 行距超阈值：先结算段落；表格候选块允许更大行距（表格行距可达数倍行高），
                 // 仅当新行不再具备宽列距（非表格候选）时才结算表格块
                 if (!paragraph.isEmpty()) {
-                    elements.add(toParagraphElement(paragraph, fileId, page.geometry()));
+                    elements.add(toParagraphElement(paragraph, fileId, page));
                     paragraph = new ArrayList<>();
                 }
                 if (!block.isEmpty() && (movedUp || !TableCandidateDetector.isCandidate(line))) {
@@ -142,7 +142,7 @@ public final class PdfBodyAssembler {
             }
             if (TableCandidateDetector.isCandidate(line)) {
                 if (!paragraph.isEmpty()) {
-                    elements.add(toParagraphElement(paragraph, fileId, page.geometry()));
+                    elements.add(toParagraphElement(paragraph, fileId, page));
                     paragraph = new ArrayList<>();
                 }
                 block.add(line);
@@ -159,7 +159,7 @@ public final class PdfBodyAssembler {
             TextTableBuilder.flush(block, page, elements, source, fileId, properties);
         }
         if (!paragraph.isEmpty()) {
-            elements.add(toParagraphElement(paragraph, fileId, page.geometry()));
+            elements.add(toParagraphElement(paragraph, fileId, page));
         }
     }
 
@@ -174,9 +174,10 @@ public final class PdfBodyAssembler {
     }
 
     /**
-     * 段落元素组装：多行聚合 + 字体事实（取首行）+ 目录行特征。ID 由 {@link PageElementIds} 补。
+     * 段落元素组装：多行聚合 + 字体事实（取首行）+ 目录行特征；ID 由 {@link PageElementIds} 补，
+     * 溯源回指本页字符流区间。
      */
-    static ParseElement toParagraphElement(List<PageLine> lines, String fileId, PdfPageGeometry geometry) {
+    static ParseElement toParagraphElement(List<PageLine> lines, String fileId, PageContent page) {
         PageLine first = lines.getFirst();
         PageLine last = lines.getLast();
         ParseElement element = ParseElement.of(ElementType.PARAGRAPH);
@@ -195,15 +196,42 @@ public final class PdfBodyAssembler {
         double y = first.y();
         double maxX = lines.stream().mapToDouble(l -> l.x() + l.width()).max().orElse(0);
         double maxY = last.y() + last.height();
-        element.setBbox(geometry.toViewport(x, y, maxX - x, maxY - y));
+        element.setBbox(page.geometry().toViewport(x, y, maxX - x, maxY - y));
         FontInfo font = new FontInfo();
         font.setName(first.fontName());
         font.setSize(first.fontSize());
         font.setBold(first.bold());
         element.setFont(font);
         element.setTocCandidate(lines.stream().anyMatch(PageLine::tocCandidate));
-        element.setProvenance(new Provenance(fileId, "pdf#page(" + first.page() + ")"));
+        element.setProvenance(new Provenance(fileId, charRangePath(page, lines)));
         return element;
+    }
+
+    /**
+     * 段落的溯源路径：页码 + 本页字符流区间（`pdf#page(n)/chars[i..j]`）。
+     * 字符流按页内阅读顺序累计行内字符数（行间不计分隔符），区间取首行行首到末行行尾。
+     */
+    private static String charRangePath(PageContent page, List<PageLine> lines) {
+        String head = "pdf#page(" + page.pageNo() + ")";
+        PageLine last = lines.getLast();
+        int start = charOffset(page, lines.getFirst());
+        int end = charOffset(page, last);
+        if (start < 0 || end < 0) {
+            return head;
+        }
+        return head + "/chars[" + start + ".." + (end + last.chars().size() - 1) + "]";
+    }
+
+    /** 行在本页字符流中的起始偏移；行不在本页时返回 -1（按实例比对：内容相同的行也可各自算偏移） */
+    private static int charOffset(PageContent page, PageLine target) {
+        int offset = 0;
+        for (PageLine line : page.lines()) {
+            if (line == target) {
+                return offset;
+            }
+            offset += line.chars().size();
+        }
+        return -1;
     }
 
     /**

@@ -7,6 +7,7 @@ import com.knowledge.common.enums.input.FileFormat;
 import com.knowledge.worker.parser.DocumentParserPort;
 import com.knowledge.worker.parser.ParseContext;
 import com.knowledge.worker.parser.pdf.assemble.PageElementIds;
+import com.knowledge.worker.parser.pdf.assemble.PageTableProvenance;
 import com.knowledge.worker.parser.pdf.assemble.PdfBodyAssembler;
 import com.knowledge.worker.parser.pdf.assemble.TableContinuationSupport;
 import com.knowledge.worker.parser.pdf.assemble.PdfImageEmitter;
@@ -83,14 +84,16 @@ public class PdfBoxDocumentParser implements DocumentParserPort {
             Set<String> headers = HeaderFooterDetector.detectHeaders(pages, context);
             HeaderFooterDetector.FooterKeys footers = HeaderFooterDetector.detectFooters(pages, context);
 
-            // ③ 逐页装配元素：页眉页脚 → 正文（段落与两条表格路径）→ 页内图片 → 本页补元素 ID
+            // ③ 逐页装配元素：页眉页脚 → 正文（段落与两条表格路径）→ 页内图片 → 本页补元素 ID 与表格溯源
             List<ParseElement> elements = new ArrayList<>();
             for (PageContent page : pages) {
                 int from = elements.size();
                 PdfBodyAssembler.assemble(page, headers, footers, elements, source, fileId,
                         context.getProperties());
                 PdfImageEmitter.emit(page, elements, source, fileId, context.getProperties());
-                PageElementIds.assign(elements.subList(from, elements.size()), page.pageNo());
+                List<ParseElement> pageElements = elements.subList(from, elements.size());
+                PageElementIds.assign(pageElements, page.pageNo());
+                PageTableProvenance.assign(pageElements, fileId, page.pageNo());
             }
             source.setElements(elements);
             TableContinuationSupport.markContinuedTables(elements, context.getProperties().getTableContinuationOverlapRatio());
