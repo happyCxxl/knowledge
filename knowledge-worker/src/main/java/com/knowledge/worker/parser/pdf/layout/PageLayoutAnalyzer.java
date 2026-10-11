@@ -47,10 +47,11 @@ public interface PageLayoutAnalyzer {
 
     /** 中心落在第几栏（横跨栏沟返回 -1） */
     static int columnOf(double x, double width, List<Double> gutters) {
-        if (crossesAny(x, width, gutters)) {
-            return -1;
-        }
-        double center = x + width / 2;
+        return crossesAny(x, width, gutters) ? -1 : columnOfCenter(x + width / 2, gutters);
+    }
+
+    /** 中心点在栏沟的哪一侧（只看中心与栏沟的先后，不管横向范围是否越沟） */
+    static int columnOfCenter(double center, List<Double> gutters) {
         int column = 0;
         for (double gutter : gutters) {
             if (center > gutter) {

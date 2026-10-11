@@ -41,6 +41,9 @@ public class PdfPageExtractor {
     /** token 分词的空隙阈值（字符 x 间距 ÷ 字号） */
     private static final double TOKEN_GAP_RATIO = 0.35;
 
+    /** 跨栏行判定：中心落在非主栏的字符占比下限（长行只是溢出栏宽，越栏字符很少） */
+    private static final double SPANNING_COLUMN_MIN_SHARE = 0.3;
+
     private final PageLayoutAnalyzer layoutAnalyzer;
 
     public PdfPageExtractor(PageLayoutAnalyzer layoutAnalyzer) {
@@ -99,9 +102,9 @@ public class PdfPageExtractor {
         RuleLines.Graphics graphics = RuleLines.collect(page, pageHeight);
         metric.setImageAreaRatio(RuleLines.imageAreaRatio(graphics.imageBoxes(), pageWidth, pageHeight));
 
-        // 行聚合（y 容差聚类 → 表格行带整行保留、其余按栏沟切行 → 行内按 x 排序 → token 分词）
+        // 行聚合（y 容差聚类，同 y 内保持产出顺序 → 栏沟处按断口切行 → 行内按 x 排序 → token 分词）
         List<CharInfo> sorted = stripper.chars.stream()
-                .sorted(Comparator.comparingDouble(CharInfo::y).thenComparingDouble(CharInfo::x))
+                .sorted(Comparator.comparingDouble(CharInfo::y))
                 .toList();
         List<Double> gutters = detectGutters(stripper.chars, pageWidth, pageHeight,
                 PageLayoutAnalyzer.Options.of(context.getProperties()));
@@ -114,7 +117,8 @@ public class PdfPageExtractor {
             if (tableBands[i]) {
                 rawLines.add(buildLine(pageNo, bands.get(i), lineTextOptions));
             } else {
-                rawLines.addAll(buildLines(pageNo, bands.get(i), gutters, lineTextOptions));
+                rawLines.addAll(buildLines(pageNo, bands.get(i), gutters, lineTextOptions,
+                        context.getProperties()));
             }
         }
         List<PageLine> lines = orderLines(rawLines, gutters, pageWidth, pageHeight);
@@ -141,19 +145,63 @@ public class PdfPageExtractor {
         return layoutAnalyzer.gutters(new PageLayoutAnalyzer.Input(pageWidth, pageHeight, boxes), options);
     }
 
-    /** 按栏沟切行：整组字符横跨栏沟（跨栏行）时出一整行，其余按栏分组各出一行 */
+    /**
+     * 按栏沟处的断口切行：同一 y 带里同排的多栏文本之间有断口（间隙达词间间隙口径）或字符区间回跳/重叠，
+     * 断口又落在某条栏沟中心附近时在此切一刀；真正横跨栏沟的连续文本（跨栏行）整带出一行。
+     */
     private List<PageLine> buildLines(int pageNo, List<CharInfo> lineChars, List<Double> gutters,
-                                      LineTexts.Options lineTextOptions) {
-        if (gutters.isEmpty()
-                || lineChars.stream().anyMatch(c -> PageLayoutAnalyzer.crossesAny(c.x(), c.width(), gutters))) {
+                                      LineTexts.Options lineTextOptions, ParseProperties properties) {
+        if (gutters.isEmpty()) {
             return List.of(buildLine(pageNo, lineChars, lineTextOptions));
         }
-        Map<Integer, List<CharInfo>> byColumn = new LinkedHashMap<>();
+        return splitAtGutterBreaks(lineChars, gutters, properties).stream()
+                .map(group -> buildLine(pageNo, group, lineTextOptions))
+                .toList();
+    }
+
+    /**
+     * 在栏沟处的断口切分一条 y 带：沿字符产出顺序走，相邻字符之间出现断口（间隙达词间间隙口径）
+     * 或起点回跳/重叠，且下一字符已落到另一栏时切一刀。返回各组字符（未切时为单组）。
+     */
+    private static List<List<CharInfo>> splitAtGutterBreaks(List<CharInfo> lineChars, List<Double> gutters,
+                                                            ParseProperties properties) {
+        List<List<CharInfo>> groups = new ArrayList<>();
+        List<CharInfo> group = new ArrayList<>();
+        Map<Integer, Integer> columns = new LinkedHashMap<>();
+        double right = -1;
+        double fontSize = 0;
         for (CharInfo c : lineChars) {
-            byColumn.computeIfAbsent(PageLayoutAnalyzer.columnOf(c.x(), c.width(), gutters),
-                    k -> new ArrayList<>()).add(c);
+            if (!group.isEmpty()) {
+                double breakAt = c.x() - right;
+                boolean broken = breakAt >= properties.getWordGapRatio() * Math.max(fontSize, 1) || breakAt < 0;
+                if (broken && dominantColumn(columns)
+                        != PageLayoutAnalyzer.columnOfCenter(c.x() + c.width() / 2, gutters)) {
+                    groups.add(group);
+                    group = new ArrayList<>();
+                    columns = new LinkedHashMap<>();
+                    fontSize = 0;
+                }
+            }
+            if (group.isEmpty()) {
+                right = c.x();
+            }
+            group.add(c);
+            columns.merge(PageLayoutAnalyzer.columnOfCenter(c.x() + c.width() / 2, gutters), 1, Integer::sum);
+            right = Math.max(right, c.x() + c.width());
+            fontSize = Math.max(fontSize, c.fontSize());
         }
-        return byColumn.values().stream().map(group -> buildLine(pageNo, group, lineTextOptions)).toList();
+        if (!group.isEmpty()) {
+            groups.add(group);
+        }
+        return groups;
+    }
+
+    /** 组内字符中心最多的栏（组归属的栏） */
+    private static int dominantColumn(Map<Integer, Integer> columns) {
+        return columns.entrySet().stream()
+                .max(Comparator.comparingInt(Map.Entry::getValue))
+                .map(Map.Entry::getKey)
+                .orElse(0);
     }
 
     /** 阅读顺序重排：跨栏行分带，带内按栏序与栏内纵向顺序（单栏页保持纵向顺序） */
@@ -163,11 +211,42 @@ public class PdfPageExtractor {
             return lines;
         }
         List<PageLayoutAnalyzer.Box> boxes = lines.stream()
-                .map(line -> new PageLayoutAnalyzer.Box(line.x(), line.y(), line.width(), line.height()))
+                .map(line -> orderBox(line, gutters))
                 .toList();
         PageLayoutAnalyzer.Result result = layoutAnalyzer.order(
                 new PageLayoutAnalyzer.Input(pageWidth, pageHeight, boxes), gutters);
         return result.placed().stream().map(placed -> lines.get(placed.index())).toList();
+    }
+
+    /**
+     * 排顺序用的行盒：单栏行按所属栏裁剪横向范围（长行溢出栏宽不算跨栏行），
+     * 真正的跨栏行保持原宽（由它切上下带）。
+     */
+    private static PageLayoutAnalyzer.Box orderBox(PageLine line, List<Double> gutters) {
+        if (!PageLayoutAnalyzer.crossesAny(line.x(), line.width(), gutters)
+                || spansColumns(line, gutters, SPANNING_COLUMN_MIN_SHARE)) {
+            return new PageLayoutAnalyzer.Box(line.x(), line.y(), line.width(), line.height());
+        }
+        int column = PageLayoutAnalyzer.columnOfCenter(line.x() + line.width() / 2, gutters);
+        double left = column == 0 ? line.x() : Math.max(line.x(), gutters.get(column - 1));
+        double right = column == gutters.size() ? line.x() + line.width()
+                : Math.min(line.x() + line.width(), gutters.get(column));
+        return new PageLayoutAnalyzer.Box(left, line.y(), Math.max(right - left, 0), line.height());
+    }
+
+    /** 行是否真正跨栏：中心落在非主栏的字符占比达门槛（只是长行溢出栏宽的行不算） */
+    private static boolean spansColumns(PageLine line, List<Double> gutters, double minShare) {
+        List<CharInfo> chars = line.chars();
+        if (chars.isEmpty()) {
+            return false;
+        }
+        Map<Integer, Integer> countByColumn = new LinkedHashMap<>();
+        for (CharInfo c : chars) {
+            countByColumn.merge(
+                    PageLayoutAnalyzer.columnOfCenter(c.x() + c.width() / 2, gutters), 1, Integer::sum);
+        }
+        int dominant = countByColumn.values().stream().mapToInt(Integer::intValue).max().orElse(0);
+        return (double) (chars.size() - dominant) / chars.size() >= minShare;
     }
 
     /** 行带：同一 y 容差内的字符（按栏切分前的一整行） */
