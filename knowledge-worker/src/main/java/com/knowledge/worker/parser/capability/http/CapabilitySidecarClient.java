@@ -28,6 +28,9 @@ public class CapabilitySidecarClient {
     /** 版面分析路径 */
     public static final String LAYOUT_PATH = "/layout";
 
+    /** 结构化 OCR 路径 */
+    public static final String OCR_PATH = "/ocr";
+
     private final CapabilityProperties properties;
     private final HttpClient httpClient;
 
