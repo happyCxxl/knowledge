@@ -44,6 +44,7 @@ public final class TextTableBuilder {
         source.getFacts().add(outcome.fact());
         if (outcome.enhanced()) {
             elements.add(outcome.table());
+            source.getCapabilities().add(outcome.usage());
             return;
         }
         TableSupport.degrade(block, page, elements, source, fileId, evidence);

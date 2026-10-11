@@ -1,5 +1,6 @@
 package com.knowledge.common.domain.parse;
 
+import com.knowledge.common.domain.parse.capability.CapabilityUsage;
 import com.knowledge.common.domain.parse.signal.PageMetric;
 import com.knowledge.common.domain.parse.signal.ParseFact;
 import com.knowledge.common.enums.parse.ParseSourceType;
@@ -43,6 +44,9 @@ public class ParseSource {
 
     /** 路级说明（如 ocr 路预留 note） */
     private String note;
+
+    /** 本路实际用到的模型能力（模型名 + 版本；能力调用处回填，管线汇总进产物能力快照） */
+    private List<CapabilityUsage> capabilities = new ArrayList<>();
 
     public static ParseSource nativeSource(String provider) {
         ParseSource source = new ParseSource();

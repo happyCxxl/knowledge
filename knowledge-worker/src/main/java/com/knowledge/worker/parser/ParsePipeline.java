@@ -1,5 +1,6 @@
 package com.knowledge.worker.parser;
 
+import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.knowledge.common.domain.parse.CapabilitySnapshot;
 import com.knowledge.common.domain.parse.ParseOutcome;
@@ -7,6 +8,7 @@ import com.knowledge.common.domain.parse.ParseResult;
 import com.knowledge.common.domain.parse.ParseSource;
 import com.knowledge.common.domain.parse.QualityInfo;
 import com.knowledge.common.domain.parse.QualityWarning;
+import com.knowledge.common.domain.parse.capability.CapabilityUsage;
 import com.knowledge.common.domain.task.StepLogInfo;
 import com.knowledge.common.domain.parse.signal.Signal;
 import com.knowledge.common.enums.parse.ParseStepName;
@@ -120,6 +122,7 @@ public class ParsePipeline {
         snapshot.setParserName(parser.capabilityName());
         snapshot.setParserVersion(parser.capabilityVersion());
         result.setCapabilitySnapshot(snapshot);
+        fillCapabilityRefs(snapshot, nativeSource);
         ParseSource ocrPlaceholder = new ParseSource();
         ocrPlaceholder.setSource("ocr");
         ocrPlaceholder.setCandidateOrder(false);
@@ -168,6 +171,25 @@ public class ParsePipeline {
             return SignalSubtype.valueOf(signal.getSubtype());
         } catch (IllegalArgumentException e) {
             return null;
+        }
+    }
+
+    /**
+     * 能力快照回填：把本路实际用到的模型能力（模型名 + 版本）写进快照对应项，
+     * 未走能力的类别保持 null（表示本次解析未使用该类能力）。
+     */
+    private void fillCapabilityRefs(CapabilitySnapshot snapshot, ParseSource nativeSource) {
+        for (CapabilityUsage usage : ObjectUtil.defaultIfNull(nativeSource.getCapabilities(), List.<CapabilityUsage>of())) {
+            CapabilitySnapshot.CapabilityRef ref = new CapabilitySnapshot.CapabilityRef();
+            ref.setModel(usage.model());
+            ref.setVersion(usage.version());
+            if (usage.isKind(CapabilityUsage.KIND_OCR)) {
+                snapshot.setOcr(ref);
+            } else if (usage.isKind(CapabilityUsage.KIND_LAYOUT)) {
+                snapshot.setLayout(ref);
+            } else if (usage.isKind(CapabilityUsage.KIND_TABLE)) {
+                snapshot.setTable(ref);
+            }
         }
     }
 

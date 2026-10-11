@@ -1,6 +1,7 @@
 package com.knowledge.worker.parser.capability;
 
 import com.knowledge.common.domain.parse.ParseElement;
+import com.knowledge.common.domain.parse.capability.CapabilityUsage;
 import com.knowledge.common.domain.parse.capability.ProviderContext;
 import com.knowledge.common.domain.parse.capability.TableRegion;
 import com.knowledge.common.domain.parse.capability.TableResult;
@@ -23,8 +24,14 @@ public final class TableCapabilityAttempt {
      *
      * @param table 能力产出的表格元素（null 表示未产出，按内置规则降级）
      * @param fact  留痕事实（补强或降级）
+     * @param usage 本次实际用到的能力引用（未产出时为 null）
      */
-    public record Outcome(ParseElement table, ParseFact fact) {
+    public record Outcome(ParseElement table, ParseFact fact, CapabilityUsage usage) {
+
+        /** 未产出结构的结果（无能力引用） */
+        public Outcome(ParseElement table, ParseFact fact) {
+            this(table, fact, null);
+        }
 
         /** 是否拿到可用结构 */
         public boolean enhanced() {
@@ -54,6 +61,7 @@ public final class TableCapabilityAttempt {
         if (table == null) {
             return new Outcome(null, CapabilityFacts.tableDegraded(traceRegion, "调用失败或结果不完整"));
         }
-        return new Outcome(table, CapabilityFacts.tableEnhanced(traceRegion, result));
+        return new Outcome(table, CapabilityFacts.tableEnhanced(traceRegion, result),
+                CapabilityUsage.table(result.getModel(), result.getVersion()));
     }
 }

@@ -1,8 +1,10 @@
 package com.knowledge.worker.parser;
 
 import com.knowledge.common.domain.input.FileReference;
+import com.knowledge.common.domain.parse.CapabilitySnapshot;
 import com.knowledge.common.domain.parse.ParseOutcome;
 import com.knowledge.common.domain.parse.ParseSource;
+import com.knowledge.common.domain.parse.capability.CapabilityUsage;
 import com.knowledge.common.domain.parse.signal.PageMetric;
 import com.knowledge.common.domain.parse.signal.ParseFact;
 import com.knowledge.common.enums.task.PipelineTaskErrorCode;
@@ -75,6 +77,12 @@ class ParsePipelineTest {
     }
 
     private DocumentParserPort fakeParser(List<PageMetric> metrics, List<ParseFact> facts) {
+        return fakeParser(metrics, facts, List.of());
+    }
+
+    /** 假解析器（可带本路用到的能力引用） */
+    private DocumentParserPort fakeParser(List<PageMetric> metrics, List<ParseFact> facts,
+                                          List<CapabilityUsage> capabilities) {
         return new DocumentParserPort() {
             @Override
             public boolean supports(String mime) {
@@ -87,6 +95,7 @@ class ParsePipelineTest {
                 source.setUnitCount(metrics.size());
                 source.setPageMetrics(metrics);
                 source.setFacts(facts);
+                source.setCapabilities(capabilities);
                 return source;
             }
 
@@ -428,6 +437,22 @@ class ParsePipelineTest {
         assertEquals("VECTOR_PAGE_SUSPECTED",
                 outcome.getParseResult().getQuality().getWarnings().getFirst().getCode());
         assertEquals(1, outcome.getParseResult().getQuality().getBlankPages().size());
+    }
+
+    /** 能力快照回填：本路用到的模型名与版本写进快照对应项，未用到的类别保持 null */
+    @Test
+    void capabilityUsageShouldBeFilledIntoSnapshot() {
+        ParsePipeline pipeline = pipeline(fakeParser(List.of(normalPage(1)), List.of(),
+                List.of(CapabilityUsage.table("stub-table", "9.9"))));
+
+        ParseOutcome outcome = pipeline.run(context("application/pdf"));
+
+        CapabilitySnapshot snapshot = outcome.getParseResult().getCapabilitySnapshot();
+        assertEquals("stub-table", snapshot.getTable().getModel());
+        assertEquals("9.9", snapshot.getTable().getVersion());
+        assertNull(snapshot.getOcr());
+        assertNull(snapshot.getLayout());
+        assertEquals("fake", snapshot.getParserName());
     }
 
     @Test
