@@ -2,13 +2,14 @@ package com.knowledge.worker.parser.pdf.assemble;
 
 import com.knowledge.worker.parser.ParseProperties;
 import com.knowledge.worker.parser.pdf.model.PageLine;
+import com.knowledge.worker.parser.pdf.model.Token;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 复杂页判定：按行起点横坐标聚类估栏数（同一栏的行起点落在容差内），
- * 栏数达到门槛判复杂页 —— 版面能力只对复杂页发起调用，几何口径仍是默认。
+ * 复杂页判定：数「行内跨栏间隙」——同一行里相邻 token 的水平间隙超过门槛，说明这行横跨两栏以上，
+ * 即提取阶段没有把多栏拆开（几何口径最不可靠的形态）。出现该形态的行数达门槛即判复杂页，
+ * 版面能力只对复杂页发起调用，几何口径仍是默认。
  *
  * @author cxxl
  */
@@ -18,48 +19,43 @@ public final class LayoutComplexity {
     }
 
     /**
-     * 估栏数。
+     * 跨栏行数：行内存在至少一处超过门槛的相邻 token 间隙即计一行。
      *
-     * @param lines     页面行
-     * @param tolerance 行起点横向容差（pt）
-     * @return 栏数（行起点聚成的簇数；至少被两行支撑的簇才计一栏）
+     * @param lines      页面行
+     * @param properties 解析阈值
+     * @return 跨栏行数
      */
-    public static int columnCount(List<PageLine> lines, double tolerance) {
-        List<double[]> clusters = new ArrayList<>();
-        List<Integer> supports = new ArrayList<>();
+    public static int spanningLineCount(List<PageLine> lines, ParseProperties properties) {
+        double gapThreshold = properties.getLayoutColumnStartTolerance()
+                * properties.getLayoutSpanningGapFactor();
+        int spanning = 0;
         for (PageLine line : lines) {
-            int hit = -1;
-            for (int index = 0; index < clusters.size(); index++) {
-                if (Math.abs(clusters.get(index)[0] - line.x()) <= tolerance) {
-                    hit = index;
-                    break;
-                }
-            }
-            if (hit < 0) {
-                clusters.add(new double[] {line.x()});
-                supports.add(1);
-            } else {
-                supports.set(hit, supports.get(hit) + 1);
+            if (hasSpanningGap(line.tokens(), gapThreshold)) {
+                spanning++;
             }
         }
-        int columns = 0;
-        for (Integer support : supports) {
-            if (support >= 2) {
-                columns++;
-            }
-        }
-        return columns;
+        return spanning;
     }
 
     /**
      * 是否复杂页。
      *
-     * @param lines     页面行
+     * @param lines      页面行
      * @param properties 解析阈值
-     * @return 栏数达到 `layoutModelMinColumns` 即为复杂页
+     * @return 跨栏行数达到 `layoutModelMinSpanningLines` 即为复杂页
      */
     public static boolean isComplex(List<PageLine> lines, ParseProperties properties) {
-        return columnCount(lines, properties.getLayoutColumnStartTolerance())
-                >= properties.getLayoutModelMinColumns();
+        return spanningLineCount(lines, properties) >= properties.getLayoutModelMinSpanningLines();
+    }
+
+    /** 行内是否存在跨栏间隙 */
+    private static boolean hasSpanningGap(List<Token> tokens, double gapThreshold) {
+        for (int index = 1; index < tokens.size(); index++) {
+            double gap = tokens.get(index).xStart() - tokens.get(index - 1).xEnd();
+            if (gap >= gapThreshold) {
+                return true;
+            }
+        }
+        return false;
     }
 }

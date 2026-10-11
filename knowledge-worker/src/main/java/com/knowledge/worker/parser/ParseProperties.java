@@ -30,8 +30,11 @@ public class ParseProperties {
     /** 矢量页判定：整页无文本无图片时，矢量图形覆盖率达到该值判纯矢量页（不计失败，与真空白区分） */
     private double vectorPageMinRatio = 0.05;
 
-    /** 版面能力路由：按行起点横向聚类估出的栏数达到该值才判复杂页（几何优先，复杂页回退模型顺序） */
-    private int layoutModelMinColumns = 3;
+    /** 版面能力路由：行内相邻 token 间隙达到 `layoutColumnStartTolerance × layoutSpanningGapFactor` 即判该行跨栏 */
+    private double layoutSpanningGapFactor = 4.0;
+
+    /** 版面能力路由：跨栏行数达到该值才判复杂页（几何优先，复杂页才问模型阅读顺序） */
+    private int layoutModelMinSpanningLines = 2;
 
     /** 版面能力路由：行起点聚类的横向容差（pt） */
     private double layoutColumnStartTolerance = 12.0;

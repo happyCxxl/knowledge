@@ -2,9 +2,9 @@ package com.knowledge.worker.parser.pdf.assemble;
 
 import com.knowledge.worker.parser.ParseProperties;
 import com.knowledge.worker.parser.pdf.model.PageLine;
+import com.knowledge.worker.parser.pdf.model.Token;
 import org.junit.jupiter.api.Test;
 
-import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -12,52 +12,61 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 复杂页判定单测：行起点按容差聚成簇，至少两行支撑的簇才算一栏，栏数达到门槛判复杂页。
+ * 复杂页判定单测：行内相邻 token 间隙超过门槛即判该行跨栏（提取阶段没把多栏拆开），
+ * 跨栏行数达到门槛判复杂页；普通词距不触发。
  *
  * @author cxxl
  */
 class LayoutComplexityTest {
 
-    /** 三栏各两行（容差内小抖动算同栏）→ 三栏即复杂页 */
+    /** 两行各含一处跨栏间隙（门槛 48pt）→ 两行跨栏即复杂页 */
     @Test
-    void threeColumnsWithTwoLinesEachShouldBeComplex() {
-        List<PageLine> lines = List.of(
-                line(72, 100), line(74, 80), line(300, 100), line(302, 80), line(520, 100), line(521, 80));
+    void linesWithSpanningGapShouldBeComplex() {
+        List<PageLine> lines = List.of(spanningLine(100), spanningLine(80));
 
-        assertEquals(3, LayoutComplexity.columnCount(lines, 12.0));
+        assertEquals(2, LayoutComplexity.spanningLineCount(lines, new ParseProperties()));
         assertTrue(LayoutComplexity.isComplex(lines, new ParseProperties()));
     }
 
-    /** 两栏 → 未达门槛，不算复杂页（几何口径优先） */
+    /** 普通词距（间隙远小于门槛）→ 不跨栏、不判复杂页 */
     @Test
-    void twoColumnsShouldNotBeComplex() {
-        List<PageLine> lines = List.of(line(72, 100), line(73, 80), line(300, 100), line(301, 80));
+    void normalWordGapsShouldNotBeComplex() {
+        List<PageLine> lines = List.of(
+                line(List.of(new Token("alpha", 72, 100), new Token("one", 105, 130)), 100),
+                line(List.of(new Token("alpha", 72, 100), new Token("two", 105, 130)), 80));
 
-        assertEquals(2, LayoutComplexity.columnCount(lines, 12.0));
+        assertEquals(0, LayoutComplexity.spanningLineCount(lines, new ParseProperties()));
         assertFalse(LayoutComplexity.isComplex(lines, new ParseProperties()));
     }
 
-    /** 只有一行支撑的起点不计栏：缩进行不制造假栏 */
+    /** 只有一行跨栏：未达门槛（默认 2 行） */
     @Test
-    void singleLineStartsShouldNotCountAsColumn() {
-        List<PageLine> lines = new ArrayList<>(List.of(line(72, 100), line(72, 80)));
-        lines.add(line(120, 60));
+    void singleSpanningLineShouldNotBeComplex() {
+        List<PageLine> lines = List.of(spanningLine(100),
+                line(List.of(new Token("alpha", 72, 100), new Token("two", 105, 130)), 80));
 
-        assertEquals(1, LayoutComplexity.columnCount(lines, 12.0));
+        assertEquals(1, LayoutComplexity.spanningLineCount(lines, new ParseProperties()));
         assertFalse(LayoutComplexity.isComplex(lines, new ParseProperties()));
     }
 
-    /** 门槛可配：默认门槛 3，改成 2 后两栏页即复杂页 */
+    /** 门槛与间隙系数都可配 */
     @Test
-    void thresholdShouldBeConfigurable() {
-        List<PageLine> lines = List.of(line(72, 100), line(72, 80), line(300, 100), line(300, 80));
+    void thresholdsShouldBeConfigurable() {
+        List<PageLine> lines = List.of(spanningLine(100));
         ParseProperties properties = new ParseProperties();
-        properties.setLayoutModelMinColumns(2);
+        properties.setLayoutModelMinSpanningLines(1);
+        properties.setLayoutSpanningGapFactor(2.0);
 
         assertTrue(LayoutComplexity.isComplex(lines, properties));
     }
 
-    private PageLine line(double x, double y) {
-        return new PageLine(1, x, y, 100, 12, "text", 10, "Helvetica", false, List.of(), List.of(), false);
+    /** 一行两个 token，中间留出跨栏间隙 */
+    private PageLine spanningLine(double y) {
+        return line(List.of(new Token("alpha", 72, 100), new Token("beta", 300, 330)), y);
+    }
+
+    private PageLine line(List<Token> tokens, double y) {
+        return new PageLine(1, tokens.getFirst().xStart(), y, 200, 12, "text", 10, "Helvetica", false,
+                tokens, List.of(), false);
     }
 }
