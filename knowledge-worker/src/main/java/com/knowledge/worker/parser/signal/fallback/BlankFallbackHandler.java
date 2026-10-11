@@ -27,7 +27,7 @@ public class BlankFallbackHandler implements SignalFallbackHandler {
     public int handle(Signal signal, QualityInfo quality) {
         String region = StrUtil.blankToDefault(signal.getRegion(), "");
         quality.getWarnings().add(QualityWarning.of(QualityWarningCode.BLANK_PAGE, null, "WARN",
-                "第 " + region + " 无文本也无图片，按空白页处理"));
+                region + " 无文本也无图片，按空白页处理"));
         FallbackSupport.addBlankPage(quality, FallbackSupport.parsePage(region));
         return 0;
     }

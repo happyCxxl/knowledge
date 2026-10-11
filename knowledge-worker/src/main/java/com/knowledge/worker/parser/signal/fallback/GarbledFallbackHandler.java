@@ -26,7 +26,7 @@ public class GarbledFallbackHandler implements SignalFallbackHandler {
     public int handle(Signal signal, QualityInfo quality) {
         String region = StrUtil.blankToDefault(signal.getRegion(), "");
         quality.getWarnings().add(QualityWarning.of(QualityWarningCode.GARBLED_PAGE, null, "WARN",
-                "第 " + region + " 乱码率超阈值，计失败页"));
+                region + " 乱码率超阈值，计失败页"));
         FallbackSupport.addFailedPage(quality, FallbackSupport.parsePage(region));
         return 1;
     }
