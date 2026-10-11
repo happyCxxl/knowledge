@@ -1,16 +1,17 @@
 package com.knowledge.worker.parser.pdf.detect;
 
 
-import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.parser.pdf.model.PageLine;
 import com.knowledge.worker.parser.pdf.model.Token;
+
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * PDF 表格候选检测（package-private，PdfBoxDocumentParser 专用助手）：
- * 行级"宽列距"启发式判候选 → 列 x 聚类 → 覆盖度校验。
- * 列聚类容差按字号折算、由入参给出（大字号行的 token 起点抖动更大），不写固定像素值。
+ * PDF 表格候选检测（PdfBoxDocumentParser 专用助手）：
+ * 行级"宽列距"启发式判候选 → 列区间划分 → 覆盖度校验。
+ * 列边界同时取 token 左起点与右边界（数字列右对齐时左起点逐行不同、右边界一致），
+ * 容差按字号折算、由入参给出，不写固定像素值。
  *
  * @author cxxl
  */
@@ -18,6 +19,9 @@ public final class TableCandidateDetector {
 
     /** 表格候选：单行 token 数下限 */
     public static final int MIN_TOKENS = 2;
+
+    /** 覆盖度校验：覆盖行占比下限 */
+    private static final double COVER_RATIO = 0.6;
 
     private TableCandidateDetector() {
     }
@@ -37,83 +41,96 @@ public final class TableCandidateDetector {
         return false;
     }
 
-    /** 列聚类：所有 token 起点按容差合并为列 x 列表（升序）。 */
-    public static List<Double> clusterColumns(List<List<Token>> tokenMatrix, double tolerance) {
-        List<Double> starts = new ArrayList<>();
-        for (List<Token> line : tokenMatrix) {
-            for (Token token : line) {
-                starts.add(token.xStart());
-            }
-        }
-        starts.sort(Double::compare);
+    /** 列区间：版面坐标下的左右边界（保留的列首尾相接，覆盖整块宽度） */
+    public record Column(double left, double right) {
+    }
+
+    /** 对齐线聚类：一组 x 值按容差合并为升序簇（左起点与右边界共用） */
+    public static List<Double> clusterEdges(List<Double> values, double tolerance) {
+        List<Double> sorted = new ArrayList<>(values);
+        sorted.sort(Double::compare);
         List<Double> clusters = new ArrayList<>();
         double current = -1;
-        for (double s : starts) {
-            if (current < 0 || s - current > tolerance) {
-                clusters.add(s);
-                current = s;
+        for (double value : sorted) {
+            if (current < 0 || value - current > tolerance) {
+                clusters.add(value);
+                current = value;
             } else {
-                current = (current + s) / 2;
+                current = (current + value) / 2;
             }
         }
         return clusters;
     }
 
     /**
-     * 支持度过滤的列聚类：簇内需有足够行数的 token 落位才保留该列，
-     * 剔除个别行多出的 token 造成的虚列。
+     * 列划分：token 左起点与右边界各自聚成对齐线，相邻对齐线之间的区间作候选列；
+     * 列内 token 按**中心点**归属（右对齐数字列的中心点稳定），再按行支持度过滤，
+     * 最后把保留的列首尾相接 —— 单元格 bbox 覆盖整块宽度且列间不重叠。
      *
-     * @param tokenMatrix   块内各行 token
+     * @param tokenMatrix    块内各行 token
      * @param minSupportRows 列被保留所需的最少行数
-     * @param tolerance     起点合并容差（按字号折算后传入）
-     * @return 保留的列起点（升序）
+     * @param tolerance      边界合并容差（按字号折算后传入）
      */
-    public static List<Double> supportedColumns(List<List<Token>> tokenMatrix, int minSupportRows,
-                                                double tolerance) {
-        List<Double> kept = new ArrayList<>();
-        for (double column : clusterColumns(tokenMatrix, tolerance)) {
-            int support = 0;
-            for (List<Token> line : tokenMatrix) {
-                if (NullUtil.isNotNull(findTokenInColumn(line, column, tolerance))) {
-                    support++;
-                }
+    public static List<Column> columns(List<List<Token>> tokenMatrix, int minSupportRows, double tolerance) {
+        List<Double> edges = new ArrayList<>();
+        for (List<Token> line : tokenMatrix) {
+            for (Token token : line) {
+                edges.add(token.xStart());
+                edges.add(token.xEnd());
             }
-            if (support >= minSupportRows) {
+        }
+        List<Double> boundaries = clusterEdges(edges, tolerance);
+        List<Column> kept = new ArrayList<>();
+        for (int i = 0; i + 1 < boundaries.size(); i++) {
+            Column column = new Column(boundaries.get(i), boundaries.get(i + 1));
+            if (supportRows(tokenMatrix, column) >= minSupportRows) {
                 kept.add(column);
             }
         }
-        return kept;
+        return join(kept, tokenMatrix.stream().flatMap(List::stream).mapToDouble(Token::xEnd).max().orElse(0));
     }
 
-    /** 表格置信校验：至少 2 行完整覆盖全部列，且覆盖行数 ≥ 60%（不足则判规则失败降级）。 */
-    public static boolean enoughLinesCoverColumns(List<List<Token>> tokenMatrix, List<Double> columns,
-                                                  double tolerance) {
+    /** token 是否落在列区间内（按中心点判定） */
+    public static boolean contains(Column column, Token token) {
+        double center = (token.xStart() + token.xEnd()) / 2;
+        return center >= column.left() && center < column.right();
+    }
+
+    /**
+     * 表格置信校验：token 全部落在列上的行数达到 2 行、且占比不低于 60%。
+     * 某些格为空的稀疏行只要没有列外 token 即计入覆盖；单 token 行不算独立行证据。
+     */
+    public static boolean enoughLinesCoverColumns(List<List<Token>> tokenMatrix, List<Column> columns) {
         int covered = 0;
         for (List<Token> line : tokenMatrix) {
-            boolean covers = true;
-            for (double col : columns) {
-                if (NullUtil.isNull(findTokenInColumn(line, col, tolerance))) {
-                    covers = false;
-                    break;
-                }
-            }
-            if (covers) {
+            boolean inside = line.size() >= MIN_TOKENS
+                    && line.stream().allMatch(token -> columns.stream().anyMatch(column -> contains(column, token)));
+            if (inside) {
                 covered++;
             }
         }
-        return covered >= 2 && covered >= tokenMatrix.size() * 0.6;
+        return covered >= 2 && covered >= tokenMatrix.size() * COVER_RATIO;
     }
 
-    /** 取列起点与目标 x 对齐（容差内）的首个 token。 */
-    public static Token findTokenInColumn(List<Token> tokens, double columnX, double tolerance) {
-        Token best = null;
-        for (Token token : tokens) {
-            if (Math.abs(token.xStart() - columnX) <= tolerance) {
-                if (NullUtil.isNull(best)) {
-                    best = token;
-                }
+    /** 列的行支持度：token 中心点落在列区间内的行数 */
+    private static int supportRows(List<List<Token>> tokenMatrix, Column column) {
+        int support = 0;
+        for (List<Token> line : tokenMatrix) {
+            if (line.stream().anyMatch(token -> contains(column, token))) {
+                support++;
             }
         }
-        return best;
+        return support;
+    }
+
+    /** 列首尾相接：每列右边界取下一列左边界，最后一列延伸到块内最大右边界 */
+    private static List<Column> join(List<Column> columns, double blockRight) {
+        List<Column> joined = new ArrayList<>();
+        for (int i = 0; i < columns.size(); i++) {
+            double right = i + 1 < columns.size() ? columns.get(i + 1).left()
+                    : Math.max(blockRight, columns.get(i).right());
+            joined.add(new Column(columns.get(i).left(), right));
+        }
+        return joined;
     }
 }

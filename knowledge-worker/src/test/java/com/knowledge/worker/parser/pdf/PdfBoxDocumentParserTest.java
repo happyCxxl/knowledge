@@ -432,13 +432,35 @@ class PdfBoxDocumentParserTest {
     }
 
     @Test
-    void supportedColumnsShouldDropUnsupportedColumns() {
+    void columnsShouldDropUnsupportedColumns() {
         List<List<Token>> matrix = List.of(
                 List.of(new Token("A", 10, 20), new Token("B", 100, 110)),
                 List.of(new Token("C", 10, 20), new Token("D", 100, 110)),
                 List.of(new Token("E", 10, 20), new Token("X", 200, 210)));
 
-        assertEquals(List.of(10.0, 100.0), TableCandidateDetector.supportedColumns(matrix, 2, 3.0));
+        List<TableCandidateDetector.Column> columns = TableCandidateDetector.columns(matrix, 2, 3.0);
+
+        // 只有第三行出现的 200 段不构成列；保留的两列首尾相接覆盖整块宽度
+        assertEquals(List.of(10.0, 100.0), lefts(columns));
+        assertTrue(TableCandidateDetector.enoughLinesCoverColumns(matrix, columns));
+    }
+
+    /** 右对齐数字列：左起点逐行不同、右边界一致，两侧都作对齐线才认得出该列 */
+    @Test
+    void rightAlignedColumnShouldBeRecognized() {
+        List<List<Token>> matrix = List.of(
+                List.of(new Token("Item", 10, 40), new Token("1,200.00", 80, 120)),
+                List.of(new Token("Part", 10, 40), new Token("99.00", 101, 120)),
+                List.of(new Token("Kit", 10, 40), new Token("4,800.00", 74, 120)));
+
+        List<TableCandidateDetector.Column> columns = TableCandidateDetector.columns(matrix, 2, 3.0);
+
+        assertEquals(2, columns.size());
+        assertEquals(10.0, columns.getFirst().left(), 0.01);
+        // 第二列覆盖三条记录的右边界，右对齐金额都落在列内
+        assertTrue(matrix.stream().flatMap(List::stream)
+                .filter(token -> token.text().contains("."))
+                .allMatch(token -> TableCandidateDetector.contains(columns.getLast(), token)));
     }
 
     @Test
@@ -449,19 +471,24 @@ class PdfBoxDocumentParserTest {
                 List.of(new Token("C", 14, 24), new Token("D", 100, 110)),
                 List.of(new Token("E", 18, 28), new Token("F", 100, 110)));
 
-        assertEquals(List.of(10.0, 100.0), TableCandidateDetector.clusterColumns(jittered, 6.0));
-        // 固定 3pt 下同一列被拆成三个虚列、支持度全不足，该列整体落空
-        assertEquals(List.of(100.0), TableCandidateDetector.supportedColumns(jittered, 2, 3.0));
+        assertEquals(2, TableCandidateDetector.columns(jittered, 2, 6.0).size());
+        // 容差压到 1pt 时抖动列的支持度掉到下限以下，只剩稳定列
+        assertEquals(1, TableCandidateDetector.columns(jittered, 2, 1.0).size());
     }
 
     @Test
     void smallFontToleranceShouldNotMergeNeighbourColumns() {
         List<List<Token>> matrix = List.of(
-                List.of(new Token("A", 10, 20), new Token("B", 12.5, 22)),
-                List.of(new Token("C", 10, 20), new Token("D", 12.5, 22)));
+                List.of(new Token("A", 10, 14), new Token("B", 20, 24)),
+                List.of(new Token("C", 10, 14), new Token("D", 20, 24)));
 
-        assertEquals(2, TableCandidateDetector.clusterColumns(matrix, 2.0).size());
-        assertEquals(1, TableCandidateDetector.clusterColumns(matrix, 3.0).size());
+        assertEquals(2, TableCandidateDetector.columns(matrix, 2, 2.0).size());
+        // 容差放大到 8pt 会把相邻两列并成一列（列间距小于容差时无法区分）
+        assertTrue(TableCandidateDetector.columns(matrix, 2, 8.0).size() < 2);
+    }
+
+    private static List<Double> lefts(List<TableCandidateDetector.Column> columns) {
+        return columns.stream().map(TableCandidateDetector.Column::left).toList();
     }
 
     @Test

@@ -69,6 +69,15 @@ public class ParseProperties {
     /** 文本列聚类：起点合并容差 = 块内最大字号 × 该比例（大字号行的起点抖动随字号放大） */
     private double tableColumnToleranceRatio = 0.25;
 
+    /** 表格行带判定：全页「对齐位置」（token 左起点或右边界）至少被多少行带支持 */
+    private int tableAlignmentMinRows = 2;
+
+    /** 表格行带判定：行内落在对齐位置上的 token 数下限（2 列的"对齐"与双栏正文无法区分，故取 3） */
+    private int tableRowMinColumns = 3;
+
+    /** 表格行归并：同一行内的续行行距不超过「字号 × 该比例」即并进上一行（单元格内换行） */
+    private double tableRowInnerGapRatio = 1.8;
+
     /** 假表门限：非空单元格占比低于该值即弃表（空白率门禁） */
     private double tableMinFilledRatio = 0.1;
 

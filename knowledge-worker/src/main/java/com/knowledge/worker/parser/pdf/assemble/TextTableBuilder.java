@@ -11,6 +11,7 @@ import com.knowledge.worker.parser.ParseProperties;
 import com.knowledge.worker.parser.pdf.detect.TableCandidateDetector;
 import com.knowledge.worker.parser.pdf.extract.LineTexts;
 import com.knowledge.worker.parser.pdf.extract.PdfGeometry;
+import com.knowledge.worker.parser.pdf.model.CharInfo;
 import com.knowledge.worker.parser.pdf.model.PageContent;
 import com.knowledge.worker.parser.pdf.model.PageLine;
 import com.knowledge.worker.parser.pdf.model.Token;
@@ -36,64 +37,71 @@ public final class TextTableBuilder {
             elements.add(PdfBodyAssembler.toParagraphElement(block, fileId, page.geometry()));
             return;
         }
-        List<List<Token>> tokenMatrix = block.stream().map(PageLine::tokens).toList();
+        List<List<PageLine>> rows = groupRows(block, properties.getTableRowInnerGapRatio());
+        List<List<Token>> rowTokens = rows.stream()
+                .map(row -> row.stream().flatMap(line -> line.tokens().stream()).toList())
+                .toList();
         List<Double> blockFontSizes = block.stream().map(PageLine::fontSize).toList();
         // 列聚类容差按块内最大字号折算：大字号行的 token 起点抖动更大，固定像素值会把它拆成虚列
         double columnTolerance = properties.getTableColumnToleranceRatio()
                 * Math.max(blockFontSizes.stream().mapToDouble(Double::doubleValue).max().orElse(0), 1);
         int minSupportRows = Math.max(2,
-                (int) Math.ceil(block.size() * properties.getTableColumnSupportRatio()));
-        List<Double> columnX = TableCandidateDetector.supportedColumns(tokenMatrix, minSupportRows, columnTolerance);
-        if (columnX.size() < TableCandidateDetector.MIN_TOKENS
-                || !TableCandidateDetector.enoughLinesCoverColumns(tokenMatrix, columnX, columnTolerance)) {
+                (int) Math.ceil(rows.size() * properties.getTableColumnSupportRatio()));
+        List<TableCandidateDetector.Column> columns = TableCandidateDetector.columns(rowTokens, minSupportRows,
+                columnTolerance);
+        if (columns.size() < TableCandidateDetector.MIN_TOKENS
+                || !TableCandidateDetector.enoughLinesCoverColumns(rowTokens, columns)) {
             TableSupport.degrade(block, page, elements, source, fileId, "列对齐聚类失败（疑似无边框/复杂表格）");
             return;
         }
-        // 每行列边界：行左边界 + 内部列起点 + 行右边界（覆盖整行，列对齐外的字符不丢）
-        List<List<Double>> rowBoundaries = new ArrayList<>();
-        List<List<String>> rowTexts = new ArrayList<>();
         LineTexts.Options lineTextOptions = LineTexts.Options.of(properties);
-        for (PageLine line : block) {
-            List<Double> boundaries = new ArrayList<>();
-            boundaries.add(line.x());
-            for (int i = 1; i < columnX.size(); i++) {
-                boundaries.add(columnX.get(i));
+        List<List<String>> rowTexts = new ArrayList<>();
+        List<Double> rowFontSizes = new ArrayList<>();
+        for (List<PageLine> row : rows) {
+            List<String> texts = new ArrayList<>();
+            for (TableCandidateDetector.Column column : columns) {
+                List<String> parts = new ArrayList<>();
+                for (PageLine line : row) {
+                    String text = LineTexts.lineText(cellChars(line, column), lineTextOptions);
+                    if (!text.isEmpty()) {
+                        parts.add(text);
+                    }
+                }
+                texts.add(String.join(" ", parts));
             }
-            boundaries.add(line.x() + line.width());
-            rowBoundaries.add(boundaries);
-            rowTexts.add(cellTexts(line, boundaries, lineTextOptions));
+            rowTexts.add(texts);
+            rowFontSizes.add(row.stream().mapToDouble(PageLine::fontSize).average().orElse(0));
         }
         if (TableSupport.blankTable(rowTexts, properties)) {
             TableSupport.degrade(block, page, elements, source, fileId, "空白率过高（疑似框线/表单区域）");
             return;
         }
-        Integer headerRow = detectHeaderRow(rowTexts, blockFontSizes,
-                properties.getTableHeaderMaxNumericRatio());
+        Integer headerRow = detectHeaderRow(rowTexts, rowFontSizes, properties.getTableHeaderMaxNumericRatio());
         ParseElement table = ParseElement.of("t" + page.pageNo() + "_" + Integer.toHexString(block.hashCode()),
                 ElementType.TABLE);
         table.setPage(page.pageNo());
         BBox bounds = PdfGeometry.boundsOf(block, PageLine::x, PageLine::y, PageLine::width, PageLine::height);
         table.setBbox(page.geometry().toViewport(bounds));
-        table.setRows(block.size());
-        table.setCols(columnX.size());
+        table.setRows(rows.size());
+        table.setCols(columns.size());
         table.setHeaderRow(headerRow);
         table.setCutAtPageBottom(PdfGeometry.cutAtPageBottom(bounds, page.pageHeight()));
         List<ParseElement> cells = new ArrayList<>();
-        for (int r = 0; r < block.size(); r++) {
-            PageLine line = block.get(r);
-            List<Double> boundaries = rowBoundaries.get(r);
-            List<String> texts = rowTexts.get(r);
-            for (int c = 0; c < columnX.size(); c++) {
+        for (int r = 0; r < rows.size(); r++) {
+            List<PageLine> row = rows.get(r);
+            double top = row.getFirst().y();
+            double bottom = row.getLast().y() + row.getLast().height();
+            for (int c = 0; c < columns.size(); c++) {
                 ParseElement cell = ParseElement.of("t" + page.pageNo() + "_" + r + "_" + c, ElementType.TABLE_CELL);
-                cell.setText(texts.get(c));
+                cell.setText(rowTexts.get(r).get(c));
                 cell.setRow(r);
                 cell.setCol(c);
                 cell.setIsHeader(NullUtil.isNotNull(headerRow) && r == headerRow);
-                // 单元格 bbox：列 x 范围 × 行带高度（组装环节续表列宽模式放宽规则输入）
-                double cellX = boundaries.get(c);
-                double cellWidth = boundaries.get(c + 1) - cellX;
+                // 单元格 bbox：列区间 × 行纵向范围（合并后的行覆盖整行高度）
+                double cellX = columns.get(c).left();
+                double cellWidth = columns.get(c).right() - cellX;
                 cell.setBbox(page.geometry().toViewport(
-                        new BBox(cellX, line.y(), Math.max(cellWidth, 0), line.height())));
+                        new BBox(cellX, top, Math.max(cellWidth, 0), Math.max(bottom - top, 0))));
                 cell.setProvenance(new Provenance(fileId,
                         "pdf#page(" + page.pageNo() + ")/table[0]/cell[" + r + "," + c + "]"));
                 cells.add(cell);
@@ -103,17 +111,46 @@ public final class TextTableBuilder {
         elements.add(table);
     }
 
-    /** 行内按边界切格：格内字符重建为文本（边界覆盖整行） */
-    private static List<String> cellTexts(PageLine line, List<Double> boundaries, LineTexts.Options options) {
-        List<String> texts = new ArrayList<>();
-        for (int i = 0; i + 1 < boundaries.size(); i++) {
-            double from = boundaries.get(i);
-            double to = boundaries.get(i + 1);
-            texts.add(LineTexts.lineText(line.chars().stream()
-                    .filter(ch -> ch.x() >= from && ch.x() < to)
-                    .toList(), options));
+    /**
+     * 行分组：行距不超过「字号 × 比例」且 token 全部落在上一行 x 范围内的行并进上一行 ——
+     * 单元格内换行的续行由此归并成一行，行数、表头判定与覆盖度都按「逻辑行」计。
+     */
+    private static List<List<PageLine>> groupRows(List<PageLine> block, double innerGapRatio) {
+        List<List<PageLine>> rows = new ArrayList<>();
+        for (PageLine line : block) {
+            if (rows.isEmpty() || !isContinuation(rows.getLast(), line, innerGapRatio)) {
+                rows.add(new ArrayList<>(List.of(line)));
+            } else {
+                rows.getLast().add(line);
+            }
         }
-        return texts;
+        return rows;
+    }
+
+    private static boolean isContinuation(List<PageLine> row, PageLine line, double innerGapRatio) {
+        PageLine previous = row.getLast();
+        if (line.y() - (previous.y() + previous.height()) > innerGapRatio * Math.max(line.fontSize(), 1)) {
+            return false;
+        }
+        // 续行不越过上一行的右边界：整行宽度的下一行是新的表格行，不是续行
+        if (line.x() + line.width() > previous.x() + previous.width()) {
+            return false;
+        }
+        double left = row.stream().mapToDouble(PageLine::x).min().orElse(0);
+        double right = row.stream().mapToDouble(item -> item.x() + item.width()).max().orElse(0);
+        return line.tokens().stream().allMatch(token -> token.xStart() >= left && token.xEnd() <= right);
+    }
+
+    /**
+     * 行内某列的字符：token 按其**中心点**归列，整个 token 的字符进同一格 ——
+     * 右对齐的数字列左起点逐行不同，按字符左边界切会把金额劈到相邻两格里。
+     */
+    private static List<CharInfo> cellChars(PageLine line, TableCandidateDetector.Column column) {
+        return line.tokens().stream()
+                .filter(token -> TableCandidateDetector.contains(column, token))
+                .flatMap(token -> line.chars().stream()
+                        .filter(ch -> ch.x() >= token.xStart() && ch.x() <= token.xEnd()))
+                .toList();
     }
 
     /** 表头行判定：首行含数字占比不超上限，且表体含数字（或首行字号大于表体最大字号） */

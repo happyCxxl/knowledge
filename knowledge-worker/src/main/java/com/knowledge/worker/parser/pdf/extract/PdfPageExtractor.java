@@ -5,7 +5,9 @@ import com.knowledge.common.domain.parse.signal.PageMetric;
 import com.knowledge.common.utils.NullUtil;
 import com.knowledge.common.utils.TextUtil;
 import com.knowledge.worker.parser.ParseContext;
+import com.knowledge.worker.parser.ParseProperties;
 import com.knowledge.worker.parser.pdf.detect.RuleLines;
+import com.knowledge.worker.parser.pdf.detect.TableCandidateDetector;
 import com.knowledge.worker.parser.pdf.layout.PageLayoutAnalyzer;
 import com.knowledge.worker.parser.pdf.model.CharInfo;
 import com.knowledge.worker.parser.pdf.model.PageContent;
@@ -75,32 +77,23 @@ public class PdfPageExtractor {
         RuleLines.Graphics graphics = RuleLines.collect(page, pageHeight);
         metric.setImageAreaRatio(RuleLines.imageAreaRatio(graphics.imageBoxes(), pageWidth, pageHeight));
 
-        // 行聚合（y 容差聚类 → 按栏沟切行 → 行内按 x 排序 → token 分词）
+        // 行聚合（y 容差聚类 → 表格行带整行保留、其余按栏沟切行 → 行内按 x 排序 → token 分词）
         List<CharInfo> sorted = stripper.chars.stream()
                 .sorted(Comparator.comparingDouble(CharInfo::y).thenComparingDouble(CharInfo::x))
                 .toList();
         List<Double> gutters = detectGutters(stripper.chars, pageWidth, pageHeight,
                 PageLayoutAnalyzer.Options.of(context.getProperties()));
         LineTexts.Options lineTextOptions = LineTexts.Options.of(context.getProperties());
+        List<List<CharInfo>> bands = groupBands(sorted, context.getProperties().getLineYTolerance());
+        double alignmentTolerance = alignmentTolerance(bands, context.getProperties());
+        boolean[] tableBands = tableBands(bands, context.getProperties(), alignmentTolerance);
         List<PageLine> rawLines = new ArrayList<>();
-        List<CharInfo> lineChars = new ArrayList<>();
-        double lineY = -1;
-        for (CharInfo c : sorted) {
-            if (lineChars.isEmpty()) {
-                lineChars.add(c);
-                lineY = c.y();
-            } else if (Math.abs(c.y() - lineY) <= context.getProperties().getLineYTolerance()) {
-                lineChars.add(c);
-                lineY = (lineY + c.y()) / 2;
+        for (int i = 0; i < bands.size(); i++) {
+            if (tableBands[i]) {
+                rawLines.add(buildLine(pageNo, bands.get(i), lineTextOptions));
             } else {
-                rawLines.addAll(buildLines(pageNo, lineChars, gutters, lineTextOptions));
-                lineChars = new ArrayList<>();
-                lineChars.add(c);
-                lineY = c.y();
+                rawLines.addAll(buildLines(pageNo, bands.get(i), gutters, lineTextOptions));
             }
-        }
-        if (!lineChars.isEmpty()) {
-            rawLines.addAll(buildLines(pageNo, lineChars, gutters, lineTextOptions));
         }
         List<PageLine> lines = orderLines(rawLines, gutters, pageWidth, pageHeight);
 
@@ -155,20 +148,173 @@ public class PdfPageExtractor {
         return result.placed().stream().map(placed -> lines.get(placed.index())).toList();
     }
 
-    /** 行构建：行内 x 排序 → token 分词（字符间距超阈值断词）→ 目录行特征判定 */
-    private PageLine buildLine(int pageNo, List<CharInfo> lineChars, LineTexts.Options lineTextOptions) {
-        lineChars.sort(Comparator.comparingDouble(CharInfo::x));
-        double x = lineChars.getFirst().x();
-        BBox bounds = PdfGeometry.boundsOf(lineChars, CharInfo::x, CharInfo::y, CharInfo::width, CharInfo::height);
-        double fontSize = lineChars.stream().mapToDouble(CharInfo::fontSize).average().orElse(0);
-        CharInfo first = lineChars.getFirst();
-        // token 分词：字符间距超阈值即断（空白字符不进入 token，自然形成词间断点）
+    /** 行带：同一 y 容差内的字符（按栏切分前的一整行） */
+    private static List<List<CharInfo>> groupBands(List<CharInfo> sorted, double yTolerance) {
+        List<List<CharInfo>> bands = new ArrayList<>();
+        List<CharInfo> band = new ArrayList<>();
+        double bandY = -1;
+        for (CharInfo c : sorted) {
+            if (band.isEmpty()) {
+                band.add(c);
+                bandY = c.y();
+            } else if (Math.abs(c.y() - bandY) <= yTolerance) {
+                band.add(c);
+                bandY = (bandY + c.y()) / 2;
+            } else {
+                bands.add(band);
+                band = new ArrayList<>();
+                band.add(c);
+                bandY = c.y();
+            }
+        }
+        if (!band.isEmpty()) {
+            bands.add(band);
+        }
+        return bands;
+    }
+
+    /** 对齐容差：按全页最大字号折算（与列聚类同一口径） */
+    private static double alignmentTolerance(List<List<CharInfo>> bands, ParseProperties properties) {
+        double maxFontSize = bands.stream().flatMap(List::stream)
+                .mapToDouble(CharInfo::fontSize).max().orElse(0);
+        return properties.getTableColumnToleranceRatio() * Math.max(maxFontSize, 1);
+    }
+
+    /**
+     * 全页对齐位置：所有行带 token 的左起点与右边界聚类，保留被足够行带支持的位置。
+     * 数字列右对齐时左起点逐行不同、右边界一致，两侧都取才认得出这一列。
+     */
+    private static List<Double> alignedPositions(List<List<CharInfo>> bands, double tolerance, int minRows) {
+        List<Position> positions = new ArrayList<>();
+        for (int index = 0; index < bands.size(); index++) {
+            for (Token token : tokens(bands.get(index))) {
+                positions.add(new Position(token.xStart(), index));
+                positions.add(new Position(token.xEnd(), index));
+            }
+        }
+        positions.sort(Comparator.comparingDouble(Position::value));
+        List<Double> aligned = new ArrayList<>();
+        List<Position> cluster = new ArrayList<>();
+        double center = 0;
+        for (Position position : positions) {
+            if (!cluster.isEmpty() && Math.abs(position.value() - center) > tolerance) {
+                addAligned(aligned, cluster, minRows);
+                cluster = new ArrayList<>();
+            }
+            center = cluster.isEmpty() ? position.value()
+                    : (center * cluster.size() + position.value()) / (cluster.size() + 1);
+            cluster.add(position);
+        }
+        addAligned(aligned, cluster, minRows);
+        return aligned;
+    }
+
+    /** 位置簇收口：簇内来源行带数达到下限即算一个对齐位置 */
+    private static void addAligned(List<Double> aligned, List<Position> cluster, int minRows) {
+        if (cluster.stream().map(Position::band).distinct().count() >= minRows) {
+            aligned.add(cluster.stream().mapToDouble(Position::value).average().orElse(0));
+        }
+    }
+
+    /**
+     * 表格行带标记：先找「锚行」（行内落在 ≥3 个对齐位置上的 token 数达标），
+     * 再把**锚行之间**、token 全部落在锚行 x 范围内的行带并入 —— 单元格内换行的续行与
+     * 空单元格的稀疏行由此保住整行，不再被栏沟撕成两行。
+     * 只有 2 列对齐时与双栏正文无法区分（双栏正文必须保持栏内阅读顺序），故锚行下限取 3。
+     */
+    private static boolean[] tableBands(List<List<CharInfo>> bands, ParseProperties properties, double tolerance) {
+        List<List<Token>> tokensPerBand = bands.stream().map(PdfPageExtractor::tokens).toList();
+        boolean[] result = new boolean[bands.size()];
+        List<Double> alignedPositions = alignedPositions(bands, tolerance, properties.getTableAlignmentMinRows());
+        if (alignedPositions.isEmpty()) {
+            return result;
+        }
+        List<Integer> anchors = new ArrayList<>();
+        for (int i = 0; i < bands.size(); i++) {
+            if (matchedPositions(tokensPerBand.get(i), alignedPositions, tolerance)
+                    >= properties.getTableRowMinColumns()) {
+                anchors.add(i);
+            }
+        }
+        if (anchors.size() < 2) {
+            return result;
+        }
+        // 表格区域：锚行区间 + 两侧紧邻的合格行带（行距不超过锚行间距）
+        int first = anchors.getFirst();
+        int last = anchors.getLast();
+        double left = bandLeft(tokensPerBand, first, last);
+        double right = bandRight(tokensPerBand, first, last);
+        double spacing = anchorSpacing(bands, anchors);
+        while (first > 0 && bandY(bands, first) - bandY(bands, first - 1) <= spacing
+                && qualifies(tokensPerBand.get(first - 1), left, right)) {
+            first--;
+        }
+        while (last + 1 < bands.size() && bandY(bands, last + 1) - bandY(bands, last) <= spacing
+                && qualifies(tokensPerBand.get(last + 1), left, right)) {
+            last++;
+        }
+        for (int i = first; i <= last; i++) {
+            result[i] = anchors.contains(i) || qualifies(tokensPerBand.get(i), left, right);
+        }
+        return result;
+    }
+
+    /** 区域内合格行带：token 数达下限且全部落在区域 x 范围内 */
+    private static boolean qualifies(List<Token> tokens, double left, double right) {
+        return tokens.size() >= TableCandidateDetector.MIN_TOKENS
+                && tokens.stream().allMatch(token -> token.xStart() >= left && token.xEnd() <= right);
+    }
+
+    private static double bandLeft(List<List<Token>> tokensPerBand, int first, int last) {
+        return tokensPerBand.subList(first, last + 1).stream().flatMap(List::stream)
+                .mapToDouble(Token::xStart).min().orElse(0);
+    }
+
+    private static double bandRight(List<List<Token>> tokensPerBand, int first, int last) {
+        return tokensPerBand.subList(first, last + 1).stream().flatMap(List::stream)
+                .mapToDouble(Token::xEnd).max().orElse(0);
+    }
+
+    /** 锚行间距：相邻锚行 y 差的平均值（区域扩展与续行归并的纵向尺度） */
+    private static double anchorSpacing(List<List<CharInfo>> bands, List<Integer> anchors) {
+        double sum = 0;
+        for (int i = 1; i < anchors.size(); i++) {
+            sum += bandY(bands, anchors.get(i)) - bandY(bands, anchors.get(i - 1));
+        }
+        return anchors.size() > 1 ? sum / (anchors.size() - 1) : 0;
+    }
+
+    private static double bandY(List<List<CharInfo>> bands, int index) {
+        return bands.get(index).getFirst().y();
+    }
+
+    /** 行内落在全页对齐位置（左起点或右边界）上的 token 数 */
+    private static long matchedPositions(List<Token> tokens, List<Double> alignedPositions, double tolerance) {
+        return tokens.stream()
+                .filter(token -> aligns(token.xStart(), alignedPositions, tolerance)
+                        || aligns(token.xEnd(), alignedPositions, tolerance))
+                .count();
+    }
+
+    private static boolean aligns(double value, List<Double> positions, double tolerance) {
+        return positions.stream().anyMatch(position -> Math.abs(position - value) <= tolerance);
+    }
+
+    /** 对齐位置候选：token 左起点 / 右边界 + 来源行带序号（支持度按行带去重） */
+    private record Position(double value, int band) {
+    }
+
+    /** 行内 token 分词：字符间距超阈值即断（空白字符不进入 token，自然形成词间断点） */
+    private static List<Token> tokens(List<CharInfo> lineChars) {
+        List<CharInfo> sorted = lineChars.stream()
+                .sorted(Comparator.comparingDouble(CharInfo::x))
+                .toList();
         List<Token> tokens = new ArrayList<>();
         StringBuilder tokenText = new StringBuilder();
         double tokenStart = -1;
         double tokenEnd = 0;
         CharInfo prev = null;
-        for (CharInfo c : lineChars) {
+        for (CharInfo c : sorted) {
             if (Character.isWhitespace(c.codePoint())) {
                 continue;
             }
@@ -188,6 +334,17 @@ public class PdfPageExtractor {
         if (!tokenText.isEmpty()) {
             tokens.add(new Token(tokenText.toString(), tokenStart, tokenEnd));
         }
+        return tokens;
+    }
+
+    /** 行构建：行内 x 排序 → token 分词（字符间距超阈值断词）→ 目录行特征判定 */
+    private PageLine buildLine(int pageNo, List<CharInfo> lineChars, LineTexts.Options lineTextOptions) {
+        lineChars.sort(Comparator.comparingDouble(CharInfo::x));
+        double x = lineChars.getFirst().x();
+        BBox bounds = PdfGeometry.boundsOf(lineChars, CharInfo::x, CharInfo::y, CharInfo::width, CharInfo::height);
+        double fontSize = lineChars.stream().mapToDouble(CharInfo::fontSize).average().orElse(0);
+        CharInfo first = lineChars.getFirst();
+        List<Token> tokens = tokens(lineChars);
         String text = LineTexts.lineText(lineChars, lineTextOptions);
         boolean tocCandidate = TocLineFeature.isTocLine(text);
         return new PageLine(pageNo, x, bounds.getY(), bounds.getWidth(), bounds.getHeight(), text, fontSize,
