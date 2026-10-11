@@ -1,0 +1,55 @@
+package com.knowledge.worker.parser.capability;
+
+import com.knowledge.common.domain.parse.capability.TableResult;
+import com.knowledge.common.domain.parse.signal.ParseFact;
+import com.knowledge.common.enums.parse.SignalType;
+import cn.hutool.core.util.StrUtil;
+
+/**
+ * 能力调用留痕：模型补强成功记一条「能力补强」事实，失败（未配置 / 非 2xx / 超时 / 结果不完整）记一条
+ * 「能力失败已降级」事实 —— 两类都挂 `TABLE` 事实类型，靠证据文案区分，降级子类型仍由事实类型推导。
+ *
+ * @author cxxl
+ */
+public final class CapabilityFacts {
+
+    private CapabilityFacts() {
+    }
+
+    /**
+     * 补强事实：模型给出了可用结构。
+     *
+     * @param region 表格区域
+     * @param result 结构识别结果
+     * @return 补强事实
+     */
+    public static ParseFact tableEnhanced(String region, TableResult result) {
+        ParseFact fact = fact(region);
+        Integer rows = result.getRows() == null ? Integer.valueOf(0) : result.getRows();
+        Integer cols = result.getCols() == null ? Integer.valueOf(0) : result.getCols();
+        fact.setEvidence(String.format("表格结构由能力补强（%s %s，%d 行 × %d 列）",
+                StrUtil.blankToDefault(result.getModel(), "model"),
+                StrUtil.blankToDefault(result.getVersion(), "-"), rows, cols));
+        return fact;
+    }
+
+    /**
+     * 降级留痕：能力不可用或结果不可用，按内置规则降级。
+     *
+     * @param region 表格区域
+     * @param reason 失败原因（未配置 / 非 2xx / 超时 / 结果不完整等）
+     * @return 降级事实
+     */
+    public static ParseFact tableDegraded(String region, String reason) {
+        ParseFact fact = fact(region);
+        fact.setEvidence("表格能力未产出结构，已按内置规则降级（" + StrUtil.blankToDefault(reason, "未配置") + "）");
+        return fact;
+    }
+
+    private static ParseFact fact(String region) {
+        ParseFact fact = new ParseFact();
+        fact.setType(SignalType.TABLE);
+        fact.setRegion(region);
+        return fact;
+    }
+}
