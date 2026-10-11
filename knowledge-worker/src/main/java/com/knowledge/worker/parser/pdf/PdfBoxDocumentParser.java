@@ -4,8 +4,10 @@ import com.knowledge.common.domain.parse.PageDimension;
 import com.knowledge.common.domain.parse.ParseElement;
 import com.knowledge.common.domain.parse.ParseSource;
 import com.knowledge.common.enums.input.FileFormat;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.parser.DocumentParserPort;
 import com.knowledge.worker.parser.ParseContext;
+import com.knowledge.worker.parser.ParseProperties;
 import com.knowledge.worker.parser.pdf.assemble.PageElementIds;
 import com.knowledge.worker.parser.pdf.assemble.PageTableProvenance;
 import com.knowledge.worker.parser.pdf.assemble.PdfBodyAssembler;
@@ -15,12 +17,17 @@ import com.knowledge.worker.parser.pdf.detect.HeaderFooterDetector;
 import com.knowledge.worker.parser.pdf.extract.PdfPageExtractor;
 import com.knowledge.worker.parser.pdf.layout.PageLayoutAnalyzer;
 import com.knowledge.worker.parser.pdf.model.PageContent;
-import com.knowledge.worker.parser.support.ParserStreamSupport;
+import com.knowledge.worker.parser.pdf.model.PageLines;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.Loader;
+import org.apache.pdfbox.io.IOUtils;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.springframework.stereotype.Component;
 
+import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -62,45 +69,109 @@ public class PdfBoxDocumentParser implements DocumentParserPort {
 
     @Override
     public ParseSource parse(ParseContext context) {
-        byte[] data = ParserStreamSupport.readAll(context);
         String fileId = context.getFileRef().getFileId();
         ParseSource source = ParseSource.nativeSource(CAPABILITY + "-" + CAPABILITY_VERSION);
-        try (PDDocument doc = Loader.loadPDF(data)) {
-            int pageCount = doc.getNumberOfPages();
-            source.setUnitCount(pageCount);
-            context.getFileRef().setPageCount(pageCount);
-
-            // ① 逐页提取：字符 + 行 + 阅读顺序 + 页级指标
-            List<PageContent> pages = new ArrayList<>();
-            for (int p = 1; p <= pageCount; p++) {
-                PageContent pageContent = pageExtractor.extractPage(doc, p, context);
-                pages.add(pageContent);
-                source.getPageMetrics().add(pageContent.metric());
-                source.getPageDimensions().add(new PageDimension(pageContent.pageNo(),
-                        pageContent.geometry().viewportWidth(), pageContent.geometry().viewportHeight()));
+        Path tempFile = null;
+        try {
+            // 输入：小文件整档留内存；大文件落临时文件后按需读取（PDFBox 按页取对象，不整档驻留）
+            int largeFileMinBytes = context.getProperties().getLargeFileMinBytes();
+            int probe = largeFileMinBytes >= Integer.MAX_VALUE ? Integer.MAX_VALUE : largeFileMinBytes + 1;
+            byte[] head = context.getInputStream().readNBytes(probe);
+            PDDocument doc;
+            if (head.length <= largeFileMinBytes) {
+                doc = Loader.loadPDF(head);
+            } else {
+                tempFile = spoolToTempFile(context, head);
+                doc = Loader.loadPDF(tempFile.toFile(), IOUtils.createTempFileOnlyStreamCache());
             }
-
-            // ② HEADER/FOOTER 识别：页顶/页底区域内跨页重复文本与页码模式（先算，正文聚合时排除）
-            Set<String> headers = HeaderFooterDetector.detectHeaders(pages, context);
-            HeaderFooterDetector.FooterKeys footers = HeaderFooterDetector.detectFooters(pages, context);
-
-            // ③ 逐页装配元素：页眉页脚 → 正文（段落与两条表格路径）→ 页内图片 → 本页补元素 ID 与表格溯源
-            List<ParseElement> elements = new ArrayList<>();
-            for (PageContent page : pages) {
-                int from = elements.size();
-                PdfBodyAssembler.assemble(page, headers, footers, elements, source, fileId,
-                        context.getProperties());
-                PdfImageEmitter.emit(page, elements, source, fileId, context.getProperties());
-                List<ParseElement> pageElements = elements.subList(from, elements.size());
-                PageElementIds.assign(pageElements, page.pageNo());
-                PageTableProvenance.assign(pageElements, fileId, page.pageNo());
+            try (PDDocument document = doc) {
+                parseDocument(document, source, context, fileId);
             }
-            source.setElements(elements);
-            TableContinuationSupport.markContinuedTables(elements, context.getProperties().getTableContinuationOverlapRatio());
         } catch (Exception e) {
             log.warn("PDF 解析失败, fileId={}", fileId, e);
             throw new IllegalStateException("PDF 解析失败: " + e.getMessage(), e);
+        } finally {
+            deleteQuietly(tempFile);
         }
         return source;
+    }
+
+    /** 逐页提取 + 跨页识别 + 分窗装配（窗口大小 = `pageWindowSize`，全档只留行级轻量摘要） */
+    private void parseDocument(PDDocument doc, ParseSource source, ParseContext context, String fileId)
+            throws IOException {
+        ParseProperties properties = context.getProperties();
+        int pageCount = doc.getNumberOfPages();
+        source.setUnitCount(pageCount);
+        context.getFileRef().setPageCount(pageCount);
+
+        // ① 全档轻量行摘要 + 页级指标：跨页页眉页脚识别需要全档视野
+        int windowSize = Math.max(properties.getPageWindowSize(), 1);
+        boolean singleWindow = pageCount <= windowSize;
+        List<PageLines> pageLines = new ArrayList<>();
+        List<PageContent> cached = singleWindow ? new ArrayList<>() : null;
+        for (int p = 1; p <= pageCount; p++) {
+            PageContent pageContent = pageExtractor.extractPage(doc, p, context);
+            pageLines.add(PageLines.of(pageContent));
+            source.getPageMetrics().add(pageContent.metric());
+            source.getPageDimensions().add(new PageDimension(pageContent.pageNo(),
+                    pageContent.geometry().viewportWidth(), pageContent.geometry().viewportHeight()));
+            if (singleWindow) {
+                cached.add(pageContent);
+            }
+        }
+
+        // ② HEADER/FOOTER 识别：页顶/页底区域内跨页重复文本与页码模式（先算，正文聚合时排除）
+        Set<String> headers = HeaderFooterDetector.detectHeaders(pageLines, context);
+        HeaderFooterDetector.FooterKeys footers = HeaderFooterDetector.detectFooters(pageLines, context);
+
+        // ③ 分窗装配元素：页眉页脚 → 正文（段落与两条表格路径）→ 页内图片 → 本页补元素 ID 与表格溯源
+        List<ParseElement> elements = new ArrayList<>();
+        for (int from = 1; from <= pageCount; from += windowSize) {
+            List<PageContent> window = singleWindow
+                    ? cached
+                    : extractWindow(doc, from, Math.min(from + windowSize - 1, pageCount), context);
+            for (PageContent page : window) {
+                int mark = elements.size();
+                PdfBodyAssembler.assemble(page, headers, footers, elements, source, fileId, properties);
+                PdfImageEmitter.emit(page, elements, source, fileId, properties);
+                List<ParseElement> pageElements = elements.subList(mark, elements.size());
+                PageElementIds.assign(pageElements, page.pageNo());
+                PageTableProvenance.assign(pageElements, fileId, page.pageNo());
+            }
+        }
+        source.setElements(elements);
+        TableContinuationSupport.markContinuedTables(elements, properties.getTableContinuationOverlapRatio());
+    }
+
+    /** 窗口内逐页提取（窗口外的重数据不保留） */
+    private List<PageContent> extractWindow(PDDocument doc, int from, int to, ParseContext context)
+            throws IOException {
+        List<PageContent> window = new ArrayList<>();
+        for (int p = from; p <= to; p++) {
+            window.add(pageExtractor.extractPage(doc, p, context));
+        }
+        return window;
+    }
+
+    /** 已读入的头部再加流剩余部分落到临时文件 */
+    private static Path spoolToTempFile(ParseContext context, byte[] head) throws IOException {
+        Path path = Files.createTempFile("kb-parse-", ".pdf");
+        try (OutputStream out = Files.newOutputStream(path)) {
+            out.write(head);
+            context.getInputStream().transferTo(out);
+        }
+        return path;
+    }
+
+    /** 临时文件清理：失败不掩盖解析异常 */
+    private static void deleteQuietly(Path path) {
+        if (NullUtil.isNull(path)) {
+            return;
+        }
+        try {
+            Files.deleteIfExists(path);
+        } catch (IOException e) {
+            log.warn("解析临时文件删除失败, path={}", path, e);
+        }
     }
 }

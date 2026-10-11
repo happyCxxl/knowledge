@@ -15,6 +15,12 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "knowledge.parse")
 public class ParseProperties {
 
+    /** 大文件分窗：单窗口装配的页数（全档只留行级轻量摘要，字符与 token 只在窗口内保留） */
+    private int pageWindowSize = 50;
+
+    /** 大文件阈值：输入大于该字节数时落临时文件后按需读取（小于则整档留内存） */
+    private int largeFileMinBytes = 8388608;
+
     /** 扫描页判定：单页非空白字符数低于该值 */
     private int scanPageMinChars = 50;
 

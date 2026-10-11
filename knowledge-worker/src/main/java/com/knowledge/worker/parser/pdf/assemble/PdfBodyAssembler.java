@@ -13,8 +13,10 @@ import com.knowledge.worker.parser.pdf.detect.TableCandidateDetector;
 import com.knowledge.worker.parser.pdf.extract.LineTexts;
 import com.knowledge.worker.parser.pdf.model.PageContent;
 import com.knowledge.worker.parser.pdf.model.PageLine;
+import com.knowledge.worker.parser.pdf.model.PageLines;
 import com.knowledge.worker.parser.pdf.model.PdfPageGeometry;
 import com.knowledge.worker.parser.pdf.model.Region;
+import com.knowledge.worker.parser.pdf.model.TextLine;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,6 +39,7 @@ public final class PdfBodyAssembler {
                          ParseProperties properties) {
         double headerBandY = page.pageHeight() * properties.getHeaderAreaRatio();
         double footerBandY = page.pageHeight() * (1 - properties.getFooterAreaRatio());
+        PageLines pageLines = PageLines.of(page);
 
         // 页首 HEADER 元素：本页页眉带内命中键的行各产一条（文本取原行）
         for (PageLine line : page.lines()) {
@@ -54,7 +57,7 @@ public final class PdfBodyAssembler {
                 continue;
             }
             String footerKey = HeaderFooterDetector.footerBase(HeaderFooterDetector.normalizeKey(line.text()));
-            if (footers.matches(footerKey, line, page, properties)) {
+            if (footers.matches(footerKey, TextLine.of(line), pageLines, properties)) {
                 elements.add(bandElement(
                         ElementType.FOOTER, line.text().trim(), "pdf#bottom-area", page.pageNo(), line, fileId,
                         page.geometry()));
@@ -72,7 +75,7 @@ public final class PdfBodyAssembler {
                     }
                     String footerKey = HeaderFooterDetector.footerBase(
                             HeaderFooterDetector.normalizeKey(line.text()));
-                    return !footers.matches(footerKey, line, page, properties);
+                    return !footers.matches(footerKey, TextLine.of(line), pageLines, properties);
                 })
                 .toList();
 
