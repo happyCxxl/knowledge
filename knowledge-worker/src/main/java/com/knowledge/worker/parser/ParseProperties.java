@@ -81,6 +81,9 @@ public class ParseProperties {
     /** 假表门限：列内文本跨度占列宽的中位数超过该值即判正文分栏（表格单元格相对列宽是稀疏的） */
     private double tableColumnMaxFillRatio = 0.7;
 
+    /** 跨页续表：上一页表格贴页底时，两表列 x 区间重合比例下限 */
+    private double tableContinuationOverlapRatio = 0.5;
+
     /** 假表门限：非空单元格占比低于该值即弃表（空白率门禁） */
     private double tableMinFilledRatio = 0.1;
 

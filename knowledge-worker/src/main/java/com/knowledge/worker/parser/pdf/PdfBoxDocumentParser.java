@@ -7,6 +7,7 @@ import com.knowledge.common.enums.input.FileFormat;
 import com.knowledge.worker.parser.DocumentParserPort;
 import com.knowledge.worker.parser.ParseContext;
 import com.knowledge.worker.parser.pdf.assemble.PdfBodyAssembler;
+import com.knowledge.worker.parser.pdf.assemble.TableContinuationSupport;
 import com.knowledge.worker.parser.pdf.assemble.PdfImageEmitter;
 import com.knowledge.worker.parser.pdf.detect.HeaderFooterDetector;
 import com.knowledge.worker.parser.pdf.extract.PdfPageExtractor;
@@ -89,6 +90,7 @@ public class PdfBoxDocumentParser implements DocumentParserPort {
                 PdfImageEmitter.emit(page, elements, source, fileId, context.getProperties());
             }
             source.setElements(elements);
+            TableContinuationSupport.markContinuedTables(elements, context.getProperties().getTableContinuationOverlapRatio());
         } catch (Exception e) {
             log.warn("PDF 解析失败, fileId={}", fileId, e);
             throw new IllegalStateException("PDF 解析失败: " + e.getMessage(), e);
