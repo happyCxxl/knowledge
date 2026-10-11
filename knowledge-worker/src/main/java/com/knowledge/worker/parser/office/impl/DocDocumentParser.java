@@ -56,7 +56,7 @@ public class DocDocumentParser extends AbstractPoiDocumentParser {
                 }
                 paragraphIndex++;
             }
-            // 嵌入图片（PicturesTable 全表引用；定位到段落成本高，按序记录）
+            // 嵌入图片（PicturesTable 全表引用；定位到段落成本高，按序记录）；OCR_IMAGE 事实整档一条
             PicturesTable pictures = doc.getPicturesTable();
             for (int p = 0; p < pictures.getAllPictures().size(); p++) {
                 Picture picture = pictures.getAllPictures().get(p);
@@ -65,7 +65,10 @@ public class DocDocumentParser extends AbstractPoiDocumentParser {
                 image.setNeedsOcr(true);
                 image.setProvenance(new Provenance(fileId, "office#document/picture[" + p + "]"));
                 source.getElements().add(image);
-                source.getFacts().add(fact("picture[" + p + "]", "嵌入图片仅引用无文字"));
+            }
+            if (!pictures.getAllPictures().isEmpty()) {
+                source.getFacts().add(fact("picture",
+                        "嵌入图片仅引用无文字（" + pictures.getAllPictures().size() + " 张）"));
             }
             // 表格（HWPF 结构支持弱；合并信息读不到，只取行列文本）
             TableIterator tableIterator = new TableIterator(range);

@@ -150,7 +150,7 @@ public class DocxDocumentParser extends AbstractPoiDocumentParser {
         return element;
     }
 
-    /** 段落内嵌图片：仅记引用 + needsOcr + OCR_IMAGE 事实（暂不识别文字）。 */
+    /** 段落内嵌图片：仅记引用 + needsOcr；OCR_IMAGE 事实按段落聚合（一段多图只产一条，证据带张数）。 */
     private void appendDocxPictures(ParseSource source, XWPFParagraph paragraph, int index, String fileId) {
         int pictureIndex = 0;
         for (XWPFRun run : paragraph.getRuns()) {
@@ -165,9 +165,12 @@ public class DocxDocumentParser extends AbstractPoiDocumentParser {
                 image.setProvenance(new Provenance(fileId,
                         "office#document.xml/paragraph[" + index + "]/pic[" + pictureIndex + "]"));
                 source.getElements().add(image);
-                source.getFacts().add(fact("paragraph[" + index + "]", "嵌入图片仅引用无文字（drawing 节点）"));
                 pictureIndex++;
             }
+        }
+        if (pictureIndex > 0) {
+            source.getFacts().add(fact("paragraph[" + index + "]",
+                    "嵌入图片仅引用无文字（drawing 节点 " + pictureIndex + " 张）"));
         }
     }
 

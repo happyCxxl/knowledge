@@ -748,6 +748,37 @@ class PdfBoxDocumentParserTest {
         assertTrue(source.getFacts().isEmpty(), () -> "facts=" + source.getFacts());
     }
 
+    /** 多图页：图片元素逐张产出，OCR_IMAGE 事实按页聚合成一条（证据带张数） */
+    @Test
+    void multipleImagesOnPageShouldEmitSingleImageFact() throws Exception {
+        ParseSource source = parser.parse(context(buildTwoImagePdf()));
+
+        List<ParseElement> images = source.getElements().stream()
+                .filter(e -> ElementType.IMAGE.name().equals(e.getType())).toList();
+        assertEquals(2, images.size(), () -> "elements=" + source.getElements());
+        var facts = source.getFacts().stream().filter(f -> SignalType.OCR_IMAGE == f.getType()).toList();
+        assertEquals(1, facts.size(), () -> "facts=" + source.getFacts());
+        assertEquals("page 1", facts.getFirst().getRegion());
+        assertTrue(facts.getFirst().getEvidence().contains("2 张"),
+                () -> "evidence=" + facts.getFirst().getEvidence());
+    }
+
+    /** 造一页：两张各占页面积约 18% 的图（都过图片元素门槛） */
+    private byte[] buildTwoImagePdf() throws Exception {
+        try (PDDocument doc = new PDDocument()) {
+            PDPage page = new PDPage(new PDRectangle(595, 842));
+            doc.addPage(page);
+            PDImageXObject xobject = LosslessFactory.createFromImage(doc, sampleImage());
+            try (PDPageContentStream cs = new PDPageContentStream(doc, page)) {
+                cs.drawImage(xobject, 40, 500, 300, 300);
+                cs.drawImage(xobject, 40, 150, 300, 300);
+            }
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            doc.save(out);
+            return out.toByteArray();
+        }
+    }
+
     /** 造一页：正文 + 小图（小图不产图片元素） */
     private byte[] buildSmallImagePdf() throws Exception {
         try (PDDocument doc = new PDDocument()) {

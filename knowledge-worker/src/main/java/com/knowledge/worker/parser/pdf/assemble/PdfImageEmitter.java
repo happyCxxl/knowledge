@@ -42,6 +42,7 @@ public final class PdfImageEmitter {
                 .sorted(Comparator.comparingDouble(Region::top))
                 .toList();
         int index = 0;
+        double totalRatio = 0;
         for (Region box : boxes) {
             double ratio = RuleLines.imageArea(box, page.pageWidth(), page.pageHeight()) / pageArea;
             ParseElement image = ParseElement.of(ElementType.IMAGE);
@@ -53,12 +54,17 @@ public final class PdfImageEmitter {
             image.setProvenance(new Provenance(fileId,
                     "pdf#page(" + page.pageNo() + ")/image[" + index + "]"));
             elements.add(image);
+            totalRatio += ratio;
+            index++;
+        }
+        // 事实按页聚合：多图页只产一条（证据带张数与合计占比），图片元素仍逐张产出
+        if (index > 0) {
             ParseFact fact = new ParseFact();
             fact.setType(SignalType.OCR_IMAGE);
-            fact.setRegion("page " + page.pageNo() + " image " + index);
-            fact.setEvidence("嵌入图片仅引用无文字（占页面积 " + String.format("%.2f", ratio) + "）");
+            fact.setRegion("page " + page.pageNo());
+            fact.setEvidence(String.format("嵌入图片仅引用无文字（本页 %d 张，合计占页面积 %.2f）",
+                    index, totalRatio));
             source.getFacts().add(fact);
-            index++;
         }
     }
 }
