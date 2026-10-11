@@ -64,8 +64,7 @@ public final class RuledTableBuilder {
         }
         Integer headerRow = TextTableBuilder.detectHeaderRow(rowTexts, rowFontSizes,
                 properties.getTableHeaderMaxNumericRatio());
-        ParseElement table = ParseElement.of("t" + page.pageNo() + "_" + Integer.toHexString(run.hashCode()),
-                ElementType.TABLE);
+        ParseElement table = ParseElement.of(ElementType.TABLE);
         table.setPage(page.pageNo());
         double left = grid.columns().getFirst();
         double right = grid.columns().getLast();
@@ -79,8 +78,7 @@ public final class RuledTableBuilder {
         table.setCutAtPageBottom(PdfGeometry.cutAtPageBottom(bounds, page.pageHeight()));
         List<ParseElement> cells = new ArrayList<>();
         for (CellRect rect : rects) {
-            ParseElement cell = ParseElement.of("t" + page.pageNo() + "_" + rect.row() + "_" + rect.col(),
-                    ElementType.TABLE_CELL);
+            ParseElement cell = ParseElement.of(ElementType.TABLE_CELL);
             cell.setText(texts.get(rect));
             cell.setRow(rect.row());
             cell.setCol(rect.col());

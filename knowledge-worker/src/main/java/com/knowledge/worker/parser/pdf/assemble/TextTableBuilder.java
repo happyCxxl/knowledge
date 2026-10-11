@@ -82,8 +82,7 @@ public final class TextTableBuilder {
             return;
         }
         Integer headerRow = detectHeaderRow(rowTexts, rowFontSizes, properties.getTableHeaderMaxNumericRatio());
-        ParseElement table = ParseElement.of("t" + page.pageNo() + "_" + Integer.toHexString(block.hashCode()),
-                ElementType.TABLE);
+        ParseElement table = ParseElement.of(ElementType.TABLE);
         table.setPage(page.pageNo());
         BBox bounds = PdfGeometry.boundsOf(block, PageLine::x, PageLine::y, PageLine::width, PageLine::height);
         table.setBbox(page.geometry().toViewport(bounds));
@@ -97,7 +96,7 @@ public final class TextTableBuilder {
             double top = row.getFirst().y();
             double bottom = row.getLast().y() + row.getLast().height();
             for (int c = 0; c < columns.size(); c++) {
-                ParseElement cell = ParseElement.of("t" + page.pageNo() + "_" + r + "_" + c, ElementType.TABLE_CELL);
+                ParseElement cell = ParseElement.of(ElementType.TABLE_CELL);
                 cell.setText(rowTexts.get(r).get(c));
                 cell.setRow(r);
                 cell.setCol(c);

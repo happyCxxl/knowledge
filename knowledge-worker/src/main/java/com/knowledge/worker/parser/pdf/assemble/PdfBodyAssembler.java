@@ -43,7 +43,6 @@ public final class PdfBodyAssembler {
             String key = HeaderFooterDetector.normalizeKey(line.text());
             if (line.y() < headerBandY && headers.contains(key)) {
                 elements.add(bandElement(
-                        "h" + page.pageNo() + "_" + Integer.toHexString(key.hashCode()),
                         ElementType.HEADER, line.text().trim(), "pdf#top-area", page.pageNo(), line, fileId,
                         page.geometry()));
             }
@@ -57,7 +56,6 @@ public final class PdfBodyAssembler {
             String footerKey = HeaderFooterDetector.footerBase(HeaderFooterDetector.normalizeKey(line.text()));
             if (footers.matches(footerKey, line)) {
                 elements.add(bandElement(
-                        "f" + page.pageNo() + "_" + Integer.toHexString(footerKey.hashCode()),
                         ElementType.FOOTER, line.text().trim(), "pdf#bottom-area", page.pageNo(), line, fileId,
                         page.geometry()));
             }
@@ -176,12 +174,12 @@ public final class PdfBodyAssembler {
     }
 
     /**
-     * 段落元素组装：多行聚合 + 字体事实（取首行）+ 目录行特征。
+     * 段落元素组装：多行聚合 + 字体事实（取首行）+ 目录行特征。ID 由 {@link PageElementIds} 补。
      */
     static ParseElement toParagraphElement(List<PageLine> lines, String fileId, PdfPageGeometry geometry) {
         PageLine first = lines.getFirst();
         PageLine last = lines.getLast();
-        ParseElement element = ParseElement.of("p" + first.page() + "_" + lines.hashCode(), ElementType.PARAGRAPH);
+        ParseElement element = ParseElement.of(ElementType.PARAGRAPH);
         StringBuilder paragraph = new StringBuilder();
         PageLine prevLine = null;
         for (PageLine line : lines) {
@@ -211,7 +209,6 @@ public final class PdfBodyAssembler {
     /**
      * 页眉/页脚元素：文本 + 页码 + 包围盒 + 区域溯源（页首/页底装配口径一致，只差区域与元素类型）。
      *
-     * @param id     元素 ID
      * @param type   HEADER / FOOTER
      * @param text   元素文本
      * @param area   区域溯源（页首区域 / 页底区域）
@@ -220,10 +217,10 @@ public final class PdfBodyAssembler {
      * @param fileId   文件 ID
      * @param geometry 页几何（版面坐标 → 视口坐标）
      */
-    private static ParseElement bandElement(String id, ElementType type, String text, String area,
+    private static ParseElement bandElement(ElementType type, String text, String area,
                                             int pageNo, PageLine line, String fileId,
                                             PdfPageGeometry geometry) {
-        ParseElement element = ParseElement.of(id, type);
+        ParseElement element = ParseElement.of(type);
         element.setText(text);
         element.setPage(pageNo);
         element.setBbox(geometry.toViewport(line.x(), line.y(), line.width(), line.height()));

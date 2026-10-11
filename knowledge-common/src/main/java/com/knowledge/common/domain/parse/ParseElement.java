@@ -14,7 +14,7 @@ import java.util.List;
 @Data
 public class ParseElement {
 
-    /** 路内元素 ID（组装环节换全局哈希 ID） */
+    /** 路内元素 ID：PDF 由页内 ID 分配点统一补（`前缀+页码+页内序号+位置`），Office 解析器直接给；组装环节换全局 ID */
     private String id;
 
     /** 元素类型（ElementType 枚举名） */
@@ -91,5 +91,12 @@ public class ParseElement {
         element.id = id;
         element.type = type.name();
         return element;
+    }
+
+    /**
+     * 不带 ID 的元素：ID 由产出路径的分配点统一补（PDF 走 {@code PageElementIds}，组装环节换全局 ID）。
+     */
+    public static ParseElement of(ElementType type) {
+        return of(null, type);
     }
 }

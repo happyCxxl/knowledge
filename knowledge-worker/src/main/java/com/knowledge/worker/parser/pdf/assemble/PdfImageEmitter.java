@@ -44,7 +44,7 @@ public final class PdfImageEmitter {
         int index = 0;
         for (Region box : boxes) {
             double ratio = RuleLines.imageArea(box, page.pageWidth(), page.pageHeight()) / pageArea;
-            ParseElement image = ParseElement.of("p" + page.pageNo() + "img" + index, ElementType.IMAGE);
+            ParseElement image = ParseElement.of(ElementType.IMAGE);
             image.setPage(page.pageNo());
             image.setAssetRef("page" + page.pageNo() + "-image" + index);
             image.setNeedsOcr(true);
