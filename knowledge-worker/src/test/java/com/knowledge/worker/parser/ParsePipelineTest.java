@@ -32,6 +32,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
  * 解析管线编排单测：路由、门槛三档、纯扫描件、信号降级处置（六 handler 真实实例）。
@@ -226,6 +227,55 @@ class ParsePipelineTest {
 
         assertEquals(PipelineTaskStatus.FAILED.name(), outcome.getSuggestedStatus());
         assertEquals(PipelineTaskErrorCode.RATIO_BELOW_THRESHOLD.name(), outcome.getErrorCode());
+    }
+
+    /** 短文档（≤3 单元）坏页 1 张：按坏页绝对数放行，不落 RATIO_BELOW_THRESHOLD */
+    @Test
+    void shortDocumentWithOneBadPageShouldBePartialSuccess() {
+        ParsePipeline pipeline = pipeline(fakeParser(
+                List.of(garbledPage(), normalPage(2), normalPage(3)), List.of()));
+
+        ParseOutcome outcome = pipeline.run(context("application/pdf"));
+
+        assertEquals(PipelineTaskStatus.PARTIAL_SUCCESS.name(), outcome.getSuggestedStatus());
+        assertEquals(1, outcome.getFailedUnits());
+        assertNull(outcome.getErrorCode(), () -> "errorCode=" + outcome.getErrorCode());
+    }
+
+    /** 短文档坏页 2 张：超出绝对数门槛，仍按占比判失败 */
+    @Test
+    void shortDocumentWithTwoBadPagesShouldFail() {
+        PageMetric secondBad = garbledPage();
+        secondBad.setPage(2);
+        ParsePipeline pipeline = pipeline(fakeParser(
+                List.of(garbledPage(), secondBad, normalPage(3)), List.of()));
+
+        ParseOutcome outcome = pipeline.run(context("application/pdf"));
+
+        assertEquals(PipelineTaskStatus.FAILED.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskErrorCode.RATIO_BELOW_THRESHOLD.name(), outcome.getErrorCode());
+    }
+
+    /** 单单元且该单元坏：没有可读单元，仍判失败 */
+    @Test
+    void singleBadUnitDocumentShouldFail() {
+        ParsePipeline pipeline = pipeline(fakeParser(List.of(garbledPage()), List.of()));
+
+        ParseOutcome outcome = pipeline.run(context("application/pdf"));
+
+        assertEquals(PipelineTaskStatus.FAILED.name(), outcome.getSuggestedStatus());
+    }
+
+    /** 短文档规则可关：单元门槛置 0 后回到占比口径 */
+    @Test
+    void shortDocumentRuleShouldBeConfigurable() {
+        properties.setShortDocumentMaxUnits(0);
+        ParsePipeline pipeline = pipeline(fakeParser(
+                List.of(garbledPage(), normalPage(2), normalPage(3)), List.of()));
+
+        ParseOutcome outcome = pipeline.run(context("application/pdf"));
+
+        assertEquals(PipelineTaskStatus.FAILED.name(), outcome.getSuggestedStatus());
     }
 
     @Test

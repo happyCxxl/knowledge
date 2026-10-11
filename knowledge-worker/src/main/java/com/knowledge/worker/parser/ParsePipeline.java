@@ -168,7 +168,7 @@ public class ParsePipeline {
 
     /**
      * 成功占比门槛评估：0 单元→PARSE_CORRUPTED；全空白页→PARSE_CORRUPTED；
-     * 内容单元全为扫描页→SCANNED_UNSUPPORTED；占比不足→RATIO_BELOW_THRESHOLD。
+     * 内容单元全为扫描页→SCANNED_UNSUPPORTED；短文档看坏页绝对数；占比不足→RATIO_BELOW_THRESHOLD。
      * 分母用**内容单元**（单元数 − 空白页数）：空白页无内容可解析，既不算成功也不算失败。
      */
     private void evaluate(ParseOutcome outcome, ParseSource nativeSource, int failedUnits, QualityInfo quality) {
@@ -189,6 +189,15 @@ public class ParsePipeline {
         // 纯扫描件：内容单元全判为扫描页 → 整任务 FAILED
         if (!quality.getScannedPages().isEmpty() && quality.getScannedPages().size() >= contentUnits) {
             outcome.fail(PipelineTaskErrorCode.SCANNED_UNSUPPORTED.name(), "扫描件暂不支持（OCR 预留）");
+            return;
+        }
+        // 短文档：小分母上比例门槛等价零容错，改看坏页绝对数（坏页 ≤ 门槛且仍有可读单元即放行）
+        if (contentUnits <= properties.getShortDocumentMaxUnits()
+                && failedUnits <= properties.getShortDocumentMaxFailedUnits()
+                && contentUnits - failedUnits >= 1) {
+            outcome.setSuggestedStatus(failedUnits == 0
+                    ? PipelineTaskStatus.SUCCESS.name()
+                    : PipelineTaskStatus.PARTIAL_SUCCESS.name());
             return;
         }
         double ratio = (double) (contentUnits - failedUnits) / contentUnits;

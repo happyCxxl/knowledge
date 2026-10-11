@@ -48,6 +48,12 @@ public class ParseProperties {
     /** 成功单元占比门槛（≥90% PARTIAL_SUCCESS，<90% FAILED） */
     private double successUnitRatio = 0.9;
 
+    /** 短文档门槛：内容单元不超过该值时改看坏页绝对数（小分母上比例门槛等价零容错） */
+    private int shortDocumentMaxUnits = 3;
+
+    /** 短文档门槛：坏页不超过该值且仍有可读单元时不判失败 */
+    private int shortDocumentMaxFailedUnits = 1;
+
     /** 行聚合 y 容差（pt；待样本标定） */
     private double lineYTolerance = 2.0;
 
