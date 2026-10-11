@@ -7,6 +7,8 @@ import com.knowledge.common.domain.parse.ParseSource;
 import com.knowledge.common.enums.parse.ElementType;
 import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.parser.ParseProperties;
+import com.knowledge.worker.parser.capability.CapabilityRegistry;
+import com.knowledge.worker.parser.capability.TableCapabilityAttempt;
 import com.knowledge.worker.parser.pdf.detect.TableCandidateDetector;
 import com.knowledge.worker.parser.pdf.extract.LineTexts;
 import com.knowledge.worker.parser.pdf.extract.PdfGeometry;
@@ -29,13 +31,33 @@ public final class TextTableBuilder {
     private TextTableBuilder() {
     }
 
+    /**
+     * 规则判不出结构时的结算：先试表格结构能力（`CapabilityRegistry.table()`），
+     * 拿到可用结构就出 TABLE 元素并记补强事实；能力未给出可用结构时按内置口径出 TABLE 事实 + 区域降级为段落，并记降级事实。
+     */
+    private static void settleFailedTable(List<PageLine> block, PageContent page, List<ParseElement> elements,
+                                          ParseSource source, String fileId,
+                                          CapabilityRegistry capabilityRegistry,
+                                          LineTexts.Options lineTextOptions, String evidence) {
+        TableCapabilityAttempt.Outcome outcome = TableCapabilityAttempt.attempt(capabilityRegistry,
+                TableRegionSupport.of(block, page, lineTextOptions), page.pageNo());
+        source.getFacts().add(outcome.fact());
+        if (outcome.enhanced()) {
+            elements.add(outcome.table());
+            return;
+        }
+        TableSupport.degrade(block, page, elements, source, fileId, evidence);
+    }
+
     /** 文本路径结算：列对齐聚类成表；失败或空白率过高则降级为段落 */
     static void flush(List<PageLine> block, PageContent page, List<ParseElement> elements,
-                      ParseSource source, String fileId, ParseProperties properties) {
+                      ParseSource source, String fileId, ParseProperties properties,
+                      CapabilityRegistry capabilityRegistry) {
         if (block.size() < 2) {
             elements.add(PdfBodyAssembler.toParagraphElement(block, fileId, page));
             return;
         }
+        LineTexts.Options lineTextOptions = LineTexts.Options.of(properties);
         List<List<PageLine>> rows = groupRows(block, properties.getTableRowInnerGapShare());
         List<List<Token>> rowTokens = rows.stream()
                 .map(row -> row.stream().flatMap(line -> line.tokens().stream()).toList())
@@ -50,7 +72,8 @@ public final class TextTableBuilder {
                 columnTolerance);
         if (columns.size() < TableCandidateDetector.MIN_TOKENS
                 || !TableCandidateDetector.enoughLinesCoverColumns(rowTokens, columns)) {
-            TableSupport.degrade(block, page, elements, source, fileId, "列对齐聚类失败（疑似无边框/复杂表格）");
+            settleFailedTable(block, page, elements, source, fileId, capabilityRegistry,
+                    lineTextOptions, "列对齐聚类失败（疑似无边框/复杂表格）");
             return;
         }
         // 假表门限：正文分栏的每列被整行文字填满，表格单元格相对列宽是稀疏的
@@ -58,7 +81,6 @@ public final class TextTableBuilder {
             TableSupport.degrade(block, page, elements, source, fileId, "列内文本过密（疑似正文分栏）");
             return;
         }
-        LineTexts.Options lineTextOptions = LineTexts.Options.of(properties);
         List<List<String>> rowTexts = new ArrayList<>();
         List<Double> rowFontSizes = new ArrayList<>();
         for (List<PageLine> row : rows) {

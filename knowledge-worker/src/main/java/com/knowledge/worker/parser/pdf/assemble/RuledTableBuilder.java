@@ -6,6 +6,7 @@ import com.knowledge.common.domain.parse.ParseSource;
 import com.knowledge.common.enums.parse.ElementType;
 import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.parser.ParseProperties;
+import com.knowledge.worker.parser.capability.CapabilityRegistry;
 import com.knowledge.worker.parser.pdf.detect.RuleLines;
 import com.knowledge.worker.parser.pdf.extract.LineTexts;
 import com.knowledge.worker.parser.pdf.extract.PdfGeometry;
@@ -32,10 +33,11 @@ public final class RuledTableBuilder {
 
     /** 线框路径结算：线网格 → 合并格 → 格内文本 → 表元素（保底退回无边框路径） */
     static void flush(List<PageLine> run, Region region, PageContent page, List<ParseElement> elements,
-                      ParseSource source, String fileId, ParseProperties properties) {
+                      ParseSource source, String fileId, ParseProperties properties,
+                      CapabilityRegistry capabilityRegistry) {
         Grid grid = RuleLines.fit(page.segments(), region, properties.getTableLineCoverRatio());
         if (NullUtil.isNull(grid)) {
-            PdfBodyAssembler.flushTextRun(run, page, elements, source, fileId, properties);
+            PdfBodyAssembler.flushTextRun(run, page, elements, source, fileId, properties, capabilityRegistry);
             return;
         }
         List<CellRect> rects = mergedCells(grid);

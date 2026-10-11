@@ -8,6 +8,7 @@ import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.parser.DocumentParserPort;
 import com.knowledge.worker.parser.ParseContext;
 import com.knowledge.worker.parser.ParseProperties;
+import com.knowledge.worker.parser.capability.CapabilityRegistry;
 import com.knowledge.worker.parser.pdf.assemble.PageElementIds;
 import com.knowledge.worker.parser.pdf.assemble.PageTableProvenance;
 import com.knowledge.worker.parser.pdf.assemble.PdfBodyAssembler;
@@ -22,6 +23,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.io.IOUtils;
 import org.apache.pdfbox.pdmodel.PDDocument;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -47,9 +49,18 @@ public class PdfBoxDocumentParser implements DocumentParserPort {
     private static final String CAPABILITY_VERSION = "3.0.4";
 
     private final PdfPageExtractor pageExtractor;
+    private final CapabilityRegistry capabilityRegistry;
 
+    /** 只跑规则路径（不接模型能力）的构造器 */
     public PdfBoxDocumentParser(PageLayoutAnalyzer layoutAnalyzer) {
+        this(layoutAnalyzer, null);
+    }
+
+    /** 运行期构造器：注入能力注册表（未开启或未接入时注册表返回 null） */
+    @Autowired
+    public PdfBoxDocumentParser(PageLayoutAnalyzer layoutAnalyzer, CapabilityRegistry capabilityRegistry) {
         this.pageExtractor = new PdfPageExtractor(layoutAnalyzer);
+        this.capabilityRegistry = capabilityRegistry;
     }
 
     @Override
@@ -132,7 +143,8 @@ public class PdfBoxDocumentParser implements DocumentParserPort {
                     : extractWindow(doc, from, Math.min(from + windowSize - 1, pageCount), context);
             for (PageContent page : window) {
                 int mark = elements.size();
-                PdfBodyAssembler.assemble(page, headers, footers, elements, source, fileId, properties);
+                PdfBodyAssembler.assemble(page, headers, footers, elements, source, fileId, properties,
+                        capabilityRegistry);
                 PdfImageEmitter.emit(page, elements, source, fileId, properties);
                 List<ParseElement> pageElements = elements.subList(mark, elements.size());
                 PageElementIds.assign(pageElements, page.pageNo());

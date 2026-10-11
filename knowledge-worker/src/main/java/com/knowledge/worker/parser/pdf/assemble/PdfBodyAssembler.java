@@ -7,6 +7,7 @@ import com.knowledge.common.domain.parse.Provenance;
 import com.knowledge.common.enums.parse.ElementType;
 import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.parser.ParseProperties;
+import com.knowledge.worker.parser.capability.CapabilityRegistry;
 import com.knowledge.worker.parser.pdf.detect.HeaderFooterDetector;
 import com.knowledge.worker.parser.pdf.detect.RuleLines;
 import com.knowledge.worker.parser.pdf.detect.TableCandidateDetector;
@@ -36,7 +37,7 @@ public final class PdfBodyAssembler {
     /** 单页元素组装：页眉/页脚元素（每页各一条） → 正文按 y 顺序推进（表格候选块与段落互斥结算） */
     public static void assemble(PageContent page, Set<String> headers, HeaderFooterDetector.FooterKeys footers,
                          List<ParseElement> elements, ParseSource source, String fileId,
-                         ParseProperties properties) {
+                         ParseProperties properties, CapabilityRegistry capabilityRegistry) {
         double headerBandY = page.pageHeight() * properties.getHeaderAreaRatio();
         double footerBandY = page.pageHeight() * (1 - properties.getFooterAreaRatio());
         PageLines pageLines = PageLines.of(page);
@@ -86,13 +87,13 @@ public final class PdfBodyAssembler {
         for (PageLine line : bodyLines) {
             Region region = regionOf(regions, line);
             if (region != runRegion) {
-                flushRun(run, runRegion, page, elements, source, fileId, properties);
+                flushRun(run, runRegion, page, elements, source, fileId, properties, capabilityRegistry);
                 run = new ArrayList<>();
                 runRegion = region;
             }
             run.add(line);
         }
-        flushRun(run, runRegion, page, elements, source, fileId, properties);
+        flushRun(run, runRegion, page, elements, source, fileId, properties, capabilityRegistry);
     }
 
     /** 行归属的线框区域：行中心落在区域内即归属；无归属返回 null */
@@ -110,20 +111,21 @@ public final class PdfBodyAssembler {
     /** 结算一段连续行：线框区域走线网格表格，其余行走段落与文本表格候选 */
     private static void flushRun(List<PageLine> run, Region region, PageContent page,
                                  List<ParseElement> elements, ParseSource source, String fileId,
-                                 ParseProperties properties) {
+                                 ParseProperties properties, CapabilityRegistry capabilityRegistry) {
         if (run.isEmpty()) {
             return;
         }
         if (NullUtil.isNotNull(region)) {
-            RuledTableBuilder.flush(run, region, page, elements, source, fileId, properties);
+            RuledTableBuilder.flush(run, region, page, elements, source, fileId, properties, capabilityRegistry);
             return;
         }
-        flushTextRun(run, page, elements, source, fileId, properties);
+        flushTextRun(run, page, elements, source, fileId, properties, capabilityRegistry);
     }
 
     /** 无边框路径：段落聚合 + 文本表格候选块（行距超阈值结算段落；候选行连续成块） */
     static void flushTextRun(List<PageLine> run, PageContent page, List<ParseElement> elements,
-                             ParseSource source, String fileId, ParseProperties properties) {
+                             ParseSource source, String fileId, ParseProperties properties,
+                             CapabilityRegistry capabilityRegistry) {
         List<PageLine> block = new ArrayList<>();
         List<PageLine> paragraph = new ArrayList<>();
         PageLine prev = null;
@@ -139,7 +141,7 @@ public final class PdfBodyAssembler {
                     paragraph = new ArrayList<>();
                 }
                 if (!block.isEmpty() && (movedUp || !TableCandidateDetector.isCandidate(line))) {
-                    TextTableBuilder.flush(block, page, elements, source, fileId, properties);
+                    TextTableBuilder.flush(block, page, elements, source, fileId, properties, capabilityRegistry);
                     block = new ArrayList<>();
                 }
             }
@@ -151,7 +153,7 @@ public final class PdfBodyAssembler {
                 block.add(line);
             } else {
                 if (!block.isEmpty()) {
-                    TextTableBuilder.flush(block, page, elements, source, fileId, properties);
+                    TextTableBuilder.flush(block, page, elements, source, fileId, properties, capabilityRegistry);
                     block = new ArrayList<>();
                 }
                 paragraph.add(line);
@@ -159,7 +161,7 @@ public final class PdfBodyAssembler {
             prev = line;
         }
         if (!block.isEmpty()) {
-            TextTableBuilder.flush(block, page, elements, source, fileId, properties);
+            TextTableBuilder.flush(block, page, elements, source, fileId, properties, capabilityRegistry);
         }
         if (!paragraph.isEmpty()) {
             elements.add(toParagraphElement(paragraph, fileId, page));
