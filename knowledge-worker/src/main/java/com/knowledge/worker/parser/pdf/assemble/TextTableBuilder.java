@@ -4,11 +4,14 @@ import cn.hutool.core.util.StrUtil;
 import com.knowledge.common.domain.parse.BBox;
 import com.knowledge.common.domain.parse.ParseElement;
 import com.knowledge.common.domain.parse.ParseSource;
+import com.knowledge.common.domain.parse.signal.ParseFact;
 import com.knowledge.common.enums.parse.ElementType;
+import com.knowledge.common.enums.parse.SignalType;
 import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.parser.ParseProperties;
 import com.knowledge.worker.parser.capability.CapabilityRegistry;
 import com.knowledge.worker.parser.capability.TableCapabilityAttempt;
+import com.knowledge.worker.parser.pdf.detect.TableAlignmentPruner;
 import com.knowledge.worker.parser.pdf.detect.TableCandidateDetector;
 import com.knowledge.worker.parser.pdf.extract.LineTexts;
 import com.knowledge.worker.parser.pdf.extract.PdfGeometry;
@@ -29,6 +32,15 @@ import java.util.List;
 public final class TextTableBuilder {
 
     private TextTableBuilder() {
+    }
+
+    /** 剪枝留痕：记出被剔除的行数（疑似混入正文），表格仍按保留的行产出 */
+    private static ParseFact prunedFact(Integer pageNo, int prunedRows) {
+        ParseFact fact = new ParseFact();
+        fact.setType(SignalType.TABLE);
+        fact.setRegion("page " + pageNo);
+        fact.setEvidence("对齐图剪枝剔除 " + prunedRows + " 行（不与表格主体共享列，疑似混入正文）");
+        return fact;
     }
 
     /**
@@ -80,6 +92,17 @@ public final class TextTableBuilder {
         // 假表门限：正文分栏的每列被整行文字填满，表格单元格相对列宽是稀疏的
         if (!TableCandidateDetector.sparseColumns(rowTokens, columns, properties.getTableColumnMaxFillRatio())) {
             TableSupport.degrade(block, page, elements, source, fileId, "列内文本过密（疑似正文分栏）");
+            return;
+        }
+        // 对齐图剪枝：剪掉不与表格主体共享列的行（混入的正文行），剪完不足两行按规则失败结算
+        List<Integer> kept = TableAlignmentPruner.keptRows(rowTokens, columns);
+        if (kept.size() < rows.size()) {
+            source.getFacts().add(prunedFact(page.pageNo(), rows.size() - kept.size()));
+            rows = kept.stream().map(rows::get).toList();
+        }
+        if (rows.size() < 2) {
+            settleFailedTable(block, page, elements, source, fileId, capabilityRegistry,
+                    lineTextOptions, "对齐图剪枝后不足两行（疑似正文）");
             return;
         }
         List<List<String>> rowTexts = new ArrayList<>();
