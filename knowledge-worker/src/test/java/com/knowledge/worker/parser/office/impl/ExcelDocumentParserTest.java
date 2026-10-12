@@ -49,6 +49,62 @@ class ExcelDocumentParserTest {
         return context;
     }
 
+    /** 首行为空（行对象存在但无单元格）：cols 按实际数据算，不出负数也不抛异常 */
+    @Test
+    void emptyFirstRowShouldStillGiveDataColumns() throws Exception {
+        ParseSource source = parser.parse(context(buildXlsxWithEmptyFirstRow(), MIME_XLSX));
+
+        ParseElement table = source.getElements().stream()
+                .filter(element -> ElementType.TABLE.name().equals(element.getType())).findFirst().orElseThrow();
+        assertEquals(2, table.getCols(), () -> "cols=" + table.getCols());
+        // 行数按真实行号区间算：空的首行也占一号，单元格 row 索引保持 1、2
+        assertEquals(3, table.getRows());
+        assertTrue(cellTexts(source).contains("A1 报价"), () -> "cells=" + cellTexts(source));
+        assertTrue(cellTexts(source).contains("分值"), () -> "cells=" + cellTexts(source));
+    }
+
+    /** 承接列数口径：数据区比首行宽时，cols 取数据最大列，不被首行截短 */
+    @Test
+    void narrowerFirstRowShouldNotTruncateColumns() throws Exception {
+        ParseSource source = parser.parse(context(buildXlsxWithNarrowTitleRow(), MIME_XLSX));
+
+        ParseElement table = source.getElements().stream()
+                .filter(element -> ElementType.TABLE.name().equals(element.getType())).findFirst().orElseThrow();
+        assertEquals(3, table.getCols(), () -> "cols=" + table.getCols());
+    }
+
+    /** 首行只有标题一格，数据行有三列 */
+    private byte[] buildXlsxWithNarrowTitleRow() throws Exception {
+        try (XSSFWorkbook workbook = new XSSFWorkbook()) {
+            Sheet sheet = workbook.createSheet("窄标题");
+            sheet.createRow(0).createCell(0).setCellValue("导出报表");
+            Row data = sheet.createRow(1);
+            data.createCell(0).setCellValue("A");
+            data.createCell(1).setCellValue("B");
+            data.createCell(2).setCellValue("C");
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            workbook.write(out);
+            return out.toByteArray();
+        }
+    }
+
+    /** 首行是存在的空行（无任何单元格），数据从第 2 行开始 */
+    private byte[] buildXlsxWithEmptyFirstRow() throws Exception {
+        try (XSSFWorkbook workbook = new XSSFWorkbook()) {
+            Sheet sheet = workbook.createSheet("空首行");
+            sheet.createRow(0);
+            Row header = sheet.createRow(1);
+            header.createCell(0).setCellValue("评分项");
+            header.createCell(1).setCellValue("分值");
+            Row data = sheet.createRow(2);
+            data.createCell(0).setCellValue("A1 报价");
+            data.createCell(1).setCellValue(30);
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            workbook.write(out);
+            return out.toByteArray();
+        }
+    }
+
     private byte[] buildXlsx() throws Exception {
         try (XSSFWorkbook workbook = new XSSFWorkbook()) {
             Sheet sheet = workbook.createSheet("评分表");

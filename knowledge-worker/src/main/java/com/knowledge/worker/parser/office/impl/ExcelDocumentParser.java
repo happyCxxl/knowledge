@@ -103,6 +103,7 @@ public class ExcelDocumentParser extends AbstractPoiDocumentParser {
         int firstRow = sheet.getFirstRowNum();
         int lastRow = sheet.getLastRowNum();
         boolean hasData = false;
+        int maxCol = 0;
         for (int r = firstRow; r <= lastRow; r++) {
             Row row = sheet.getRow(r);
             if (NullUtil.isNull(row)) {
@@ -132,13 +133,14 @@ public class ExcelDocumentParser extends AbstractPoiDocumentParser {
                     cellElement.setRowSpan(span[0] > 1 ? span[0] : null);
                     cellElement.setColSpan(span[1] > 1 ? span[1] : null);
                 }
+                maxCol = Math.max(maxCol, c + (NullUtil.isNull(span) ? 1 : span[1]));
                 cellElement.setProvenance(new Provenance(fileId,
                         "office#sheet[" + sheetName + "]/cell[" + r + "," + c + "]"));
                 appendCell(tableElement, cellElement);
             }
         }
         tableElement.setRows(hasData ? lastRow - firstRow + 1 : 0);
-        tableElement.setCols(hasData ? (int) sheet.getRow(sheet.getFirstRowNum()).getLastCellNum() : 0);
+        tableElement.setCols(hasData ? maxCol : 0);
         tableElement.setHeaderRow(hasData ? 0 : null);
         return tableElement;
     }
