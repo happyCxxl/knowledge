@@ -118,13 +118,14 @@ class PreprocessControlServiceImplTest {
     private KbPipelineProduct structureProduct() {
         KbPipelineProduct product = new KbPipelineProduct();
         product.setId(50L);
+        product.setFileResultId(10L);
+        product.setStage(PipelineStage.STRUCTURE.name());
         return product;
     }
 
     private void stubCommon() {
         when(fileResultDbService.getById(10L)).thenReturn(fileResult());
-        when(pipelineProductDbService.getByFileResultIdAndStage(10L, PipelineStage.STRUCTURE.name()))
-                .thenReturn(structureProduct());
+        when(pipelineProductDbService.getById(50L)).thenReturn(structureProduct());
     }
 
     /** 知识库夹具（绑定开关未显式关闭 → 视为开启） */
@@ -157,7 +158,7 @@ class PreprocessControlServiceImplTest {
             return true;
         });
 
-        var response = service.preprocess(10L, null, null);
+        var response = service.preprocess(10L, null, 50L);
 
         assertEquals(10L, response.getFileResultId());
         assertEquals(31L, response.getPipelineTaskId());
@@ -190,7 +191,7 @@ class PreprocessControlServiceImplTest {
             return true;
         });
 
-        var response = service.preprocess(10L, null, null);
+        var response = service.preprocess(10L, null, 50L);
 
         assertEquals("preproc-strict-v2", response.getStrategyVersion());
         ArgumentCaptor<KbPipelineTask> captor = ArgumentCaptor.forClass(KbPipelineTask.class);
@@ -215,7 +216,7 @@ class PreprocessControlServiceImplTest {
             return true;
         });
 
-        var response = service.preprocess(10L, 66L, null);
+        var response = service.preprocess(10L, 66L, 50L);
 
         assertEquals("preproc-strict-v2", response.getStrategyVersion());
         verify(strategyVersionDbService).getById(eq(66L));
@@ -242,7 +243,7 @@ class PreprocessControlServiceImplTest {
             return true;
         });
 
-        var response = service.preprocess(10L, null, null);
+        var response = service.preprocess(10L, null, 50L);
 
         assertEquals("preproc-bound-v3", response.getStrategyVersion());
         // 绑定生效时不查全局最新启用
@@ -266,7 +267,7 @@ class PreprocessControlServiceImplTest {
             return true;
         });
 
-        var response = service.preprocess(10L, 66L, null);
+        var response = service.preprocess(10L, 66L, 50L);
 
         assertEquals("preproc-explicit-v4", response.getStrategyVersion());
         // 显式指定时不经绑定档与全局最新档
@@ -296,7 +297,7 @@ class PreprocessControlServiceImplTest {
             return true;
         });
 
-        var response = service.preprocess(10L, null, null);
+        var response = service.preprocess(10L, null, 50L);
 
         assertEquals("preproc-latest-v5", response.getStrategyVersion());
     }
@@ -313,14 +314,12 @@ class PreprocessControlServiceImplTest {
     }
 
     @Test
-    void missingStructureProductShouldThrow40432() {
+    void missingUpstreamProductShouldThrow40436() {
         when(fileResultDbService.getById(10L)).thenReturn(fileResult());
         when(strategyVersionDbService.getLatestEnabledByType(PreprocessStrategy.TYPE)).thenReturn(null);
-        when(pipelineProductDbService.getByFileResultIdAndStage(10L, PipelineStage.STRUCTURE.name()))
-                .thenReturn(null);
 
         KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.preprocess(10L, null, null));
-        assertEquals(ErrorCode.FILE_RESULT_NOT_FOUND, e.getErrorCode());
+        assertEquals(ErrorCode.TASK_UPSTREAM_MISSING, e.getErrorCode());
         verify(pipelineTaskDbService, never()).save(any());
         verify(taskQueue, never()).enqueue(any());
     }
@@ -335,7 +334,7 @@ class PreprocessControlServiceImplTest {
         when(pipelineTaskDbService.getByFileResultIdAndStage(10L, PipelineStage.PREPROCESS.name()))
                 .thenReturn(running);
 
-        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.preprocess(10L, null, null));
+        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.preprocess(10L, null, 50L));
         assertEquals(ErrorCode.TASK_ALREADY_PENDING, e.getErrorCode());
         verify(pipelineTaskDbService, never()).save(any());
         verify(taskQueue, never()).enqueue(any());
@@ -351,7 +350,7 @@ class PreprocessControlServiceImplTest {
         when(pipelineTaskDbService.getByFileResultIdAndStage(10L, PipelineStage.PREPROCESS.name()))
                 .thenReturn(queued);
 
-        var response = service.preprocess(10L, null, null);
+        var response = service.preprocess(10L, null, 50L);
 
         assertEquals(31L, response.getPipelineTaskId());
         verify(pipelineTaskDbService, never()).save(any());
@@ -490,7 +489,7 @@ class PreprocessControlServiceImplTest {
         // 归属看的是知识库归属：换一个登录用户，越权与"不存在"同样返回 40401
         SecurityTestSupport.loginOtherUser();
 
-        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.preprocess(10L, null, null));
+        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.preprocess(10L, null, 50L));
         assertEquals(ErrorCode.KB_NOT_FOUND, e.getErrorCode());
     }
 

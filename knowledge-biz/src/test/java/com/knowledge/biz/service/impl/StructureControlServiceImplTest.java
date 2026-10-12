@@ -105,10 +105,10 @@ class StructureControlServiceImplTest {
         when(fileResultDbService.getById(10L)).thenReturn(fileResult());
         KbPipelineProduct parseProduct = new KbPipelineProduct();
         parseProduct.setId(50L);
+        parseProduct.setFileResultId(10L);
+        parseProduct.setStage(PipelineStage.PARSE.name());
         parseProduct.setArtifactId("abc");
-        // 缺省路径：取该文件结果最新 PARSE 产物
-        when(pipelineProductDbService.getByFileResultIdAndStage(10L, PipelineStage.PARSE.name()))
-                .thenReturn(parseProduct);
+        when(pipelineProductDbService.getById(50L)).thenReturn(parseProduct);
         when(pipelineTaskDbService.getByFileResultIdAndStage(10L, PipelineStage.STRUCTURE.name()))
                 .thenReturn(null);
         when(pipelineTaskDbService.save(any(KbPipelineTask.class))).thenAnswer(inv -> {
@@ -116,7 +116,7 @@ class StructureControlServiceImplTest {
             return true;
         });
 
-        var response = service.structure(10L, null);
+        var response = service.structure(10L, 50L);
 
         assertEquals(51L, response.getPipelineTaskId());
         ArgumentCaptor<KbPipelineTask> captor = ArgumentCaptor.forClass(KbPipelineTask.class);
@@ -165,13 +165,11 @@ class StructureControlServiceImplTest {
     }
 
     @Test
-    void structureWithoutParseProductShouldReject() {
+    void structureWithoutParseProductShouldThrow40436() {
         when(fileResultDbService.getById(10L)).thenReturn(fileResult());
-        when(pipelineProductDbService.getByFileResultIdAndStage(10L, PipelineStage.PARSE.name()))
-                .thenReturn(null);
 
         KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.structure(10L, null));
-        assertEquals(ErrorCode.FILE_RESULT_NOT_FOUND, e.getErrorCode());
+        assertEquals(ErrorCode.TASK_UPSTREAM_MISSING, e.getErrorCode());
         verify(pipelineTaskDbService, never()).save(any());
     }
 
@@ -180,15 +178,16 @@ class StructureControlServiceImplTest {
         when(fileResultDbService.getById(10L)).thenReturn(fileResult());
         KbPipelineProduct parseProduct = new KbPipelineProduct();
         parseProduct.setId(50L);
-        when(pipelineProductDbService.getByFileResultIdAndStage(10L, PipelineStage.PARSE.name()))
-                .thenReturn(parseProduct);
+        parseProduct.setFileResultId(10L);
+        parseProduct.setStage(PipelineStage.PARSE.name());
+        when(pipelineProductDbService.getById(50L)).thenReturn(parseProduct);
         KbPipelineTask running = new KbPipelineTask();
         running.setId(51L);
         running.setStatus(PipelineTaskStatus.RUNNING.name());
         when(pipelineTaskDbService.getByFileResultIdAndStage(10L, PipelineStage.STRUCTURE.name()))
                 .thenReturn(running);
 
-        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.structure(10L, null));
+        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.structure(10L, 50L));
         assertEquals(ErrorCode.TASK_ALREADY_PENDING, e.getErrorCode());
         verify(pipelineTaskDbService, never()).save(any());
         verify(taskQueue, never()).enqueue(any());
@@ -199,15 +198,16 @@ class StructureControlServiceImplTest {
         when(fileResultDbService.getById(10L)).thenReturn(fileResult());
         KbPipelineProduct parseProduct = new KbPipelineProduct();
         parseProduct.setId(50L);
-        when(pipelineProductDbService.getByFileResultIdAndStage(10L, PipelineStage.PARSE.name()))
-                .thenReturn(parseProduct);
+        parseProduct.setFileResultId(10L);
+        parseProduct.setStage(PipelineStage.PARSE.name());
+        when(pipelineProductDbService.getById(50L)).thenReturn(parseProduct);
         KbPipelineTask queued = new KbPipelineTask();
         queued.setId(51L);
         queued.setStatus(PipelineTaskStatus.QUEUED.name());
         when(pipelineTaskDbService.getByFileResultIdAndStage(10L, PipelineStage.STRUCTURE.name()))
                 .thenReturn(queued);
 
-        var response = service.structure(10L, null);
+        var response = service.structure(10L, 50L);
 
         assertEquals(51L, response.getPipelineTaskId());
         verify(pipelineTaskDbService, never()).save(any());
@@ -304,11 +304,9 @@ class StructureControlServiceImplTest {
     @Test
     void ownerFileResultShouldPassOwnershipCheck() {
         when(fileResultDbService.getById(10L)).thenReturn(fileResult());
-        when(pipelineProductDbService.getByFileResultIdAndStage(10L, PipelineStage.PARSE.name()))
-                .thenReturn(null);
 
         // 归属校验放行后进入业务分支：没有解析产物时报"产物不存在"，而不是归属的 40401
-        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.structure(10L, null));
+        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.structure(10L, 50L));
         assertEquals(ErrorCode.FILE_RESULT_NOT_FOUND, e.getErrorCode());
     }
 

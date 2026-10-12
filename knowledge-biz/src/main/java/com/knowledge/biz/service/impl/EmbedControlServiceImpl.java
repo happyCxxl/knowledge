@@ -134,11 +134,10 @@ public class EmbedControlServiceImpl implements EmbedControlService {
                 "切片策略最大片长 " + window.bound() + " 字符超过模型窗口 " + window.allowed() + " 字符，请更换模型或调整切片策略");
     }
 
-    /** 上游切片产物校验：指定 id 则校验存在/环节/归属；缺省取该文件结果最新 CHUNK 产物。 */
+    /** 上游切片产物校验：必须显式指定，校验存在/环节/归属；未指定直接拒绝（无按时间猜的兜底）。 */
     private KbPipelineProduct requireChunkProduct(Long fileResultId, Long productId) {
-        if (NullUtil.isNull(productId)) {
-            return pipelineProductDbService.getByFileResultIdAndStage(fileResultId, PipelineStage.CHUNK.name());
-        }
+        ThrowUtil.throwIf(NullUtil.isNull(productId), ErrorCode.TASK_UPSTREAM_MISSING,
+                "未指定上游切片产物，请从切片产物的卡片发起触发");
         KbPipelineProduct product = pipelineProductDbService.getById(productId);
         ThrowUtil.throwIf(NullUtil.isNull(product), ErrorCode.FILE_RESULT_NOT_FOUND, "指定上游产物不存在");
         ThrowUtil.throwIf(!PipelineStage.CHUNK.name().equals(product.getStage()), ErrorCode.FILE_RESULT_NOT_FOUND,

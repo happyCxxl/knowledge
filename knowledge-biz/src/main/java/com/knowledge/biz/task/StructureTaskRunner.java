@@ -57,13 +57,13 @@ public class StructureTaskRunner {
         log.info("===> StructureTaskRunner 领取组装任务, taskId={}, fileResultId={}",
                 taskId, task.getFileResultId());
         try {
-            // 上游解析产物：优先任务指定值，缺省回退最新
+            // 上游解析产物：只认任务行上的显式引用，缺引用按任务失败处理
             KbPipelineProduct parseProduct = resolveParseProduct(task);
             if (NullUtil.isNull(parseProduct)) {
-                log.warn("===> StructureTaskRunner 组装失败：上游解析产物缺失, taskId={}, fileResultId={}",
+                log.warn("===> StructureTaskRunner 组装失败：任务未指定上游解析产物, taskId={}, fileResultId={}",
                         taskId, task.getFileResultId());
-                finishFailed(taskId, PipelineTaskErrorCode.STRUCTURE_UPSTREAM_UNREADABLE.name(),
-                        "上游解析产物缺失，请先触发解析");
+                finishFailed(taskId, PipelineTaskErrorCode.TASK_UPSTREAM_MISSING.name(),
+                        "任务未指定上游解析产物");
                 return;
             }
             ParseResult parseResult;
@@ -114,7 +114,7 @@ public class StructureTaskRunner {
 
     /** 上游解析产物解析：任务指定 upstreamProductId 优先，查不到或缺省回退该环节最新产物。 */
     private KbPipelineProduct resolveParseProduct(KbPipelineTask task) {
-        return TaskRunnerSupport.resolveUpstreamProduct(pipelineProductDbService, task, PipelineStage.PARSE);
+        return TaskRunnerSupport.resolveUpstreamProduct(pipelineProductDbService, task);
     }
 
     private void persistProduct(KbPipelineTask task, KbPipelineProduct parseProduct, AssembleOutcome outcome) {

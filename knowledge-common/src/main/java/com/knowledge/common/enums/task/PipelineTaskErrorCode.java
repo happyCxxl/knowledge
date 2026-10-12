@@ -10,6 +10,9 @@ public enum PipelineTaskErrorCode {
     /** 任务入队失败（Redis 队列写不进去；任务已落库但没排上队，可重新触发） */
     TASK_ENQUEUE_FAILED,
 
+    /** 任务未指定上游产物（任务行缺 upstreamProductId 引用） */
+    TASK_UPSTREAM_MISSING,
+
     /** 执行超时（孤儿恢复判定） */
     EXECUTOR_TIMEOUT,
 

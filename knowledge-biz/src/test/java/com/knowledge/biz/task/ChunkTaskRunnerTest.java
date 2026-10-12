@@ -108,7 +108,8 @@ class ChunkTaskRunnerTest {
         KbPipelineTask task = new KbPipelineTask();
         task.setId(70L);
         task.setFileResultId(10L);
-        // 默认不指定上游产物：走"最新 PREPROCESS 产物"回退路径；指定上游场景由专门用例自行设置
+        // 上游产物按任务行上的显式引用取（触发时确定）；指定别的上游场景由专门用例自行覆盖
+        task.setUpstreamProductId(50L);
         task.setStage(PipelineStage.CHUNK.name());
         task.setStatus(PipelineTaskStatus.QUEUED.name());
         return task;
@@ -190,7 +191,7 @@ class ChunkTaskRunnerTest {
         when(pipelineTaskDbService.getById(70L)).thenReturn(queuedTask());
         when(pipelineTaskDbService.claim(70L)).thenReturn(1);
         when(fileResultDbService.getById(10L)).thenReturn(fileResult());
-        when(pipelineProductDbService.getByFileResultIdAndStage(10L, PipelineStage.PREPROCESS.name()))
+        when(pipelineProductDbService.getById(50L))
                 .thenReturn(preprocessProduct());
         when(fileStorage.getObject(ObjectRef.of(SOURCE_ID, StorageType.MINIO.getCode(), "artifacts", "abc".repeat(22))))
                 .thenReturn(json(view()));
@@ -275,17 +276,15 @@ class ChunkTaskRunnerTest {
     }
 
     @Test
-    void missingPreprocessProductShouldFailWithChunkEmpty() {
+    void missingUpstreamProductShouldFailTaskUpstreamMissing() {
         when(pipelineTaskDbService.getById(70L)).thenReturn(queuedTask());
         when(pipelineTaskDbService.claim(70L)).thenReturn(1);
         when(fileResultDbService.getById(10L)).thenReturn(fileResult());
-        when(pipelineProductDbService.getByFileResultIdAndStage(10L, PipelineStage.PREPROCESS.name()))
-                .thenReturn(null);
 
         runner.run(70L);
 
         verify(pipelineTaskDbService).finish(eq(70L), eq(PipelineTaskStatus.FAILED.name()),
-                eq(PipelineTaskErrorCode.CHUNK_EMPTY.name()), any());
+                eq(PipelineTaskErrorCode.TASK_UPSTREAM_MISSING.name()), any());
         verify(fileStorage, never()).putObject(any(byte[].class));
     }
 
@@ -294,7 +293,7 @@ class ChunkTaskRunnerTest {
         when(pipelineTaskDbService.getById(70L)).thenReturn(queuedTask());
         when(pipelineTaskDbService.claim(70L)).thenReturn(1);
         when(fileResultDbService.getById(10L)).thenReturn(fileResult());
-        when(pipelineProductDbService.getByFileResultIdAndStage(10L, PipelineStage.PREPROCESS.name()))
+        when(pipelineProductDbService.getById(50L))
                 .thenReturn(preprocessProduct());
         when(fileStorage.getObject(ObjectRef.of(SOURCE_ID, StorageType.MINIO.getCode(), "artifacts", "abc".repeat(22))))
                 .thenReturn(json(view()));
@@ -319,7 +318,7 @@ class ChunkTaskRunnerTest {
         when(pipelineTaskDbService.claim(70L)).thenReturn(1);
         when(fileResultDbService.getById(10L)).thenReturn(fileResult());
         KbPipelineProduct preprocess = preprocessProduct();
-        when(pipelineProductDbService.getByFileResultIdAndStage(10L, PipelineStage.PREPROCESS.name()))
+        when(pipelineProductDbService.getById(50L))
                 .thenReturn(preprocess);
         when(fileStorage.getObject(ObjectRef.of(SOURCE_ID, StorageType.MINIO.getCode(), "artifacts", "abc".repeat(22))))
                 .thenReturn(json(view()));
@@ -350,7 +349,7 @@ class ChunkTaskRunnerTest {
         when(pipelineTaskDbService.getById(70L)).thenReturn(queuedTask());
         when(pipelineTaskDbService.claim(70L)).thenReturn(1);
         when(fileResultDbService.getById(10L)).thenReturn(fileResult());
-        when(pipelineProductDbService.getByFileResultIdAndStage(10L, PipelineStage.PREPROCESS.name()))
+        when(pipelineProductDbService.getById(50L))
                 .thenReturn(preprocessProduct());
         when(fileStorage.getObject(ObjectRef.of(SOURCE_ID, StorageType.MINIO.getCode(), "artifacts", "abc".repeat(22))))
                 .thenReturn(json(view()));

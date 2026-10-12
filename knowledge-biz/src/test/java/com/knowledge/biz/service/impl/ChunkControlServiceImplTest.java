@@ -124,6 +124,8 @@ class ChunkControlServiceImplTest {
     private KbPipelineProduct preprocessProduct() {
         KbPipelineProduct product = new KbPipelineProduct();
         product.setId(50L);
+        product.setFileResultId(10L);
+        product.setStage(PipelineStage.PREPROCESS.name());
         product.setArtifactId("abc".repeat(22));
         product.setStorageType(StorageType.MINIO.getCode());
         product.setStorageSourceId(SOURCE_ID);
@@ -133,8 +135,7 @@ class ChunkControlServiceImplTest {
 
     private void stubCommon() {
         when(fileResultDbService.getById(10L)).thenReturn(fileResult());
-        when(pipelineProductDbService.getByFileResultIdAndStage(10L, PipelineStage.PREPROCESS.name()))
-                .thenReturn(preprocessProduct());
+        when(pipelineProductDbService.getById(50L)).thenReturn(preprocessProduct());
     }
 
     /** 知识库夹具（绑定开关未显式关闭 → 视为开启） */
@@ -178,7 +179,7 @@ class ChunkControlServiceImplTest {
             return true;
         });
 
-        var response = service.chunk(10L, null, null);
+        var response = service.chunk(10L, null, 50L);
 
         assertEquals(41L, response.getPipelineTaskId());
         assertEquals("chunk-hybrid-v1", response.getStrategyVersion());
@@ -194,14 +195,12 @@ class ChunkControlServiceImplTest {
     }
 
     @Test
-    void missingPreprocessProductShouldThrow40432() {
+    void missingUpstreamProductShouldThrow40436() {
         when(fileResultDbService.getById(10L)).thenReturn(fileResult());
         when(strategyVersionDbService.getLatestEnabledByType(ChunkStrategy.TYPE)).thenReturn(null);
-        when(pipelineProductDbService.getByFileResultIdAndStage(10L, PipelineStage.PREPROCESS.name()))
-                .thenReturn(null);
 
         KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.chunk(10L, null, null));
-        assertEquals(ErrorCode.FILE_RESULT_NOT_FOUND, e.getErrorCode());
+        assertEquals(ErrorCode.TASK_UPSTREAM_MISSING, e.getErrorCode());
         verify(pipelineTaskDbService, never()).save(any());
         verify(taskQueue, never()).enqueue(any());
     }
@@ -211,7 +210,7 @@ class ChunkControlServiceImplTest {
         when(fileResultDbService.getById(10L)).thenReturn(fileResult());
         when(strategyVersionDbService.getById(999L)).thenReturn(null);
 
-        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.chunk(10L, 999L, null));
+        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.chunk(10L, 999L, 50L));
         assertEquals(ErrorCode.STRATEGY_VERSION_NOT_FOUND, e.getErrorCode());
         verify(pipelineProductDbService, never()).getByFileResultIdAndStage(any(), any());
     }
@@ -228,7 +227,7 @@ class ChunkControlServiceImplTest {
             return true;
         });
 
-        var response = service.chunk(10L, 66L, null);
+        var response = service.chunk(10L, 66L, 50L);
 
         assertEquals("chunk-strict-v2", response.getStrategyVersion());
         ArgumentCaptor<KbPipelineTask> captor = ArgumentCaptor.forClass(KbPipelineTask.class);
@@ -249,7 +248,7 @@ class ChunkControlServiceImplTest {
             return true;
         });
 
-        var response = service.chunk(10L, null, null);
+        var response = service.chunk(10L, null, 50L);
 
         assertEquals("chunk-bound-v3", response.getStrategyVersion());
         // 绑定生效时不查全局最新启用
@@ -267,7 +266,7 @@ class ChunkControlServiceImplTest {
             return true;
         });
 
-        var response = service.chunk(10L, 66L, null);
+        var response = service.chunk(10L, 66L, 50L);
 
         assertEquals("chunk-explicit-v4", response.getStrategyVersion());
         // 显式指定时不经绑定档与全局最新档
@@ -291,7 +290,7 @@ class ChunkControlServiceImplTest {
             return true;
         });
 
-        var response = service.chunk(10L, null, null);
+        var response = service.chunk(10L, null, 50L);
 
         assertEquals("chunk-latest-v5", response.getStrategyVersion());
     }
@@ -304,7 +303,7 @@ class ChunkControlServiceImplTest {
         wrongType.setType("PREPROCESS");
         when(strategyVersionDbService.getById(66L)).thenReturn(wrongType);
 
-        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.chunk(10L, 66L, null));
+        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.chunk(10L, 66L, 50L));
         assertEquals(ErrorCode.STRATEGY_VERSION_NOT_FOUND, e.getErrorCode());
     }
 
@@ -318,7 +317,7 @@ class ChunkControlServiceImplTest {
         when(pipelineTaskDbService.getByFileResultIdAndStage(10L, PipelineStage.CHUNK.name()))
                 .thenReturn(running);
 
-        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.chunk(10L, null, null));
+        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.chunk(10L, null, 50L));
         assertEquals(ErrorCode.TASK_ALREADY_PENDING, e.getErrorCode());
         verify(pipelineTaskDbService, never()).save(any());
         verify(taskQueue, never()).enqueue(any());
@@ -334,7 +333,7 @@ class ChunkControlServiceImplTest {
         when(pipelineTaskDbService.getByFileResultIdAndStage(10L, PipelineStage.CHUNK.name()))
                 .thenReturn(queued);
 
-        var response = service.chunk(10L, null, null);
+        var response = service.chunk(10L, null, 50L);
 
         assertEquals(41L, response.getPipelineTaskId());
         verify(pipelineTaskDbService, never()).save(any());
@@ -448,7 +447,7 @@ class ChunkControlServiceImplTest {
         // 归属看的是知识库归属：换一个登录用户，越权与"不存在"同样返回 40401
         SecurityTestSupport.loginOtherUser();
 
-        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.chunk(10L, null, null));
+        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.chunk(10L, null, 50L));
         assertEquals(ErrorCode.KB_NOT_FOUND, e.getErrorCode());
     }
 

@@ -119,6 +119,8 @@ class EmbedTaskRunnerTest {
         KbPipelineTask task = new KbPipelineTask();
         task.setId(70L);
         task.setFileResultId(10L);
+        // 上游产物按任务行上的显式引用取（触发时确定）
+        task.setUpstreamProductId(50L);
         task.setStage(PipelineStage.EMBED.name());
         task.setStatus(PipelineTaskStatus.QUEUED.name());
         return task;
@@ -201,7 +203,7 @@ class EmbedTaskRunnerTest {
         fileResult.setId(10L);
         fileResult.setSourceFileId(1L);
         when(fileResultDbService.getById(10L)).thenReturn(fileResult);
-        when(pipelineProductDbService.getByFileResultIdAndStage(10L, PipelineStage.CHUNK.name()))
+        when(pipelineProductDbService.getById(50L))
                 .thenReturn(chunkProduct());
         when(fileStorage.getObject(ObjectRef.of(SOURCE_ID, StorageType.MINIO.getCode(), "artifacts", "abc".repeat(22))))
                 .thenReturn(Objects.requireNonNull(JsonUtil.toJsonStr(chunkSet())).getBytes(StandardCharsets.UTF_8));
@@ -247,19 +249,17 @@ class EmbedTaskRunnerTest {
     }
 
     @Test
-    void missingChunkProductShouldFailEmbedEmpty() {
+    void missingUpstreamProductShouldFailTaskUpstreamMissing() {
         when(pipelineTaskDbService.getById(70L)).thenReturn(queuedTask());
         when(pipelineTaskDbService.claim(70L)).thenReturn(1);
         KbFileResult fileResult = new KbFileResult();
         fileResult.setId(10L);
         when(fileResultDbService.getById(10L)).thenReturn(fileResult);
-        when(pipelineProductDbService.getByFileResultIdAndStage(10L, PipelineStage.CHUNK.name()))
-                .thenReturn(null);
 
         runner.run(70L);
 
         verify(pipelineTaskDbService).finish(70L, PipelineTaskStatus.FAILED.name(),
-                PipelineTaskErrorCode.EMBED_EMPTY.name(), "切片产物不存在，请先触发切片");
+                PipelineTaskErrorCode.TASK_UPSTREAM_MISSING.name(), "任务未指定上游切片产物");
         verify(fileStorage, never()).putObject(any(byte[].class));
         verify(embedder, never()).embed(any());
     }
@@ -314,7 +314,7 @@ class EmbedTaskRunnerTest {
         fileResult.setId(10L);
         fileResult.setSourceFileId(1L);
         when(fileResultDbService.getById(10L)).thenReturn(fileResult);
-        when(pipelineProductDbService.getByFileResultIdAndStage(10L, PipelineStage.CHUNK.name()))
+        when(pipelineProductDbService.getById(50L))
                 .thenReturn(chunkProduct());
         when(fileStorage.getObject(ObjectRef.of(SOURCE_ID, StorageType.MINIO.getCode(), "artifacts", "abc".repeat(22))))
                 .thenReturn(Objects.requireNonNull(JsonUtil.toJsonStr(chunkSet())).getBytes(StandardCharsets.UTF_8));

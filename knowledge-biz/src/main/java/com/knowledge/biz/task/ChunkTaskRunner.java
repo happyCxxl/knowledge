@@ -80,10 +80,10 @@ public class ChunkTaskRunner {
                         "文件结果不存在: " + task.getFileResultId());
                 return;
             }
-            // 上游预处理视图产物：优先任务指定值，缺省回退最新
+            // 上游预处理视图产物：只认任务行上的显式引用，缺引用按任务失败处理
             KbPipelineProduct preprocessProduct = resolvePreprocessProduct(task);
             if (NullUtil.isNull(preprocessProduct)) {
-                finishFailed(taskId, PipelineTaskErrorCode.CHUNK_EMPTY.name(),
+                finishFailed(taskId, PipelineTaskErrorCode.TASK_UPSTREAM_MISSING.name(),
                         ChunkRules.UPSTREAM_PREPROCESS_MISSING);
                 return;
             }
@@ -128,7 +128,7 @@ public class ChunkTaskRunner {
 
     /** 上游预处理产物解析：任务指定 upstreamProductId 优先，查不到或缺省回退该环节最新产物。 */
     private KbPipelineProduct resolvePreprocessProduct(KbPipelineTask task) {
-        return TaskRunnerSupport.resolveUpstreamProduct(pipelineProductDbService, task, PipelineStage.PREPROCESS);
+        return TaskRunnerSupport.resolveUpstreamProduct(pipelineProductDbService, task);
     }
 
     /** 结构参照：PREPROCESS 产物上游的 STRUCTURE 产物（缺失不阻断，titlePath/图注降级） */

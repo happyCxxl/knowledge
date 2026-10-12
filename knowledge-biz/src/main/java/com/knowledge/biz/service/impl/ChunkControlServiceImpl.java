@@ -145,11 +145,10 @@ public class ChunkControlServiceImpl implements ChunkControlService {
         return NullUtil.isNull(row) ? strategyParser.defaultStrategy() : toStrategy(row);
     }
 
-    /** 上游预处理产物校验：指定 id 则校验存在/环节/归属；缺省取该文件结果最新 PREPROCESS 产物。 */
+    /** 上游预处理产物校验：必须显式指定，校验存在/环节/归属；未指定直接拒绝（无按时间猜的兜底）。 */
     private KbPipelineProduct requirePreprocessProduct(Long fileResultId, Long productId) {
-        if (NullUtil.isNull(productId)) {
-            return pipelineProductDbService.getByFileResultIdAndStage(fileResultId, PipelineStage.PREPROCESS.name());
-        }
+        ThrowUtil.throwIf(NullUtil.isNull(productId), ErrorCode.TASK_UPSTREAM_MISSING,
+                "未指定上游预处理视图产物，请从预处理产物的卡片发起触发");
         KbPipelineProduct product = pipelineProductDbService.getById(productId);
         ThrowUtil.throwIf(NullUtil.isNull(product), ErrorCode.FILE_RESULT_NOT_FOUND, "指定上游产物不存在");
         ThrowUtil.throwIf(!PipelineStage.PREPROCESS.name().equals(product.getStage()), ErrorCode.FILE_RESULT_NOT_FOUND,

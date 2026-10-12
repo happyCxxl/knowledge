@@ -129,6 +129,8 @@ class EmbedControlServiceImplTest {
     private KbPipelineProduct chunkProduct(String capabilitySnapshot) {
         KbPipelineProduct product = new KbPipelineProduct();
         product.setId(50L);
+        product.setFileResultId(10L);
+        product.setStage(PipelineStage.CHUNK.name());
         product.setCapabilitySnapshot(capabilitySnapshot);
         product.setArtifactId("abc".repeat(22));
         product.setStorageType(StorageType.MINIO.getCode());
@@ -139,8 +141,7 @@ class EmbedControlServiceImplTest {
 
     private void stubCommon() {
         when(fileResultDbService.getById(10L)).thenReturn(fileResult());
-        when(pipelineProductDbService.getByFileResultIdAndStage(10L, PipelineStage.CHUNK.name()))
-                .thenReturn(chunkProduct(null));
+        when(pipelineProductDbService.getById(50L)).thenReturn(chunkProduct(null));
     }
 
     @Test
@@ -154,7 +155,7 @@ class EmbedControlServiceImplTest {
             return true;
         });
 
-        var response = service.embed(10L, null, null);
+        var response = service.embed(10L, null, 50L);
 
         assertEquals(41L, response.getPipelineTaskId());
         assertEquals("embed-default-v1", response.getStrategyVersion());
@@ -170,14 +171,12 @@ class EmbedControlServiceImplTest {
     }
 
     @Test
-    void missingChunkProductShouldThrow40434() {
+    void missingUpstreamProductShouldThrow40436() {
         when(fileResultDbService.getById(10L)).thenReturn(fileResult());
         when(strategyVersionDbService.getLatestEnabledByType(EmbedStrategy.TYPE)).thenReturn(null);
-        when(pipelineProductDbService.getByFileResultIdAndStage(10L, PipelineStage.CHUNK.name()))
-                .thenReturn(null);
 
         KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.embed(10L, null, null));
-        assertEquals(ErrorCode.EMBED_UPSTREAM_MISSING, e.getErrorCode());
+        assertEquals(ErrorCode.TASK_UPSTREAM_MISSING, e.getErrorCode());
         verify(pipelineTaskDbService, never()).save(any());
         verify(taskQueue, never()).enqueue(any());
     }
@@ -205,7 +204,7 @@ class EmbedControlServiceImplTest {
             return true;
         });
 
-        var response = service.embed(10L, null, null);
+        var response = service.embed(10L, null, 50L);
 
         assertEquals("embed-bound-v3", response.getStrategyVersion());
     }
@@ -215,11 +214,11 @@ class EmbedControlServiceImplTest {
         when(fileResultDbService.getById(10L)).thenReturn(fileResult());
         when(strategyVersionDbService.getLatestEnabledByType(EmbedStrategy.TYPE)).thenReturn(null);
         // 切片策略 softMaxLen=20000 超 text-embedding-v4 窗口（8192×1.5=12288）
-        when(pipelineProductDbService.getByFileResultIdAndStage(10L, PipelineStage.CHUNK.name()))
+        when(pipelineProductDbService.getById(50L))
                 .thenReturn(chunkProduct("{\"routes\":{\"body\":{\"algorithm\":\"paragraph-aggregate\","
                         + "\"params\":{\"softMaxLen\":20000}}}}"));
 
-        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.embed(10L, null, null));
+        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.embed(10L, null, 50L));
         assertEquals(ErrorCode.EMBED_MODEL_INCOMPATIBLE, e.getErrorCode());
         verify(pipelineTaskDbService, never()).save(any());
         verify(taskQueue, never()).enqueue(any());
@@ -236,7 +235,7 @@ class EmbedControlServiceImplTest {
             return true;
         });
 
-        var response = service.embed(10L, null, null);
+        var response = service.embed(10L, null, 50L);
 
         assertEquals(44L, response.getPipelineTaskId());
     }
@@ -251,7 +250,7 @@ class EmbedControlServiceImplTest {
         when(pipelineTaskDbService.getByFileResultIdAndStage(10L, PipelineStage.EMBED.name()))
                 .thenReturn(running);
 
-        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.embed(10L, null, null));
+        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.embed(10L, null, 50L));
         assertEquals(ErrorCode.TASK_ALREADY_PENDING, e.getErrorCode());
         verify(pipelineTaskDbService, never()).save(any());
     }
@@ -266,7 +265,7 @@ class EmbedControlServiceImplTest {
         when(pipelineTaskDbService.getByFileResultIdAndStage(10L, PipelineStage.EMBED.name()))
                 .thenReturn(queued);
 
-        var response = service.embed(10L, null, null);
+        var response = service.embed(10L, null, 50L);
 
         assertEquals(41L, response.getPipelineTaskId());
         verify(pipelineTaskDbService, never()).save(any());
@@ -354,7 +353,7 @@ class EmbedControlServiceImplTest {
         // 归属看的是知识库归属：换一个登录用户，越权与"不存在"同样返回 40401
         SecurityTestSupport.loginOtherUser();
 
-        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.embed(10L, null, null));
+        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.embed(10L, null, 50L));
         assertEquals(ErrorCode.KB_NOT_FOUND, e.getErrorCode());
     }
 

@@ -84,6 +84,9 @@ public enum ErrorCode {
     /** 切片最大片长超过模型窗口 */
     EMBED_MODEL_INCOMPATIBLE(40435, "切片最大片长超过模型窗口，请更换模型或调整切片策略"),
 
+    /** 触发下游环节时未指定上游产物 */
+    TASK_UPSTREAM_MISSING(40436, "未指定上游产物，请从上游产物的卡片发起触发"),
+
     /** 索引版本不存在 */
     INDEX_VERSION_NOT_FOUND(40441, "索引版本不存在"),
 

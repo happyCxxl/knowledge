@@ -89,10 +89,10 @@ public class EmbedTaskRunner {
                         "文件结果不存在: " + task.getFileResultId());
                 return;
             }
-            // 上游切片产物：优先任务指定值，缺省回退最新
+            // 上游切片产物：只认任务行上的显式引用，缺引用按任务失败处理
             KbPipelineProduct chunkProduct = resolveChunkProduct(task);
             if (NullUtil.isNull(chunkProduct)) {
-                finishFailed(taskId, PipelineTaskErrorCode.EMBED_EMPTY.name(), "切片产物不存在，请先触发切片");
+                finishFailed(taskId, PipelineTaskErrorCode.TASK_UPSTREAM_MISSING.name(), "任务未指定上游切片产物");
                 return;
             }
 
@@ -138,7 +138,7 @@ public class EmbedTaskRunner {
 
     /** 上游切片产物解析：任务指定 upstreamProductId 优先，查不到或缺省回退该环节最新产物。 */
     private KbPipelineProduct resolveChunkProduct(KbPipelineTask task) {
-        return TaskRunnerSupport.resolveUpstreamProduct(pipelineProductDbService, task, PipelineStage.CHUNK);
+        return TaskRunnerSupport.resolveUpstreamProduct(pipelineProductDbService, task);
     }
 
     /** 复用候选账本：同文件同策略成功集合（新→旧，回溯上限）；账本文件读取失败跳过继续（复用是优化） */

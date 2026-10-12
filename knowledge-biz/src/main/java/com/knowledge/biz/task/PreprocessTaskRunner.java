@@ -65,11 +65,11 @@ public class PreprocessTaskRunner {
                         "文件结果不存在: " + task.getFileResultId());
                 return;
             }
-            // 上游组装产物：优先任务指定值，缺省回退最新
+            // 上游组装产物：只认任务行上的显式引用，缺引用按任务失败处理
             KbPipelineProduct structureProduct = resolveStructureProduct(task);
             if (NullUtil.isNull(structureProduct)) {
-                finishFailed(taskId, PipelineTaskErrorCode.PREPROCESS_EMPTY.name(),
-                        "统一结构产物不存在，请先触发组装");
+                finishFailed(taskId, PipelineTaskErrorCode.TASK_UPSTREAM_MISSING.name(),
+                        "任务未指定上游统一结构产物");
                 return;
             }
 
@@ -111,7 +111,7 @@ public class PreprocessTaskRunner {
 
     /** 上游组装产物解析：任务指定 upstreamProductId 优先，查不到或缺省回退该环节最新产物。 */
     private KbPipelineProduct resolveStructureProduct(KbPipelineTask task) {
-        return TaskRunnerSupport.resolveUpstreamProduct(pipelineProductDbService, task, PipelineStage.STRUCTURE);
+        return TaskRunnerSupport.resolveUpstreamProduct(pipelineProductDbService, task);
     }
 
     /** 写产物存储 + 阶段产物引用 + 子步骤记录（成功/PARTIAL_SUCCESS 路径） */

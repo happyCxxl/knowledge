@@ -6,7 +6,6 @@ import com.knowledge.biz.service.db.KbPipelineTaskDbService;
 import com.knowledge.common.domain.entity.KbPipelineProduct;
 import com.knowledge.common.domain.entity.KbPipelineTask;
 import com.knowledge.common.domain.task.StageOutcome;
-import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.enums.task.PipelineTaskErrorCode;
 import com.knowledge.common.enums.task.PipelineTaskStatus;
 import com.knowledge.common.error.ErrorCode;
@@ -47,20 +46,17 @@ public final class TaskRunnerSupport {
     }
 
     /**
-     * 上游产物解析：任务指定 {@code upstreamProductId} 优先，缺省或查不到时回退该环节最新产物。
+     * 上游产物解析：只认任务行上显式指定的 {@code upstreamProductId}（触发时确定），查不到返回 null。
+     * 不做「取该环节最新产物」这类按时间猜的兜底 —— 引用缺失按任务失败处理，由触发入口与执行器两端把关。
      *
      * @param productDbService 产物数据访问
      * @param task             当前任务
-     * @param stage            上游环节（PARSE / STRUCTURE / PREPROCESS / CHUNK）
-     * @return 上游产物；两者都没有时返回 null
+     * @return 上游产物；未指定或查不到时返回 null
      */
     public static KbPipelineProduct resolveUpstreamProduct(KbPipelineProductDbService productDbService,
-                                                           KbPipelineTask task, PipelineStage stage) {
-        KbPipelineProduct product = NullUtil.isNull(task.getUpstreamProductId()) ? null
+                                                           KbPipelineTask task) {
+        return NullUtil.isNull(task.getUpstreamProductId()) ? null
                 : productDbService.getById(task.getUpstreamProductId());
-        return NullUtil.isNull(product)
-                ? productDbService.getByFileResultIdAndStage(task.getFileResultId(), stage.name())
-                : product;
     }
 
     /**

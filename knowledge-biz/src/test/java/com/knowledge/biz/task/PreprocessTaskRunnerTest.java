@@ -224,18 +224,16 @@ class PreprocessTaskRunnerTest {
     }
 
     @Test
-    void missingStructureProductShouldFailWithPreprocessEmpty() {
+    void missingUpstreamProductShouldFailTaskUpstreamMissing() {
         when(pipelineTaskDbService.getById(60L)).thenReturn(queuedTask());
         when(pipelineTaskDbService.claim(60L)).thenReturn(1);
         when(fileResultDbService.getById(10L)).thenReturn(fileResult());
         when(pipelineProductDbService.getById(50L)).thenReturn(null);
-        when(pipelineProductDbService.getByFileResultIdAndStage(10L, PipelineStage.STRUCTURE.name()))
-                .thenReturn(null);
 
         runner.run(60L);
 
         verify(pipelineTaskDbService).finish(eq(60L), eq(PipelineTaskStatus.FAILED.name()),
-                eq(PipelineTaskErrorCode.PREPROCESS_EMPTY.name()), any());
+                eq(PipelineTaskErrorCode.TASK_UPSTREAM_MISSING.name()), any());
         verify(fileStorage, never()).putObject(any(byte[].class));
     }
 
