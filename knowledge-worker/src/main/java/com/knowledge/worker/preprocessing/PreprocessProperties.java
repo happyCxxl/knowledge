@@ -5,7 +5,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
 /**
- * 预处理阈值配置（knowledge.preprocess 前缀；Nacos 同名键可覆盖）。
+ * 预处理阈值配置（knowledge.preprocess 前缀；application.yml 同名 kebab-case 键）。
  * 识别侧阈值在解析/组装环节配置，本类只留处置聚合阈值与摘要上限。
  *
  * @author cxxl

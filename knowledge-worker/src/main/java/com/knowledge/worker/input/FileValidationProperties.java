@@ -8,7 +8,7 @@ import java.util.List;
 
 /**
  * 文件校验配置（knowledge.file 前缀）。
- * Nacos 同名键可覆盖；未配置时取内置默认值。
+ * 配置来源 = application.yml 同名 kebab-case 键；未配置时取内置默认值。
  *
  * @author cxxl
  */
@@ -23,7 +23,7 @@ public class FileValidationProperties {
     /**
      * 启用格式白名单（FileFormat 枚举名）。
      * 默认只启用数字版 PDF/DOC/DOCX/XLS/XLSX；
-     * PPT/PPTX/TXT/MD/CSV 可识别但预留关闭，需要时经 Nacos 放开。
+     * PPT/PPTX/TXT/MD/CSV 可识别但预留关闭，需要时经配置项放开。
      */
     private List<String> enabledFormats = List.of("PDF", "DOC", "DOCX", "XLS", "XLSX");
 

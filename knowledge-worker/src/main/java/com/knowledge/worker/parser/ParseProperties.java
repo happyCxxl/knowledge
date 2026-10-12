@@ -5,7 +5,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
 /**
- * 解析阈值配置（knowledge.parse 前缀；Nacos 同名键可覆盖）。
+ * 解析阈值配置（knowledge.parse 前缀；application.yml 同名 kebab-case 键）。
  * 阈值为初值，待真实样本标定。
  *
  * @author cxxl

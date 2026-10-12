@@ -46,7 +46,7 @@ public final class ChunkAlgorithmSpec {
     // ---------------- 参数默认补齐与流程层默认 ----------------
 
     /**
-     * 解析后补全：缺省路由用默认算法、缺省参数用全局默认（ChunkProperties，Nacos 可调）、流程层键补默认。
+     * 解析后补全：缺省路由用默认算法、缺省参数用全局默认（ChunkProperties，application.yml 同名 kebab-case 键）、流程层键补默认。
      */
     public static ChunkStrategy normalize(ChunkStrategy strategy, ChunkProperties properties) {
         if (NullUtil.isNull(strategy.getRoutes())) {
@@ -84,7 +84,7 @@ public final class ChunkAlgorithmSpec {
         defaultParams(route, config.getAlgorithm(), properties).forEach(config.getParams()::putIfAbsent);
     }
 
-    /** 各算法默认参数（值源 = ChunkProperties 全局默认，Nacos 可调）；算法键未识别时不补参数 */
+    /** 各算法默认参数（值源 = ChunkProperties 全局默认，application.yml 同名 kebab-case 键）；算法键未识别时不补参数 */
     public static Map<String, String> defaultParams(ChunkRoute route, String algorithmKey, ChunkProperties properties) {
         Map<String, String> defaults = new LinkedHashMap<>();
         ChunkAlgorithm algorithm = ChunkAlgorithm.of(route, algorithmKey);

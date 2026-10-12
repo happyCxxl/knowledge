@@ -1,7 +1,7 @@
 package com.knowledge.worker.parser.capability;
 
 /**
- * 能力注册表：候选 = Spring Bean 集合 ∩ 注册表 enabled ∩ Nacos 开关；
+ * 能力注册表：候选 = Spring Bean 集合 ∩ 注册表 enabled ∩ 配置项开关；
  * 无启用实现返回 null（主流程走内置降级）。
  * 主流程只依赖本接口，不感知具体实现类。
  *

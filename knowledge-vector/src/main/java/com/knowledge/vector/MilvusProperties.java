@@ -5,7 +5,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
 /**
- * Milvus 连接配置（knowledge.vector.milvus 前缀，Nacos 同名键可覆盖）。
+ * Milvus 连接配置（knowledge.vector.milvus 前缀，application.yml 同名 kebab-case 键）。
  *
  * @author cxxl
  */

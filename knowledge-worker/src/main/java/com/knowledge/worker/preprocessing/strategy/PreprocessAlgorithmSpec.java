@@ -50,7 +50,7 @@ public final class PreprocessAlgorithmSpec {
         };
     }
 
-    /** 各规则默认参数（值源 = PreprocessProperties 全局默认，Nacos 可调） */
+    /** 各规则默认参数（值源 = PreprocessProperties 全局默认，application.yml 同名 kebab-case 键） */
     public static Map<String, String> defaultParams(PreprocessRule rule, PreprocessProperties properties) {
         Map<String, String> defaults = new LinkedHashMap<>();
         switch (rule) {

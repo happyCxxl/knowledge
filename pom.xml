@@ -20,8 +20,6 @@
 
   <properties>
     <java.version>21</java.version>
-    <spring-cloud.version>2023.0.1</spring-cloud.version>
-    <spring-cloud-alibaba.version>2023.0.1.0</spring-cloud-alibaba.version>
     <mybatis-plus.version>3.5.5</mybatis-plus.version>
     <druid.version>1.2.23</druid.version>
     <milvus.version>2.5.5</milvus.version>
@@ -91,22 +89,6 @@
         <groupId>com.bucket4j</groupId>
         <artifactId>bucket4j_jdk17-lettuce</artifactId>
         <version>${bucket4j.version}</version>
-      </dependency>
-
-      <!-- Spring Cloud / Spring Cloud Alibaba（Nacos 相关 starter 的版本来源） -->
-      <dependency>
-        <groupId>org.springframework.cloud</groupId>
-        <artifactId>spring-cloud-dependencies</artifactId>
-        <version>${spring-cloud.version}</version>
-        <type>pom</type>
-        <scope>import</scope>
-      </dependency>
-      <dependency>
-        <groupId>com.alibaba.cloud</groupId>
-        <artifactId>spring-cloud-alibaba-dependencies</artifactId>
-        <version>${spring-cloud-alibaba.version}</version>
-        <type>pom</type>
-        <scope>import</scope>
       </dependency>
 
       <!-- MyBatis-Plus（平台钉版 3.5.4 与 Boot 3.2/Spring 6.1 有两处已知不兼容：

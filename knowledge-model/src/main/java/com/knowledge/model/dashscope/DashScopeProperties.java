@@ -5,7 +5,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
 /**
- * 阿里云 DashScope 向量化配置（knowledge.model.dashscope 前缀，Nacos 同名键可覆盖）。
+ * 阿里云 DashScope 向量化配置（knowledge.model.dashscope 前缀，application.yml 同名 kebab-case 键）。
  *
  * @author cxxl
  */

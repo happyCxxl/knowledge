@@ -35,7 +35,7 @@ public class EmbedContext {
     /** 向量化策略快照（触发时固定；空则管线回退内置默认） */
     private EmbedStrategy strategy;
 
-    /** 向量化参数（knowledge.embed，Nacos 可覆盖） */
+    /** 向量化参数（knowledge.embed 前缀，application.yml 同名 kebab-case 键） */
     private EmbedProperties properties;
 
     /** 文件结果 ID（kb_file_result.id） */

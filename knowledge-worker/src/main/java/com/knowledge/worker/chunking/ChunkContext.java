@@ -23,7 +23,7 @@ public class ChunkContext {
     /** 切片策略快照（触发时固定；空则管线回退内置默认） */
     private ChunkStrategy strategy;
 
-    /** 切片参数（knowledge.chunk，Nacos 可覆盖） */
+    /** 切片参数（knowledge.chunk 前缀，application.yml 同名 kebab-case 键） */
     private ChunkProperties properties;
 
     /** 文件结果 ID（kb_file_result.id） */

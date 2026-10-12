@@ -38,7 +38,7 @@
 | `chunking/impl/ChunkPipeline`                                                      | 环节编排：跳过过滤 → 标题章节栈 → 四路由分派 → 后置链（逐章）→ 父子片 → 编号与 token → 集合组装与状态判定          |
 | `chunking/ChunkerPort`                                                             | 切片契约：`chunk(context)` 返回 `ChunkOutcome`                                                                     |
 | `chunking/ChunkContext` / `SliceContext`                                           | 运行上下文：上游产物、策略、全局默认；切片期共享状态（正文缓冲、标题栈、前导段落、兜底切片器、元素索引）           |
-| `chunking/ChunkProperties`                                                         | 全部切片默认值（`knowledge.chunk` 前缀，Nacos 可调）                                                               |
+| `chunking/ChunkProperties`                                                         | 全部切片默认值（`knowledge.chunk` 前缀，application.yml 同名键）                                                   |
 | `chunking/WindowSlicer`                                                            | 窗口切片工具（固定长度 + 重叠的硬切）                                                                              |
 | `chunking/slice/SliceStrategy` / `ChunkPostProcessor` / `FallbackSlicer`           | 三类扩展点契约：路由切片器 / 后置处理器 / 兜底切片器                                                               |
 | `chunking/impl/AlgorithmRegistry`                                                  | 按 `(route, key)` 建索引的泛型注册表（未找到明确报错，不静默降级）                                                 |
