@@ -93,7 +93,7 @@ public class DocDocumentParser extends AbstractPoiDocumentParser {
     /** DOC 段落元素：样式名 + 目录候选 + 字体事实取首 run；HWPF 字号为半点单位，换算 pt。 */
     private ParseElement toDocParagraphElement(HWPFDocument document, Paragraph paragraph, int index,
                                                String fileId) {
-        String text = paragraph.text().trim();
+        String text = stripFieldCodes(paragraph.text()).trim();
         if (StrUtil.isBlank(text)) {
             return null;
         }
@@ -138,6 +138,31 @@ public class DocDocumentParser extends AbstractPoiDocumentParser {
         source.getElements().add(element);
     }
 
+    /**
+     * 域代码剥离：HWPF 的 `text()` 会把域的起始（0x13）、分隔（0x14）、结束（0x15）控制符一并给出，
+     * 起始到分隔之间是域指令（`PAGE` / `HYPERLINK` 之类），这里丢掉指令、保留域结果文本，并清掉控制符。
+     *
+     * @param raw 原始段落/单元格文本
+     * @return 剥离后的文本
+     */
+    static String stripFieldCodes(String raw) {
+        if (StrUtil.isEmpty(raw)) {
+            return raw;
+        }
+        StringBuilder out = new StringBuilder();
+        boolean inInstruction = false;
+        for (char ch : raw.toCharArray()) {
+            if (ch == '\u0013') {
+                inInstruction = true;
+            } else if (ch == '\u0014' || ch == '\u0015') {
+                inInstruction = false;
+            } else if (!inInstruction) {
+                out.append(ch);
+            }
+        }
+        return out.toString();
+    }
+
     /** 段落样式名：HWPF 样式表按索引取名字；索引越界或读取异常给 null（不阻断解析） */
     private static String docStyleName(HWPFDocument document, Paragraph paragraph) {
         try {
@@ -159,7 +184,7 @@ public class DocDocumentParser extends AbstractPoiDocumentParser {
             for (int c = 0; c < row.numCells(); c++) {
                 ParseElement cellElement = ParseElement.of("t" + tableIndex + "c" + r + "_" + c,
                         ElementType.TABLE_CELL);
-                cellElement.setText(row.getCell(c).text().trim());
+                cellElement.setText(stripFieldCodes(row.getCell(c).text()).trim());
                 cellElement.setRow(r);
                 cellElement.setCol(c);
                 cellElement.setIsHeader(r == 0);
