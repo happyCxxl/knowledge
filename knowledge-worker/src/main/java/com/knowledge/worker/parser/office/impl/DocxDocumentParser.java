@@ -119,6 +119,22 @@ public class DocxDocumentParser extends AbstractPoiDocumentParser {
     }
 
     /**
+     * 段落文本与文本框文字合并：文本框内容在部分文件里已被 `getText()` 带出，已包含时不再追加
+     * （否则同一段文字会出现两次）；段落为空时以文本框文字为准。
+     *
+     * @param text    段落自身文本（可能为空）
+     * @param boxText 文本框文字（可能为空）
+     * @return 合并后的段落文本
+     */
+    static String mergeTextBoxText(String text, String boxText) {
+        String paragraphText = StrUtil.blankToDefault(text, "");
+        if (StrUtil.isBlank(boxText) || paragraphText.contains(boxText)) {
+            return paragraphText;
+        }
+        return paragraphText.isEmpty() ? boxText : paragraphText + "\n" + boxText;
+    }
+
+    /**
      * 文本框文字：段落 XML 里 `w:txbxContent` 内的 `w:t` 文本按出现顺序拼接。
      * POI 的 `XWPFParagraph.getText()` 只遍历 run 的 `w:t`，文本框内容（`w:txbxContent` / `w:ps:txbx`）不在其中。
      *
@@ -143,11 +159,7 @@ public class DocxDocumentParser extends AbstractPoiDocumentParser {
 
     /** DOCX 段落元素：空段跳过；样式名 + 首个有效 run 的字体事实（无样式标题只输出事实，层级归组装环节）。 */
     private ParseElement toDocxParagraphElement(XWPFParagraph paragraph, int index, String fileId) {
-        String text = paragraph.getText();
-        String boxText = docxTextBoxText(paragraph.getCTP().xmlText());
-        if (StrUtil.isNotBlank(boxText)) {
-            text = StrUtil.isBlank(text) ? boxText : text + "\n" + boxText;
-        }
+        String text = mergeTextBoxText(paragraph.getText(), docxTextBoxText(paragraph.getCTP().xmlText()));
         if (StrUtil.isBlank(text)) {
             return null;
         }

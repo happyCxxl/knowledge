@@ -12,6 +12,16 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 class DocxTextBoxTextTest {
 
+    /** 合并口径：段落里已有文本框文字时不再追加（真实样例暴露的重复问题） */
+    @Test
+    void mergeShouldNotDuplicateAlreadyCapturedTextBoxText() {
+        assertEquals("正文一段", DocxDocumentParser.mergeTextBoxText("正文一段", "正文一段"));
+        assertEquals("正文一段\n文本框文字", DocxDocumentParser.mergeTextBoxText("正文一段", "文本框文字"));
+        assertEquals("文本框文字", DocxDocumentParser.mergeTextBoxText("", "文本框文字"));
+        assertEquals("正文一段", DocxDocumentParser.mergeTextBoxText("正文一段", ""));
+        assertEquals("", DocxDocumentParser.mergeTextBoxText(null, null));
+    }
+
     /** 单个文本框：取出其中的 w:t 文本 */
     @Test
     void singleTextBoxShouldBeExtracted() {
