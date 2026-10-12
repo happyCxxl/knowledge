@@ -19,6 +19,15 @@ public class KbPipelineProductDbServiceImpl extends InfraDbServiceImpl<KbPipelin
         implements KbPipelineProductDbService {
 
     @Override
+    public KbPipelineProduct getByTaskId(Long taskId) {
+        LambdaQueryWrapper<KbPipelineProduct> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(KbPipelineProduct::getTaskId, taskId)
+                .orderByDesc(KbPipelineProduct::getId)
+                .last("LIMIT 1");
+        return getOne(queryWrapper, false);
+    }
+
+    @Override
     public KbPipelineProduct getByFileResultIdAndStage(Long fileResultId, String stage) {
         LambdaQueryWrapper<KbPipelineProduct> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(KbPipelineProduct::getFileResultId, fileResultId)

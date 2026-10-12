@@ -21,6 +21,9 @@ public class KbPipelineProduct {
     @TableId(type = IdType.ASSIGN_ID)
     private Long id;
 
+    /** 产出该产物的任务（一次执行至多一份产物；唯一键 uk_product_task） */
+    private Long taskId;
+
     /** 所属文件结果 */
     private Long fileResultId;
 

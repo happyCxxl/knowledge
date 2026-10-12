@@ -170,6 +170,7 @@ CREATE TABLE kb_pipeline_task
 CREATE TABLE kb_pipeline_product
 (
     id                  BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键（雪花，应用显式传 id）',
+    task_id             BIGINT       NOT NULL                COMMENT '产出该产物的任务（一次执行至多一份产物）',
     file_result_id      BIGINT       NOT NULL                COMMENT '所属文件结果',
     stage               VARCHAR(32)  NOT NULL                COMMENT '产出环节（PipelineStage 枚举名）',
     upstream_product_id BIGINT                DEFAULT NULL   COMMENT '上游产物 ID（可空）',
@@ -182,6 +183,8 @@ CREATE TABLE kb_pipeline_product
     status              VARCHAR(32)  NOT NULL DEFAULT 'ACTIVE' COMMENT '状态',
     create_time         DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
     PRIMARY KEY (id),
+    -- 一次执行（一条任务）至多一份产物：重复执行按既有行复用，不新增行
+    UNIQUE KEY uk_product_task (task_id),
     KEY idx_fr_stage (file_result_id, stage)
 )  COMMENT ='阶段产物：本体在产物存储，表内存引用与血缘（机器表 append-only）';
 

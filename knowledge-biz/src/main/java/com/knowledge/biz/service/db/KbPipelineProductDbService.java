@@ -22,6 +22,14 @@ public interface KbPipelineProductDbService extends InfraDbService<KbPipelinePro
     KbPipelineProduct getByFileResultIdAndStage(Long fileResultId, String stage);
 
     /**
+     * 按任务查产物（一次执行至多一份产物：重复执行按它复用，不新增行）。
+     *
+     * @param taskId 任务 ID
+     * @return 产物实体；不存在返回 null
+     */
+    KbPipelineProduct getByTaskId(Long taskId);
+
+    /**
      * 查单文件全部产物（id 升序）。
      *
      * @param fileResultId 文件结果 ID
