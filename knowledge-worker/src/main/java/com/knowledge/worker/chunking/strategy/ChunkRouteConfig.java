@@ -1,6 +1,7 @@
 package com.knowledge.worker.chunking.strategy;
 
 import com.knowledge.common.enums.chunk.ChunkAlgorithm;
+import com.knowledge.common.utils.NullUtil;
 
 import cn.hutool.core.util.StrUtil;
 import lombok.Data;
@@ -25,7 +26,7 @@ public class ChunkRouteConfig {
 
     /** 数值参数读取：缺失/非法回退默认值 */
     public int intParam(String key, int defaultValue) {
-        String value = params == null ? null : params.get(key);
+        String value = NullUtil.isNull(params) ? null : params.get(key);
         if (StrUtil.isBlank(value)) {
             return defaultValue;
         }
@@ -38,7 +39,7 @@ public class ChunkRouteConfig {
 
     /** 字符串参数读取：缺失回退默认值 */
     public String strParam(String key, String defaultValue) {
-        String value = params == null ? null : params.get(key);
+        String value = NullUtil.isNull(params) ? null : params.get(key);
         return StrUtil.isBlank(value) ? defaultValue : value;
     }
 }

@@ -8,6 +8,7 @@ import cn.hutool.core.collection.CollUtil;
 import com.knowledge.biz.mapper.KbFileResultMapper;
 import com.knowledge.biz.service.db.KbFileResultDbService;
 import com.knowledge.common.domain.entity.KbFileResult;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.infra.persistence.InfraDbServiceImpl;
 import org.springframework.stereotype.Service;
 
@@ -61,7 +62,7 @@ public class KbFileResultDbServiceImpl extends InfraDbServiceImpl<KbFileResultMa
         for (Map<String, Object> row : baseMapper.selectMaps(queryWrapper)) {
             Object kbId = row.get("kbId");
             Object docCount = row.get("docCount");
-            if (kbId != null && docCount != null) {
+            if (NullUtil.isNotNull(kbId) && NullUtil.isNotNull(docCount)) {
                 result.put(((Number) kbId).longValue(), ((Number) docCount).longValue());
             }
         }

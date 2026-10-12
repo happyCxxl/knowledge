@@ -118,7 +118,7 @@ public class StageContentQueryServiceImpl implements StageContentQueryService {
         }
         vo.setTaskId(task.getId());
         // latest = 该次运行产物内容是否可用：按 task.productId 精确取产物（历史任务同样可展示自己的内容）
-        KbPipelineProduct product = NullUtil.isNull(task) || task.getProductId() == null ? null
+        KbPipelineProduct product = NullUtil.isNull(task) || NullUtil.isNull(task.getProductId()) ? null
                 : pipelineProductDbService.getById(task.getProductId());
         if (NullUtil.isNull(product) || StrUtil.isBlank(product.getArtifactId())) {
             return vo;
@@ -297,7 +297,7 @@ public class StageContentQueryServiceImpl implements StageContentQueryService {
     /** 组装环节专属字段 + 公共页网格字段 */
     private Map<String, Object> structureExtra(UnifiedElement element) {
         Map<String, Object> extra = new LinkedHashMap<>();
-        if (element.getLevel() != null) {
+        if (NullUtil.isNotNull(element.getLevel())) {
             extra.put("level", element.getLevel());
         }
         putPageGrid(extra, element.getPage(), element.getRows(), element.getCols());
@@ -307,13 +307,13 @@ public class StageContentQueryServiceImpl implements StageContentQueryService {
 
     /** 页/行/列公共字段按非空并入 extra（解析/组装共用口径） */
     private void putPageGrid(Map<String, Object> extra, Integer page, Integer rows, Integer cols) {
-        if (page != null) {
+        if (NullUtil.isNotNull(page)) {
             extra.put("page", page);
         }
-        if (rows != null) {
+        if (NullUtil.isNotNull(rows)) {
             extra.put("rows", rows);
         }
-        if (cols != null) {
+        if (NullUtil.isNotNull(cols)) {
             extra.put("cols", cols);
         }
     }
@@ -402,13 +402,13 @@ public class StageContentQueryServiceImpl implements StageContentQueryService {
             if (NullUtil.isNotNull(element.getMarks()) && !element.getMarks().isEmpty()) {
                 extra.put("marks", element.getMarks());
             }
-            if (element.getNormalizedFields() != null && !element.getNormalizedFields().isEmpty()) {
+            if (NullUtil.isNotNull(element.getNormalizedFields()) && !element.getNormalizedFields().isEmpty()) {
                 extra.put("normalizedFields", JsonUtil.toJsonStr(element.getNormalizedFields()));
             }
-            if (element.getCells() != null && !element.getCells().isEmpty()) {
+            if (NullUtil.isNotNull(element.getCells()) && !element.getCells().isEmpty()) {
                 extra.put("cells", JsonUtil.toJsonStr(element.getCells()));
             }
-            if (element.getPage() != null) {
+            if (NullUtil.isNotNull(element.getPage())) {
                 extra.put("page", element.getPage());
             }
             // 处理轨迹只对被处理过的元素下发（非 KEEP 条目），避免响应体膨胀

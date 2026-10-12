@@ -6,6 +6,7 @@ import com.knowledge.common.domain.parse.capability.ProviderContext;
 import com.knowledge.common.domain.parse.capability.TableRegion;
 import com.knowledge.common.domain.parse.capability.TableResult;
 import com.knowledge.common.domain.parse.signal.ParseFact;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.parser.pdf.assemble.TableStructureSupport;
 
 /**
@@ -35,7 +36,7 @@ public final class TableCapabilityAttempt {
 
         /** 是否拿到可用结构 */
         public boolean enhanced() {
-            return table != null;
+            return NullUtil.isNotNull(table);
         }
     }
 
@@ -49,16 +50,16 @@ public final class TableCapabilityAttempt {
      */
     public static Outcome attempt(CapabilityRegistry registry, TableRegion region, int pageNo) {
         String traceRegion = "page " + pageNo;
-        TableStructureProvider provider = registry == null ? null : registry.table();
-        if (provider == null) {
+        TableStructureProvider provider = NullUtil.isNull(registry) ? null : registry.table();
+        if (NullUtil.isNull(provider)) {
             return new Outcome(null, CapabilityFacts.tableDegraded(traceRegion, "未接入能力"));
         }
-        if (region == null) {
+        if (NullUtil.isNull(region)) {
             return new Outcome(null, CapabilityFacts.tableDegraded(traceRegion, "区域为空"));
         }
         TableResult result = provider.recognize(region, new ProviderContext());
         ParseElement table = TableStructureSupport.toTableElement(result, pageNo);
-        if (table == null) {
+        if (NullUtil.isNull(table)) {
             return new Outcome(null, CapabilityFacts.tableDegraded(traceRegion, "调用失败或结果不完整"));
         }
         return new Outcome(table, CapabilityFacts.tableEnhanced(traceRegion, result),

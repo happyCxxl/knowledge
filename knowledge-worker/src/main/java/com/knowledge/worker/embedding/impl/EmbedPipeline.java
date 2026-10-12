@@ -70,7 +70,7 @@ public class EmbedPipeline implements EmbedderPort {
         long precheckStartedNanos = System.nanoTime();
         String precheckError = precheck(context, strategy, outcome);
         long precheckNanos = System.nanoTime() - precheckStartedNanos;
-        if (precheckError != null) {
+        if (NullUtil.isNotNull(precheckError)) {
             outcome.fail(PipelineTaskErrorCode.EMBED_MODEL_INCOMPATIBLE.name(), precheckError);
             return outcome;
         }
@@ -139,14 +139,14 @@ public class EmbedPipeline implements EmbedderPort {
 
     private String precheck(EmbedContext context, EmbedStrategy strategy, EmbedOutcome outcome) {
         EmbeddingModel model = EmbeddingModel.of(strategy.getModel());
-        if (model == null || !model.enabled()) {
+        if (NullUtil.isNull(model) || !model.enabled()) {
             return "模型不存在或未启用: " + strategy.getModel();
         }
-        if (strategy.getContextWindowTokens() == null || strategy.getContextWindowTokens() <= 0) {
+        if (NullUtil.isNull(strategy.getContextWindowTokens()) || strategy.getContextWindowTokens() <= 0) {
             return "模型目录缺少上下文窗口声明: " + strategy.getModel();
         }
         ChunkStrategy chunkStrategy = context.getChunkStrategy();
-        if (chunkStrategy == null) {
+        if (NullUtil.isNull(chunkStrategy)) {
             return null; // 无切片策略快照时跳过窗口校验（历史任务兼容），实测片长由四关/上游保证
         }
         EmbedWindowRules.WindowBound window = EmbedWindowRules.resolve(
@@ -206,7 +206,7 @@ public class EmbedPipeline implements EmbedderPort {
             Map<String, List<Float>> vectors = indexVectors(previous);
             for (EmbeddingRecord record : misses) {
                 List<Float> vector = vectors.get(record.getInputTextHash());
-                if (vector != null) {
+                if (NullUtil.isNotNull(vector)) {
                     record.setStatus(EmbedRecordStatus.CACHED.name());
                     record.setCacheHit(true);
                     record.setVector(new ArrayList<>(vector));
@@ -220,11 +220,11 @@ public class EmbedPipeline implements EmbedderPort {
     /** 历史账本 → hash→向量本体 映射（只取有本体的记录；CACHED/SUCCESS 均可用） */
     private Map<String, List<Float>> indexVectors(EmbeddingSet set) {
         Map<String, List<Float>> index = new HashMap<>();
-        if (set == null || set.getRecords() == null) {
+        if (NullUtil.isNull(set) || NullUtil.isNull(set.getRecords())) {
             return index;
         }
         for (EmbeddingRecord record : set.getRecords()) {
-            if (StrUtil.isNotBlank(record.getInputTextHash()) && record.getVector() != null
+            if (StrUtil.isNotBlank(record.getInputTextHash()) && NullUtil.isNotNull(record.getVector())
                     && !record.getVector().isEmpty()) {
                 index.put(record.getInputTextHash(), record.getVector());
             }

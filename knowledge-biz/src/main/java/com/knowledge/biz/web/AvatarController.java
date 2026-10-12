@@ -56,7 +56,7 @@ public class AvatarController {
     /** 上传头像：按文件头判定类型，成功返回可直接渲染的新地址 */
     @PostMapping
     public R<String> upload(@RequestParam("file") MultipartFile file) {
-        ThrowUtil.throwIf(file == null || file.isEmpty(), ErrorCode.PARAM_INVALID, "请选择头像文件");
+        ThrowUtil.throwIf(NullUtil.isNull(file) || file.isEmpty(), ErrorCode.PARAM_INVALID, "请选择头像文件");
         ThrowUtil.throwIf(file.getSize() > MAX_BYTES, ErrorCode.PARAM_INVALID, "头像不能超过 2MB");
         String extension = resolveExtension(file);
         User user = currentUser();
@@ -116,10 +116,10 @@ public class AvatarController {
     }
 
     private User currentUser() {
-        Long id = SecurityUtil.getUser() == null ? null : SecurityUtil.getUser().getId();
-        ThrowUtil.throwIf(id == null, ErrorCode.UNAUTHORIZED);
+        Long id = NullUtil.isNull(SecurityUtil.getUser()) ? null : SecurityUtil.getUser().getId();
+        ThrowUtil.throwIf(NullUtil.isNull(id), ErrorCode.UNAUTHORIZED);
         User user = userDbService.getById(id);
-        ThrowUtil.throwIf(user == null, ErrorCode.USER_NOT_FOUND);
+        ThrowUtil.throwIf(NullUtil.isNull(user), ErrorCode.USER_NOT_FOUND);
         return user;
     }
 

@@ -5,6 +5,7 @@ import com.knowledge.biz.mapper.KbStrategyBindingMapper;
 import com.knowledge.biz.service.db.KbStrategyBindingDbService;
 import com.knowledge.common.domain.entity.KbStrategyBinding;
 import com.knowledge.common.enums.base.DelFlag;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.infra.persistence.InfraDbServiceImpl;
 import org.springframework.stereotype.Service;
 
@@ -44,7 +45,7 @@ public class KbStrategyBindingDbServiceImpl
 
     @Override
     public List<KbStrategyBinding> listActiveByTypeAndKbIds(String strategyType, Collection<Long> knowledgeBaseIds) {
-        if (knowledgeBaseIds == null || knowledgeBaseIds.isEmpty()) {
+        if (NullUtil.isNull(knowledgeBaseIds) || knowledgeBaseIds.isEmpty()) {
             return List.of();
         }
         LambdaQueryWrapper<KbStrategyBinding> queryWrapper = new LambdaQueryWrapper<>();

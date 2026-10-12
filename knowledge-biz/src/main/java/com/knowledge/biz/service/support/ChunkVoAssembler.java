@@ -66,7 +66,7 @@ public class ChunkVoAssembler {
 
     /** 产物侧的片（缺失返回 null） */
     private Chunk productChunkOf(Map<String, Chunk> productChunks, String chunkId) {
-        return productChunks == null || chunkId == null ? null : productChunks.get(chunkId);
+        return NullUtil.isNull(productChunks) || NullUtil.isNull(chunkId) ? null : productChunks.get(chunkId);
     }
 
     private ChunkItemVO toChunkItemVO(KbChunk chunk, Chunk productChunk) {

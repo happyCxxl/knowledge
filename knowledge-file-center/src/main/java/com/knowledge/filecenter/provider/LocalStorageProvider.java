@@ -1,6 +1,8 @@
 package com.knowledge.filecenter.provider;
 
 import com.knowledge.common.enums.storage.StorageType;
+import com.knowledge.common.exception.ThrowUtil;
+import com.knowledge.common.utils.NullUtil;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
@@ -69,9 +71,8 @@ public class LocalStorageProvider implements StorageProvider {
     @Override
     public InputStream get(String bucket, String key) {
         Path target = resolve(bucket, key);
-        if (!Files.isRegularFile(target)) {
-            throw new IllegalStateException("本地对象不存在: " + bucket + "/" + key);
-        }
+        ThrowUtil.throwIf(!Files.isRegularFile(target),
+                () -> new IllegalStateException("本地对象不存在: " + bucket + "/" + key));
         try {
             return Files.newInputStream(target);
         } catch (IOException e) {
@@ -96,16 +97,13 @@ public class LocalStorageProvider implements StorageProvider {
      * @throws IllegalArgumentException 路径为空、含越级片段或绝对路径
      */
     private Path resolve(String bucket, String key) {
-        if (bucket == null || bucket.isBlank() || key == null || key.isBlank()) {
-            throw new IllegalArgumentException("bucket 与 key 均不可为空");
-        }
-        if (containsTraversal(bucket) || containsTraversal(key)) {
-            throw new IllegalArgumentException("对象路径含越级片段: " + bucket + "/" + key);
-        }
+        ThrowUtil.throwIf(NullUtil.isNull(bucket) || bucket.isBlank() || NullUtil.isNull(key) || key.isBlank(),
+                () -> new IllegalArgumentException("bucket 与 key 均不可为空"));
+        ThrowUtil.throwIf(containsTraversal(bucket) || containsTraversal(key),
+                () -> new IllegalArgumentException("对象路径含越级片段: " + bucket + "/" + key));
         Path candidate = root.resolve(bucket).resolve(key).normalize();
-        if (!candidate.startsWith(root)) {
-            throw new IllegalArgumentException("对象路径越出存储根目录: " + bucket + "/" + key);
-        }
+        ThrowUtil.throwIf(!candidate.startsWith(root),
+                () -> new IllegalArgumentException("对象路径越出存储根目录: " + bucket + "/" + key));
         return candidate;
     }
 
@@ -125,9 +123,8 @@ public class LocalStorageProvider implements StorageProvider {
     /** 取对象路径的父目录：无父目录时抛明确错误，不返回 null */
     private Path parentOf(Path target) {
         Path parent = target.getParent();
-        if (parent == null) {
-            throw new IllegalArgumentException("对象路径缺少父目录: " + target);
-        }
+        ThrowUtil.throwIf(NullUtil.isNull(parent),
+                () -> new IllegalArgumentException("对象路径缺少父目录: " + target));
         return parent;
     }
 

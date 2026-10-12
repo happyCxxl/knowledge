@@ -7,6 +7,7 @@ import com.knowledge.common.enums.knowledge.StrategyBindingSwitch;
 import com.knowledge.common.enums.user.UserRole;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
+import com.knowledge.common.exception.ThrowUtil;
 import com.knowledge.common.security.KnowledgeUser;
 import com.knowledge.common.utils.NullUtil;
 
@@ -84,17 +85,13 @@ public final class KnowledgeBaseRules {
         if (isAdmin(user)) {
             return;
         }
-        if (NullUtil.isNull(kb) || NullUtil.isNull(kb.getUserId())
-                || !ObjectUtil.equal(kb.getUserId(), user.getId())) {
-            throw new KnowledgeException(ErrorCode.KB_NOT_FOUND);
-        }
+        ThrowUtil.throwIf(NullUtil.isNull(kb) || NullUtil.isNull(kb.getUserId())
+                || !ObjectUtil.equal(kb.getUserId(), user.getId()), ErrorCode.KB_NOT_FOUND);
     }
 
     /** 登录上下文校验：缺失（含用户 ID 为空）即拒绝，避免退化成"不过滤" */
     private static void requireLogin(KnowledgeUser user) {
-        if (NullUtil.isNull(user) || NullUtil.isNull(user.getId())) {
-            throw new KnowledgeException(ErrorCode.UNAUTHORIZED);
-        }
+        ThrowUtil.throwIf(NullUtil.isNull(user) || NullUtil.isNull(user.getId()), ErrorCode.UNAUTHORIZED);
     }
 
     /** 是否管理员（角色缺失时按普通用户处理，取最保守语义） */
@@ -106,7 +103,7 @@ public final class KnowledgeBaseRules {
     private static void requireStatus(KnowledgeBase kb, KnowledgeBaseStatus expected, ErrorCode errorCode,
                                       String message) {
         if (NullUtil.isNull(kb.getStatus()) || !ObjectUtil.equal(kb.getStatus(), expected.getCode())) {
-            if (message == null) {
+            if (NullUtil.isNull(message)) {
                 throw new KnowledgeException(errorCode);
             }
             throw new KnowledgeException(errorCode, message);
@@ -117,6 +114,6 @@ public final class KnowledgeBaseRules {
      * 策略绑定开关判定：null 或非 0 视为开启（兼容存量数据）。
      */
     public static boolean isStrategyBindingEnabled(KnowledgeBase kb) {
-        return kb == null || StrategyBindingSwitch.isOn(kb.getStrategyBindingEnabled());
+        return NullUtil.isNull(kb) || StrategyBindingSwitch.isOn(kb.getStrategyBindingEnabled());
     }
 }

@@ -2,6 +2,7 @@ package com.knowledge.filecenter.provider;
 
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
+import com.knowledge.common.exception.ThrowUtil;
 
 import java.util.List;
 
@@ -27,10 +28,8 @@ public final class StorageProviderFactory {
      */
     public static StorageProvider create(StorageSourceDef def) {
         List<String> missing = StorageSourceDef.missingKeys(def);
-        if (!missing.isEmpty()) {
-            throw new KnowledgeException(ErrorCode.STORAGE_BACKEND_UNCONFIGURED,
-                    "存储数据源参数不完整: name=" + def.name() + ", 缺少 " + String.join(",", missing));
-        }
+        ThrowUtil.throwIf(!missing.isEmpty(), ErrorCode.STORAGE_BACKEND_UNCONFIGURED,
+                "存储数据源参数不完整: name=" + def.name() + ", 缺少 " + String.join(",", missing));
         return switch (def.type()) {
             case MINIO -> new MinioStorageProvider(def);
             case LOCAL -> new LocalStorageProvider(def);

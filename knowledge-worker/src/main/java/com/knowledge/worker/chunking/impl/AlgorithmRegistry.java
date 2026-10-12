@@ -2,7 +2,8 @@ package com.knowledge.worker.chunking.impl;
 
 import com.knowledge.common.enums.chunk.ChunkAlgorithm;
 import com.knowledge.common.error.ErrorCode;
-import com.knowledge.common.exception.KnowledgeException;
+import com.knowledge.common.exception.ThrowUtil;
+import com.knowledge.common.utils.NullUtil;
 
 import java.util.HashMap;
 import java.util.List;
@@ -36,24 +37,18 @@ public final class AlgorithmRegistry<T> {
         this.kindLabel = kindLabel;
         for (T candidate : candidates) {
             ChunkAlgorithm algorithm = algorithmOf.apply(candidate);
-            if (!allowed.test(candidate)) {
-                throw new IllegalStateException(kindLabel + "归属校验失败（算法不应注册到本表）: algorithm="
-                        + algorithm.key());
-            }
+            ThrowUtil.throwIf(!allowed.test(candidate), () -> new IllegalStateException(
+                    kindLabel + "归属校验失败（算法不应注册到本表）: algorithm=" + algorithm.key()));
             T existed = byAlgorithm.put(algorithm, candidate);
-            if (existed != null) {
-                throw new IllegalStateException(kindLabel + "重复注册: algorithm=" + algorithm.key());
-            }
+            ThrowUtil.throwIf(NullUtil.isNotNull(existed), () -> new IllegalStateException(kindLabel + "重复注册: algorithm=" + algorithm.key()));
         }
     }
 
     /** 按算法取实现；未注册明确报错（SYSTEM_ERROR），不静默回退 */
     public T get(ChunkAlgorithm algorithm) {
-        T candidate = algorithm == null ? null : byAlgorithm.get(algorithm);
-        if (candidate == null) {
-            throw new KnowledgeException(ErrorCode.SYSTEM_ERROR,
-                    kindLabel + "无实现: algorithm=" + (algorithm == null ? "null" : algorithm.key()));
-        }
+        T candidate = NullUtil.isNull(algorithm) ? null : byAlgorithm.get(algorithm);
+        ThrowUtil.throwIf(NullUtil.isNull(candidate), ErrorCode.SYSTEM_ERROR,
+                kindLabel + "无实现: algorithm=" + (NullUtil.isNull(algorithm) ? "null" : algorithm.key()));
         return candidate;
     }
 }

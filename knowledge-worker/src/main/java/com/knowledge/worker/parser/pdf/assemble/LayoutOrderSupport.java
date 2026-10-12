@@ -2,6 +2,7 @@ package com.knowledge.worker.parser.pdf.assemble;
 
 import com.knowledge.common.domain.parse.BBox;
 import com.knowledge.common.domain.parse.capability.LayoutRegion;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.parser.pdf.model.PageLine;
 
 import java.util.ArrayList;
@@ -43,7 +44,7 @@ public final class LayoutOrderSupport {
         double centerY = line.y() + line.height() / 2;
         for (int index = 0; index < order.size(); index++) {
             Integer regionIndex = order.get(index);
-            if (regionIndex == null || regionIndex < 0 || regionIndex >= regions.size()) {
+            if (NullUtil.isNull(regionIndex) || regionIndex < 0 || regionIndex >= regions.size()) {
                 continue;
             }
             BBox bbox = regions.get(regionIndex).getBbox();
@@ -56,7 +57,7 @@ public final class LayoutOrderSupport {
 
     /** 点是否落在包围盒内（左闭右开，避免相邻区域重复命中） */
     private static boolean contains(BBox bbox, double x, double y) {
-        return bbox != null && x >= bbox.getX() && x < bbox.getX() + bbox.getWidth()
+        return NullUtil.isNotNull(bbox) && x >= bbox.getX() && x < bbox.getX() + bbox.getWidth()
                 && y >= bbox.getY() && y < bbox.getY() + bbox.getHeight();
     }
 }

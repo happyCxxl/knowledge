@@ -1,5 +1,7 @@
 package com.knowledge.worker.parser.pdf.extract;
 
+import com.knowledge.common.utils.NullUtil;
+
 import org.apache.pdfbox.cos.COSDictionary;
 import org.apache.pdfbox.cos.COSName;
 import org.apache.pdfbox.pdmodel.font.PDFont;
@@ -17,12 +19,12 @@ public final class PdfFontMapping {
 
     /** 字体是否缺 Unicode 映射 */
     public static boolean lacksUnicodeMapping(PDFont font) {
-        return font != null && lacksUnicodeMapping(font.getCOSObject());
+        return NullUtil.isNotNull(font) && lacksUnicodeMapping(font.getCOSObject());
     }
 
     /** 字典口径：Type0 子类型且无 ToUnicode 项 */
     public static boolean lacksUnicodeMapping(COSDictionary fontDictionary) {
-        if (fontDictionary == null) {
+        if (NullUtil.isNull(fontDictionary)) {
             return false;
         }
         return COSName.TYPE0.equals(fontDictionary.getCOSName(COSName.SUBTYPE))

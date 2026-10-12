@@ -1,6 +1,7 @@
 package com.knowledge.common.enums.input;
 
 import cn.hutool.core.util.StrUtil;
+import com.knowledge.common.utils.NullUtil;
 
 import java.util.Map;
 
@@ -39,7 +40,7 @@ public final class FileValidationFailLabels {
             return null;
         }
         FileValidationFailReason parsed = parse(reason);
-        return parsed == null ? reason : LABELS.getOrDefault(parsed, reason);
+        return NullUtil.isNull(parsed) ? reason : LABELS.getOrDefault(parsed, reason);
     }
 
     private static FileValidationFailReason parse(String reason) {

@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.knowledge.biz.mapper.KbRetrievalRunMapper;
 import com.knowledge.biz.service.db.KbRetrievalRunDbService;
 import com.knowledge.common.domain.entity.KbRetrievalRun;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.infra.persistence.InfraDbServiceImpl;
 import org.springframework.stereotype.Service;
 
@@ -33,13 +34,13 @@ public class KbRetrievalRunDbServiceImpl
 
     @Override
     public List<KbRetrievalRun> listByIdsOrdered(Collection<Long> ids) {
-        if (ids == null || ids.isEmpty()) {
+        if (NullUtil.isNull(ids) || ids.isEmpty()) {
             return List.of();
         }
         List<KbRetrievalRun> rows = listByIds(ids);
         return ids.stream()
                 .map(id -> rows.stream().filter(r -> id.equals(r.getId())).findFirst().orElse(null))
-                .filter(java.util.Objects::nonNull)
+                .filter(NullUtil::isNotNull)
                 .toList();
     }
 }

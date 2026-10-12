@@ -5,6 +5,7 @@ import com.knowledge.common.domain.chunk.Chunk;
 import com.knowledge.common.domain.preprocess.ViewElement;
 import com.knowledge.common.enums.chunk.ChunkContentType;
 import com.knowledge.common.enums.chunk.ChunkRoute;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.chunking.SliceContext;
 import com.knowledge.worker.chunking.strategy.ChunkRouteConfig;
 
@@ -52,14 +53,14 @@ public final class BodyChunkSupport {
 
     /** 单元素页码（无页 → null） */
     public static List<Integer> pageRangeOf(ViewElement element) {
-        return element.getPage() != null ? List.of(element.getPage()) : null;
+        return NullUtil.isNotNull(element.getPage()) ? List.of(element.getPage()) : null;
     }
 
     /** 合并组内元素页码（去重升序；无页 → null） */
     public static List<Integer> mergePages(List<ViewElement> group) {
         Set<Integer> pages = new HashSet<>();
         for (ViewElement element : group) {
-            if (element.getPage() != null) {
+            if (NullUtil.isNotNull(element.getPage())) {
                 pages.add(element.getPage());
             }
         }

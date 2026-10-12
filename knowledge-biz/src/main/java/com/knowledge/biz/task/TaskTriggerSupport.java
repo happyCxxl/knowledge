@@ -53,7 +53,7 @@ public class TaskTriggerSupport {
         KbPipelineTask existing = pipelineTaskDbService.getByExecKey(fileResultId, stage.name(),
                 upstream, strategyVersion);
         ThrowUtil.throwIf(NullUtil.isNotNull(existing), ErrorCode.TASK_ALREADY_PENDING,
-                existing == null ? null
+                NullUtil.isNull(existing) ? null
                         : stageLabel + "任务已创建（taskId=" + existing.getId() + "，状态 "
                         + existing.getStatus() + "），请勿重复触发");
         KbPipelineTask task = new KbPipelineTask();

@@ -41,6 +41,8 @@ import com.knowledge.common.enums.embed.EmbeddingModel;
 import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.enums.task.PipelineTaskStatus;
 import com.knowledge.common.enums.task.RowStatus;
+import com.knowledge.common.exception.ThrowUtil;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.filecenter.service.FileStorage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -120,9 +122,7 @@ public class SeedService {
         // ① 真实切片：从 kb_chunk 表读（产物在 MinIO 而当前后端是 local，跨后端读不到）
         KbChunkSet sourceSet = locateSourceChunkSet();
         List<KbChunk> chunks = chunkDbService.listByChunkSetId(sourceSet.getId());
-        if (chunks.isEmpty()) {
-            throw new IllegalStateException("来源切片行不存在: chunkSetId=" + sourceSet.getId());
-        }
+        ThrowUtil.throwIf(chunks.isEmpty(), () -> new IllegalStateException("来源切片行不存在: chunkSetId=" + sourceSet.getId()));
         log.info("===> 种子：读入真实切片 {} 片（来源 chunkSetId={}）", chunks.size(), sourceSet.getId());
 
         // ② 文件链路
@@ -312,7 +312,7 @@ public class SeedService {
         List<EmbeddingRecord> records = new ArrayList<>(chunks.size());
         int index = 1;
         for (KbChunk chunk : chunks) {
-            String text = chunk.getContent() == null ? "" : chunk.getContent();
+            String text = NullUtil.isNull(chunk.getContent()) ? "" : chunk.getContent();
             EmbeddingRecord record = new EmbeddingRecord();
             record.setEmbeddingId(String.format("emb-%04d", index++));
             record.setChunkId(chunk.getChunkId());
@@ -410,20 +410,20 @@ public class SeedService {
         chunk.setChunkId(row.getChunkId());
         chunk.setParentChunkId(row.getParentChunkId());
         chunk.setContent(row.getContent());
-        chunk.setContentType(row.getContentType() == null ? "PARAGRAPH" : row.getContentType());
+        chunk.setContentType(NullUtil.isNull(row.getContentType()) ? "PARAGRAPH" : row.getContentType());
         // 空串而不是 null：Milvus 的 BM25 函数要求 content/title_path 两个输入字段非空，
         // 传 null 会让建集合直接失败（实测：function input field cannot be nullable）
-        chunk.setTitlePath(row.getTitlePath() == null ? "" : row.getTitlePath());
+        chunk.setTitlePath(NullUtil.isNull(row.getTitlePath()) ? "" : row.getTitlePath());
         chunk.setSourceElementIds(List.of(row.getChunkId()));
-        chunk.setOrder(row.getOrderNo() == null ? 0 : row.getOrderNo());
+        chunk.setOrder(NullUtil.isNull(row.getOrderNo()) ? 0 : row.getOrderNo());
         chunk.setCharCount(lengthOf(row.getContent()));
-        chunk.setTokenCount(row.getTokenCount() == null ? 0 : row.getTokenCount());
+        chunk.setTokenCount(NullUtil.isNull(row.getTokenCount()) ? 0 : row.getTokenCount());
         return chunk;
     }
 
     private static Integer firstPageOf(KbChunk chunk) {
         String range = chunk.getPageRange();
-        if (range == null || range.isBlank()) {
+        if (NullUtil.isNull(range) || range.isBlank()) {
             return 1;
         }
         // 存的是 JSON 数组文本（如 "[1,2,3]"）或 "1-3"；只取首个数字，取不到就回落 1
@@ -499,7 +499,7 @@ public class SeedService {
     }
 
     private static int lengthOf(String text) {
-        return text == null ? 0 : text.length();
+        return NullUtil.isNull(text) ? 0 : text.length();
     }
 
     /** 上游四阶段的产物行与切片集 ID */

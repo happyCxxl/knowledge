@@ -3,6 +3,8 @@ package com.knowledge.model.dashscope;
 import cn.hutool.core.util.StrUtil;
 import com.knowledge.common.domain.embed.EmbeddingRequest;
 import com.knowledge.common.domain.embed.EmbeddingResult;
+import com.knowledge.common.exception.ThrowUtil;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.model.gateway.ModelGatewayPort;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,9 +37,8 @@ public class DashScopeEmbeddingProvider implements ModelGatewayPort {
 
     @Override
     public EmbeddingResult embed(EmbeddingRequest request) {
-        if (StrUtil.isBlank(properties.getApiKey())) {
-            throw new IllegalStateException("DashScope API Key 未配置（knowledge.model.dashscope.api-key）");
-        }
+        ThrowUtil.throwIf(StrUtil.isBlank(properties.getApiKey()),
+                () -> new IllegalStateException("DashScope API Key 未配置（knowledge.model.dashscope.api-key）"));
         Map<String, Object> body = Map.of(
                 "model", request.getModel(),
                 "input", request.getTexts());
@@ -56,7 +57,7 @@ public class DashScopeEmbeddingProvider implements ModelGatewayPort {
     }
 
     private RestClient restClient() {
-        if (client != null) {
+        if (NullUtil.isNotNull(client)) {
             return client;
         }
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
@@ -68,7 +69,7 @@ public class DashScopeEmbeddingProvider implements ModelGatewayPort {
 
     /** 响应映射：data[].embedding 与输入一一对应；无数据/条目非法抛错 */
     private EmbeddingResult mapResponse(Map<String, Object> response, EmbeddingRequest request) {
-        Object dataObj = response == null ? null : response.get("data");
+        Object dataObj = NullUtil.isNull(response) ? null : response.get("data");
         if (!(dataObj instanceof List<?> data) || data.isEmpty()) {
             throw new IllegalStateException("DashScope 响应缺少向量数据");
         }
@@ -82,7 +83,7 @@ public class DashScopeEmbeddingProvider implements ModelGatewayPort {
             if (!(embedding instanceof List<?> vector)) {
                 throw new IllegalStateException("DashScope 响应条目缺少 embedding");
             }
-            if (dimension == null) {
+            if (NullUtil.isNull(dimension)) {
                 dimension = vector.size();
             }
             List<Float> floats = new ArrayList<>(vector.size());

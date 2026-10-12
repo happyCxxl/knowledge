@@ -1,5 +1,6 @@
 package com.knowledge.common.domain.parse;
 
+import com.knowledge.common.utils.NullUtil;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -28,7 +29,7 @@ public class BBox {
 
     /** 是否与另一框位置重叠（容差内） */
     public boolean overlaps(BBox other, double tolerance) {
-        if (other == null) {
+        if (NullUtil.isNull(other)) {
             return false;
         }
         boolean xOverlap = x < other.x + other.width + tolerance && other.x < x + width + tolerance;

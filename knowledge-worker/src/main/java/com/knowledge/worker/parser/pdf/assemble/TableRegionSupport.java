@@ -2,6 +2,7 @@ package com.knowledge.worker.parser.pdf.assemble;
 
 import com.knowledge.common.domain.parse.BBox;
 import com.knowledge.common.domain.parse.capability.TableRegion;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.parser.pdf.extract.LineTexts;
 import com.knowledge.worker.parser.pdf.extract.PdfGeometry;
 import com.knowledge.worker.parser.pdf.model.PageContent;
@@ -47,7 +48,7 @@ public final class TableRegionSupport {
         String previous = null;
         for (PageLine line : lines) {
             String lineText = LineTexts.lineText(line.chars(), lineTextOptions);
-            if (previous != null) {
+            if (NullUtil.isNotNull(previous)) {
                 text.append(LineTexts.lineSeparator(previous, lineText));
             }
             text.append(lineText);

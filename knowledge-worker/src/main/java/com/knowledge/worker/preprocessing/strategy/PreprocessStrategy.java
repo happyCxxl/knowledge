@@ -4,6 +4,7 @@ import cn.hutool.core.util.StrUtil;
 import com.knowledge.common.enums.preprocess.PreprocessAction;
 import com.knowledge.common.enums.preprocess.PreprocessParam;
 import com.knowledge.common.enums.preprocess.PreprocessRule;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.StageStrategy;
 import lombok.Data;
 
@@ -48,13 +49,13 @@ public class PreprocessStrategy implements StageStrategy {
 
     /** 取某规则配置（解析后必存在；缺失返回 null） */
     public PreprocessRuleConfig rule(PreprocessRule rule) {
-        return rules == null || rule == null ? null : rules.get(rule.key());
+        return NullUtil.isNull(rules) || NullUtil.isNull(rule) ? null : rules.get(rule.key());
     }
 
     /** 三态规则处置方式（action 缺省时按旧开关换算，再缺回退默认） */
     public String action(PreprocessRule rule, String defaultValue) {
         PreprocessRuleConfig config = rule(rule);
-        if (config == null) {
+        if (NullUtil.isNull(config)) {
             return defaultValue;
         }
         if (StrUtil.isNotBlank(config.getAction())) {
@@ -66,7 +67,7 @@ public class PreprocessStrategy implements StageStrategy {
 
     /** 旧开关格式（enabled）→ 三态处置：ON=EXCLUDE / OFF=KEEP；非旧开关规则或开关为空返回 null */
     public static String legacyAction(PreprocessRule rule, String enabled) {
-        if (rule == null || !rule.legacyToggle() || StrUtil.isBlank(enabled)) {
+        if (NullUtil.isNull(rule) || !rule.legacyToggle() || StrUtil.isBlank(enabled)) {
             return null;
         }
         return ON.equalsIgnoreCase(enabled) ? PreprocessAction.EXCLUDE.name() : PreprocessAction.KEEP.name();
@@ -75,14 +76,14 @@ public class PreprocessStrategy implements StageStrategy {
     /** 开关规则取值（缺失回退默认） */
     public boolean enabled(PreprocessRule rule, boolean defaultValue) {
         PreprocessRuleConfig config = rule(rule);
-        String value = config == null ? null : config.getEnabled();
+        String value = NullUtil.isNull(config) ? null : config.getEnabled();
         return StrUtil.isBlank(value) ? defaultValue : ON.equalsIgnoreCase(value);
     }
 
     /** 规则参数字符串值（缺失回退默认） */
     public String param(PreprocessRule rule, String key, String defaultValue) {
         PreprocessRuleConfig config = rule(rule);
-        String value = config == null || config.getParams() == null ? null : config.getParams().get(key);
+        String value = NullUtil.isNull(config) || NullUtil.isNull(config.getParams()) ? null : config.getParams().get(key);
         return StrUtil.isBlank(value) ? defaultValue : value;
     }
 
@@ -104,7 +105,7 @@ public class PreprocessStrategy implements StageStrategy {
 
     /** 生效的自定义规则列表（总开关 OFF 或无规则 → 空列表） */
     public List<PreprocessCustomRule> customRules() {
-        if (custom == null || !ON.equalsIgnoreCase(custom.getEnabled()) || custom.getRules() == null) {
+        if (NullUtil.isNull(custom) || !ON.equalsIgnoreCase(custom.getEnabled()) || NullUtil.isNull(custom.getRules())) {
             return List.of();
         }
         return custom.getRules();

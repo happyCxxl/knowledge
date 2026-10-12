@@ -8,6 +8,7 @@ import com.knowledge.common.domain.parse.signal.PageMetric;
 import com.knowledge.common.domain.parse.signal.ParseFact;
 import com.knowledge.common.enums.parse.ElementType;
 import com.knowledge.common.enums.parse.SignalType;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.common.utils.TextUtil;
 import com.knowledge.worker.parser.DocumentParserPort;
 import com.knowledge.worker.parser.ParseContext;
@@ -46,7 +47,7 @@ public abstract class AbstractPoiDocumentParser implements DocumentParserPort {
 
     /** 表格元素追加单元格（cells 惰性建表，各格式表格单元格统一入口） */
     protected static void appendCell(ParseElement tableElement, ParseElement cellElement) {
-        if (tableElement.getCells() == null) {
+        if (NullUtil.isNull(tableElement.getCells())) {
             tableElement.setCells(new ArrayList<>());
         }
         tableElement.getCells().add(cellElement);
@@ -66,7 +67,7 @@ public abstract class AbstractPoiDocumentParser implements DocumentParserPort {
                 .anyMatch(cell -> StrUtil.isNotBlank(cell.getText()));
         Integer headerRow = hasHeader ? 0 : null;
         for (ParseElement cell : cells) {
-            cell.setIsHeader(headerRow != null && Integer.valueOf(0).equals(cell.getRow()));
+            cell.setIsHeader(NullUtil.isNotNull(headerRow) && Integer.valueOf(0).equals(cell.getRow()));
         }
         return headerRow;
     }
@@ -156,7 +157,7 @@ public abstract class AbstractPoiDocumentParser implements DocumentParserPort {
      */
     protected static String budgetText(ParseElement element) {
         StringBuilder text = new StringBuilder(StrUtil.blankToDefault(element.getText(), ""));
-        List<ParseElement> cells = element.getCells() == null ? List.of() : element.getCells();
+        List<ParseElement> cells = NullUtil.isNull(element.getCells()) ? List.of() : element.getCells();
         for (ParseElement cell : cells) {
             text.append(StrUtil.blankToDefault(cell.getText(), ""));
         }

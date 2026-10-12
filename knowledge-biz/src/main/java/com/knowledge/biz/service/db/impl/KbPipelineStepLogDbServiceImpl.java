@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.knowledge.biz.mapper.KbPipelineStepLogMapper;
 import com.knowledge.biz.service.db.KbPipelineStepLogDbService;
 import com.knowledge.common.domain.entity.KbPipelineStepLog;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.infra.persistence.InfraDbServiceImpl;
 import org.springframework.stereotype.Service;
 
@@ -28,7 +29,7 @@ public class KbPipelineStepLogDbServiceImpl extends InfraDbServiceImpl<KbPipelin
 
     @Override
     public List<KbPipelineStepLog> listByTaskIds(List<Long> taskIds) {
-        if (taskIds == null || taskIds.isEmpty()) {
+        if (NullUtil.isNull(taskIds) || taskIds.isEmpty()) {
             return List.of();
         }
         LambdaQueryWrapper<KbPipelineStepLog> queryWrapper = new LambdaQueryWrapper<>();

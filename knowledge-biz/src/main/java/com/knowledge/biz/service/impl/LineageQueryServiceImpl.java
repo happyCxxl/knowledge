@@ -103,7 +103,7 @@ public class LineageQueryServiceImpl implements LineageQueryService {
         // 产物 ID → 产出任务 ID（血缘反查；task.productId 唯一）
         Map<Long, Long> taskIdByProductId = new HashMap<>();
         for (KbPipelineTask task : tasks) {
-            if (task.getProductId() != null) {
+            if (NullUtil.isNotNull(task.getProductId())) {
                 taskIdByProductId.put(task.getProductId(), task.getId());
             }
         }
@@ -143,11 +143,11 @@ public class LineageQueryServiceImpl implements LineageQueryService {
         List<LineageNodeVO> nodes = new ArrayList<>();
         List<LineageEdgeVO> edges = new ArrayList<>();
         for (KbPipelineTask task : ordered) {
-            KbPipelineProduct product = task.getProductId() == null ? null : productById.get(task.getProductId());
+            KbPipelineProduct product = NullUtil.isNull(task.getProductId()) ? null : productById.get(task.getProductId());
             nodes.add(toNode(task, product, chunkSetByArtifact, embedSetByArtifact, stepAgg, artifacts));
-            if (task.getUpstreamProductId() != null) {
+            if (NullUtil.isNotNull(task.getUpstreamProductId())) {
                 Long fromTaskId = taskIdByProductId.get(task.getUpstreamProductId());
-                if (fromTaskId != null) {
+                if (NullUtil.isNotNull(fromTaskId)) {
                     LineageEdgeVO edge = new LineageEdgeVO();
                     edge.setFromTaskId(fromTaskId);
                     edge.setToTaskId(task.getId());
@@ -184,7 +184,7 @@ public class LineageQueryServiceImpl implements LineageQueryService {
         boolean structureStage = PipelineStage.STRUCTURE.name().equals(task.getStage());
         boolean preprocessStage = PipelineStage.PREPROCESS.name().equals(task.getStage());
         boolean chunkStage = PipelineStage.CHUNK.name().equals(task.getStage());
-        if (product != null) {
+        if (NullUtil.isNotNull(product)) {
             node.setArtifactId(product.getArtifactId());
             node.setContentHash(product.getContentHash());
             if (PipelineStage.PARSE.name().equals(task.getStage())
@@ -226,11 +226,11 @@ public class LineageQueryServiceImpl implements LineageQueryService {
                                                       Map<Long, PreprocessView> viewByTaskId) {
         Map<Long, PreprocessView> views = new HashMap<>();
         for (KbPipelineTask task : tasks) {
-            if (!PipelineStage.CHUNK.name().equals(task.getStage()) || task.getUpstreamProductId() == null) {
+            if (!PipelineStage.CHUNK.name().equals(task.getStage()) || NullUtil.isNull(task.getUpstreamProductId())) {
                 continue;
             }
             Long upstreamTaskId = taskIdByProductId.get(task.getUpstreamProductId());
-            PreprocessView view = upstreamTaskId == null ? null : viewByTaskId.get(upstreamTaskId);
+            PreprocessView view = NullUtil.isNull(upstreamTaskId) ? null : viewByTaskId.get(upstreamTaskId);
             if (NullUtil.isNotNull(view)) {
                 views.put(task.getId(), view);
             }
@@ -253,11 +253,11 @@ public class LineageQueryServiceImpl implements LineageQueryService {
                                                String label, Function<KbPipelineProduct, T> reader) {
         Map<Long, T> result = new HashMap<>();
         for (KbPipelineTask task : tasks) {
-            if (!stage.name().equals(task.getStage()) || task.getProductId() == null) {
+            if (!stage.name().equals(task.getStage()) || NullUtil.isNull(task.getProductId())) {
                 continue;
             }
             KbPipelineProduct product = productById.get(task.getProductId());
-            if (product == null || StrUtil.isBlank(product.getArtifactId())) {
+            if (NullUtil.isNull(product) || StrUtil.isBlank(product.getArtifactId())) {
                 continue;
             }
             T body = reader.apply(product);
@@ -334,12 +334,12 @@ public class LineageQueryServiceImpl implements LineageQueryService {
                            Map<Long, long[]> stepAgg) {
         if (PipelineStage.CHUNK.name().equals(task.getStage())) {
             KbChunkSet chunkSet = chunkSetByArtifact.get(product.getArtifactId());
-            if (chunkSet != null) {
+            if (NullUtil.isNotNull(chunkSet)) {
                 stats.put("chunkCount", chunkSet.getChunkCount());
             }
         } else if (PipelineStage.EMBED.name().equals(task.getStage())) {
             KbEmbeddingSet embedSet = embedSetByArtifact.get(product.getArtifactId());
-            if (embedSet != null) {
+            if (NullUtil.isNotNull(embedSet)) {
                 stats.put("recordCount", embedSet.getRecordCount());
                 stats.put("cachedCount", embedSet.getCachedCount());
             }
@@ -405,7 +405,7 @@ public class LineageQueryServiceImpl implements LineageQueryService {
         }
         try {
             CapabilitySnapshot src = JsonUtil.toObject(snapshot, CapabilitySnapshot.class);
-            if (src == null) {
+            if (NullUtil.isNull(src)) {
                 return null;
             }
             LineageCapabilityVO vo = new LineageCapabilityVO();
@@ -423,7 +423,7 @@ public class LineageQueryServiceImpl implements LineageQueryService {
 
     /** 领域层能力引用 → 接口层能力引用；入参为空则返回空 */
     private LineageCapabilityVO.CapabilityRefVO toCapabilityRef(CapabilitySnapshot.CapabilityRef src) {
-        if (src == null) {
+        if (NullUtil.isNull(src)) {
             return null;
         }
         LineageCapabilityVO.CapabilityRefVO vo = new LineageCapabilityVO.CapabilityRefVO();

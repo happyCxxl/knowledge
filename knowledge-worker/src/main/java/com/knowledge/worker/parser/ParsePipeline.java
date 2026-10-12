@@ -194,8 +194,8 @@ public class ParsePipeline {
         ocr.setSource("ocr");
         ocr.setCandidateOrder(false);
         ocr.setNote("预留未开放：接入后扫描/图片区域文字走本路，与 native 路重叠区域由组装环节裁决");
-        StructuredOcrProvider provider = capabilityRegistry == null ? null : capabilityRegistry.ocr();
-        if (provider == null) {
+        StructuredOcrProvider provider = NullUtil.isNull(capabilityRegistry) ? null : capabilityRegistry.ocr();
+        if (NullUtil.isNull(provider)) {
             return ocr;
         }
         int filledPages = 0;
@@ -253,7 +253,7 @@ public class ParsePipeline {
     private BBox pageBox(ParseSource nativeSource, Integer pageNo) {
         for (PageDimension dimension : ObjectUtil.defaultIfNull(nativeSource.getPageDimensions(),
                 List.<PageDimension>of())) {
-            if (pageNo != null && pageNo.equals(dimension.getPage())) {
+            if (NullUtil.isNotNull(pageNo) && pageNo.equals(dimension.getPage())) {
                 return new BBox(0, 0, dimension.getWidth(), dimension.getHeight());
             }
         }

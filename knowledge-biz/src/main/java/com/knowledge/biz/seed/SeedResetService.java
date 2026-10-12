@@ -20,6 +20,7 @@ import com.knowledge.common.domain.entity.KbPipelineProduct;
 import com.knowledge.common.domain.entity.KbFileResult;
 import com.knowledge.common.domain.entity.KbPipelineTask;
 import com.knowledge.common.domain.entity.KbSourceFile;
+import com.knowledge.common.utils.NullUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -73,10 +74,10 @@ public class SeedResetService {
         // 判据：该知识库下、source_file 指向"种子基准文件"的 file_result。
         // 不用 ID 段判据 —— file_result 现在用雪花 ID（与生产一致）。
         KbSourceFile seedSource = sourceFileDbService.getById(SEED_SOURCE_FILE_ID);
-        Long seedSourceFileId = seedSource == null ? null : seedSource.getId();
+        Long seedSourceFileId = NullUtil.isNull(seedSource) ? null : seedSource.getId();
         List<Long> seedFileResultIds = fileResultDbService.list().stream()
                 .filter(f -> knowledgeBaseId.equals(f.getKnowledgeBaseId()))
-                .filter(f -> seedSourceFileId != null && seedSourceFileId.equals(f.getSourceFileId()))
+                .filter(f -> NullUtil.isNotNull(seedSourceFileId) && seedSourceFileId.equals(f.getSourceFileId()))
                 .map(KbFileResult::getId)
                 .toList();
 
@@ -111,7 +112,7 @@ public class SeedResetService {
 
         // 索引：知识库一库一行，删掉它连带它的版本行
         KbIndexSet indexSet = indexSetDbService.getByKb(knowledgeBaseId);
-        if (indexSet != null) {
+        if (NullUtil.isNotNull(indexSet)) {
             List<KbIndexVersion> versions = indexVersionDbService.listByIndexSetId(indexSet.getId());
             if (!versions.isEmpty()) {
                 indexVersionDbService.removeByIds(versions.stream().map(KbIndexVersion::getId).toList());

@@ -6,7 +6,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
 import com.knowledge.common.error.ErrorCode;
-import com.knowledge.common.exception.KnowledgeException;
+import com.knowledge.common.exception.ThrowUtil;
 import com.knowledge.common.utils.NullUtil;
 import io.milvus.common.clientenum.FunctionType;
 import io.milvus.v2.client.MilvusClientV2;
@@ -52,17 +52,25 @@ import java.util.Map;
 @ConditionalOnProperty(name = "knowledge.vector.milvus.enable", havingValue = "true", matchIfMissing = true)
 public class MilvusKnowledgeCollection implements KnowledgeCollectionPort {
 
-    /** 全文通道字段（BM25 函数 + 稀疏向量自动附加；chinese analyzer） */
+    /**
+     * 全文通道字段（BM25 函数 + 稀疏向量自动附加；chinese analyzer）
+     */
     public static final List<String> ANALYZER_FIELDS = List.of("content", "title_path");
 
-    /** 标量倒排索引字段（大库下过滤性能下限保障） */
+    /**
+     * 标量倒排索引字段（大库下过滤性能下限保障）
+     */
     public static final List<String> INVERTED_FIELDS = List.of("document_id", "owner", "content_type");
 
-    /** 必备字段（schema 回读校验用） */
+    /**
+     * 必备字段（schema 回读校验用）
+     */
     public static final List<String> REQUIRED_FIELDS = List.of("id", "document_id", "owner",
             "content_type", "parent_chunk_id", "content", "title_path", "source_element_ids", "vector");
 
-    /** content 字段最大长度 */
+    /**
+     * content 字段最大长度
+     */
     public static final int CONTENT_MAX_LENGTH = 8192;
 
     /**
@@ -74,11 +82,15 @@ public class MilvusKnowledgeCollection implements KnowledgeCollectionPort {
      */
     public static final int SOURCE_ELEMENT_IDS_MAX_LENGTH = 16384;
 
-    /** 返回字段（命中直取不回查库） */
+    /**
+     * 返回字段（命中直取不回查库）
+     */
     private static final List<String> OUTPUT_FIELDS = List.of("id", "document_id", "owner",
             "content_type", "parent_chunk_id", "content", "title_path", "source_element_ids");
 
-    /** listIds 分页大小 */
+    /**
+     * listIds 分页大小
+     */
     private static final long PAGE_SIZE = 1000;
 
     private final MilvusClientV2 milvusClientV2;
@@ -149,7 +161,9 @@ public class MilvusKnowledgeCollection implements KnowledgeCollectionPort {
         return hits;
     }
 
-    /** 检索请求公共组装：向量与全文检索共用字段，仅 data 与目标字段不同 */
+    /**
+     * 检索请求公共组装：向量与全文检索共用字段，仅 data 与目标字段不同
+     */
     private SearchResp searchInternal(String collectionName, BaseVector data, String annsField, int topK, String filter) {
         return milvusClientV2.search(SearchReq.builder()
                 .collectionName(collectionName)
@@ -271,23 +285,20 @@ public class MilvusKnowledgeCollection implements KnowledgeCollectionPort {
     private void verifySchema(String collectionName, int dimension) {
         DescribeCollectionResp resp = milvusClientV2.describeCollection(
                 DescribeCollectionReq.builder().collectionName(collectionName).build());
-        if (resp == null || resp.getCollectionSchema() == null) {
-            throw new KnowledgeException(ErrorCode.INDEX_COLLECTION_SCHEMA_MISMATCH,
-                    "集合 schema 回读失败, collection=" + collectionName);
-        }
+        ThrowUtil.throwIf(NullUtil.isNull(resp) || NullUtil.isNull(resp.getCollectionSchema()),
+                ErrorCode.INDEX_COLLECTION_SCHEMA_MISMATCH,
+                "集合 schema 回读失败, collection=" + collectionName);
         CreateCollectionReq.CollectionSchema schema = resp.getCollectionSchema();
         for (String field : REQUIRED_FIELDS) {
-            if (schema.getField(field) == null) {
-                throw new KnowledgeException(ErrorCode.INDEX_COLLECTION_SCHEMA_MISMATCH,
-                        "集合 schema 校验失败：字段缺失 " + field + ", collection=" + collectionName);
-            }
+            ThrowUtil.throwIf(NullUtil.isNull(schema.getField(field)),
+                    ErrorCode.INDEX_COLLECTION_SCHEMA_MISMATCH,
+                    "集合 schema 校验失败：字段缺失 " + field + ", collection=" + collectionName);
         }
         CreateCollectionReq.FieldSchema vectorField = schema.getField("vector");
-        if (vectorField.getDimension() == null || vectorField.getDimension() != dimension) {
-            throw new KnowledgeException(ErrorCode.INDEX_COLLECTION_SCHEMA_MISMATCH,
-                    "集合 schema 校验失败：向量维度不一致（期望 " + dimension
-                            + "，实际 " + vectorField.getDimension() + "）, collection=" + collectionName);
-        }
+        ThrowUtil.throwIf(NullUtil.isNull(vectorField.getDimension()) || vectorField.getDimension() != dimension,
+                ErrorCode.INDEX_COLLECTION_SCHEMA_MISMATCH,
+                "集合 schema 校验失败：向量维度不一致（期望 " + dimension
+                        + "，实际 " + vectorField.getDimension() + "）, collection=" + collectionName);
         requireAnalyzer(schema, collectionName);
         log.info("===> MilvusKnowledgeCollection schema 校验通过, collection={}, dimension={}",
                 collectionName, dimension);
@@ -296,10 +307,9 @@ public class MilvusKnowledgeCollection implements KnowledgeCollectionPort {
     /** content 全文通道校验：未启用 analyzer 抛 40447 */
     private void requireAnalyzer(CreateCollectionReq.CollectionSchema schema, String collectionName) {
         CreateCollectionReq.FieldSchema contentField = schema.getField("content");
-        if (!Boolean.TRUE.equals(contentField.getEnableAnalyzer())) {
-            throw new KnowledgeException(ErrorCode.INDEX_COLLECTION_SCHEMA_MISMATCH,
-                    "集合 schema 校验失败：content 未启用 analyzer, collection=" + collectionName);
-        }
+        ThrowUtil.throwIf(!Boolean.TRUE.equals(contentField.getEnableAnalyzer()),
+                ErrorCode.INDEX_COLLECTION_SCHEMA_MISMATCH,
+                "集合 schema 校验失败：content 未启用 analyzer, collection=" + collectionName);
     }
 
     /** 行 → Milvus 行 JSON（字段名与 schema 一致；null 归一化） */

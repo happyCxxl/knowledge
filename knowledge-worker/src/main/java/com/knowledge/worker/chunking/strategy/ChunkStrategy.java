@@ -3,6 +3,7 @@ package com.knowledge.worker.chunking.strategy;
 import com.knowledge.common.enums.chunk.ChunkAlgorithm;
 import com.knowledge.common.enums.chunk.ChunkRoute;
 import com.knowledge.common.enums.chunk.PipelineKey;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.StageStrategy;
 
 import cn.hutool.core.util.StrUtil;
@@ -45,20 +46,20 @@ public class ChunkStrategy implements StageStrategy {
 
     /** 取某一路配置（缺失返回 null） */
     public ChunkRouteConfig route(ChunkRoute route) {
-        return routes == null || route == null ? null : routes.get(route.key());
+        return NullUtil.isNull(routes) || NullUtil.isNull(route) ? null : routes.get(route.key());
     }
 
     /** 某一路算法（解析后通常存在；键未识别返回 null） */
     public ChunkAlgorithm routeAlgorithm(ChunkRoute route) {
         ChunkRouteConfig config = route(route);
-        return config == null || StrUtil.isBlank(config.getAlgorithm())
+        return NullUtil.isNull(config) || StrUtil.isBlank(config.getAlgorithm())
                 ? null : ChunkAlgorithm.of(route, config.getAlgorithm());
     }
 
     /** 流程层字符串值（缺失回退默认） */
     public String pipelineValue(PipelineKey key, String defaultValue) {
-        String value = pipeline == null || key == null ? null : pipeline.get(key.key());
-        return value == null || value.isBlank() ? defaultValue : value;
+        String value = NullUtil.isNull(pipeline) || NullUtil.isNull(key) ? null : pipeline.get(key.key());
+        return NullUtil.isNull(value) || value.isBlank() ? defaultValue : value;
     }
 
     /** 流程层开关判定（ON 大小写不敏感） */
@@ -69,7 +70,7 @@ public class ChunkStrategy implements StageStrategy {
     /** 流程层数值读取（缺失/非法回退默认） */
     public int pipelineInt(PipelineKey key, int defaultValue) {
         String value = pipelineValue(key, null);
-        if (value == null) {
+        if (NullUtil.isNull(value)) {
             return defaultValue;
         }
         try {

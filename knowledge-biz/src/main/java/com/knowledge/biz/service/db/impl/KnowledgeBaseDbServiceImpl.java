@@ -31,10 +31,10 @@ public class KnowledgeBaseDbServiceImpl extends InfraDbServiceImpl<KnowledgeBase
                                                 KnowledgeBaseSort sort, Long ownerId) {
         LambdaQueryWrapper<KnowledgeBase> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.like(StrUtil.isNotBlank(name), KnowledgeBase::getName, name)
-                .eq(status != null, KnowledgeBase::getStatus, status)
+                .eq(NullUtil.isNotNull(status), KnowledgeBase::getStatus, status)
                 // 归属过滤：ownerId 为 null 时不加条件（管理员视角）
-                .eq(ownerId != null, KnowledgeBase::getUserId, ownerId);
-        switch (sort == null ? KnowledgeBaseSort.DEFAULT : sort) {
+                .eq(NullUtil.isNotNull(ownerId), KnowledgeBase::getUserId, ownerId);
+        switch (NullUtil.isNull(sort) ? KnowledgeBaseSort.DEFAULT : sort) {
             case UPDATED -> queryWrapper.orderByDesc(KnowledgeBase::getUpdateTime)
                     .orderByDesc(KnowledgeBase::getId);
             case NAME -> queryWrapper.orderByAsc(KnowledgeBase::getName)
@@ -47,8 +47,8 @@ public class KnowledgeBaseDbServiceImpl extends InfraDbServiceImpl<KnowledgeBase
     @Override
     public long countByStatus(Integer status, Long ownerId) {
         LambdaQueryWrapper<KnowledgeBase> queryWrapper = new LambdaQueryWrapper<>();
-        queryWrapper.eq(status != null, KnowledgeBase::getStatus, status)
-                .eq(ownerId != null, KnowledgeBase::getUserId, ownerId);
+        queryWrapper.eq(NullUtil.isNotNull(status), KnowledgeBase::getStatus, status)
+                .eq(NullUtil.isNotNull(ownerId), KnowledgeBase::getUserId, ownerId);
         return count(queryWrapper);
     }
 
@@ -57,10 +57,10 @@ public class KnowledgeBaseDbServiceImpl extends InfraDbServiceImpl<KnowledgeBase
         LambdaQueryWrapper<KnowledgeBase> queryWrapper = new LambdaQueryWrapper<>();
         // 只取主键列：返回的就是 ID 集合，拉回整行没有意义
         queryWrapper.select(KnowledgeBase::getId)
-                .eq(ownerId != null, KnowledgeBase::getUserId, ownerId);
+                .eq(NullUtil.isNotNull(ownerId), KnowledgeBase::getUserId, ownerId);
         List<Long> ids = new ArrayList<>();
         for (Object value : baseMapper.selectObjs(queryWrapper)) {
-            if (value != null) {
+            if (NullUtil.isNotNull(value)) {
                 ids.add(((Number) value).longValue());
             }
         }

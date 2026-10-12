@@ -1,6 +1,7 @@
 package com.knowledge.worker.embedding.impl;
 
 import com.knowledge.common.enums.embed.EmbedMetric;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.embedding.check.ConsistencyChecker;
 import com.knowledge.worker.embedding.check.ConsistencyResult;
 import com.knowledge.worker.embedding.strategy.EmbedStrategy;
@@ -27,15 +28,15 @@ public class EmbedConsistencyChecker implements ConsistencyChecker {
         boolean retryable = true;
 
         // ① 数量
-        if (vectors == null || vectors.size() != inputTexts.size()) {
+        if (NullUtil.isNull(vectors) || vectors.size() != inputTexts.size()) {
             return ConsistencyResult.fail(true, List.of("返回向量数(" + size(vectors) + ")与输入文本数("
                     + inputTexts.size() + ")不一致"));
         }
         // ②③ 维度 + 空值/坏值
-        int expectedDimension = strategy.getDimension() == null ? -1 : strategy.getDimension();
+        int expectedDimension = NullUtil.isNull(strategy.getDimension()) ? -1 : strategy.getDimension();
         for (int i = 0; i < vectors.size(); i++) {
             List<Float> vector = vectors.get(i);
-            if (vector == null || vector.isEmpty()) {
+            if (NullUtil.isNull(vector) || vector.isEmpty()) {
                 problems.add("第 " + (i + 1) + " 条向量为空");
                 continue;
             }
@@ -46,7 +47,7 @@ public class EmbedConsistencyChecker implements ConsistencyChecker {
             }
             for (int j = 0; j < vector.size(); j++) {
                 Float value = vector.get(j);
-                if (value == null || !Float.isFinite(value)) {
+                if (NullUtil.isNull(value) || !Float.isFinite(value)) {
                     problems.add("第 " + (i + 1) + " 条向量第 " + (j + 1) + " 维为 NaN/Infinity/空值");
                     break;
                 }
@@ -58,7 +59,7 @@ public class EmbedConsistencyChecker implements ConsistencyChecker {
         // ④ 度量与归一化（与目录冗余锁定一致性）
         EmbedMetric metric = EmbedMetric.of(strategy.getMetric());
         Boolean normalized = strategy.getNormalized();
-        if (metric != null && normalized != null) {
+        if (NullUtil.isNotNull(metric) && NullUtil.isNotNull(normalized)) {
             if (EmbedMetric.COSINE.equals(metric) && !normalized) {
                 return ConsistencyResult.fail(false, List.of("度量 COSINE 要求归一化，目录声明 normalized=false 冲突"));
             }
@@ -70,6 +71,6 @@ public class EmbedConsistencyChecker implements ConsistencyChecker {
     }
 
     private int size(List<?> list) {
-        return list == null ? 0 : list.size();
+        return NullUtil.isNull(list) ? 0 : list.size();
     }
 }

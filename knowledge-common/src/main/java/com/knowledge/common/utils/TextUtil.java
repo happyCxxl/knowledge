@@ -45,7 +45,7 @@ public final class TextUtil {
      * 与 {@link #garbledRatio(String)} 同一分母口径（非空白字符），供字体映射错位页的判定使用。
      */
     public static double printableMojibakeRatio(String text) {
-        if (text == null || text.isEmpty()) {
+        if (NullUtil.isNull(text) || text.isEmpty()) {
             return 0;
         }
         int nonBlank = 0;
@@ -67,7 +67,7 @@ public final class TextUtil {
      * 文本乱码率：非常用字符码点数 ÷ 非空白码点总数（无有效字符时返回 0）。
      */
     public static double garbledRatio(String text) {
-        if (text == null || text.isEmpty()) {
+        if (NullUtil.isNull(text) || text.isEmpty()) {
             return 0;
         }
         int nonBlank = 0;

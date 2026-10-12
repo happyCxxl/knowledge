@@ -47,7 +47,7 @@ public class KbPipelineTaskDbServiceImpl extends InfraDbServiceImpl<KbPipelineTa
 
     @Override
     public List<KbPipelineTask> listByFileResultIdsAndStage(List<Long> fileResultIds, String stage) {
-        if (fileResultIds == null || fileResultIds.isEmpty()) {
+        if (NullUtil.isNull(fileResultIds) || fileResultIds.isEmpty()) {
             return List.of();
         }
         LambdaQueryWrapper<KbPipelineTask> queryWrapper = new LambdaQueryWrapper<>();
@@ -110,7 +110,7 @@ public class KbPipelineTaskDbServiceImpl extends InfraDbServiceImpl<KbPipelineTa
 
     @Override
     public List<KbPipelineTask> listQueuedByStages(List<String> stages, int limit) {
-        if (stages == null || stages.isEmpty()) {
+        if (NullUtil.isNull(stages) || stages.isEmpty()) {
             return List.of();
         }
         LambdaQueryWrapper<KbPipelineTask> queryWrapper = new LambdaQueryWrapper<>();

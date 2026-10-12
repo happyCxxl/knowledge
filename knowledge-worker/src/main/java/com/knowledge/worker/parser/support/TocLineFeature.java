@@ -1,5 +1,7 @@
 package com.knowledge.worker.parser.support;
 
+import com.knowledge.common.utils.NullUtil;
+
 import cn.hutool.core.util.StrUtil;
 
 /**
@@ -23,7 +25,7 @@ public final class TocLineFeature {
         }
         String t = text.trim();
         String trailing = trailingNumber(t);
-        if (trailing == null) {
+        if (NullUtil.isNull(trailing)) {
             return false;
         }
         // 正文与页码之间的部分不 trim（长空白引导符要靠尾部空白判定）

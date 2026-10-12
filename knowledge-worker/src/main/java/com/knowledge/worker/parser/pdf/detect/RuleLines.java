@@ -1,5 +1,6 @@
 package com.knowledge.worker.parser.pdf.detect;
 
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.parser.pdf.model.Grid;
 import com.knowledge.worker.parser.pdf.model.Region;
 import com.knowledge.worker.parser.pdf.model.Segment;
@@ -110,7 +111,7 @@ public final class RuleLines {
             collectComponent(usable, visited, i, component);
             Region region = bounds(component);
             Grid grid = fit(component, region, lineCoverRatio);
-            if (grid != null) {
+            if (NullUtil.isNotNull(grid)) {
                 regions.add(region);
             }
         }

@@ -5,6 +5,7 @@ import com.knowledge.common.domain.storage.ObjectRef;
 import com.knowledge.common.domain.storage.StorageRef;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
+import com.knowledge.common.exception.ThrowUtil;
 import com.knowledge.common.utils.NullUtil;
 import com.knowledge.filecenter.db.KbFileObjectDbService;
 import com.knowledge.filecenter.provider.StorageProvider;
@@ -112,9 +113,7 @@ public abstract class AbstractFileStorage implements FileStorage {
     /** 取档案，不存在抛业务错误 */
     protected KbFileObject requireObject(String fileId) {
         KbFileObject object = fileObjectDbService.getByFileId(fileId);
-        if (NullUtil.isNull(object)) {
-            throw new KnowledgeException(ErrorCode.FILE_NOT_FOUND);
-        }
+        ThrowUtil.throwIf(NullUtil.isNull(object), ErrorCode.FILE_NOT_FOUND);
         return object;
     }
 

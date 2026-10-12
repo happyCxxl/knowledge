@@ -5,6 +5,7 @@ import com.knowledge.common.domain.entity.KbEmbeddingSet;
 import com.knowledge.common.dto.response.embed.EmbedRecordItemVO;
 import com.knowledge.common.dto.response.embed.EmbedSummaryVO;
 import com.knowledge.common.enums.embed.EmbedRecordStatus;
+import com.knowledge.common.utils.NullUtil;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -35,7 +36,7 @@ public class EmbedVoAssembler {
         int skipped = 0;
         for (KbEmbeddingRecord record : records) {
             EmbedRecordStatus status = EmbedRecordStatus.of(record.getStatus());
-            if (status == null) {
+            if (NullUtil.isNull(status)) {
                 continue;
             }
             switch (status) {

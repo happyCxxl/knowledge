@@ -3,6 +3,7 @@ package com.knowledge.auth.config;
 import com.knowledge.auth.db.UserDbService;
 import com.knowledge.auth.util.JwtUtil;
 import com.knowledge.common.security.KnowledgeUser;
+import com.knowledge.common.utils.NullUtil;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -45,7 +46,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                                     @NonNull FilterChain filterChain)
             throws ServletException, IOException {
         String header = request.getHeader("Authorization");
-        if (header != null && header.startsWith(BEARER_PREFIX)) {
+        if (NullUtil.isNotNull(header) && header.startsWith(BEARER_PREFIX)) {
             try {
                 KnowledgeUser user = jwtUtil.parse(header.substring(BEARER_PREFIX.length()));
                 if (isTokenStillValid(user)) {
@@ -74,11 +75,11 @@ public class JwtAuthFilter extends OncePerRequestFilter {
      * （单表主键命中，平台规模下可接受；若成为热点可加短 TTL 缓存）。
      */
     private boolean isTokenStillValid(KnowledgeUser user) {
-        if (user.getId() == null) {
+        if (NullUtil.isNull(user.getId())) {
             return false;
         }
         Integer currentVersion = userDbService.findTokenVersion(user.getId());
-        if (currentVersion == null) {
+        if (NullUtil.isNull(currentVersion)) {
             // 用户已被删除（逻辑删除后查不到）
             return false;
         }

@@ -73,7 +73,7 @@ public class PreprocessPipeline implements PreprocessorPort {
             outcome.fail(PipelineTaskErrorCode.PREPROCESS_FAILED.name(), "任务未带预处理策略快照，无法预处理");
             return outcome;
         }
-        if (document == null || document.getElements() == null || document.getElements().isEmpty()) {
+        if (NullUtil.isNull(document) || NullUtil.isNull(document.getElements()) || document.getElements().isEmpty()) {
             outcome.fail(PipelineTaskErrorCode.PREPROCESS_EMPTY.name(), "上游统一结构无任何可处理元素");
             return outcome;
         }
@@ -161,9 +161,9 @@ public class PreprocessPipeline implements PreprocessorPort {
 
         Set<Integer> repeatedPages = new HashSet<>();
         Set<Integer> noisePages = new HashSet<>();
-        if (document.getPages() != null) {
+        if (NullUtil.isNotNull(document.getPages())) {
             for (UnifiedPage page : document.getPages()) {
-                if (page.getMarks() != null) {
+                if (NullUtil.isNotNull(page.getMarks())) {
                     if (page.getMarks().contains(PageMark.REPEATED_PAGE.name())) {
                         repeatedPages.add(page.getPageNumber());
                     }
@@ -180,9 +180,9 @@ public class PreprocessPipeline implements PreprocessorPort {
         Set<String> tocRunElementIds = new HashSet<>();
         List<String> tocRun = new ArrayList<>();
         for (UnifiedElement element : document.getElements()) {
-            boolean tocLine = element.getMarks() != null
+            boolean tocLine = NullUtil.isNotNull(element.getMarks())
                     && element.getMarks().contains(ElementMark.TOC_LINE.name());
-            if (element.getPage() != null) {
+            if (NullUtil.isNotNull(element.getPage())) {
                 if (tocLine) {
                     tocCount.merge(element.getPage(), 1, Integer::sum);
                 }
@@ -233,7 +233,7 @@ public class PreprocessPipeline implements PreprocessorPort {
         view.setPage(source.getPage());
         view.setRawText(source.getText());
         view.setProvenance(source.getProvenance());
-        if (source.getCells() != null && !source.getCells().isEmpty()) {
+        if (NullUtil.isNotNull(source.getCells()) && !source.getCells().isEmpty()) {
             List<ViewCell> cells = new ArrayList<>();
             for (UnifiedElement cellSource : source.getCells()) {
                 ViewCell cell = new ViewCell();
@@ -252,12 +252,12 @@ public class PreprocessPipeline implements PreprocessorPort {
     private PreprocessView assembleView(PreprocessContext context, PreprocessStrategy strategy,
                                         List<ViewElement> viewElements) {
         PreprocessView view = new PreprocessView();
-        String documentId = context.getDocument().getDocumentInfo() == null ? null
+        String documentId = NullUtil.isNull(context.getDocument().getDocumentInfo()) ? null
                 : context.getDocument().getDocumentInfo().getDocumentId();
         view.setViewId("pv-" + documentId + "-" + strategy.fullVersion());
         view.setDocumentId(documentId);
         view.setFileResultId(context.getFileResultId());
-        view.setSourceFileRef(context.getDocument().getDocumentInfo() == null ? null
+        view.setSourceFileRef(NullUtil.isNull(context.getDocument().getDocumentInfo()) ? null
                 : context.getDocument().getDocumentInfo().getSourceFileRef());
         view.setUpstreamProductRef(context.getUpstreamProductRef());
         view.setStrategyVersion(strategy.fullVersion());
@@ -271,7 +271,7 @@ public class PreprocessPipeline implements PreprocessorPort {
         Map<String, String> options = new HashMap<>();
         for (PreprocessRule rule : PreprocessRule.values()) {
             PreprocessRuleConfig config = strategy.rule(rule);
-            if (config == null) {
+            if (NullUtil.isNull(config)) {
                 continue;
             }
             if (StrUtil.isNotBlank(config.getAction())) {
@@ -280,7 +280,7 @@ public class PreprocessPipeline implements PreprocessorPort {
                 // 旧开关格式（仅迁移期可能出现）只作兜底：有 action 时以 action 为准，同一规则不留两份口径
                 options.put(rule.key(), config.getEnabled());
             }
-            if (config.getParams() != null) {
+            if (NullUtil.isNotNull(config.getParams())) {
                 config.getParams().forEach((key, value) -> options.put(rule.key() + "." + key, value));
             }
         }

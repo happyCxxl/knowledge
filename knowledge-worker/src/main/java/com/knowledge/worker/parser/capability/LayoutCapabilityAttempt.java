@@ -54,11 +54,11 @@ public final class LayoutCapabilityAttempt {
      */
     public static Outcome attempt(CapabilityRegistry registry, PageImage page, int pageNo) {
         String traceRegion = "page " + pageNo;
-        LayoutProvider provider = registry == null ? null : registry.layout();
-        if (provider == null) {
+        LayoutProvider provider = NullUtil.isNull(registry) ? null : registry.layout();
+        if (NullUtil.isNull(provider)) {
             return new Outcome(null, null, CapabilityFacts.layoutDegraded(traceRegion, "未接入能力"));
         }
-        if (page == null) {
+        if (NullUtil.isNull(page)) {
             return new Outcome(null, null, CapabilityFacts.layoutDegraded(traceRegion, "页面为空"));
         }
         LayoutResult result = provider.analyze(page, new ProviderContext());

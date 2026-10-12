@@ -21,7 +21,7 @@ import com.knowledge.common.enums.input.FileValidationFailLabels;
 import com.knowledge.common.enums.knowledge.KnowledgeBaseStatus;
 import com.knowledge.common.enums.strategy.StrategyType;
 import com.knowledge.common.error.ErrorCode;
-import com.knowledge.common.exception.KnowledgeException;
+import com.knowledge.common.exception.ThrowUtil;
 import com.knowledge.common.security.KnowledgeUser;
 import com.knowledge.common.utils.NullUtil;
 import com.knowledge.common.utils.SecurityUtil;
@@ -92,10 +92,8 @@ public class KnowledgeHomeServiceImpl implements KnowledgeHomeService {
         long current = query.currentOrDefault();
         long size = query.sizeOrDefault();
         KnowledgeUser user = SecurityUtil.getUser();
-        if (NullUtil.isNull(user)) {
-            // 该接口本身要求认证；走到这里说明安全上下文缺失，宁可不给数据也不放全量
-            throw new KnowledgeException(ErrorCode.UNAUTHORIZED);
-        }
+        // 该接口本身要求认证；走到这里说明安全上下文缺失，宁可不给数据也不放全量
+        ThrowUtil.throwIf(NullUtil.isNull(user), ErrorCode.UNAUTHORIZED);
 
         IPage<KbSubmitLog> page = submitLogDbService.pageRecentByUser(current, size, user.getId());
         List<KbSubmitLog> rows = page.getRecords();

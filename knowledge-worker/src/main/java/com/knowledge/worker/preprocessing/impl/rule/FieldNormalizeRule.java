@@ -154,7 +154,7 @@ public class FieldNormalizeRule implements CleanRule {
             while (amountMatcher.find()) {
                 String span = amountMatcher.group();
                 String value = parseCnAmount(span);
-                if (value == null) {
+                if (NullUtil.isNull(value)) {
                     traces.add(TraceEntry.of("amount-cn-v1", PreprocessFieldType.AMOUNT.name(),
                             TraceEntry.ACTION_MANUAL_REVIEW, span, null, "复杂财务表达（拿不准），不改写"));
                 } else {
@@ -179,7 +179,7 @@ public class FieldNormalizeRule implements CleanRule {
 
             work = replaceAll(work, CN_DATE, match -> {
                 String iso = cnDateToIso(match.group(1), match.group(2), match.group(3));
-                if (iso == null) {
+                if (NullUtil.isNull(iso)) {
                     traces.add(TraceEntry.of("chinese-date-v1", PreprocessFieldType.DATE.name(),
                             TraceEntry.ACTION_MANUAL_REVIEW, match.group(), null, "中文日期解析失败或日期不存在（拿不准），不改写"));
                     return match.group();
@@ -194,7 +194,7 @@ public class FieldNormalizeRule implements CleanRule {
             work = replaceAll(work, SEP_DATE, match -> {
                 String iso = isoDateOf(Integer.parseInt(match.group(1)),
                         Integer.parseInt(match.group(2)), Integer.parseInt(match.group(3)));
-                if (iso == null) {
+                if (NullUtil.isNull(iso)) {
                     traces.add(TraceEntry.of("date-sep-v1", PreprocessFieldType.DATE.name(),
                             TraceEntry.ACTION_MANUAL_REVIEW, match.group(), null, "分隔符日期越界或日期不存在（拿不准），不改写"));
                     return match.group();
@@ -287,7 +287,7 @@ public class FieldNormalizeRule implements CleanRule {
                 continue;
             }
             Integer d = CN_DIGITS.get(c);
-            if (d != null) {
+            if (NullUtil.isNotNull(d)) {
                 digit = d;
                 continue;
             }
@@ -351,7 +351,7 @@ public class FieldNormalizeRule implements CleanRule {
         int value = 0;
         for (char c : s.toCharArray()) {
             Integer d = CN_DATE_DIGITS.get(c);
-            if (d == null) {
+            if (NullUtil.isNull(d)) {
                 return -1;
             }
             value = value * 10 + d;
@@ -363,7 +363,7 @@ public class FieldNormalizeRule implements CleanRule {
     private int cnSmallNumber(String s) {
         if (!s.contains("十")) {
             Integer d = CN_DATE_DIGITS.get(s.charAt(0));
-            return d == null ? -1 : d;
+            return NullUtil.isNull(d) ? -1 : d;
         }
         String[] parts = s.split("十", -1);
         int tens = parts[0].isEmpty() ? 1 : cnYear(parts[0]);

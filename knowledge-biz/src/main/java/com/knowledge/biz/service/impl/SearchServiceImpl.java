@@ -157,7 +157,7 @@ public class SearchServiceImpl implements SearchService {
 
     @Override
     public List<SearchVO> compareRuns(Long knowledgeBaseId, List<Long> runIds) {
-        ThrowUtil.throwIf(runIds == null || runIds.isEmpty(), ErrorCode.PARAM_INVALID, "runIds 不能为空");
+        ThrowUtil.throwIf(NullUtil.isNull(runIds) || runIds.isEmpty(), ErrorCode.PARAM_INVALID, "runIds 不能为空");
         List<KbRetrievalRun> runs = retrievalRunDbService.listByIdsOrdered(runIds);
         List<SearchVO> vos = new ArrayList<>(runs.size());
         for (KbRetrievalRun run : runs) {
@@ -167,7 +167,7 @@ public class SearchServiceImpl implements SearchService {
             vo.setQuery(run.getQuery());
             vo.setRuleNameVersion(run.getRuleNameVersion());
             vo.setVersionNo(run.getVersionNo());
-            vo.setElapsedMs(run.getElapsedMs() == null ? 0L : run.getElapsedMs().longValue());
+            vo.setElapsedMs(NullUtil.isNull(run.getElapsedMs()) ? 0L : run.getElapsedMs().longValue());
             vo.setRunId(run.getId());
             vo.setHits(JsonUtil.toList(run.getResultSnapshot(), SearchHitVO.class));
             vos.add(vo);
@@ -186,7 +186,7 @@ public class SearchServiceImpl implements SearchService {
         run.setRuleNameVersion(ruleRow.getName() + "-" + ruleRow.getVersion());
         run.setQuery(request.getQuery());
         run.setResultSnapshot(JsonUtil.toJsonStr(vo.getHits()));
-        run.setElapsedMs(vo.getElapsedMs() == null ? 0 : vo.getElapsedMs().intValue());
+        run.setElapsedMs(NullUtil.isNull(vo.getElapsedMs()) ? 0 : vo.getElapsedMs().intValue());
         retrievalRunDbService.save(run);
         vo.setRunId(run.getId());
     }
@@ -326,7 +326,7 @@ public class SearchServiceImpl implements SearchService {
             return fullTextHits.stream().map(hit -> toVO(hit, null)).toList();
         }
         return vectorHits.stream()
-                .map(hit -> toVO(hit, hit.getScore() == null ? null : hit.getScore().doubleValue()))
+                .map(hit -> toVO(hit, NullUtil.isNull(hit.getScore()) ? null : hit.getScore().doubleValue()))
                 .toList();
     }
 

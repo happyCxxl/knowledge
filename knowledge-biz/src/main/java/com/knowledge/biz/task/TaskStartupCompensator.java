@@ -62,7 +62,7 @@ public class TaskStartupCompensator {
     /** RUNNING 孤儿恢复：开始时间超过其环节超时阈值的执行中任务 → 置 FAILED(EXECUTOR_TIMEOUT) */
     private void recoverOrphans() {
         String token = redisLock.tryLock(lockKey(), properties.getSweepLockTtl());
-        if (token == null) {
+        if (NullUtil.isNull(token)) {
             log.debug("补偿锁未抢到，跳过孤儿恢复");
             return;
         }
@@ -93,7 +93,7 @@ public class TaskStartupCompensator {
     /** 补投过期 QUEUED 任务（消费侧重读 DB 校验，重复入队无害） */
     private void compensate(String scene) {
         String token = redisLock.tryLock(lockKey(), properties.getSweepLockTtl());
-        if (token == null) {
+        if (NullUtil.isNull(token)) {
             log.debug("补偿锁未抢到，跳过本轮, scene={}", scene);
             return;
         }

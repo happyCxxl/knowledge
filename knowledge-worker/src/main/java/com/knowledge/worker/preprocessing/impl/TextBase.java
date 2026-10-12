@@ -1,5 +1,7 @@
 package com.knowledge.worker.preprocessing.impl;
 
+import com.knowledge.common.utils.NullUtil;
+
 import java.text.Normalizer;
 
 /**
@@ -18,7 +20,7 @@ public final class TextBase {
      * 展示文本口径：全角空格→半角、控制字符→空格、空白折叠、未定义码点剔除、trim。
      */
     public static String tidyDisplay(String raw) {
-        if (raw == null || raw.isEmpty()) {
+        if (NullUtil.isNull(raw) || raw.isEmpty()) {
             return raw;
         }
         String s = raw.replace('\u3000', ' ');
@@ -32,7 +34,7 @@ public final class TextBase {
      * 检索文本基座：展示口径 + Unicode NFKC（全角→半角、兼容字符规整）。
      */
     public static String normalizeBase(String tidy) {
-        if (tidy == null || tidy.isEmpty()) {
+        if (NullUtil.isNull(tidy) || tidy.isEmpty()) {
             return tidy;
         }
         return Normalizer.normalize(tidy, Normalizer.Form.NFKC).trim();

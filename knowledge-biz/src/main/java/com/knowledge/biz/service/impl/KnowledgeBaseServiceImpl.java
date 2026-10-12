@@ -81,7 +81,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -223,7 +222,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
      */
     private void fillPublishedIndexVersions(List<KnowledgeBaseVO> records) {
         List<Long> kbIds = records.stream()
-                .filter(vo -> vo.getPublishedIndexSetId() != null)
+                .filter(vo -> NullUtil.isNotNull(vo.getPublishedIndexSetId()))
                 .map(KnowledgeBaseVO::getId)
                 .collect(Collectors.toList());
         if (CollUtil.isEmpty(kbIds)) {
@@ -232,7 +231,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         Map<Long, KbIndexSet> setByKb = indexSetDbService.listByKbIds(kbIds);
         List<Long> versionIds = setByKb.values().stream()
                 .map(KbIndexSet::getCurrentPublishedVersionId)
-                .filter(Objects::nonNull)
+                .filter(NullUtil::isNotNull)
                 .distinct()
                 .collect(Collectors.toList());
         if (CollUtil.isEmpty(versionIds)) {
@@ -242,7 +241,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                 .collect(Collectors.toMap(KbIndexVersion::getId, KbIndexVersion::getVersionNo, (a, b) -> a));
         for (KnowledgeBaseVO vo : records) {
             KbIndexSet set = setByKb.get(vo.getId());
-            if (set == null) {
+            if (NullUtil.isNull(set)) {
                 continue;
             }
             vo.setPublishedIndexVersion(versionNoById.get(set.getCurrentPublishedVersionId()));
@@ -312,9 +311,9 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         StrategyBindingVO vo = new StrategyBindingVO();
         vo.setStrategyType(strategyType);
         KbStrategyBinding binding = strategyBindingDbService.getByKbAndType(kb.getId(), strategyType);
-        if (binding != null) {
+        if (NullUtil.isNotNull(binding)) {
             KbPipelineStrategyVersion version = strategyVersionDbService.getById(binding.getStrategyVersionId());
-            if (version != null) {
+            if (NullUtil.isNotNull(version)) {
                 vo.setStrategyVersionId(version.getId());
                 vo.setStrategyName(version.getName());
                 vo.setStrategyVersion(version.getVersion());
@@ -344,7 +343,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             // 版本被删或已停用时跳过：与单体查询 strategyBinding 的口径一致
             // （它查不到版本时也只返回 strategyType，不返回半截数据）
             KbPipelineStrategyVersion version = versionById.get(binding.getStrategyVersionId());
-            if (version == null) {
+            if (NullUtil.isNull(version)) {
                 continue;
             }
             StrategyBindingVO vo = new StrategyBindingVO();
@@ -369,10 +368,10 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                 ErrorCode.PARAM_INVALID, "未知策略类型: " + type);
 
         // 解绑：绑定行逻辑删除（无绑定行时幂等成功）
-        if (dto.getStrategyVersionId() == null) {
+        if (NullUtil.isNull(dto.getStrategyVersionId())) {
             KbStrategyBinding existing = strategyBindingDbService.getByKbAndType(id, type);
             String before = bindingSummary(existing);
-            if (existing != null) {
+            if (NullUtil.isNotNull(existing)) {
                 existing.setDelFlag(DelFlag.DELETED.getCode());
                 strategyBindingDbService.updateById(existing);
             }
@@ -383,7 +382,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         }
 
         KbPipelineStrategyVersion version = strategyVersionDbService.getById(dto.getStrategyVersionId());
-        ThrowUtil.throwIf(version == null, ErrorCode.PARAM_INVALID, "策略版本不存在");
+        ThrowUtil.throwIf(NullUtil.isNull(version), ErrorCode.PARAM_INVALID, "策略版本不存在");
         ThrowUtil.throwIf(!type.equals(version.getType()), ErrorCode.PARAM_INVALID, "策略类型与所选版本不匹配");
         ThrowUtil.throwIf(!RowStatus.ACTIVE.name().equals(version.getStatus()),
                 ErrorCode.PARAM_INVALID, "策略已停用，请先启用后再绑定");
@@ -391,7 +390,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         // 绑定/重绑：复用原行（含已逻辑删除行），uk 不被占用
         KbStrategyBinding existing = strategyBindingDbService.getAnyByKbAndType(id, type);
         String before = bindingSummary(existing);
-        if (existing == null) {
+        if (NullUtil.isNull(existing)) {
             KbStrategyBinding binding = new KbStrategyBinding();
             binding.setKnowledgeBaseId(id);
             binding.setStrategyType(type);
@@ -417,7 +416,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         ThrowUtil.throwIf(isBindingDisabled(kb),
                 ErrorCode.PARAM_INVALID, "该知识库已关闭策略绑定（评测模式），禁止绑定策略");
         List<StrategyBindingsUpdateRequest.StrategyBindItem> bindings = request.getBindings();
-        ThrowUtil.throwIf(bindings == null || bindings.isEmpty(),
+        ThrowUtil.throwIf(NullUtil.isNull(bindings) || bindings.isEmpty(),
                 ErrorCode.PARAM_INVALID, "绑定列表不能为空");
         // 白名单 + 请求内类型不重复
         Set<String> seen = new HashSet<>();
@@ -432,7 +431,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         ThrowUtil.throwIf(!seen.containsAll(StrategyVersionService.BINDABLE_TYPES),
                 ErrorCode.PARAM_INVALID, "需一次设置全部可绑定策略（预处理 / 切片 / 向量化）");
         for (StrategyBindingsUpdateRequest.StrategyBindItem item : bindings) {
-            ThrowUtil.throwIf(item.getStrategyVersionId() == null,
+            ThrowUtil.throwIf(NullUtil.isNull(item.getStrategyVersionId()),
                     ErrorCode.PARAM_INVALID, "策略版本不能为空: " + item.getStrategyType());
         }
         // 局部更新：逐类型复用单类型绑定逻辑（校验/upsert/审计）；外层事务覆盖，任一项失败整体回滚
@@ -700,11 +699,11 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
 
     /** 绑定摘要（审计用；null/已删 → 无） */
     private String bindingSummary(KbStrategyBinding binding) {
-        if (binding == null || DelFlag.isDeleted(binding.getDelFlag())) {
+        if (NullUtil.isNull(binding) || DelFlag.isDeleted(binding.getDelFlag())) {
             return "无";
         }
         KbPipelineStrategyVersion version = strategyVersionDbService.getById(binding.getStrategyVersionId());
-        return version == null ? "失效" : version.getName() + "-" + version.getVersion();
+        return NullUtil.isNull(version) ? "失效" : version.getName() + "-" + version.getVersion();
     }
 
     /** 详情：填充预处理/切片/向量化策略绑定摘要 */
@@ -735,11 +734,11 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         Map<Long, KbPipelineStrategyVersion> versionById = versionsOf(bindingByKb.values());
         for (KnowledgeBaseVO vo : records) {
             KbStrategyBinding binding = bindingByKb.get(vo.getId());
-            if (binding == null) {
+            if (NullUtil.isNull(binding)) {
                 continue;
             }
             KbPipelineStrategyVersion version = versionById.get(binding.getStrategyVersionId());
-            if (version == null) {
+            if (NullUtil.isNull(version)) {
                 continue;
             }
             applyBinding(vo, version);
@@ -748,9 +747,9 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
 
     private void fillBinding(KnowledgeBaseVO vo, String type) {
         KbStrategyBinding binding = strategyBindingDbService.getByKbAndType(vo.getId(), type);
-        KbPipelineStrategyVersion version = binding == null
+        KbPipelineStrategyVersion version = NullUtil.isNull(binding)
                 ? null : strategyVersionDbService.getById(binding.getStrategyVersionId());
-        if (version == null) {
+        if (NullUtil.isNull(version)) {
             return;
         }
         applyBinding(vo, version);
@@ -783,7 +782,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
 
     /** 绑定开关是否关闭（null 视为开启，兼容存量数据） */
     private boolean isBindingDisabled(KnowledgeBase kb) {
-        return kb != null && StrategyBindingSwitch.isOff(kb.getStrategyBindingEnabled());
+        return NullUtil.isNotNull(kb) && StrategyBindingSwitch.isOff(kb.getStrategyBindingEnabled());
     }
 
     private KnowledgeBaseVO toVO(KnowledgeBase kb) {
@@ -820,7 +819,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
      */
     private Long requireCurrentUserId() {
         KnowledgeUser user = SecurityUtil.getUser();
-        ThrowUtil.throwIf(user == null || user.getId() == null, ErrorCode.UNAUTHORIZED);
+        ThrowUtil.throwIf(NullUtil.isNull(user) || NullUtil.isNull(user.getId()), ErrorCode.UNAUTHORIZED);
         return user.getId();
     }
 
@@ -833,7 +832,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
      */
     private Long currentUserId() {
         KnowledgeUser user = SecurityUtil.getUser();
-        return user == null ? null : user.getId();
+        return NullUtil.isNull(user) ? null : user.getId();
     }
 
     /** 事务内捕获异常后返回：显式标记回滚，避免孤儿三写提交。 */

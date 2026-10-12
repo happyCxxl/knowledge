@@ -108,7 +108,7 @@ public class EmbedControlServiceImpl implements EmbedControlService {
         }
 
         // 集合摘要/记录：按 task.productId → 产物 → artifactId 精确取该次运行的集合（历史任务同样可展示自己的集合；无任务/无产物留空）
-        KbPipelineProduct product = NullUtil.isNull(task) || task.getProductId() == null ? null
+        KbPipelineProduct product = NullUtil.isNull(task) || NullUtil.isNull(task.getProductId()) ? null
                 : pipelineProductDbService.getById(task.getProductId());
         if (NullUtil.isNotNull(product)) {
             KbEmbeddingSet embeddingSet = embeddingSetDbService.getByArtifactId(product.getArtifactId());
@@ -127,7 +127,7 @@ public class EmbedControlServiceImpl implements EmbedControlService {
     /** 窗口前置校验（触发时明确报错；不可推算时跳过，任务期告警） */
     private void precheckWindow(KbPipelineProduct chunkProduct, EmbedStrategy strategy) {
         ChunkStrategy chunkStrategy = resolveChunkStrategy(chunkProduct.getCapabilitySnapshot());
-        if (chunkStrategy == null) {
+        if (NullUtil.isNull(chunkStrategy)) {
             return;
         }
         EmbedWindowRules.WindowBound window = EmbedWindowRules.resolve(

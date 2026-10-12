@@ -1,6 +1,7 @@
 package com.knowledge.worker.parser.pdf.assemble;
 
 import com.knowledge.common.domain.parse.ParseElement;
+import com.knowledge.common.utils.NullUtil;
 
 import java.util.List;
 
@@ -36,7 +37,7 @@ public final class TableContinuationSupport {
 
     /** 续表判据：列数一致，且表头行文本重复、或上一页表格贴页底且列区间重合 */
     private static boolean isContinuation(ParseElement previous, ParseElement current, double overlapRatio) {
-        if (previous == null || current.getCols() == null || !current.getCols().equals(previous.getCols())) {
+        if (NullUtil.isNull(previous) || NullUtil.isNull(current.getCols()) || !current.getCols().equals(previous.getCols())) {
             return false;
         }
         if (!firstRow(current).isEmpty() && firstRow(current).equals(firstRow(previous))) {
@@ -47,18 +48,18 @@ public final class TableContinuationSupport {
 
     /** 表头行文本（第 0 行单元格） */
     private static List<String> firstRow(ParseElement table) {
-        if (table.getCells() == null) {
+        if (NullUtil.isNull(table.getCells())) {
             return List.of();
         }
         return table.getCells().stream()
                 .filter(cell -> Integer.valueOf(0).equals(cell.getRow()))
-                .map(cell -> cell.getText() == null ? "" : cell.getText())
+                .map(cell -> NullUtil.isNull(cell.getText()) ? "" : cell.getText())
                 .toList();
     }
 
     /** 列区间重合：两表 bbox 的 x 投影交集占较窄一侧的比例 */
     private static boolean overlaps(ParseElement previous, ParseElement current, double overlapRatio) {
-        if (previous.getBbox() == null || current.getBbox() == null) {
+        if (NullUtil.isNull(previous.getBbox()) || NullUtil.isNull(current.getBbox())) {
             return false;
         }
         double left = Math.max(previous.getBbox().getX(), current.getBbox().getX());

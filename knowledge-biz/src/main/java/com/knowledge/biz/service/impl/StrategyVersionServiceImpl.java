@@ -154,7 +154,7 @@ public class StrategyVersionServiceImpl implements StrategyVersionService {
             case "EMBED" -> EmbedAlgorithmSpec.validate(config, modelCatalog);
             default -> null;
         };
-        ThrowUtil.throwIf(error != null, ErrorCode.PARAM_INVALID, error);
+        ThrowUtil.throwIf(NullUtil.isNotNull(error), ErrorCode.PARAM_INVALID, error);
     }
 
     private StrategyVersionVO toVO(KbPipelineStrategyVersion row) {

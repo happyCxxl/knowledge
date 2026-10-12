@@ -1,5 +1,7 @@
 package com.knowledge.worker.parser.pdf.layout;
 
+import com.knowledge.common.utils.NullUtil;
+
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -44,7 +46,7 @@ public class ProjectionPageLayoutAnalyzer implements PageLayoutAnalyzer {
             int rowFrom = Math.max((int) Math.floor((box.y() - top) / BIN_WIDTH), 0);
             int rowTo = Math.min((int) Math.ceil((box.y() + box.height() - top) / BIN_WIDTH), rowCount);
             for (int i = from; i < to; i++) {
-                if (coveredRows[i] == null) {
+                if (NullUtil.isNull(coveredRows[i])) {
                     coveredRows[i] = new BitSet(rowCount);
                 }
                 coveredRows[i].set(rowFrom, rowTo);
@@ -133,7 +135,7 @@ public class ProjectionPageLayoutAnalyzer implements PageLayoutAnalyzer {
 
     /** 该横向箱被覆盖的纵向范围占比 */
     private static double coverage(BitSet covered, int rowCount) {
-        return covered == null || rowCount == 0 ? 0 : (double) covered.cardinality() / rowCount;
+        return NullUtil.isNull(covered) || rowCount == 0 ? 0 : (double) covered.cardinality() / rowCount;
     }
 
     /** 每栏字符数与占比达门槛才算成立 */

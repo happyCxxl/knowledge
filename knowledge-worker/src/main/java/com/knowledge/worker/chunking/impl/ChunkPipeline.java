@@ -147,7 +147,7 @@ public class ChunkPipeline implements ChunkerPort {
         long routeStartedNanos = System.nanoTime();
         for (ViewElement element : view.getElements()) {
             String status = element.getStatus();
-            if (status != null && PreprocessViewRules.CHUNK_SKIP_STATUSES.contains(status)) {
+            if (NullUtil.isNotNull(status) && PreprocessViewRules.CHUNK_SKIP_STATUSES.contains(status)) {
                 continue;
             }
             stats.routeMatched++;
@@ -168,7 +168,7 @@ public class ChunkPipeline implements ChunkerPort {
             if (inlineTable) {
                 kind = ChunkKind.BODY;
             }
-            if (kind != ChunkKind.BODY && bodyAlgorithm != null && bodyAlgorithm.flushOnContentBoundary()) {
+            if (kind != ChunkKind.BODY && NullUtil.isNotNull(bodyAlgorithm) && bodyAlgorithm.flushOnContentBoundary()) {
                 // 正文聚合以表格/图片为界结算（正文组保持连续文本，不跨表格/图片合并）
                 flushBodyStrategy(sliceContext, current, orphans, stats);
             }
@@ -274,7 +274,7 @@ public class ChunkPipeline implements ChunkerPort {
     }
 
     private void attachToSection(Section section, List<Chunk> orphans, List<Chunk> chunks) {
-        if (section != null) {
+        if (NullUtil.isNotNull(section)) {
             section.children.addAll(chunks);
         } else {
             orphans.addAll(chunks);
@@ -285,7 +285,7 @@ public class ChunkPipeline implements ChunkerPort {
 
     private Integer levelOf(SliceContext ctx, String elementId) {
         UnifiedElement element = ctx.getById().get(elementId);
-        return element == null ? null : element.getLevel();
+        return NullUtil.isNull(element) ? null : element.getLevel();
     }
 
     private void updateTitleStack(Deque<String> stack, String titleText, Integer level, ChunkStrategy strategy) {
@@ -311,7 +311,7 @@ public class ChunkPipeline implements ChunkerPort {
         Set<Integer> pages = new HashSet<>();
         for (Chunk child : section.children) {
             sourceIds.addAll(child.getSourceElementIds());
-            if (child.getPageRange() != null) {
+            if (NullUtil.isNotNull(child.getPageRange())) {
                 pages.addAll(child.getPageRange());
             }
         }
@@ -340,9 +340,9 @@ public class ChunkPipeline implements ChunkerPort {
 
     private Map<String, UnifiedElement> indexDocument(UnifiedDocument document) {
         Map<String, UnifiedElement> byId = new HashMap<>();
-        if (document != null && document.getElements() != null) {
+        if (NullUtil.isNotNull(document) && NullUtil.isNotNull(document.getElements())) {
             for (UnifiedElement element : document.getElements()) {
-                if (element.getId() != null) {
+                if (NullUtil.isNotNull(element.getId())) {
                     byId.put(element.getId(), element);
                 }
             }
@@ -381,7 +381,7 @@ public class ChunkPipeline implements ChunkerPort {
 
     /** 子步骤 capability：由所选算法的枚举键推导（不带版本号；未识别回退 unknown） */
     private String capability(ChunkAlgorithm algorithm) {
-        return algorithm == null ? "unknown" : algorithm.key();
+        return NullUtil.isNull(algorithm) ? "unknown" : algorithm.key();
     }
 
     private StepLogInfo step(String stepName, String capability, int matched, int totalLen, int warnings,

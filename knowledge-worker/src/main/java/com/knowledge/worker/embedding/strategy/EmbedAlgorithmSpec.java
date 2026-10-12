@@ -2,6 +2,7 @@ package com.knowledge.worker.embedding.strategy;
 
 import cn.hutool.core.util.StrUtil;
 import com.knowledge.common.enums.embed.EmbeddingModel;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.model.catalog.ModelCatalogPort;
 import com.knowledge.worker.embedding.EmbedProperties;
 
@@ -44,13 +45,13 @@ public final class EmbedAlgorithmSpec {
         if (StrUtil.isBlank(strategy.getQueryTemplate())) {
             strategy.setQueryTemplate("{query}");
         }
-        if (strategy.getBatchSize() == null) {
+        if (NullUtil.isNull(strategy.getBatchSize())) {
             strategy.setBatchSize(properties.getBatchSize());
         }
-        if (strategy.getTimeoutMs() == null) {
+        if (NullUtil.isNull(strategy.getTimeoutMs())) {
             strategy.setTimeoutMs(properties.getTimeoutMs());
         }
-        if (strategy.getMaxRetries() == null) {
+        if (NullUtil.isNull(strategy.getMaxRetries())) {
             strategy.setMaxRetries(properties.getMaxRetries());
         }
         strategy.setCacheEnabled(enumOr(strategy.getCacheEnabled(), properties.getCacheEnabled()));
@@ -70,8 +71,8 @@ public final class EmbedAlgorithmSpec {
 
     /** 目录冗余回填：以模型目录为准覆盖 dimension/metric/normalized/contextWindowTokens/batchLimit */
     private static void stampCatalog(EmbedStrategy strategy, ModelCatalogPort catalog) {
-        EmbeddingModel model = catalog == null ? null : catalog.get(strategy.getModel());
-        if (model == null) {
+        EmbeddingModel model = NullUtil.isNull(catalog) ? null : catalog.get(strategy.getModel());
+        if (NullUtil.isNull(model)) {
             return;
         }
         strategy.setDimension(model.dimension());
@@ -85,43 +86,43 @@ public final class EmbedAlgorithmSpec {
 
     /** 校验配置 JSON；非法返回错误信息，合法返回 null。config 应为模型/模板/批量/执行口径结构（无 type/name/version 顶层键）。 */
     public static String validate(Map<String, Object> config, ModelCatalogPort catalog) {
-        if (config == null) {
+        if (NullUtil.isNull(config)) {
             return "配置不能为空";
         }
         String model = String.valueOf(config.getOrDefault("model", ""));
         if (StrUtil.isBlank(model)) {
             return "模型不能为空";
         }
-        EmbeddingModel catalogModel = catalog == null ? null : catalog.get(model);
-        if (catalogModel == null) {
+        EmbeddingModel catalogModel = NullUtil.isNull(catalog) ? null : catalog.get(model);
+        if (NullUtil.isNull(catalogModel)) {
             return "模型不存在: " + model;
         }
         if (!catalogModel.enabled()) {
             return "模型未启用: " + model;
         }
         String templateError = validateTemplate(config.get("docTemplate"), "{content}", DOC_PLACEHOLDERS, "docTemplate");
-        if (templateError != null) {
+        if (NullUtil.isNotNull(templateError)) {
             return templateError;
         }
         templateError = validateTemplate(config.get("queryTemplate"), "{query}", QUERY_PLACEHOLDERS, "queryTemplate");
-        if (templateError != null) {
+        if (NullUtil.isNotNull(templateError)) {
             return templateError;
         }
         String rangeError = validateRange(config, "batchSize", 1, 128);
-        if (rangeError != null) {
+        if (NullUtil.isNotNull(rangeError)) {
             return rangeError;
         }
         rangeError = validateRange(config, "timeoutMs", 1000, 120000);
-        if (rangeError != null) {
+        if (NullUtil.isNotNull(rangeError)) {
             return rangeError;
         }
         rangeError = validateRange(config, "maxRetries", 0, 5);
-        if (rangeError != null) {
+        if (NullUtil.isNotNull(rangeError)) {
             return rangeError;
         }
         for (String key : new String[] { "cacheEnabled", "includeParent", "skipEmpty" }) {
             String enumError = validateEnum(config, key);
-            if (enumError != null) {
+            if (NullUtil.isNotNull(enumError)) {
                 return enumError;
             }
         }
@@ -130,7 +131,7 @@ public final class EmbedAlgorithmSpec {
 
     /** 模板校验：非空时必含 required 占位符且全部占位符在白名单内 */
     private static String validateTemplate(Object value, String required, Set<String> allowed, String field) {
-        if (value == null || StrUtil.isBlank(String.valueOf(value))) {
+        if (NullUtil.isNull(value) || StrUtil.isBlank(String.valueOf(value))) {
             return null; // 空走默认，不校验
         }
         String template = String.valueOf(value);
@@ -166,7 +167,7 @@ public final class EmbedAlgorithmSpec {
 
     private static String validateRange(Map<String, Object> config, String key, int min, int max) {
         Object value = config.get(key);
-        if (value == null) {
+        if (NullUtil.isNull(value)) {
             return null;
         }
         try {
@@ -182,7 +183,7 @@ public final class EmbedAlgorithmSpec {
 
     private static String validateEnum(Map<String, Object> config, String key) {
         Object value = config.get(key);
-        if (value == null) {
+        if (NullUtil.isNull(value)) {
             return null;
         }
         String text = String.valueOf(value).trim();
@@ -199,7 +200,7 @@ public final class EmbedAlgorithmSpec {
      * 返回新的配置 Map（不改入参）；校验失败返回 null（错误信息见 validate）。
      */
     public static Map<String, Object> enrich(Map<String, Object> config, ModelCatalogPort catalog) {
-        if (validate(config, catalog) != null) {
+        if (NullUtil.isNotNull(validate(config, catalog))) {
             return null;
         }
         Map<String, Object> stamped = new HashMap<>(config);

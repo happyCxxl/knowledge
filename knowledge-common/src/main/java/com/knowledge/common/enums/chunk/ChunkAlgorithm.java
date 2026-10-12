@@ -1,6 +1,7 @@
 package com.knowledge.common.enums.chunk;
 
 import cn.hutool.core.util.StrUtil;
+import com.knowledge.common.utils.NullUtil;
 
 /**
  * 切片算法目录：每个 (路由, 算法键) 一个常量，携带序列化键、当前支持状态与正文 flush 规则。
@@ -96,7 +97,7 @@ public enum ChunkAlgorithm {
 
     /** 按 (路由, 算法键) 精确查找；未识别返回 null */
     public static ChunkAlgorithm of(ChunkRoute route, String key) {
-        if (route == null || StrUtil.isBlank(key)) {
+        if (NullUtil.isNull(route) || StrUtil.isBlank(key)) {
             return null;
         }
         for (ChunkAlgorithm algorithm : values()) {

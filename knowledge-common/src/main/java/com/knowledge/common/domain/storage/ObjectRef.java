@@ -8,6 +8,7 @@ import com.knowledge.common.domain.entity.User;
 import com.knowledge.common.enums.storage.StorageType;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
+import com.knowledge.common.exception.ThrowUtil;
 import com.knowledge.common.utils.NullUtil;
 
 /**
@@ -70,13 +71,12 @@ public record ObjectRef(Long sourceId, StorageType storageType, String bucket, S
      */
     public static ObjectRef of(Long sourceId, String storageType, String bucket, String objectKey) {
         StorageType type = StorageType.of(storageType);
-        if (NullUtil.isNull(sourceId) || NullUtil.isNull(type)
+        ThrowUtil.throwIf(NullUtil.isNull(sourceId) || NullUtil.isNull(type)
                 || NullUtil.isNull(bucket) || bucket.isBlank()
-                || NullUtil.isNull(objectKey) || objectKey.isBlank()) {
-            throw new KnowledgeException(ErrorCode.STORAGE_BACKEND_UNCONFIGURED,
-                    "对象位置不完整: sourceId=" + sourceId + ", storageType=" + storageType
-                            + ", bucket=" + bucket + ", objectKey=" + objectKey);
-        }
+                || NullUtil.isNull(objectKey) || objectKey.isBlank(),
+                ErrorCode.STORAGE_BACKEND_UNCONFIGURED,
+                "对象位置不完整: sourceId=" + sourceId + ", storageType=" + storageType
+                        + ", bucket=" + bucket + ", objectKey=" + objectKey);
         return new ObjectRef(sourceId, type, bucket, objectKey);
     }
 

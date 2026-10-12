@@ -6,7 +6,9 @@ import cn.hutool.jwt.JWTUtil;
 import com.knowledge.common.enums.user.UserRole;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
+import com.knowledge.common.exception.ThrowUtil;
 import com.knowledge.common.security.KnowledgeUser;
+import com.knowledge.common.utils.NullUtil;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -23,21 +25,31 @@ import java.util.Objects;
 @Component
 public class JwtUtil {
 
-    /** 用户名载荷键 */
+    /**
+     * 用户名载荷键
+     */
     private static final String CLAIM_USERNAME = "username";
 
-    /** 角色载荷键 */
+    /**
+     * 角色载荷键
+     */
     private static final String CLAIM_ROLE = "role";
 
-    /** 令牌版本载荷键 */
+    /**
+     * 令牌版本载荷键
+     */
     private static final String CLAIM_TOKEN_VERSION = "tv";
 
     private final byte[] secret;
 
-    /** 不勾选「记住我」的令牌有效期 */
+    /**
+     * 不勾选「记住我」的令牌有效期
+     */
     private final Duration standardTtl;
 
-    /** 勾选「记住我」的令牌有效期 */
+    /**
+     * 勾选「记住我」的令牌有效期
+     */
     private final Duration rememberTtl;
 
     public JwtUtil(@Value("${knowledge.auth.jwt.secret}") String secret,
@@ -48,12 +60,16 @@ public class JwtUtil {
         this.rememberTtl = Duration.ofDays(rememberTtlDays);
     }
 
-    /** 不勾选「记住我」的令牌有效期 */
+    /**
+     * 不勾选「记住我」的令牌有效期
+     */
     public Duration standardTtl() {
         return standardTtl;
     }
 
-    /** 勾选「记住我」的令牌有效期 */
+    /**
+     * 勾选「记住我」的令牌有效期
+     */
     public Duration rememberTtl() {
         return rememberTtl;
     }
@@ -89,19 +105,15 @@ public class JwtUtil {
     public KnowledgeUser parse(String token) {
         try {
             JWT jwt = JWT.of(token);
-            if (!JWTUtil.verify(token, secret)) {
-                throw new KnowledgeException(ErrorCode.UNAUTHORIZED);
-            }
+            ThrowUtil.throwIf(!JWTUtil.verify(token, secret), ErrorCode.UNAUTHORIZED);
             Date expiresAt = jwt.getPayloads().getDate(JWTPayload.EXPIRES_AT);
-            if (expiresAt == null || expiresAt.before(new Date())) {
-                throw new KnowledgeException(ErrorCode.UNAUTHORIZED);
-            }
+            ThrowUtil.throwIf(NullUtil.isNull(expiresAt) || expiresAt.before(new Date()), ErrorCode.UNAUTHORIZED);
             KnowledgeUser user = new KnowledgeUser();
             user.setId(Long.valueOf(jwt.getPayload("sub").toString()));
             user.setUsername(jwt.getPayload(CLAIM_USERNAME).toString());
             // 旧令牌不含角色载荷：回落 USER，避免历史令牌直接提权
             Object role = jwt.getPayload(CLAIM_ROLE);
-            user.setRole(UserRole.of(role == null ? null : role.toString()));
+            user.setRole(UserRole.of(NullUtil.isNull(role) ? null : role.toString()));
             user.setTokenVersion(readTokenVersion(jwt));
             user.setExpiresAt(expiresAt.toInstant());
             return user;
@@ -112,10 +124,12 @@ public class JwtUtil {
         }
     }
 
-    /** 读取令牌版本：缺失或非数字按 0 处理（与库表默认值一致） */
+    /**
+     * 读取令牌版本：缺失或非数字按 0 处理（与库表默认值一致）
+     */
     private Integer readTokenVersion(JWT jwt) {
         Object value = jwt.getPayload(CLAIM_TOKEN_VERSION);
-        if (value == null) {
+        if (NullUtil.isNull(value)) {
             return 0;
         }
         try {

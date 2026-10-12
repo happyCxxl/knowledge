@@ -2,6 +2,7 @@ package com.knowledge.common.domain.parse.signal;
 
 import com.knowledge.common.enums.parse.SignalSubtype;
 import com.knowledge.common.enums.parse.SignalType;
+import com.knowledge.common.utils.NullUtil;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -33,6 +34,6 @@ public class Signal {
     private String subtype;
 
     public static Signal of(SignalType type, String region, String evidence, String threshold, SignalSubtype subtype) {
-        return new Signal(type.name(), region, evidence, threshold, subtype == null ? null : subtype.name());
+        return new Signal(type.name(), region, evidence, threshold, NullUtil.isNull(subtype) ? null : subtype.name());
     }
 }

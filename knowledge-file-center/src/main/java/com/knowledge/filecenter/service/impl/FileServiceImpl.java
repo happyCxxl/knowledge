@@ -1,6 +1,7 @@
 package com.knowledge.filecenter.service.impl;
 
 import com.knowledge.common.domain.input.FileMetadata;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.filecenter.service.FileService;
 import com.knowledge.filecenter.service.FileStorage;
 import jakarta.servlet.http.HttpServletResponse;
@@ -35,7 +36,7 @@ public class FileServiceImpl implements FileService {
                 .build();
         response.setHeader(HttpHeaders.CONTENT_DISPOSITION, disposition.toString());
         response.setContentType(MediaType.APPLICATION_OCTET_STREAM_VALUE);
-        if (metadata.getFileSize() != null) {
+        if (NullUtil.isNotNull(metadata.getFileSize())) {
             response.setContentLengthLong(metadata.getFileSize());
         }
         try (InputStream in = fileStorage.open(fileId)) {

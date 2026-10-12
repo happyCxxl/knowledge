@@ -73,7 +73,7 @@ public class RetrievalRuleServiceImpl implements RetrievalRuleService {
         version.setDefaultRuleId(rule.getId());
         indexVersionDbService.updateById(version);
         kbAuditLogDbService.saveAudit(AuditActionType.RETRIEVAL_RULE_PUBLISH, AUDIT_OBJECT_TYPE,
-                version.getId(), oldRuleId == null ? null : String.valueOf(oldRuleId),
+                version.getId(), NullUtil.isNull(oldRuleId) ? null : String.valueOf(oldRuleId),
                 String.valueOf(rule.getId()));
         log.info("===> RetrievalRuleServiceImpl 选优发布完成, kbId={}, versionId={}, versionNo={}, rule={}-{}, oldRuleId={}",
                 knowledgeBaseId, version.getId(), version.getVersionNo(), rule.getName(), rule.getVersion(), oldRuleId);

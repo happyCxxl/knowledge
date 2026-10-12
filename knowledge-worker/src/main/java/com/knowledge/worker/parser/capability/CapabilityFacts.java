@@ -5,6 +5,7 @@ import com.knowledge.common.domain.parse.capability.StructuredOcrResult;
 import com.knowledge.common.domain.parse.capability.TableResult;
 import com.knowledge.common.domain.parse.signal.ParseFact;
 import com.knowledge.common.enums.parse.SignalType;
+import com.knowledge.common.utils.NullUtil;
 import cn.hutool.core.util.StrUtil;
 
 /**
@@ -27,8 +28,8 @@ public final class CapabilityFacts {
      */
     public static ParseFact tableEnhanced(String region, TableResult result) {
         ParseFact fact = fact(region);
-        Integer rows = result.getRows() == null ? Integer.valueOf(0) : result.getRows();
-        Integer cols = result.getCols() == null ? Integer.valueOf(0) : result.getCols();
+        Integer rows = NullUtil.isNull(result.getRows()) ? Integer.valueOf(0) : result.getRows();
+        Integer cols = NullUtil.isNull(result.getCols()) ? Integer.valueOf(0) : result.getCols();
         fact.setEvidence(String.format("表格结构由能力补强（%s %s，%d 行 × %d 列）",
                 StrUtil.blankToDefault(result.getModel(), "model"),
                 StrUtil.blankToDefault(result.getVersion(), "-"), rows, cols));
@@ -60,7 +61,7 @@ public final class CapabilityFacts {
         fact.setEvidence(String.format("版面阅读顺序由能力补强（%s %s，%d 个区域）",
                 StrUtil.blankToDefault(result.getModel(), "model"),
                 StrUtil.blankToDefault(result.getVersion(), "-"),
-                result.getRegions() == null ? 0 : result.getRegions().size()));
+                NullUtil.isNull(result.getRegions()) ? 0 : result.getRegions().size()));
         return fact;
     }
 
@@ -89,7 +90,7 @@ public final class CapabilityFacts {
         fact.setEvidence(String.format("文字由能力补出（%s %s，%d 行）",
                 StrUtil.blankToDefault(result.getModel(), "model"),
                 StrUtil.blankToDefault(result.getVersion(), "-"),
-                result.getLines() == null ? 0 : result.getLines().size()));
+                NullUtil.isNull(result.getLines()) ? 0 : result.getLines().size()));
         return fact;
     }
 

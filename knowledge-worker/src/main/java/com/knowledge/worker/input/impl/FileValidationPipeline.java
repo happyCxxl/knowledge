@@ -6,6 +6,7 @@ import com.knowledge.common.domain.input.FileValidationResult;
 import com.knowledge.common.enums.input.FileValidationFailReason;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.filecenter.service.FileStorage;
 import com.knowledge.worker.input.FileCheckContext;
 import com.knowledge.worker.input.FileValidationProperties;
@@ -49,7 +50,7 @@ public class FileValidationPipeline implements FileValidatorPort {
     public FileValidationResult validate(String fileId) {
         long start = System.currentTimeMillis();
         FileMetadata metadata = loadMetadata(fileId);
-        if (metadata == null) {
+        if (NullUtil.isNull(metadata)) {
             return FileValidationResult.fail(FileValidationFailReason.FILE_NOT_FOUND);
         }
         log.info("===> FileValidationPipeline 开始校验, fileId={}, fileName={}, 元数据大小={}",

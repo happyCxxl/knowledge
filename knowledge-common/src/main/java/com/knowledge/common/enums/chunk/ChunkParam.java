@@ -1,5 +1,7 @@
 package com.knowledge.common.enums.chunk;
 
+import com.knowledge.common.utils.NullUtil;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -118,7 +120,7 @@ public enum ChunkParam {
 
     /** 按 (算法, 参数键) 精确查找；未识别返回 null（未知参数按前向兼容透传） */
     public static ChunkParam of(ChunkAlgorithm algorithm, String key) {
-        if (algorithm == null || key == null || key.isEmpty()) {
+        if (NullUtil.isNull(algorithm) || NullUtil.isNull(key) || key.isEmpty()) {
             return null;
         }
         for (ChunkParam param : values()) {
@@ -132,7 +134,7 @@ public enum ChunkParam {
     /** 某个算法允许的全部参数（保存校验与前端范围提示共用） */
     public static List<ChunkParam> ofAlgorithm(ChunkAlgorithm algorithm) {
         List<ChunkParam> params = new ArrayList<>();
-        if (algorithm == null) {
+        if (NullUtil.isNull(algorithm)) {
             return params;
         }
         for (ChunkParam param : values()) {

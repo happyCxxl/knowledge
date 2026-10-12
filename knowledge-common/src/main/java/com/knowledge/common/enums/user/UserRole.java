@@ -1,5 +1,6 @@
 package com.knowledge.common.enums.user;
 
+import com.knowledge.common.utils.NullUtil;
 import lombok.Getter;
 
 /**
@@ -31,7 +32,7 @@ public enum UserRole {
      * @return 匹配的角色；无法识别时回落 {@link #USER}，避免构造出「无角色」的用户
      */
     public static UserRole of(String code) {
-        if (code != null) {
+        if (NullUtil.isNotNull(code)) {
             for (UserRole role : values()) {
                 if (role.code.equalsIgnoreCase(code.trim())) {
                     return role;

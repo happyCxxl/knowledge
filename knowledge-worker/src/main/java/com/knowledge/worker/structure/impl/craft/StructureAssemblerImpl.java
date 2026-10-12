@@ -129,7 +129,7 @@ public class StructureAssemblerImpl implements StructureAssembler {
             TitleJudgeContext judgeContext = new TitleJudgeContext();
             judgeContext.setCandidateText(ruleContext.text());
             judgeContext.setFontSize(ruleContext.fontSize());
-            judgeContext.setBold(ruleContext.element().getFont() == null
+            judgeContext.setBold(NullUtil.isNull(ruleContext.element().getFont())
                     ? null : ruleContext.element().getFont().getBold());
             // 兜底路径下编号模式不可知（能识别编号的规则已先命中），留空
             judgeContext.setNumberingPattern(null);

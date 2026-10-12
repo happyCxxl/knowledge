@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.knowledge.biz.mapper.KbChunkSetMapper;
 import com.knowledge.biz.service.db.KbChunkSetDbService;
 import com.knowledge.common.domain.entity.KbChunkSet;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.infra.persistence.InfraDbServiceImpl;
 
 import java.util.List;
@@ -46,7 +47,7 @@ public class KbChunkSetDbServiceImpl extends InfraDbServiceImpl<KbChunkSetMapper
 
     @Override
     public List<KbChunkSet> listByFileResultIds(List<Long> fileResultIds) {
-        if (fileResultIds == null || fileResultIds.isEmpty()) {
+        if (NullUtil.isNull(fileResultIds) || fileResultIds.isEmpty()) {
             return List.of();
         }
         LambdaQueryWrapper<KbChunkSet> queryWrapper = new LambdaQueryWrapper<>();

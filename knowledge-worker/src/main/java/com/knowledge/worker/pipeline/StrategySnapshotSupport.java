@@ -1,7 +1,9 @@
 package com.knowledge.worker.pipeline;
 
 import cn.hutool.core.util.StrUtil;
+import com.knowledge.common.exception.ThrowUtil;
 import com.knowledge.common.utils.JsonUtil;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.StageStrategy;
 
 import java.util.function.UnaryOperator;
@@ -35,9 +37,7 @@ public final class StrategySnapshotSupport {
     public static <T> T parse(String snapshot, Class<T> type, String stageLabel, UnaryOperator<T> normalize) {
         try {
             T strategy = StrUtil.isBlank(snapshot) ? null : JsonUtil.toObject(snapshot, type);
-            if (strategy == null) {
-                throw corrupt(stageLabel, snapshot, null);
-            }
+            ThrowUtil.throwIf(NullUtil.isNull(strategy), () -> corrupt(stageLabel, snapshot, null));
             return normalize.apply(strategy);
         } catch (IllegalStateException e) {
             throw e;

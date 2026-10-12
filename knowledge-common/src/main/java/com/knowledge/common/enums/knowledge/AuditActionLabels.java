@@ -1,5 +1,7 @@
 package com.knowledge.common.enums.knowledge;
 
+import com.knowledge.common.utils.NullUtil;
+
 import java.util.Map;
 
 /**
@@ -54,18 +56,18 @@ public final class AuditActionLabels {
      */
     public static String label(String action, String afterSummary) {
         AuditActionType type = parse(action);
-        if (type == null) {
+        if (NullUtil.isNull(type)) {
             return action;
         }
         if (type == AuditActionType.BIND) {
             // 解绑时 after 为空、before 形如 "CHUNK=旧值"
-            return afterSummary == null || afterSummary.isBlank() ? UNBIND_LABEL : BIND_LABEL;
+            return NullUtil.isNull(afterSummary) || afterSummary.isBlank() ? UNBIND_LABEL : BIND_LABEL;
         }
         return LABELS.getOrDefault(type, action);
     }
 
     private static AuditActionType parse(String action) {
-        if (action == null || action.isBlank()) {
+        if (NullUtil.isNull(action) || action.isBlank()) {
             return null;
         }
         for (AuditActionType type : AuditActionType.values()) {

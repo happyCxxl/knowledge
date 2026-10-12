@@ -7,6 +7,7 @@ import com.knowledge.common.domain.preprocess.TraceEntry;
 import com.knowledge.common.domain.preprocess.ViewCell;
 import com.knowledge.common.domain.preprocess.ViewElement;
 import com.knowledge.common.enums.preprocess.PreprocessRule;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.preprocessing.rule.CleanRule;
 import com.knowledge.worker.preprocessing.PreprocessProperties;
 import com.knowledge.worker.preprocessing.strategy.PreprocessStrategy;
@@ -59,7 +60,7 @@ public class EncodingCleanRule implements CleanRule {
             changed = !Objects.equals(raw, display);
             displayAfter = display;
         }
-        if (element.getCells() != null) {
+        if (NullUtil.isNotNull(element.getCells())) {
             for (ViewCell cell : element.getCells()) {
                 if (StrUtil.isNotBlank(cell.getText())) {
                     String display = TextBase.tidyDisplay(cell.getText());

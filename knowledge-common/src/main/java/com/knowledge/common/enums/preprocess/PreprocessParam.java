@@ -1,6 +1,7 @@
 package com.knowledge.common.enums.preprocess;
 
 import cn.hutool.core.util.StrUtil;
+import com.knowledge.common.utils.NullUtil;
 
 /**
  * 预处理参数键目录：每条参数带规则归属、范围与默认值。
@@ -94,12 +95,12 @@ public enum PreprocessParam {
 
     /** 是否数值参数（开关参数为 ON/OFF） */
     public boolean numeric() {
-        return min != null;
+        return NullUtil.isNotNull(min);
     }
 
     /** 按 (规则, 键) 精确查找；未识别返回 null */
     public static PreprocessParam of(PreprocessRule rule, String key) {
-        if (rule == null || StrUtil.isBlank(key)) {
+        if (NullUtil.isNull(rule) || StrUtil.isBlank(key)) {
             return null;
         }
         for (PreprocessParam param : values()) {

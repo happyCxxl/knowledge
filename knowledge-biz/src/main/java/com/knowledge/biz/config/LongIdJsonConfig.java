@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.module.SimpleModule;
+import com.knowledge.common.utils.NullUtil;
 import org.springframework.boot.autoconfigure.jackson.Jackson2ObjectMapperBuilderCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -67,7 +68,7 @@ public class LongIdJsonConfig {
         @Override
         public void serialize(Long value, JsonGenerator gen, SerializerProvider serializers)
                 throws IOException {
-            if (value == null) {
+            if (NullUtil.isNull(value)) {
                 gen.writeNull();
                 return;
             }

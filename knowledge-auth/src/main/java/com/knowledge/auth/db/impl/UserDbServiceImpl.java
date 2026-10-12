@@ -7,6 +7,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.knowledge.auth.db.UserDbService;
 import com.knowledge.common.domain.entity.User;
 import com.knowledge.common.enums.user.UserStatus;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.auth.mapper.UserMapper;
 import com.knowledge.infra.persistence.InfraDbServiceImpl;
 import org.springframework.stereotype.Service;
@@ -39,7 +40,7 @@ public class UserDbServiceImpl extends InfraDbServiceImpl<UserMapper, User> impl
         LambdaQueryWrapper<User> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.like(StrUtil.isNotBlank(username), User::getUsername, username)
                 .eq(StrUtil.isNotBlank(role), User::getRole, role)
-                .eq(status != null, User::getStatus, status)
+                .eq(NullUtil.isNotNull(status), User::getStatus, status)
                 .orderByDesc(User::getId);
         return page(new Page<>(current, size), queryWrapper);
     }
@@ -50,6 +51,6 @@ public class UserDbServiceImpl extends InfraDbServiceImpl<UserMapper, User> impl
         queryWrapper.select(User::getTokenVersion)
                 .eq(User::getId, id);
         User user = getOne(queryWrapper, false);
-        return user == null ? null : user.getTokenVersion();
+        return NullUtil.isNull(user) ? null : user.getTokenVersion();
     }
 }

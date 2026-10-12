@@ -166,7 +166,7 @@ public class RepeatNoiseMarkerImpl implements RepeatNoiseMarker {
     private void addPageMark(List<UnifiedPage> pages, Integer pageNumber, PageMark mark) {
         for (UnifiedPage page : pages) {
             if (Objects.equals(page.getPageNumber(), pageNumber)) {
-                if (page.getMarks() == null) {
+                if (NullUtil.isNull(page.getMarks())) {
                     page.setMarks(new ArrayList<>());
                 }
                 if (!page.getMarks().contains(mark.name())) {
@@ -178,7 +178,7 @@ public class RepeatNoiseMarkerImpl implements RepeatNoiseMarker {
     }
 
     private void addElementMark(UnifiedElement element, ElementMark mark) {
-        if (element.getMarks() == null) {
+        if (NullUtil.isNull(element.getMarks())) {
             element.setMarks(new ArrayList<>());
         }
         if (!element.getMarks().contains(mark.name())) {

@@ -5,6 +5,7 @@ import com.knowledge.common.enums.chunk.ChunkContentType;
 import com.knowledge.worker.chunking.slice.ChunkPostProcessor;
 import com.knowledge.worker.chunking.SliceContext;
 import com.knowledge.common.enums.chunk.PipelineKey;
+import com.knowledge.common.utils.NullUtil;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
@@ -28,7 +29,7 @@ public class StructureOverlapProcessor implements ChunkPostProcessor {
         }
         Chunk previous = null;
         for (Chunk chunk : chunks) {
-            if (previous != null && appliesTo(chunk)) {
+            if (NullUtil.isNotNull(previous) && appliesTo(chunk)) {
                 String tail = previous.getContent().substring(Math.max(0, previous.getContent().length() - overlap));
                 if (!tail.isBlank()) {
                     chunk.setContent(tail + "\n" + chunk.getContent());

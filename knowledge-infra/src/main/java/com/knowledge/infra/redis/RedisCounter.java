@@ -1,6 +1,7 @@
 package com.knowledge.infra.redis;
 
 import cn.hutool.core.util.ObjectUtil;
+import com.knowledge.common.utils.NullUtil;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.data.redis.core.script.RedisScript;
@@ -40,7 +41,7 @@ public class RedisCounter {
     /** 当前计数值；key 不存在或值不是数字时返回 0 */
     public long get(String key) {
         String value = stringRedisTemplate.opsForValue().get(key);
-        if (value == null) {
+        if (NullUtil.isNull(value)) {
             return 0L;
         }
         try {

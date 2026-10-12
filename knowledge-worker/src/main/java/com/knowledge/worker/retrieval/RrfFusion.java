@@ -1,5 +1,7 @@
 package com.knowledge.worker.retrieval;
 
+import com.knowledge.common.utils.NullUtil;
+
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -26,7 +28,7 @@ public final class RrfFusion {
     public static List<FusedHit> fuse(List<List<String>> rankedChannels, int k) {
         Map<String, Double> scores = new LinkedHashMap<>();
         for (List<String> ranked : rankedChannels) {
-            if (ranked == null) {
+            if (NullUtil.isNull(ranked)) {
                 continue;
             }
             for (int i = 0; i < ranked.size(); i++) {

@@ -2,6 +2,7 @@ package com.knowledge.worker.chunking.strategy;
 
 import com.knowledge.common.enums.chunk.ChunkAlgorithm;
 import com.knowledge.common.enums.chunk.ChunkRoute;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.chunking.ChunkProperties;
 
 /**
@@ -21,12 +22,12 @@ public final class ChunkWindowEstimator {
      * 推算切片策略可产生的最大片长（字符）；不可推算（兜底 none）返回 {@link Integer#MAX_VALUE}。
      */
     public static int maxWindowChars(ChunkStrategy strategy, ChunkProperties properties) {
-        if (strategy == null) {
+        if (NullUtil.isNull(strategy)) {
             return Integer.MAX_VALUE;
         }
         int bound = 0;
         ChunkAlgorithm body = strategy.routeAlgorithm(ChunkRoute.BODY);
-        if (body != null) {
+        if (NullUtil.isNotNull(body)) {
             switch (body) {
                 case BODY_PARAGRAPH_AGGREGATE, BODY_STRUCTURE_HYBRID, BODY_SENTENCE_AGGREGATE ->
                         bound = Math.max(bound, paramInt(strategy, ChunkRoute.BODY, ChunkParamKeys.SOFT_MAX_LEN,
@@ -54,7 +55,7 @@ public final class ChunkWindowEstimator {
 
     private static int paramInt(ChunkStrategy strategy, ChunkRoute route, String key, int defaultValue) {
         ChunkRouteConfig config = strategy.route(route);
-        if (config == null) {
+        if (NullUtil.isNull(config)) {
             return defaultValue;
         }
         return config.intParam(key, defaultValue);

@@ -190,7 +190,7 @@ public class PptDocumentParser extends AbstractPoiDocumentParser {
 
     /** 字节头兜底：PNG / JPEG / GIF / BMP 之外一律按 png */
     private String suffixByMagic(byte[] bytes) {
-        if (bytes == null || bytes.length < 3) {
+        if (NullUtil.isNull(bytes) || bytes.length < 3) {
             return "png";
         }
         if ((bytes[0] & 0xFF) == 0xFF && (bytes[1] & 0xFF) == 0xD8) {

@@ -4,6 +4,7 @@ import com.knowledge.common.domain.storage.ObjectRef;
 import com.knowledge.common.enums.storage.StorageType;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
+import com.knowledge.common.exception.ThrowUtil;
 import com.knowledge.common.utils.NullUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -140,13 +141,10 @@ public class StorageRouter {
      * @throws KnowledgeException ID 为空或未注册（40455）
      */
     public StorageProvider of(Long sourceId) {
-        if (NullUtil.isNull(sourceId)) {
-            throw new KnowledgeException(ErrorCode.STORAGE_BACKEND_UNCONFIGURED, "当前没有启用的存储数据源");
-        }
-        if (!defs.containsKey(sourceId)) {
-            throw new KnowledgeException(ErrorCode.STORAGE_BACKEND_UNCONFIGURED,
-                    "存储数据源未注册: sourceId=" + sourceId);
-        }
+        ThrowUtil.throwIf(NullUtil.isNull(sourceId), ErrorCode.STORAGE_BACKEND_UNCONFIGURED,
+                "当前没有启用的存储数据源");
+        ThrowUtil.throwIf(!defs.containsKey(sourceId), ErrorCode.STORAGE_BACKEND_UNCONFIGURED,
+                "存储数据源未注册: sourceId=" + sourceId);
         return providers.computeIfAbsent(sourceId, this::create);
     }
 
@@ -158,19 +156,16 @@ public class StorageRouter {
     /** 当前启用的数据源定义；未启用时抛 40455 */
     private StorageSourceDef requireCurrentDef() {
         StorageSourceDef def = currentDef();
-        if (NullUtil.isNull(def)) {
-            throw new KnowledgeException(ErrorCode.STORAGE_BACKEND_UNCONFIGURED, "当前没有启用的存储数据源");
-        }
+        ThrowUtil.throwIf(NullUtil.isNull(def), ErrorCode.STORAGE_BACKEND_UNCONFIGURED,
+                "当前没有启用的存储数据源");
         return def;
     }
 
     /** 构造并初始化提供者：定义在构造与初始化之间被换掉时按未注册处理 */
     private StorageProvider create(Long sourceId) {
         StorageSourceDef def = defs.get(sourceId);
-        if (NullUtil.isNull(def)) {
-            throw new KnowledgeException(ErrorCode.STORAGE_BACKEND_UNCONFIGURED,
-                    "存储数据源未注册: sourceId=" + sourceId);
-        }
+        ThrowUtil.throwIf(NullUtil.isNull(def), ErrorCode.STORAGE_BACKEND_UNCONFIGURED,
+                "存储数据源未注册: sourceId=" + sourceId);
         StorageProvider provider = StorageProviderFactory.create(def);
         provider.initialize();
         return provider;

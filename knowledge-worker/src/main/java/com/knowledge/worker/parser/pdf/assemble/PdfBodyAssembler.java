@@ -43,7 +43,7 @@ public final class PdfBodyAssembler {
     private static List<PageLine> applyLayoutCapability(List<PageLine> bodyLines, PageContent page,
                                                         ParseSource source, ParseProperties properties,
                                                         CapabilityRegistry capabilityRegistry) {
-        if (capabilityRegistry == null || !LayoutComplexity.isComplex(bodyLines, properties)) {
+        if (NullUtil.isNull(capabilityRegistry) || !LayoutComplexity.isComplex(bodyLines, properties)) {
             return bodyLines;
         }
         PageImage image = new PageImage();

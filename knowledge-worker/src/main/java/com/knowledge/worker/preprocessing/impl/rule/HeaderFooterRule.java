@@ -5,6 +5,7 @@ import com.knowledge.common.enums.preprocess.ViewElementStatus;
 import com.knowledge.common.domain.preprocess.ViewElement;
 import com.knowledge.common.enums.preprocess.PreprocessAction;
 import com.knowledge.common.enums.preprocess.PreprocessRule;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.preprocessing.rule.CleanRule;
 import com.knowledge.worker.preprocessing.strategy.PreprocessStrategy;
 import com.knowledge.worker.preprocessing.rule.RuleContext;
@@ -37,7 +38,7 @@ public class HeaderFooterRule implements CleanRule {
 
     @Override
     public boolean enabledIn(PreprocessStrategy strategy) {
-        return strategy.rule(PreprocessRule.HEADER_FOOTER) != null;
+        return NullUtil.isNotNull(strategy.rule(PreprocessRule.HEADER_FOOTER));
     }
 
     @Override

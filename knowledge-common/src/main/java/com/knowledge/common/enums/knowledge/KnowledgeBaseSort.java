@@ -1,5 +1,7 @@
 package com.knowledge.common.enums.knowledge;
 
+import com.knowledge.common.utils.NullUtil;
+
 /**
  * 知识库列表排序口径（kb_knowledge_base 分页列表）。
  *
@@ -25,7 +27,7 @@ public enum KnowledgeBaseSort {
      * @return 排序口径
      */
     public static KnowledgeBaseSort of(String name) {
-        if (name == null || name.isBlank()) {
+        if (NullUtil.isNull(name) || name.isBlank()) {
             return DEFAULT;
         }
         for (KnowledgeBaseSort sort : values()) {

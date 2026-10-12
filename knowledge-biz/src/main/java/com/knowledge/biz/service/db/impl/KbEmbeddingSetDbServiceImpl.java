@@ -5,6 +5,7 @@ import com.knowledge.biz.mapper.KbEmbeddingSetMapper;
 import com.knowledge.biz.service.db.KbEmbeddingSetDbService;
 import com.knowledge.common.domain.entity.KbEmbeddingSet;
 import com.knowledge.common.enums.task.RowStatus;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.infra.persistence.InfraDbServiceImpl;
 import org.springframework.stereotype.Service;
 
@@ -59,7 +60,7 @@ public class KbEmbeddingSetDbServiceImpl extends InfraDbServiceImpl<KbEmbeddingS
 
     @Override
     public List<KbEmbeddingSet> listByFileResultIds(List<Long> fileResultIds) {
-        if (fileResultIds == null || fileResultIds.isEmpty()) {
+        if (NullUtil.isNull(fileResultIds) || fileResultIds.isEmpty()) {
             return List.of();
         }
         LambdaQueryWrapper<KbEmbeddingSet> queryWrapper = new LambdaQueryWrapper<>();

@@ -1,6 +1,7 @@
 package com.knowledge.worker.parser;
 
 import com.knowledge.common.enums.input.FileFormat;
+import com.knowledge.common.exception.ThrowUtil;
 import com.knowledge.worker.input.FileValidationProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
@@ -43,9 +44,7 @@ public class ParserWhitelistChecker implements ApplicationRunner {
         List<String> unsupported = enabled.stream()
                 .filter(format -> parserPorts.stream().noneMatch(parser -> parser.supports(format.getMimeType())))
                 .map(Enum::name).toList();
-        if (!unsupported.isEmpty()) {
-            throw new IllegalStateException("白名单格式没有可用的解析器: " + unsupported);
-        }
+        ThrowUtil.throwIf(!unsupported.isEmpty(), () -> new IllegalStateException("白名单格式没有可用的解析器: " + unsupported));
         for (FileFormat format : FileFormat.values()) {
             boolean parserExists = parserPorts.stream().anyMatch(parser -> parser.supports(format.getMimeType()));
             if (parserExists && !enabled.contains(format)) {

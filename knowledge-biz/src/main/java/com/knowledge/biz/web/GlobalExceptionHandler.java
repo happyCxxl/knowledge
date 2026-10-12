@@ -3,6 +3,7 @@ package com.knowledge.biz.web;
 import com.knowledge.common.dto.response.R;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
+import com.knowledge.common.utils.NullUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
@@ -41,9 +42,9 @@ public class GlobalExceptionHandler {
     public R<Void> handleHttpMessageNotReadable(HttpMessageNotReadableException e) {
         String msg = "请求体解析失败，";
         String detail = e.getMessage();
-        if (detail != null && detail.contains("Required request body is missing")) {
+        if (NullUtil.isNotNull(detail) && detail.contains("Required request body is missing")) {
             msg = "请求体缺失";
-        } else if (detail != null && detail.contains("JSON parse error")) {
+        } else if (NullUtil.isNotNull(detail) && detail.contains("JSON parse error")) {
             msg = "JSON 格式错误";
         }
         log.warn("===> GlobalExceptionHandler 请求体读取失败: {}", detail);

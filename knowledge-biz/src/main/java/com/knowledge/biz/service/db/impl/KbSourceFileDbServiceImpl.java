@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.knowledge.biz.mapper.KbSourceFileMapper;
 import com.knowledge.biz.service.db.KbSourceFileDbService;
 import com.knowledge.common.domain.entity.KbSourceFile;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.infra.persistence.InfraDbServiceImpl;
 import org.springframework.stereotype.Service;
 
@@ -28,7 +29,7 @@ public class KbSourceFileDbServiceImpl extends InfraDbServiceImpl<KbSourceFileMa
 
     @Override
     public List<KbSourceFile> listByFileIds(Collection<String> fileIds) {
-        if (fileIds == null || fileIds.isEmpty()) {
+        if (NullUtil.isNull(fileIds) || fileIds.isEmpty()) {
             return List.of();
         }
         LambdaQueryWrapper<KbSourceFile> queryWrapper = new LambdaQueryWrapper<>();

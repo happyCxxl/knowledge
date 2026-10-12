@@ -9,7 +9,7 @@ import com.knowledge.common.dto.response.task.StageDetailVO;
 import com.knowledge.common.dto.response.task.StepLogVO;
 import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.error.ErrorCode;
-import com.knowledge.common.exception.KnowledgeException;
+import com.knowledge.common.exception.ThrowUtil;
 import com.knowledge.common.utils.NullUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -38,11 +38,10 @@ public class TaskDetailSupport {
             return pipelineTaskDbService.getByFileResultIdAndStage(fileResultId, stage.name());
         }
         KbPipelineTask task = pipelineTaskDbService.getById(taskId);
-        if (NullUtil.isNull(task)
+        ThrowUtil.throwIf(NullUtil.isNull(task)
                 || !fileResultId.equals(task.getFileResultId())
-                || !stage.name().equals(task.getStage())) {
-            throw new KnowledgeException(ErrorCode.PARAM_INVALID, "任务不存在或不属于该文件的" + stageLabel + "任务");
-        }
+                || !stage.name().equals(task.getStage()), ErrorCode.PARAM_INVALID,
+                "任务不存在或不属于该文件的" + stageLabel + "任务");
         return task;
     }
 
@@ -67,7 +66,7 @@ public class TaskDetailSupport {
      * 该次运行的产物：按 {@code task.productId} 取；无任务或无产物时返回 null（各环节据此留空）。
      */
     public KbPipelineProduct productOfTask(KbPipelineTask task) {
-        return NullUtil.isNull(task) || task.getProductId() == null ? null
+        return NullUtil.isNull(task) || NullUtil.isNull(task.getProductId()) ? null
                 : pipelineProductDbService.getById(task.getProductId());
     }
 

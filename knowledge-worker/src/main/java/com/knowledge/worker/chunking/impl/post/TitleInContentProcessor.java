@@ -5,6 +5,7 @@ import com.knowledge.common.enums.chunk.ChunkContentType;
 import com.knowledge.worker.chunking.slice.ChunkPostProcessor;
 import com.knowledge.worker.chunking.SliceContext;
 import com.knowledge.common.enums.chunk.PipelineKey;
+import com.knowledge.common.utils.NullUtil;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
@@ -30,7 +31,7 @@ public class TitleInContentProcessor implements ChunkPostProcessor {
             if (ChunkContentType.SECTION.name().equals(chunk.getContentType())) {
                 continue;
             }
-            if (chunk.getTitlePath() == null || chunk.getTitlePath().isBlank()) {
+            if (NullUtil.isNull(chunk.getTitlePath()) || chunk.getTitlePath().isBlank()) {
                 continue;
             }
             chunk.setContent(chunk.getTitlePath() + "\n" + chunk.getContent());

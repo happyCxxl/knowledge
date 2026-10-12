@@ -14,11 +14,41 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * ThrowUtil 单测：条件成立按错误码抛出（默认 message / detail 覆盖）；条件不成立不抛；
- * 带补充动作的重载先执行动作再抛，且动作自身失败时不掩盖业务异常。
+ * 带补充动作的重载先执行动作再抛，且动作自身失败时不掩盖业务异常；
+ * 内部异常走异常工厂重载（类型任意、条件不成立时不构造、消息可安全解引用被检查对象）。
  *
  * @author cxxl
  */
 class ThrowUtilTest {
+
+    @Test
+    void throwIfShouldThrowSuppliedInternalException() {
+        IllegalStateException e = assertThrows(IllegalStateException.class,
+                () -> ThrowUtil.throwIf(true, () -> new IllegalStateException("策略快照为空或已损坏")));
+
+        assertEquals("策略快照为空或已损坏", e.getMessage());
+    }
+
+    @Test
+    void throwIfShouldSupportAnyInternalExceptionType() {
+        assertThrows(IllegalArgumentException.class,
+                () -> ThrowUtil.throwIf(true, () -> new IllegalArgumentException("入参非法")));
+        assertThrows(UnsupportedOperationException.class,
+                () -> ThrowUtil.throwIf(true, () -> new UnsupportedOperationException("不支持的类型")));
+    }
+
+    @Test
+    void throwIfShouldNotEvaluateSupplierWhenConditionFalse() {
+        AtomicBoolean built = new AtomicBoolean(false);
+        String nullable = null;
+
+        assertDoesNotThrow(() -> ThrowUtil.throwIf(false, () -> {
+            built.set(true);
+            return new IllegalStateException("长度=" + nullable.length());
+        }));
+
+        assertFalse(built.get(), "条件不成立时异常工厂不应被调用");
+    }
 
     @Test
     void throwIfShouldThrowWithDefaultMessage() {

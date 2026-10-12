@@ -7,6 +7,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.knowledge.biz.mapper.KbIndexSetMapper;
 import com.knowledge.biz.service.db.KbIndexSetDbService;
 import com.knowledge.common.domain.entity.KbIndexSet;
+import com.knowledge.common.utils.NullUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
@@ -48,7 +49,7 @@ public class KbIndexSetDbServiceImpl extends ServiceImpl<KbIndexSetMapper, KbInd
     @Override
     public KbIndexSet getOrCreateByKb(Long knowledgeBaseId) {
         KbIndexSet existing = getByKb(knowledgeBaseId);
-        if (existing != null) {
+        if (NullUtil.isNotNull(existing)) {
             return existing;
         }
         KbIndexSet created = new KbIndexSet();

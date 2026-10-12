@@ -3,6 +3,8 @@ package com.knowledge.filecenter.config;
 import com.knowledge.common.enums.storage.StorageType;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
+import com.knowledge.common.exception.ThrowUtil;
+import com.knowledge.common.utils.NullUtil;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
@@ -38,10 +40,8 @@ public class FileCenterConfig {
      */
     public StorageType defaultType() {
         StorageType type = StorageType.of(storageType);
-        if (type == null) {
-            throw new KnowledgeException(ErrorCode.SYSTEM_ERROR,
-                    "file-center.storage-type 取值非法: " + storageType);
-        }
+        ThrowUtil.throwIf(NullUtil.isNull(type), ErrorCode.SYSTEM_ERROR,
+                "file-center.storage-type 取值非法: " + storageType);
         return type;
     }
 

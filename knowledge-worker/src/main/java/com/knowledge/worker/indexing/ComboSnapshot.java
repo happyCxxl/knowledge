@@ -4,7 +4,7 @@ import cn.hutool.core.util.StrUtil;
 import com.knowledge.common.enums.index.IndexShape;
 import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.error.ErrorCode;
-import com.knowledge.common.exception.KnowledgeException;
+import com.knowledge.common.exception.ThrowUtil;
 import com.knowledge.common.utils.NullUtil;
 import lombok.Data;
 
@@ -75,9 +75,7 @@ public class ComboSnapshot implements Serializable {
 
     /** 格式断言（抛）：三环节策略维度不完整 → 40448（需废弃重灌，不静默降级） */
     public void requireStageStrategies() {
-        if (!hasCompleteStageStrategies()) {
-            throw new KnowledgeException(ErrorCode.INDEX_COMBO_SNAPSHOT_LEGACY);
-        }
+        ThrowUtil.throwIf(!hasCompleteStageStrategies(), ErrorCode.INDEX_COMBO_SNAPSHOT_LEGACY);
     }
 
     /** 是否评测冻结集范围（LIST） */

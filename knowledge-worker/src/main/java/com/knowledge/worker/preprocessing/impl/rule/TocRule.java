@@ -6,6 +6,7 @@ import com.knowledge.common.domain.preprocess.ViewElement;
 import com.knowledge.common.enums.preprocess.PreprocessAction;
 import com.knowledge.common.enums.preprocess.PreprocessParam;
 import com.knowledge.common.enums.preprocess.PreprocessRule;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.preprocessing.rule.CleanRule;
 import com.knowledge.worker.preprocessing.strategy.PreprocessStrategy;
 import com.knowledge.worker.preprocessing.rule.RuleContext;
@@ -39,17 +40,17 @@ public class TocRule implements CleanRule {
 
     @Override
     public boolean enabledIn(PreprocessStrategy strategy) {
-        return strategy.rule(PreprocessRule.TOC) != null;
+        return NullUtil.isNotNull(strategy.rule(PreprocessRule.TOC));
     }
 
     @Override
     public RuleOutcome apply(ViewElement element, RuleContext context) {
-        if (element.getMarks() == null || !element.getMarks().contains(ElementMark.TOC_LINE.name())) {
+        if (NullUtil.isNull(element.getMarks()) || !element.getMarks().contains(ElementMark.TOC_LINE.name())) {
             return RuleOutcome.none();
         }
         boolean tocPage;
         String evidence;
-        if (element.getPage() != null) {
+        if (NullUtil.isNotNull(element.getPage())) {
             int count = context.getTocLineCountByPage().getOrDefault(element.getPage(), 0);
             int minLinesPerPage = context.getStrategy()
                     .intParam(PreprocessRule.TOC, PreprocessParam.TOC_MIN_LINES_PER_PAGE,

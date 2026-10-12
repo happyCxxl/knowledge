@@ -4,6 +4,7 @@ import com.knowledge.common.enums.preprocess.ViewElementStatus;
 import com.knowledge.common.domain.preprocess.ViewElement;
 import com.knowledge.common.enums.preprocess.PreprocessAction;
 import com.knowledge.common.enums.preprocess.PreprocessRule;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.preprocessing.rule.CleanRule;
 import com.knowledge.worker.preprocessing.strategy.PreprocessStrategy;
 import com.knowledge.worker.preprocessing.rule.RuleContext;
@@ -37,12 +38,12 @@ public class NoiseRule implements CleanRule {
 
     @Override
     public boolean enabledIn(PreprocessStrategy strategy) {
-        return strategy.rule(PreprocessRule.NOISE) != null;
+        return NullUtil.isNotNull(strategy.rule(PreprocessRule.NOISE));
     }
 
     @Override
     public RuleOutcome apply(ViewElement element, RuleContext context) {
-        if (element.getPage() == null || !context.getNoisePageNumbers().contains(element.getPage())) {
+        if (NullUtil.isNull(element.getPage()) || !context.getNoisePageNumbers().contains(element.getPage())) {
             return RuleOutcome.none();
         }
         String opt = context.getStrategy().action(PreprocessRule.NOISE, PreprocessAction.MARK.name());

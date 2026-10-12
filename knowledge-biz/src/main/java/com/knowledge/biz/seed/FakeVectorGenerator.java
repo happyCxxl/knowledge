@@ -1,5 +1,7 @@
 package com.knowledge.biz.seed;
 
+import com.knowledge.common.exception.ThrowUtil;
+
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -38,9 +40,7 @@ public final class FakeVectorGenerator {
      * @throws IllegalArgumentException 维度非正
      */
     public static List<Float> generate(String text, int dimension) {
-        if (dimension <= 0) {
-            throw new IllegalArgumentException("向量维度必须为正: " + dimension);
-        }
+        ThrowUtil.throwIf(dimension <= 0, () -> new IllegalArgumentException("向量维度必须为正: " + dimension));
         long seed = seedOf(text);
         java.util.Random random = new java.util.Random(seed);
 

@@ -112,10 +112,10 @@ public class IndexComboServiceImpl implements IndexComboService {
      */
     public List<ComboSnapshot> combosFor(Long knowledgeBaseId) {
         KnowledgeBase kb = knowledgeBaseDbService.getById(knowledgeBaseId);
-        boolean bindingEnabled = kb == null || StrategyBindingSwitch.isOn(kb.getStrategyBindingEnabled());
+        boolean bindingEnabled = NullUtil.isNull(kb) || StrategyBindingSwitch.isOn(kb.getStrategyBindingEnabled());
         if (bindingEnabled) {
             ComboSnapshot bound = resolveBoundCombo(knowledgeBaseId);
-            return bound == null ? List.of() : List.of(bound);
+            return NullUtil.isNull(bound) ? List.of() : List.of(bound);
         }
         return enumerateCombos(knowledgeBaseId);
     }

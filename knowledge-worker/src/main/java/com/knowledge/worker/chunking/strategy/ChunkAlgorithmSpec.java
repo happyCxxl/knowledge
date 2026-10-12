@@ -4,6 +4,7 @@ import com.knowledge.common.enums.chunk.ChunkAlgorithm;
 import com.knowledge.common.enums.chunk.ChunkParam;
 import com.knowledge.common.enums.chunk.ChunkRoute;
 import com.knowledge.common.enums.chunk.PipelineKey;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.chunking.ChunkProperties;
 
 import cn.hutool.core.util.StrUtil;
@@ -39,7 +40,7 @@ public final class ChunkAlgorithmSpec {
     /** 算法键是否在当前支持集（biz 保存校验 + 前端置灰依据） */
     public static boolean isSupported(ChunkRoute route, String algorithmKey) {
         ChunkAlgorithm algorithm = ChunkAlgorithm.of(route, algorithmKey);
-        return algorithm != null && algorithm.supported();
+        return NullUtil.isNotNull(algorithm) && algorithm.supported();
     }
 
     // ---------------- 参数默认补齐与流程层默认 ----------------
@@ -48,10 +49,10 @@ public final class ChunkAlgorithmSpec {
      * 解析后补全：缺省路由用默认算法、缺省参数用全局默认（ChunkProperties，Nacos 可调）、流程层键补默认。
      */
     public static ChunkStrategy normalize(ChunkStrategy strategy, ChunkProperties properties) {
-        if (strategy.getRoutes() == null) {
+        if (NullUtil.isNull(strategy.getRoutes())) {
             strategy.setRoutes(new HashMap<>());
         }
-        if (strategy.getPipeline() == null) {
+        if (NullUtil.isNull(strategy.getPipeline())) {
             strategy.setPipeline(new HashMap<>());
         }
         for (ChunkRoute route : ChunkRoute.values()) {
@@ -70,14 +71,14 @@ public final class ChunkAlgorithmSpec {
 
     private static void normalizeRoute(ChunkStrategy strategy, ChunkRoute route, ChunkProperties properties) {
         ChunkRouteConfig config = strategy.getRoutes().get(route.key());
-        if (config == null) {
+        if (NullUtil.isNull(config)) {
             config = new ChunkRouteConfig();
             strategy.getRoutes().put(route.key(), config);
         }
         if (StrUtil.isBlank(config.getAlgorithm())) {
             config.setAlgorithm(defaultAlgorithm(route).key());
         }
-        if (config.getParams() == null) {
+        if (NullUtil.isNull(config.getParams())) {
             config.setParams(new HashMap<>());
         }
         defaultParams(route, config.getAlgorithm(), properties).forEach(config.getParams()::putIfAbsent);
@@ -87,7 +88,7 @@ public final class ChunkAlgorithmSpec {
     public static Map<String, String> defaultParams(ChunkRoute route, String algorithmKey, ChunkProperties properties) {
         Map<String, String> defaults = new LinkedHashMap<>();
         ChunkAlgorithm algorithm = ChunkAlgorithm.of(route, algorithmKey);
-        if (algorithm == null) {
+        if (NullUtil.isNull(algorithm)) {
             return defaults;
         }
         switch (algorithm) {
@@ -131,17 +132,17 @@ public final class ChunkAlgorithmSpec {
     /** 校验配置 JSON 结构；非法返回错误信息，合法返回 null。configSnapshot 应为 {"routes":{...},"pipeline":{...}} 结构（无 type/name/version 顶层键）。 */
     @SuppressWarnings("unchecked")
     public static String validate(Map<String, Object> config) {
-        if (config == null) {
+        if (NullUtil.isNull(config)) {
             return "配置不能为空";
         }
         Object routesObj = config.get("routes");
-        if (routesObj != null && !(routesObj instanceof Map)) {
+        if (NullUtil.isNotNull(routesObj) && !(routesObj instanceof Map)) {
             return "routes 必须是对象";
         }
-        Map<String, Object> routes = (Map<String, Object>) (routesObj == null ? Map.of() : routesObj);
+        Map<String, Object> routes = (Map<String, Object>) (NullUtil.isNull(routesObj) ? Map.of() : routesObj);
         for (ChunkRoute route : ChunkRoute.values()) {
             Object routeObj = routes.get(route.key());
-            if (routeObj != null) {
+            if (NullUtil.isNotNull(routeObj)) {
                 if (!(routeObj instanceof Map)) {
                     return "routes." + route.key() + " 必须是对象";
                 }
@@ -151,7 +152,7 @@ public final class ChunkAlgorithmSpec {
                     return "算法尚未支持: " + route.key() + "." + algorithm;
                 }
                 String paramError = validateParams(route, algorithm, routeMap);
-                if (paramError != null) {
+                if (NullUtil.isNotNull(paramError)) {
                     return paramError;
                 }
             }
@@ -162,11 +163,11 @@ public final class ChunkAlgorithmSpec {
 
     private static String validateParams(ChunkRoute route, String algorithmKey, Map<String, Object> routeMap) {
         Object paramsObj = routeMap.get("params");
-        if (paramsObj != null && !(paramsObj instanceof Map)) {
+        if (NullUtil.isNotNull(paramsObj) && !(paramsObj instanceof Map)) {
             return "routes." + route.key() + ".params 必须是对象";
         }
         @SuppressWarnings("unchecked")
-        Map<String, Object> params = (Map<String, Object>) (paramsObj == null ? Map.of() : paramsObj);
+        Map<String, Object> params = (Map<String, Object>) (NullUtil.isNull(paramsObj) ? Map.of() : paramsObj);
         // 允许的键与范围：单一事实源在 ChunkParam（按算法索引）
         Map<String, ChunkParam> allowed = new LinkedHashMap<>();
         for (ChunkParam param : ChunkParam.ofAlgorithm(ChunkAlgorithm.of(route, algorithmKey))) {
@@ -174,7 +175,7 @@ public final class ChunkAlgorithmSpec {
         }
         for (Map.Entry<String, Object> entry : params.entrySet()) {
             ChunkParam param = allowed.get(entry.getKey());
-            if (param == null) {
+            if (NullUtil.isNull(param)) {
                 continue; // 未知参数键透传不报错（前向兼容）
             }
             try {
@@ -211,7 +212,7 @@ public final class ChunkAlgorithmSpec {
             Map<String, Object> body = (Map<String, Object>) bodyObj;
             String algorithm = String.valueOf(body.getOrDefault("algorithm", ""));
             ChunkAlgorithm bodyAlgorithm = ChunkAlgorithm.of(ChunkRoute.BODY, algorithm);
-            if (bodyAlgorithm != null && Set.of(ChunkAlgorithm.BODY_PARAGRAPH_AGGREGATE,
+            if (NullUtil.isNotNull(bodyAlgorithm) && Set.of(ChunkAlgorithm.BODY_PARAGRAPH_AGGREGATE,
                     ChunkAlgorithm.BODY_STRUCTURE_HYBRID, ChunkAlgorithm.BODY_SENTENCE_AGGREGATE)
                     .contains(bodyAlgorithm)) {
                 Object paramsObj = body.get("params");
@@ -238,7 +239,7 @@ public final class ChunkAlgorithmSpec {
     }
 
     private static int intOf(Object value, int defaultValue) {
-        if (value == null) {
+        if (NullUtil.isNull(value)) {
             return defaultValue;
         }
         try {

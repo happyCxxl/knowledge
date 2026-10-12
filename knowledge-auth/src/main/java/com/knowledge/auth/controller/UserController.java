@@ -12,6 +12,7 @@ import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.ThrowUtil;
 import com.knowledge.common.annotation.AdminOnly;
 import com.knowledge.common.security.KnowledgeUser;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.common.utils.SecurityUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -106,7 +107,7 @@ public class UserController {
      */
     private Long currentUserId() {
         KnowledgeUser user = SecurityUtil.getUser();
-        ThrowUtil.throwIf(user == null || user.getId() == null, ErrorCode.UNAUTHORIZED);
+        ThrowUtil.throwIf(NullUtil.isNull(user) || NullUtil.isNull(user.getId()), ErrorCode.UNAUTHORIZED);
         return user.getId();
     }
 }

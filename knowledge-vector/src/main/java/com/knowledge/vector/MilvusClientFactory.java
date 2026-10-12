@@ -1,5 +1,6 @@
 package com.knowledge.vector;
 
+import com.knowledge.common.utils.NullUtil;
 import io.milvus.v2.client.ConnectConfig;
 import io.milvus.v2.client.MilvusClientV2;
 import io.milvus.v2.service.database.request.CreateDatabaseReq;
@@ -91,7 +92,7 @@ public class MilvusClientFactory {
 
     /** 关客户端：为 null 直接返回，关闭异常只告警（生命周期收尾不抛） */
     private void closeQuietly(MilvusClientV2 clientToClose) {
-        if (clientToClose == null) {
+        if (NullUtil.isNull(clientToClose)) {
             return;
         }
         try {
@@ -103,7 +104,7 @@ public class MilvusClientFactory {
 
     /** 是否是无须探测的库：空值按 SDK 的 default 处理 */
     private static boolean isDefaultDatabase(String database) {
-        return database == null || database.isBlank() || DEFAULT_DATABASE.equalsIgnoreCase(database);
+        return NullUtil.isNull(database) || database.isBlank() || DEFAULT_DATABASE.equalsIgnoreCase(database);
     }
 
     /**
@@ -113,6 +114,6 @@ public class MilvusClientFactory {
         if (isDefaultDatabase(database)) {
             return false;
         }
-        return existingDatabases == null || !existingDatabases.contains(database);
+        return NullUtil.isNull(existingDatabases) || !existingDatabases.contains(database);
     }
 }

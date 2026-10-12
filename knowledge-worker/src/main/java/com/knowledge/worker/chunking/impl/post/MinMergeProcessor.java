@@ -5,6 +5,7 @@ import com.knowledge.common.enums.chunk.ChunkContentType;
 import com.knowledge.worker.chunking.slice.ChunkPostProcessor;
 import com.knowledge.worker.chunking.SliceContext;
 import com.knowledge.common.enums.chunk.PipelineKey;
+import com.knowledge.common.utils.NullUtil;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
@@ -36,7 +37,7 @@ public class MinMergeProcessor implements ChunkPostProcessor {
         for (Chunk chunk : chunks) {
             if (isBody(chunk)) {
                 // 仅与"紧邻的前一个正文片"合并（不跨表格/图片，保持正文组连续口径）
-                if (chunk.getCharCount() < minMergeLen && lastBody != null && lastBodyIndex == kept.size() - 1) {
+                if (chunk.getCharCount() < minMergeLen && NullUtil.isNotNull(lastBody) && lastBodyIndex == kept.size() - 1) {
                     mergeInto(lastBody, chunk);
                     continue;
                 }
@@ -58,17 +59,17 @@ public class MinMergeProcessor implements ChunkPostProcessor {
     private void mergeInto(Chunk target, Chunk fragment) {
         target.setContent(target.getContent() + "\n" + fragment.getContent());
         target.setCharCount(target.getContent().length());
-        if (fragment.getSourceElementIds() != null) {
-            List<String> ids = new ArrayList<>(target.getSourceElementIds() == null
+        if (NullUtil.isNotNull(fragment.getSourceElementIds())) {
+            List<String> ids = new ArrayList<>(NullUtil.isNull(target.getSourceElementIds())
                     ? List.of() : target.getSourceElementIds());
             ids.addAll(fragment.getSourceElementIds());
             target.setSourceElementIds(ids);
         }
         Set<Integer> pages = new HashSet<>();
-        if (target.getPageRange() != null) {
+        if (NullUtil.isNotNull(target.getPageRange())) {
             pages.addAll(target.getPageRange());
         }
-        if (fragment.getPageRange() != null) {
+        if (NullUtil.isNotNull(fragment.getPageRange())) {
             pages.addAll(fragment.getPageRange());
         }
         target.setPageRange(pages.isEmpty() ? null : pages.stream().sorted().toList());

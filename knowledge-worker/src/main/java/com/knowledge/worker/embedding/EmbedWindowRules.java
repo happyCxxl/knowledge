@@ -1,6 +1,7 @@
 package com.knowledge.worker.embedding;
 
 import cn.hutool.core.util.ObjectUtil;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.chunking.ChunkProperties;
 import com.knowledge.worker.chunking.strategy.ChunkStrategy;
 import com.knowledge.worker.chunking.strategy.ChunkWindowEstimator;
@@ -23,7 +24,7 @@ public final class EmbedWindowRules {
      */
     public static WindowBound resolve(ChunkStrategy chunkStrategy, ChunkProperties chunkProperties,
                                       EmbedStrategy strategy, EmbedProperties embedProperties) {
-        if (chunkStrategy == null) {
+        if (NullUtil.isNull(chunkStrategy)) {
             return new WindowBound(0, 0, false);
         }
         int bound = ChunkWindowEstimator.maxWindowChars(chunkStrategy, chunkProperties);

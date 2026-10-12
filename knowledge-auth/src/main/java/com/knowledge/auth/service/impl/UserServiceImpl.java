@@ -22,6 +22,7 @@ import com.knowledge.common.enums.user.UserStatus;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.ThrowUtil;
 import com.knowledge.common.security.KnowledgeUser;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.common.utils.SecurityUtil;
 import com.knowledge.common.security.audit.AuditEventPublisher;
 import com.knowledge.common.utils.JsonUtil;
@@ -71,7 +72,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public Long addUser(UserCreateRequest request) {
-        ThrowUtil.throwIf(userDbService.findActiveByUsername(request.getUsername()) != null,
+        ThrowUtil.throwIf(NullUtil.isNotNull(userDbService.findActiveByUsername(request.getUsername())),
                 ErrorCode.USERNAME_EXISTS);
         User user = new User();
         user.setUsername(request.getUsername());
@@ -80,7 +81,7 @@ public class UserServiceImpl implements UserService {
         user.setPhone(StrUtil.trimToNull(request.getPhone()));
         user.setPassword(passwordEncoder.encode(request.getPassword()));
         user.setRole(parseRole(request.getRole()).getCode());
-        user.setStatus(request.getStatus() == null
+        user.setStatus(NullUtil.isNull(request.getStatus())
                 ? Integer.valueOf(UserStatus.ENABLED.getCode()) : parseStatus(request.getStatus()));
         userDbService.save(user);
         auditEventPublisher.publish(AuditActionType.USER_CREATE, AUDIT_OBJECT_TYPE, user.getId(),
@@ -91,12 +92,12 @@ public class UserServiceImpl implements UserService {
     @Override
     public void updateUser(Long id, UserUpdateRequest request) {
         User user = userDbService.getById(id);
-        ThrowUtil.throwIf(user == null, ErrorCode.USER_NOT_FOUND);
+        ThrowUtil.throwIf(NullUtil.isNull(user), ErrorCode.USER_NOT_FOUND);
         String beforeSummary = auditSummary(user);
         // 自保护：不允许改自己的角色或状态，避免管理员把自己锁在外面
         boolean self = isSelf(id);
-        boolean roleChanged = request.getRole() != null;
-        boolean statusChanged = request.getStatus() != null;
+        boolean roleChanged = NullUtil.isNotNull(request.getRole());
+        boolean statusChanged = NullUtil.isNotNull(request.getStatus());
         ThrowUtil.throwIf(self && (roleChanged || statusChanged), ErrorCode.USER_SELF_OPERATION_FORBIDDEN);
 
         // 解析目标值并校验合法（非法码值/状态不落库）
@@ -122,13 +123,13 @@ public class UserServiceImpl implements UserService {
             user.setPassword(passwordEncoder.encode(request.getPassword()));
         }
         // 资料字段：不传表示不变，传空串表示清空（真实姓名的空值已由校验拦下）
-        if (request.getDisplayName() != null) {
+        if (NullUtil.isNotNull(request.getDisplayName())) {
             user.setDisplayName(request.getDisplayName());
         }
-        if (request.getEmail() != null) {
+        if (NullUtil.isNotNull(request.getEmail())) {
             user.setEmail(StrUtil.trimToNull(request.getEmail()));
         }
-        if (request.getPhone() != null) {
+        if (NullUtil.isNotNull(request.getPhone())) {
             user.setPhone(StrUtil.trimToNull(request.getPhone()));
         }
         // 凭据或权限变更：递增令牌版本，让该账号已签发的令牌立即失效
@@ -143,7 +144,7 @@ public class UserServiceImpl implements UserService {
     @Override
     public void deleteUser(Long id) {
         User user = userDbService.getById(id);
-        ThrowUtil.throwIf(user == null, ErrorCode.USER_NOT_FOUND);
+        ThrowUtil.throwIf(NullUtil.isNull(user), ErrorCode.USER_NOT_FOUND);
         // 自保护：不允许删除自己
         ThrowUtil.throwIf(isSelf(id), ErrorCode.USER_SELF_OPERATION_FORBIDDEN);
         // 删除启用中的管理员前确认系统仍有其他启用的管理员
@@ -158,14 +159,14 @@ public class UserServiceImpl implements UserService {
     @Override
     public UserVO getUserProfile(Long id) {
         User user = userDbService.getById(id);
-        ThrowUtil.throwIf(user == null, ErrorCode.USER_NOT_FOUND);
+        ThrowUtil.throwIf(NullUtil.isNull(user), ErrorCode.USER_NOT_FOUND);
         return toUserVO(user);
     }
 
     @Override
     public void updateProfile(Long id, ProfileUpdateRequest request) {
         User user = userDbService.getById(id);
-        ThrowUtil.throwIf(user == null, ErrorCode.USER_NOT_FOUND);
+        ThrowUtil.throwIf(NullUtil.isNull(user), ErrorCode.USER_NOT_FOUND);
         String beforeSummary = auditSummary(user);
         user.setDisplayName(request.getDisplayName());
         user.setEmail(StrUtil.trimToNull(request.getEmail()));
@@ -178,7 +179,7 @@ public class UserServiceImpl implements UserService {
     @Override
     public String changePassword(Long id, PasswordUpdateRequest request) {
         User user = userDbService.getById(id);
-        ThrowUtil.throwIf(user == null, ErrorCode.USER_NOT_FOUND);
+        ThrowUtil.throwIf(NullUtil.isNull(user), ErrorCode.USER_NOT_FOUND);
         ThrowUtil.throwIf(!passwordEncoder.matches(request.getOldPassword(), user.getPassword()),
                 ErrorCode.OLD_PASSWORD_MISMATCH);
         ThrowUtil.throwIf(passwordEncoder.matches(request.getNewPassword(), user.getPassword()),
@@ -209,11 +210,11 @@ public class UserServiceImpl implements UserService {
     /** 审计摘要：只带出 id/用户名/角色/状态与令牌版本，绝不包含密码 */
     private String auditSummary(User user) {
         return JsonUtil.toJsonStr(Map.of(
-                "id", user.getId() == null ? "" : String.valueOf(user.getId()),
+                "id", NullUtil.isNull(user.getId()) ? "" : String.valueOf(user.getId()),
                 "username", StrUtil.nullToEmpty(user.getUsername()),
                 "role", StrUtil.nullToEmpty(user.getRole()),
-                "status", user.getStatus() == null ? "" : String.valueOf(user.getStatus()),
-                "tokenVersion", user.getTokenVersion() == null ? "" : String.valueOf(user.getTokenVersion())));
+                "status", NullUtil.isNull(user.getStatus()) ? "" : String.valueOf(user.getStatus()),
+                "tokenVersion", NullUtil.isNull(user.getTokenVersion()) ? "" : String.valueOf(user.getTokenVersion())));
     }
 
     /** 角色解析：非法码值直接拒绝，避免落库脏数据 */
@@ -229,7 +230,7 @@ public class UserServiceImpl implements UserService {
 
     /** 状态校验：只接受 1 启用 / 0 停用，其他值拒绝落库 */
     private Integer parseStatus(Integer status) {
-        ThrowUtil.throwIf(UserStatus.of(status) == null, ErrorCode.USER_STATUS_INVALID);
+        ThrowUtil.throwIf(NullUtil.isNull(UserStatus.of(status)), ErrorCode.USER_STATUS_INVALID);
         return status;
     }
 
@@ -255,14 +256,14 @@ public class UserServiceImpl implements UserService {
 
     /** 递增令牌版本：null 视为 0（与库表默认值一致） */
     private int nextTokenVersion(User user) {
-        return (user.getTokenVersion() == null ? 0 : user.getTokenVersion()) + 1;
+        return (NullUtil.isNull(user.getTokenVersion()) ? 0 : user.getTokenVersion()) + 1;
     }
 
     /** 本会话令牌的剩余时长；无令牌上下文或剩余不足下限时按下限，避免改完密码立刻掉线 */
     private Duration remainingTtl() {
         KnowledgeUser current = SecurityUtil.getUser();
-        Instant expiresAt = current == null ? null : current.getExpiresAt();
-        if (expiresAt == null) {
+        Instant expiresAt = NullUtil.isNull(current) ? null : current.getExpiresAt();
+        if (NullUtil.isNull(expiresAt)) {
             return MIN_SESSION_TTL;
         }
         Duration remaining = Duration.between(Instant.now(), expiresAt);
@@ -272,7 +273,7 @@ public class UserServiceImpl implements UserService {
     /** 当前登录用户是否就是目标用户 */
     private boolean isSelf(Long id) {
         KnowledgeUser current = SecurityUtil.getUser();
-        return current != null && current.getId() != null && current.getId().equals(id);
+        return NullUtil.isNotNull(current) && NullUtil.isNotNull(current.getId()) && current.getId().equals(id);
     }
 
     /** 实体转视图对象：只带出可对外字段，避免密码泄漏 */

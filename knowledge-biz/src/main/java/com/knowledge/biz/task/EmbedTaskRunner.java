@@ -152,7 +152,7 @@ public class EmbedTaskRunner {
             try {
                 byte[] content = fileStorage.getObject(ObjectRef.ofEmbeddingSet(row));
                 EmbeddingSet set = JsonUtil.toObject(new String(content, StandardCharsets.UTF_8), EmbeddingSet.class);
-                if (set != null) {
+                if (NullUtil.isNotNull(set)) {
                     candidates.add(set);
                 }
             } catch (Exception e) {

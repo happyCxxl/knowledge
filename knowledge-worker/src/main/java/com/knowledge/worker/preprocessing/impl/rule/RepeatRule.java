@@ -5,6 +5,7 @@ import com.knowledge.common.enums.preprocess.ViewElementStatus;
 import com.knowledge.common.domain.preprocess.ViewElement;
 import com.knowledge.common.enums.preprocess.PreprocessAction;
 import com.knowledge.common.enums.preprocess.PreprocessRule;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.preprocessing.rule.CleanRule;
 import com.knowledge.worker.preprocessing.strategy.PreprocessStrategy;
 import com.knowledge.worker.preprocessing.rule.RuleContext;
@@ -38,14 +39,14 @@ public class RepeatRule implements CleanRule {
 
     @Override
     public boolean enabledIn(PreprocessStrategy strategy) {
-        return strategy.rule(PreprocessRule.REPEAT) != null;
+        return NullUtil.isNotNull(strategy.rule(PreprocessRule.REPEAT));
     }
 
     @Override
     public RuleOutcome apply(ViewElement element, RuleContext context) {
-        boolean repeatedSegment = element.getMarks() != null
+        boolean repeatedSegment = NullUtil.isNotNull(element.getMarks())
                 && element.getMarks().contains(ElementMark.REPEATED_SEGMENT.name());
-        boolean repeatedPage = element.getPage() != null
+        boolean repeatedPage = NullUtil.isNotNull(element.getPage())
                 && context.getRepeatedPageNumbers().contains(element.getPage());
         if (!repeatedSegment && !repeatedPage) {
             return RuleOutcome.none();
