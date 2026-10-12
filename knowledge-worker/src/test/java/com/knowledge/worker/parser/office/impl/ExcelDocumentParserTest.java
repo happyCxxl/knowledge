@@ -11,6 +11,7 @@ import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.util.CellRangeAddress;
+import org.apache.poi.xssf.usermodel.XSSFCell;
 import org.apache.poi.xssf.usermodel.XSSFClientAnchor;
 import org.apache.poi.xssf.usermodel.XSSFDrawing;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -160,6 +161,25 @@ class ExcelDocumentParserTest {
                         .filter(cell -> Integer.valueOf(2).equals(cell.getRow()))
                         .noneMatch(cell -> Boolean.TRUE.equals(cell.getIsHeader())),
                 () -> "cells=" + table.getCells());
+    }
+
+    /** 公式格以缓存显示值为准：手工把 <v> 写成 7（公式现算是 2）→ 产物取 7 */
+    @Test
+    void formulaShouldPreferCachedDisplayValue() throws Exception {
+        try (XSSFWorkbook workbook = new XSSFWorkbook()) {
+            Sheet sheet = workbook.createSheet("公式表");
+            sheet.createRow(0).createCell(0).setCellValue("指标");
+            XSSFCell formula = (XSSFCell) sheet.createRow(1).createCell(0);
+            formula.setCellFormula("1+1");
+            formula.getCTCell().setV("7");
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            workbook.write(out);
+
+            ParseSource source = parser.parse(context(out.toByteArray(), MIME_XLSX));
+
+            assertTrue(cellTexts(source).contains("7"), () -> "cells=" + cellTexts(source));
+            assertFalse(cellTexts(source).contains("2"), () -> "cells=" + cellTexts(source));
+        }
     }
 
     /** 一表两列数据 + 页眉三区 + 页脚 */

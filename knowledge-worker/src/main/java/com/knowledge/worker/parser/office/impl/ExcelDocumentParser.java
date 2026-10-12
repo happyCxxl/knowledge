@@ -195,11 +195,23 @@ public class ExcelDocumentParser extends AbstractPoiDocumentParser {
         if (!CellType.FORMULA.equals(cell.getCellType())) {
             return formatter.formatCellValue(cell);
         }
-        String evaluated = evaluate(cell, formatter, evaluator);
-        if (StrUtil.isNotBlank(evaluated)) {
-            return evaluated;
+        // 显示值优先：公式格先取文件里缓存的显示值（上次保存时的结果），缓存缺失或为空才现场求值
+        String cached = hasCachedValue(cell) ? cachedText(cell, formatter) : "";
+        if (StrUtil.isNotBlank(cached)) {
+            return cached;
         }
-        return hasCachedValue(cell) ? formatter.formatCellValue(cell) : evaluated;
+        return evaluate(cell, formatter, evaluator);
+    }
+
+    /** 缓存显示值：求值器传 null，POI 直接格式化文件里的缓存结果 */
+    private String cachedText(Cell cell, DataFormatter formatter) {
+        try {
+            return formatter.formatCellValue(cell, null);
+        } catch (RuntimeException e) {
+            log.debug("Excel 公式缓存值读取失败, sheet={}, cell={}", cell.getSheet().getSheetName(),
+                    cell.getAddress(), e);
+            return "";
+        }
     }
 
     /** 缓存结果是否在文件里：xlsx 看 <v> 元素（缺失时 POI 的缓存类型仍报数值，取出来是 0）；xls 的公式记录总带数值缓存 */
