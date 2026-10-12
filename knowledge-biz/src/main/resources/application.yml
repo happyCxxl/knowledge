@@ -6,12 +6,6 @@ spring:
     name: @artifactId@
   main:
     allow-circular-references: true
-  cloud:
-    nacos:
-      discovery:
-        enabled: false
-      config:
-        enabled: false
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:mysql://localhost:3306/knowledge?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
@@ -56,7 +50,7 @@ knowledge:
     low-freq-sweep-enabled: true
     low-freq-sweep-interval: 1m
     sweep-lock-ttl: 30s
-  # 解析阈值全量默认值（与 knowledge-worker 的 ParseProperties 同名 kebab-case；Nacos 同名键可覆盖）
+  # 解析阈值全量默认值（与 knowledge-worker 的 ParseProperties 同名 kebab-case；配置来源 = 本文件与 ParseProperties 内置默认值）
   parse:
     # 大文件分窗：单窗口装配的页数
     page-window-size: 50
@@ -128,6 +122,13 @@ knowledge:
       sidecar-base-url: ""
       connect-timeout-millis: 1000
       read-timeout-millis: 5000
+
+# 运维端点：只暴露健康探针与指标；health 免认证，metrics 需携带凭证（见 SecurityConfig）
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics
 
 # 文件服务：数据源首次初始化的缺省来源
 # 数据源表为空时按本段参数 seed 两行（MinIO / 本地磁盘），storage-type 指的那种类型置为当前启用；

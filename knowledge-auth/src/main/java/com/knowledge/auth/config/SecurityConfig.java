@@ -34,7 +34,7 @@ public class SecurityConfig {
 
     private final RestAuthenticationEntryPoint restAuthenticationEntryPoint;
 
-    /** 安全过滤链：登录/注册与接口文档放行；其余请求需登录，角色由方法注解判定 */
+    /** 安全过滤链：登录/注册、接口文档与健康探针放行；其余请求需登录，角色由方法注解判定 */
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http.csrf(AbstractHttpConfigurer::disable)
@@ -44,6 +44,8 @@ public class SecurityConfig {
                 // 头像读取免登录：<img src> 不会带 Authorization 头，写接口仍要求登录
                 .requestMatchers(HttpMethod.GET, "/user/avatar/**").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                        // 健康探针免认证（指标端点 /actuator/metrics 仍需登录）
+                        .requestMatchers("/actuator/health").permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(handling -> handling
                         // 未认证 → 40101；已认证但无权限 → 40104；两者都归一成 R + HTTP 200

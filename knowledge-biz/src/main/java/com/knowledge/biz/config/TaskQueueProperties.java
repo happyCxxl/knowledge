@@ -1,11 +1,13 @@
 package com.knowledge.biz.config;
 
+import com.knowledge.common.utils.NullUtil;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -17,6 +19,9 @@ import java.util.Map;
 @Component
 @ConfigurationProperties(prefix = "knowledge.task")
 public class TaskQueueProperties {
+
+    /** 未配置环节的回退超时 */
+    private static final Duration DEFAULT_TIMEOUT = Duration.ofMinutes(5);
 
     /** 任务唤醒队列 key（Redis List） */
     private String queueKey = "knowledge:task:queue";
@@ -42,6 +47,9 @@ public class TaskQueueProperties {
     /** 补偿/兜底分布式锁持有时长（SET NX EX） */
     private Duration sweepLockTtl = Duration.ofSeconds(30);
 
+    /** 停机时等待在跑任务结束的上限；到点中断仍未结束的任务 */
+    private Duration shutdownWait = Duration.ofSeconds(30);
+
     /** 单任务超时：按环节配置；未配置环节回退全局默认 */
     private Map<String, Duration> timeout = new HashMap<>(Map.of(
             "parse", Duration.ofMinutes(5),
@@ -51,8 +59,19 @@ public class TaskQueueProperties {
             "embed", Duration.ofMinutes(10),
             "build-index", Duration.ofMinutes(10)));
 
-    /** 取指定环节的单任务超时；未配置的环节回退全局默认 5 分钟 */
+    /**
+     * 取指定环节的单任务超时：先按原样查，再按归一化键查（小写 + 下划线转连字符）；
+     * 环节为空或未配置一律回退默认 5 分钟。
+     */
     public Duration timeoutOf(String stage) {
-        return timeout.getOrDefault(stage, Duration.ofMinutes(5));
+        if (NullUtil.isNull(stage)) {
+            return DEFAULT_TIMEOUT;
+        }
+        Duration configured = timeout.get(stage);
+        if (NullUtil.isNull(configured)) {
+            // 枚举名 BUILD_INDEX → 配置键 build-index（其余环节本来同形）
+            configured = timeout.get(stage.toLowerCase(Locale.ROOT).replace('_', '-'));
+        }
+        return NullUtil.isNull(configured) ? DEFAULT_TIMEOUT : configured;
     }
 }

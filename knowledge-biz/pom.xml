@@ -29,13 +29,13 @@
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
 
-        <!-- 鍙傛暟鏍￠獙 -->
+        <!-- 参数校验 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
 
-        <!-- 鎺ュ彛鏂囨。锛坰pringdoc openapi + swagger 娉ㄨВ锛?-->
+        <!-- 接口文档（springdoc openapi + swagger 注解） -->
         <dependency>
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
@@ -49,24 +49,13 @@
             <scope>provided</scope>
         </dependency>
 
-        <!-- Web 瀹瑰櫒 -->
+        <!-- Web 容器 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-undertow</artifactId>
         </dependency>
 
-        <!-- Nacos 鏈嶅姟鍙戠幇鍜岄厤缃?-->
-        <dependency>
-            <groupId>com.alibaba.cloud</groupId>
-            <artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>com.alibaba.cloud</groupId>
-            <artifactId>spring-cloud-starter-alibaba-nacos-config</artifactId>
-        </dependency>
-
-        <!-- MyBatis-Plus锛圔oot 3 涓撶敤 starter锛?-->
+        <!-- MyBatis-Plus（Boot 3 专用 starter） -->
         <dependency>
             <groupId>com.baomidou</groupId>
             <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
@@ -78,33 +67,39 @@
             <artifactId>mysql-connector-j</artifactId>
         </dependency>
 
-        <!-- 鏁版嵁搴撹繛鎺ユ睜 -->
+        <!-- 数据库连接池 -->
         <dependency>
             <groupId>com.alibaba</groupId>
             <artifactId>druid-spring-boot-3-starter</artifactId>
         </dependency>
 
-        <!-- Redis锛堜换鍔″敜閱掗槦鍒椾笌琛ュ伩閿侊級 -->
+        <!-- Redis（任务唤醒队列与补偿锁） -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-redis</artifactId>
         </dependency>
 
-        <!-- hutool 宸ュ叿绫伙紙骞冲彴鏍囧噯锛岀増鏈笌骞冲彴 BOM hutool.version 涓€鑷达級 -->
+        <!-- 运维与指标：/actuator/health 健康探针、/actuator/metrics 读池指标（ThreadPoolTaskExecutor 自动打点） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
+        <!-- hutool 工具类（平台标准，版本与平台 BOM hutool.version 一致） -->
         <dependency>
             <groupId>cn.hutool</groupId>
             <artifactId>hutool-core</artifactId>
             <version>5.8.22</version>
         </dependency>
 
-        <!-- hutool JSON锛?.8 璧蜂粠 core 鎷嗗嚭锛涘璁℃憳瑕佸簭鍒楀寲鐢紝LocalDateTime 缁?JSONConfig.setDateFormat 杈撳嚭鍙鏃堕棿锛?-->
+        <!-- hutool JSON：5.8 起从 core 拆出；审计摘要序列化用，LocalDateTime 经 JSONConfig.setDateFormat 输出可读时间 -->
         <dependency>
             <groupId>cn.hutool</groupId>
             <artifactId>hutool-json</artifactId>
             <version>5.8.22</version>
         </dependency>
 
-        <!-- 鏈」鐩ā鍧?-->
+        <!-- 本项目模块 -->
         <dependency>
             <groupId>com.knowledge</groupId>
             <artifactId>knowledge-common</artifactId>
@@ -114,7 +109,7 @@
             <artifactId>knowledge-infra</artifactId>
         </dependency>
 
-        <!-- 鏂囦欢鏈嶅姟妯″潡锛堟彁浜ゆ牎楠屽紑娴佷笌鍏冩暟鎹潵婧愶級 -->
+        <!-- 文件服务模块（提交校验开流与元数据来源） -->
         <dependency>
             <groupId>com.knowledge</groupId>
             <artifactId>knowledge-file-center</artifactId>
@@ -134,13 +129,13 @@
             <artifactId>knowledge-auth</artifactId>
         </dependency>
 
-        <!-- 浠诲姟閲嶈瘯 -->
+        <!-- 任务重试 -->
         <dependency>
             <groupId>org.springframework.retry</groupId>
             <artifactId>spring-retry</artifactId>
         </dependency>
 
-        <!-- 娴嬭瘯 -->
+        <!-- 测试 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
