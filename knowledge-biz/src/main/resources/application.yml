@@ -47,7 +47,7 @@ knowledge:
       lock-minutes: 15
   file:
     max-size: 104857600
-    enabled-formats: PDF,DOC,DOCX,XLS,XLSX
+    enabled-formats: PDF,DOC,DOCX,XLS,XLSX,PPT,PPTX
     temp-file-threshold: 10485760
   task:
     queue-key: knowledge:task:queue
