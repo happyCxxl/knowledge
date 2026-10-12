@@ -148,11 +148,24 @@ public class EmbedControlServiceImpl implements EmbedControlService {
         return product;
     }
 
+    /**
+     * 上游切片产物的策略快照 → 切片策略对象（窗口兼容校验据此推算最大片长）。
+     *
+     * <p>快照缺失或损坏返回 null（不构造默认策略）：触发时跳过窗口兼容校验，不阻断本次触发。
+     *
+     * @param snapshot 切片产物行上的策略快照 JSON 文本，可空
+     * @return 补全后的切片策略；缺失或损坏返回 null
+     */
     private ChunkStrategy resolveChunkStrategy(String snapshot) {
         if (StrUtil.isBlank(snapshot)) {
             return null;
         }
-        return chunkStrategyParser.parse(snapshot);
+        try {
+            return chunkStrategyParser.parse(snapshot);
+        } catch (Exception e) {
+            log.warn("向量化触发上游切片策略快照缺失或损坏，跳过窗口兼容校验", e);
+            return null;
+        }
     }
 
     /** 策略解析两档：显式指定（40433 校验存在/类型/启用）→ 知识库绑定；两档都不命中一律拒绝 40438。 */
@@ -162,6 +175,6 @@ public class EmbedControlServiceImpl implements EmbedControlService {
     }
 
     private EmbedStrategy toStrategy(KbPipelineStrategyVersion row) {
-        return strategySupport.bindMeta(strategyParser.parse(row.getConfigSnapshot()), row);
+        return strategySupport.bindRow(row, strategyParser::parse);
     }
 }

@@ -8,10 +8,11 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 预处理策略解析器单测：结构化解析补全默认 / 重复旧开关换算 / 空与非法回退内置默认 / custom 解析。
+ * 预处理策略解析器单测：结构化解析补全默认 / 重复旧开关换算 / 空与非法快照抛异常 / custom 解析。
  *
  * @author cxxl
  */
@@ -41,21 +42,28 @@ class PreprocessStrategyParserTest {
     }
 
     @Test
-    void blankSnapshotShouldFallbackToBuiltinDefault() {
-        PreprocessStrategy strategy = parser.parse(null);
+    void emptyObjectSnapshotShouldStillFillDefaults() {
+        // 只有"空串/JSON 非法"算数据问题：合法 JSON 缺键由补全默认参数覆盖
+        PreprocessStrategy strategy = parser.parse("{}");
 
         assertNotNull(strategy);
-        assertEquals("preproc-default", strategy.getName());
-        assertEquals("v1", strategy.getVersion());
         assertEquals("MARK", strategy.action(PreprocessRule.HEADER_FOOTER, ""));
     }
 
     @Test
-    void invalidSnapshotShouldFallbackToBuiltinDefault() {
-        PreprocessStrategy strategy = parser.parse("not-a-json");
+    void blankSnapshotShouldThrow() {
+        IllegalStateException e = assertThrows(IllegalStateException.class, () -> parser.parse(null));
 
-        assertEquals("preproc-default", strategy.getName());
-        assertEquals("MARK", strategy.action(PreprocessRule.HEADER_FOOTER, ""));
+        assertTrue(e.getMessage().contains("预处理策略快照为空或已损坏，无法解析"), e.getMessage());
+    }
+
+    @Test
+    void invalidSnapshotShouldThrowWithTruncatedSnapshot() {
+        IllegalStateException e = assertThrows(IllegalStateException.class, () -> parser.parse("not-a-json"));
+
+        assertTrue(e.getMessage().contains("预处理策略快照为空或已损坏，无法解析"), e.getMessage());
+        assertTrue(e.getMessage().contains("not-a-json"), e.getMessage());
+        assertNotNull(e.getCause());
     }
 
     @Test
@@ -100,5 +108,12 @@ class PreprocessStrategyParserTest {
         assertNull(strategy.getName());
         assertNull(strategy.getVersion());
         assertEquals("MARK", strategy.action(PreprocessRule.HEADER_FOOTER, ""));
+    }
+
+    @Test
+    void parseConfigShouldThrowOnCorruptSnapshot() {
+        // parseConfig 与 parse 同一口径：坏快照抛异常，不再返回默认策略
+        assertThrows(IllegalStateException.class, () -> parser.parseConfig("{oops"));
+        assertThrows(IllegalStateException.class, () -> parser.parseConfig(null));
     }
 }

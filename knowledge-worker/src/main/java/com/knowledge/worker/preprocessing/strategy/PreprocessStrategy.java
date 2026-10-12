@@ -5,7 +5,6 @@ import com.knowledge.common.enums.preprocess.PreprocessAction;
 import com.knowledge.common.enums.preprocess.PreprocessParam;
 import com.knowledge.common.enums.preprocess.PreprocessRule;
 import com.knowledge.worker.StageStrategy;
-import com.knowledge.worker.preprocessing.PreprocessProperties;
 import lombok.Data;
 
 import java.util.HashMap;
@@ -24,10 +23,6 @@ public class PreprocessStrategy implements StageStrategy {
 
     /** 策略类型 */
     public static final String TYPE = "PREPROCESS";
-
-    /** 内置默认策略名/版本（库内无启用版本时回退） */
-    public static final String BUILTIN_NAME = "preproc-default";
-    public static final String BUILTIN_VERSION = "v1";
 
     /** 开关取值（JSON 契约） */
     public static final String ON = "ON";
@@ -50,16 +45,6 @@ public class PreprocessStrategy implements StageStrategy {
 
     /** 自定义规则组（链尾执行，见 CustomCleanRule） */
     private CustomRuleGroup custom = new CustomRuleGroup();
-
-    /**
-     * 内置默认策略：七规则全默认（页眉页脚/目录/噪声=标记、重复/字段/文本整理/编码=开、参数全默认）。
-     */
-    public static PreprocessStrategy defaultStrategy() {
-        PreprocessStrategy strategy = new PreprocessStrategy();
-        strategy.setName(BUILTIN_NAME);
-        strategy.setVersion(BUILTIN_VERSION);
-        return PreprocessAlgorithmSpec.normalize(strategy, new PreprocessProperties());
-    }
 
     /** 取某规则配置（解析后必存在；缺失返回 null） */
     public PreprocessRuleConfig rule(PreprocessRule rule) {

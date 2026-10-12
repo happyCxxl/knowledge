@@ -4,7 +4,6 @@ import com.knowledge.common.enums.structure.PageMark;
 import com.knowledge.common.enums.structure.UnifiedElementType;
 import com.knowledge.common.enums.preprocess.ViewElementStatus;
 
-import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.knowledge.common.domain.task.StepLogInfo;
 import com.knowledge.common.domain.preprocess.PreprocessOutcome;
@@ -22,6 +21,7 @@ import com.knowledge.common.enums.task.PipelineTaskErrorCode;
 import com.knowledge.common.enums.task.PipelineTaskStatus;
 import com.knowledge.common.enums.task.StepStatus;
 import com.knowledge.common.enums.preprocess.CustomRuleAction;
+import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.preprocessing.rule.CleanRule;
 import com.knowledge.worker.preprocessing.rule.CustomRuleMatcher;
 import com.knowledge.worker.preprocessing.PreprocessContext;
@@ -68,8 +68,11 @@ public class PreprocessPipeline implements PreprocessorPort {
     public PreprocessOutcome preprocess(PreprocessContext context) {
         PreprocessOutcome outcome = new PreprocessOutcome();
         UnifiedDocument document = context.getDocument();
-        PreprocessStrategy strategy = ObjectUtil.defaultIfNull(context.getStrategy(),
-                PreprocessStrategy.defaultStrategy());
+        PreprocessStrategy strategy = context.getStrategy();
+        if (NullUtil.isNull(strategy)) {
+            outcome.fail(PipelineTaskErrorCode.PREPROCESS_FAILED.name(), "任务未带预处理策略快照，无法预处理");
+            return outcome;
+        }
         if (document == null || document.getElements() == null || document.getElements().isEmpty()) {
             outcome.fail(PipelineTaskErrorCode.PREPROCESS_EMPTY.name(), "上游统一结构无任何可处理元素");
             return outcome;

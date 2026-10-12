@@ -34,6 +34,7 @@ import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.utils.JsonUtil;
 import com.knowledge.common.utils.NullUtil;
 import com.knowledge.filecenter.service.FileStorage;
+import com.knowledge.worker.chunking.strategy.ChunkStrategy;
 import com.knowledge.worker.chunking.strategy.ChunkStrategyParser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -296,13 +297,30 @@ public class LineageQueryServiceImpl implements LineageQueryService {
     /**
      * 切片节点统计与摘要行一并回填：统计并入通用 stats（保留集合表聚合来的 chunkCount），
      * 摘要走通用 stageSummary；片长上限与兜底参数取该次运行的策略快照。
+     *
+     * <p>快照缺失或损坏时策略取 null（不构造默认策略）：策略类口径整组留空，其余统计照常下发。
      */
     private void fillChunkStats(LineageNodeVO node, KbPipelineTask task, NodeArtifacts artifacts) {
         Map<String, Object> stats = ChunkStatsSupport.stats(task.getStartedAt(), task.getFinishedAt(),
-                artifacts.chunkSets().get(task.getId()), chunkStrategyParser.parse(task.getStrategySnapshot()),
+                artifacts.chunkSets().get(task.getId()), chunkStrategyOf(task),
                 artifacts.upstreamViews().get(task.getId()));
         StatsSupport.mergeNodeStats(node, stats,
                 ChunkStatsSupport.summary(node.getErrorMsg(), stats, task.getStatus()));
+    }
+
+    /**
+     * 任务策略快照 → 切片策略；缺失或损坏返回 null（不构造默认策略），策略类口径随之为空。
+     *
+     * @param task 切片任务行
+     * @return 补全后的切片策略；缺失或损坏返回 null
+     */
+    private ChunkStrategy chunkStrategyOf(KbPipelineTask task) {
+        try {
+            return chunkStrategyParser.parse(task.getStrategySnapshot());
+        } catch (Exception e) {
+            log.warn("执行树切片节点策略快照缺失或损坏，策略类口径留空, taskId={}", task.getId(), e);
+            return null;
+        }
     }
 
     /** 统计摘要：CHUNK/EMBED 按 artifactId 匹配集合表；PREPROCESS 用 step_log 聚合 */

@@ -9,7 +9,7 @@ import com.knowledge.common.domain.preprocess.ViewElement;
 import com.knowledge.common.domain.structure.UnifiedElement;
 import com.knowledge.worker.chunking.SliceContext;
 import com.knowledge.worker.chunking.ChunkProperties;
-import com.knowledge.worker.chunking.strategy.ChunkStrategyParser;
+import com.knowledge.worker.testkit.StrategyFixtures;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashMap;
@@ -33,7 +33,7 @@ class ImageCaptionSliceStrategyTest {
         SliceContext context = new SliceContext();
         context.setView(new PreprocessView());
         ChunkProperties props = new ChunkProperties();
-        context.setStrategy(new ChunkStrategyParser(props).defaultStrategy());
+        context.setStrategy(StrategyFixtures.chunkDefaults(props));
         context.setTitlePath(List.of("第一章", "1.2 附图"));
         UnifiedElement unified = new UnifiedElement();
         unified.setId("i-1");

@@ -8,6 +8,7 @@ import com.knowledge.worker.preprocessing.strategy.PreprocessCustomRule;
 import com.knowledge.worker.preprocessing.PreprocessProperties;
 import com.knowledge.worker.preprocessing.strategy.PreprocessStrategy;
 import com.knowledge.worker.preprocessing.rule.RuleContext;
+import com.knowledge.worker.testkit.StrategyFixtures;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -46,7 +47,7 @@ class CustomCleanRuleTest {
     }
 
     private RuleContext context(List<PreprocessCustomRule> rules) {
-        PreprocessStrategy strategy = PreprocessStrategy.defaultStrategy();
+        PreprocessStrategy strategy = StrategyFixtures.preprocessDefaults();
         strategy.getCustom().setRules(rules);
         List<CustomRuleMatcher> matchers = new ArrayList<>();
         for (PreprocessCustomRule customRule : rules) {
@@ -123,7 +124,7 @@ class CustomCleanRuleTest {
 
     @Test
     void offShouldNotEnable() {
-        PreprocessStrategy strategy = PreprocessStrategy.defaultStrategy();
+        PreprocessStrategy strategy = StrategyFixtures.preprocessDefaults();
         strategy.getCustom().setEnabled(PreprocessStrategy.OFF);
         strategy.getCustom().setRules(List.of(custom("x+", "REMOVE", null)));
 

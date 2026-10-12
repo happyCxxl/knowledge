@@ -7,6 +7,7 @@ import com.knowledge.common.enums.preprocess.PreprocessRule;
 import com.knowledge.worker.preprocessing.PreprocessProperties;
 import com.knowledge.worker.preprocessing.strategy.PreprocessStrategy;
 import com.knowledge.worker.preprocessing.rule.RuleContext;
+import com.knowledge.worker.testkit.StrategyFixtures;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashMap;
@@ -40,11 +41,11 @@ class RepeatRuleTest {
     }
 
     private RuleContext context(Set<Integer> repeatedPages) {
-        return context(PreprocessStrategy.defaultStrategy(), repeatedPages);
+        return context(StrategyFixtures.preprocessDefaults(), repeatedPages);
     }
 
     private RuleContext context(String action, Set<Integer> repeatedPages) {
-        PreprocessStrategy strategy = PreprocessStrategy.defaultStrategy();
+        PreprocessStrategy strategy = StrategyFixtures.preprocessDefaults();
         strategy.rule(PreprocessRule.REPEAT).setAction(action);
         return context(strategy, repeatedPages);
     }
@@ -122,9 +123,9 @@ class RepeatRuleTest {
 
     @Test
     void enabledInShouldFollowRulePresence() {
-        assertTrue(rule.enabledIn(PreprocessStrategy.defaultStrategy()));
+        assertTrue(rule.enabledIn(StrategyFixtures.preprocessDefaults()));
 
-        PreprocessStrategy removed = PreprocessStrategy.defaultStrategy();
+        PreprocessStrategy removed = StrategyFixtures.preprocessDefaults();
         removed.getRules().remove(PreprocessRule.REPEAT.key());
 
         assertFalse(rule.enabledIn(removed));

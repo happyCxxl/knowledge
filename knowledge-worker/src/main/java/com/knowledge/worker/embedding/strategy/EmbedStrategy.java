@@ -18,10 +18,6 @@ public class EmbedStrategy implements StageStrategy {
     /** 策略类型 */
     public static final String TYPE = "EMBED";
 
-    /** 内置默认策略名/版本（库内无启用版本时回退） */
-    public static final String BUILTIN_NAME = "embed-default";
-    public static final String BUILTIN_VERSION = "v1";
-
     /** 开关值（JSON 契约） */
     public static final String ON = "ON";
     public static final String OFF = "OFF";

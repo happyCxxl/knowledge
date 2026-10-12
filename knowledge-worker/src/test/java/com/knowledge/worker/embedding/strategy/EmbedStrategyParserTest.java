@@ -10,10 +10,11 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 向量化策略解析器单测：默认补齐 / 目录冗余回填 / 空与非法回退内置默认 / parseConfig 不设 name/version。
+ * 向量化策略解析器单测：默认补齐 / 目录冗余回填 / 空与非法快照抛异常 / parseConfig 不设 name/version。
  *
  * @author cxxl
  */
@@ -52,20 +53,19 @@ class EmbedStrategyParserTest {
     }
 
     @Test
-    void blankSnapshotShouldFallbackToBuiltinDefault() {
-        EmbedStrategy strategy = parser.parse(null);
-        assertNotNull(strategy);
-        assertEquals("embed-default", strategy.getName());
-        assertEquals("v1", strategy.getVersion());
-        assertEquals(EmbeddingModel.firstEnabled().key(), strategy.getModel());
-        assertTrue(strategy.cacheOn());
+    void blankSnapshotShouldThrow() {
+        IllegalStateException e = assertThrows(IllegalStateException.class, () -> parser.parse(null));
+
+        assertTrue(e.getMessage().contains("向量化策略快照为空或已损坏，无法解析"), e.getMessage());
     }
 
     @Test
-    void invalidSnapshotShouldFallbackToBuiltinDefault() {
-        EmbedStrategy strategy = parser.parse("not-a-json");
-        assertEquals("embed-default", strategy.getName());
-        assertEquals(EmbeddingModel.firstEnabled().key(), strategy.getModel());
+    void invalidSnapshotShouldThrowWithTruncatedSnapshot() {
+        IllegalStateException e = assertThrows(IllegalStateException.class, () -> parser.parse("not-a-json"));
+
+        assertTrue(e.getMessage().contains("向量化策略快照为空或已损坏，无法解析"), e.getMessage());
+        assertTrue(e.getMessage().contains("not-a-json"), e.getMessage());
+        assertNotNull(e.getCause());
     }
 
     @Test
@@ -85,5 +85,12 @@ class EmbedStrategyParserTest {
         assertNull(strategy.getName());
         assertNull(strategy.getVersion());
         assertEquals("text-embedding-v4", strategy.getModel());
+    }
+
+    @Test
+    void parseConfigShouldThrowOnCorruptSnapshot() {
+        // parseConfig 与 parse 同一口径：坏快照抛异常，不再返回默认策略
+        assertThrows(IllegalStateException.class, () -> parser.parseConfig("{oops"));
+        assertThrows(IllegalStateException.class, () -> parser.parseConfig(""));
     }
 }

@@ -10,7 +10,7 @@ import com.knowledge.common.domain.preprocess.ViewElement;
 import com.knowledge.common.domain.structure.UnifiedElement;
 import com.knowledge.worker.chunking.SliceContext;
 import com.knowledge.worker.chunking.ChunkProperties;
-import com.knowledge.worker.chunking.strategy.ChunkStrategyParser;
+import com.knowledge.worker.testkit.StrategyFixtures;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -46,7 +46,7 @@ class TableRowSliceStrategyTest {
         SliceContext context = new SliceContext();
         context.setView(new PreprocessView());
         ChunkProperties props = new ChunkProperties();
-        context.setStrategy(new ChunkStrategyParser(props).defaultStrategy());
+        context.setStrategy(StrategyFixtures.chunkDefaults(props));
         context.setTitlePath(List.of("第一章 投标人须知", "1.3 评分标准"));
         Map<String, UnifiedElement> byId = new HashMap<>();
         byId.put("t-1", table);

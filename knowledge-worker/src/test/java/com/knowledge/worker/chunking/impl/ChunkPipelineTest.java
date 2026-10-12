@@ -37,6 +37,7 @@ import com.knowledge.worker.chunking.impl.table.TableWholeStrategy;
 import com.knowledge.common.enums.chunk.ChunkAlgorithm;
 import com.knowledge.worker.chunking.ChunkProperties;
 import com.knowledge.worker.chunking.strategy.ChunkStrategyParser;
+import com.knowledge.worker.testkit.StrategyFixtures;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -44,6 +45,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -108,7 +110,7 @@ class ChunkPipelineTest {
         context.setView(view);
         context.setDocument(document);
         ChunkProperties props = new ChunkProperties();
-        context.setStrategy(new ChunkStrategyParser(props).defaultStrategy());
+        context.setStrategy(StrategyFixtures.chunkDefaults(props));
         context.setFileResultId(10L);
         context.setUpstreamProductRef(50L);
         return context;
@@ -135,6 +137,23 @@ class ChunkPipelineTest {
         document.setDocumentInfo(info);
         document.setElements(elements);
         return document;
+    }
+
+    @Test
+    void missingStrategyShouldFailWithChunkFailed() {
+        // 上下文无策略（快照缺失或损坏由 Runner 拦截）：管线自身同样拒绝，不构造默认策略
+        List<ViewElement> elements = new ArrayList<>();
+        elements.add(viewElement("n-1", UnifiedElementType.PARAGRAPH.name(), 1, "正文内容",
+                ViewElementStatus.NORMAL.name()));
+        ChunkContext context = context(view(elements), document(new ArrayList<>()));
+        context.setStrategy(null);
+
+        ChunkOutcome outcome = pipeline().chunk(context);
+
+        assertEquals(PipelineTaskStatus.FAILED.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskErrorCode.CHUNK_FAILED.name(), outcome.getErrorCode());
+        assertEquals("任务未带切片策略快照，无法切片", outcome.getErrorMsg());
+        assertNull(outcome.getChunkSet());
     }
 
     @Test

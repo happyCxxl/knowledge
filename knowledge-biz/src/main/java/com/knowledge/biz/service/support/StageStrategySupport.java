@@ -10,12 +10,15 @@ import com.knowledge.common.domain.entity.KnowledgeBase;
 import com.knowledge.common.domain.rules.KnowledgeBaseRules;
 import com.knowledge.common.enums.task.RowStatus;
 import com.knowledge.common.error.ErrorCode;
+import com.knowledge.common.exception.KnowledgeException;
 import com.knowledge.common.exception.ThrowUtil;
 import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.StageStrategy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+
+import java.util.function.Function;
 
 /**
  * 环节策略解析共用助手：显式指定 → KB 绑定两档口径完全同构，集中在这里；
@@ -89,5 +92,23 @@ public class StageStrategySupport {
         strategy.setName(row.getName());
         strategy.setVersion(row.getVersion());
         return strategy;
+    }
+
+    /**
+     * 策略版本行 → 策略对象：配置快照为空或损坏一律按「策略版本不可用」拒绝，
+     * 不让解析异常冒成内部错误（触发期把数据问题按 40433 报给用户）。
+     *
+     * @param row   策略版本行（取 configSnapshot 与元信息）
+     * @param parse 该环节的配置快照解析器（切片/向量化用 parse，预处理用 parseConfig）
+     * @return 生效的策略对象（元信息已按行回填）
+     */
+    public <T extends StageStrategy> T bindRow(KbPipelineStrategyVersion row, Function<String, T> parse) {
+        try {
+            return bindMeta(parse.apply(row.getConfigSnapshot()), row);
+        } catch (RuntimeException e) {
+            log.warn("策略版本配置快照为空或损坏, strategyVersionId={}", row.getId(), e);
+            throw new KnowledgeException(ErrorCode.STRATEGY_VERSION_NOT_FOUND,
+                    "策略版本配置已损坏，请检查该策略版本的配置内容");
+        }
     }
 }

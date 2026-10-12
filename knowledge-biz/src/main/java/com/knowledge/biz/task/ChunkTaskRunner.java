@@ -1,6 +1,5 @@
 package com.knowledge.biz.task;
 
-import cn.hutool.core.util.StrUtil;
 import com.knowledge.biz.service.db.KbChunkDbService;
 import com.knowledge.biz.service.db.KbChunkSetDbService;
 import com.knowledge.biz.service.db.KbFileResultDbService;
@@ -89,12 +88,16 @@ public class ChunkTaskRunner {
                 return;
             }
 
-            // 策略只来自策略版本表：任务行缺快照即失败，不用代码里的默认策略兜底
-            if (StrUtil.isBlank(task.getStrategySnapshot())) {
-                finishFailed(taskId, PipelineTaskErrorCode.CHUNK_FAILED.name(), "任务未带切片策略快照，无法切片");
+            // 策略只来自策略版本表：任务行快照缺失或损坏即失败，不用代码里的默认策略兜底
+            ChunkStrategy strategy;
+            try {
+                strategy = strategyParser.parse(task.getStrategySnapshot());
+            } catch (Exception e) {
+                log.warn("切片任务策略快照缺失或损坏, taskId={}", taskId, e);
+                finishFailed(taskId, PipelineTaskErrorCode.CHUNK_FAILED.name(),
+                        "任务未带切片策略快照或快照已损坏，无法切片");
                 return;
             }
-            ChunkStrategy strategy = strategyParser.parse(task.getStrategySnapshot());
             PreprocessView view;
             try {
                 byte[] content = fileStorage.getObject(ObjectRef.ofProduct(preprocessProduct));

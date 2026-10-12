@@ -10,9 +10,11 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 切片策略解析器单测：结构化解析补全默认 / 空与非法回退内置默认 / pipeline 单键配置映射。
+ * 切片策略解析器单测：结构化解析补全默认 / 空与非法快照抛异常 / pipeline 单键配置映射 / parseConfig 语义。
  *
  * @author cxxl
  */
@@ -66,19 +68,29 @@ class ChunkStrategyParserTest {
     }
 
     @Test
-    void blankSnapshotShouldFallbackToBuiltinDefault() {
-        ChunkStrategy strategy = parser.parse(null);
+    void emptyObjectSnapshotShouldStillFillDefaults() {
+        // 只有"空串/JSON 非法"算数据问题：合法 JSON 缺键由补全默认参数覆盖
+        ChunkStrategy strategy = parser.parse("{}");
+
         assertNotNull(strategy);
-        assertEquals("chunk-hybrid", strategy.getName());
-        assertEquals("v1", strategy.getVersion());
         assertEquals(ChunkAlgorithm.BODY_PARAGRAPH_AGGREGATE, strategy.routeAlgorithm(ChunkRoute.BODY));
+        assertEquals("ON", strategy.pipelineValue(PipelineKey.PARENT_CHILD, ""));
     }
 
     @Test
-    void invalidSnapshotShouldFallbackToBuiltinDefault() {
-        ChunkStrategy strategy = parser.parse("not-a-json");
-        assertEquals("chunk-hybrid", strategy.getName());
-        assertEquals(ChunkAlgorithm.BODY_PARAGRAPH_AGGREGATE, strategy.routeAlgorithm(ChunkRoute.BODY));
+    void blankSnapshotShouldThrow() {
+        IllegalStateException e = assertThrows(IllegalStateException.class, () -> parser.parse(null));
+
+        assertTrue(e.getMessage().contains("切片策略快照为空或已损坏，无法解析"), e.getMessage());
+    }
+
+    @Test
+    void invalidSnapshotShouldThrowWithTruncatedSnapshot() {
+        IllegalStateException e = assertThrows(IllegalStateException.class, () -> parser.parse("not-a-json"));
+
+        assertTrue(e.getMessage().contains("切片策略快照为空或已损坏，无法解析"), e.getMessage());
+        assertTrue(e.getMessage().contains("not-a-json"), e.getMessage());
+        assertNotNull(e.getCause());
     }
 
     @Test
@@ -96,5 +108,12 @@ class ChunkStrategyParserTest {
         assertNull(strategy.getName());
         assertNull(strategy.getVersion());
         assertEquals(ChunkAlgorithm.BODY_PARAGRAPH_AGGREGATE, strategy.routeAlgorithm(ChunkRoute.BODY));
+    }
+
+    @Test
+    void parseConfigShouldThrowOnCorruptSnapshot() {
+        // parseConfig 与 parse 同一口径：坏快照抛异常，不再返回默认策略
+        assertThrows(IllegalStateException.class, () -> parser.parseConfig("{oops"));
+        assertThrows(IllegalStateException.class, () -> parser.parseConfig(null));
     }
 }

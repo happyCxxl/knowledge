@@ -7,7 +7,7 @@ import com.knowledge.common.enums.chunk.ChunkContentType;
 import com.knowledge.worker.chunking.SliceContext;
 import com.knowledge.worker.chunking.impl.fallback.RecursiveLengthFallback;
 import com.knowledge.worker.chunking.ChunkProperties;
-import com.knowledge.worker.chunking.strategy.ChunkStrategyParser;
+import com.knowledge.worker.testkit.StrategyFixtures;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashMap;
@@ -29,7 +29,7 @@ class ParagraphSliceStrategyTest {
         SliceContext context = new SliceContext();
         context.setView(new PreprocessView());
         ChunkProperties props = new ChunkProperties();
-        context.setStrategy(new ChunkStrategyParser(props).defaultStrategy());
+        context.setStrategy(StrategyFixtures.chunkDefaults(props));
         context.setById(new HashMap<>());
         context.setTitlePath(List.of("第一章 总则"));
         context.setFallback(new RecursiveLengthFallback());

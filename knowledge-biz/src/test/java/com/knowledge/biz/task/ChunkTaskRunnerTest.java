@@ -291,6 +291,44 @@ class ChunkTaskRunnerTest {
     }
 
     @Test
+    void corruptStrategySnapshotShouldFailChunkFailed() {
+        // 快照坏（"{oops"）：解析抛异常被显式接住，任务落 CHUNK_FAILED 且文案干净可辨识
+        KbPipelineTask task = queuedTask();
+        task.setStrategySnapshot("{oops");
+        when(pipelineTaskDbService.getById(70L)).thenReturn(task);
+        when(pipelineTaskDbService.claim(70L)).thenReturn(1);
+        when(fileResultDbService.getById(10L)).thenReturn(fileResult());
+        when(pipelineProductDbService.getById(50L)).thenReturn(preprocessProduct());
+
+        runner.run(70L);
+
+        verify(pipelineTaskDbService).finish(eq(70L), eq(PipelineTaskStatus.FAILED.name()),
+                eq(PipelineTaskErrorCode.CHUNK_FAILED.name()),
+                eq("任务未带切片策略快照或快照已损坏，无法切片"));
+        // 守卫在读取上游产物本体之前：坏快照不读对象、不进管线
+        verify(fileStorage, never()).getObject(any(ObjectRef.class));
+        verify(chunker, never()).chunk(any());
+    }
+
+    @Test
+    void missingStrategySnapshotShouldFailChunkFailed() {
+        // 空快照与坏快照同一口径：解析即抛异常，不再回退代码里的默认策略
+        KbPipelineTask task = queuedTask();
+        task.setStrategySnapshot(null);
+        when(pipelineTaskDbService.getById(70L)).thenReturn(task);
+        when(pipelineTaskDbService.claim(70L)).thenReturn(1);
+        when(fileResultDbService.getById(10L)).thenReturn(fileResult());
+        when(pipelineProductDbService.getById(50L)).thenReturn(preprocessProduct());
+
+        runner.run(70L);
+
+        verify(pipelineTaskDbService).finish(eq(70L), eq(PipelineTaskStatus.FAILED.name()),
+                eq(PipelineTaskErrorCode.CHUNK_FAILED.name()),
+                eq("任务未带切片策略快照或快照已损坏，无法切片"));
+        verify(chunker, never()).chunk(any());
+    }
+
+    @Test
     void failedOutcomeShouldFinishFailedWithoutProduct() {
         when(pipelineTaskDbService.getById(70L)).thenReturn(queuedTask());
         when(pipelineTaskDbService.claim(70L)).thenReturn(1);

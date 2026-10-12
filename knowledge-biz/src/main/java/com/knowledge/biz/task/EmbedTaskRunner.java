@@ -96,12 +96,16 @@ public class EmbedTaskRunner {
                 return;
             }
 
-            // 策略只来自策略版本表：任务行缺快照即失败，不用代码里的默认策略兜底
-            if (StrUtil.isBlank(task.getStrategySnapshot())) {
-                finishFailed(taskId, PipelineTaskErrorCode.EMBED_FAILED.name(), "任务未带向量化策略快照，无法向量化");
+            // 策略只来自策略版本表：任务行快照缺失或损坏即失败，不用代码里的默认策略兜底
+            EmbedStrategy strategy;
+            try {
+                strategy = strategyParser.parse(task.getStrategySnapshot());
+            } catch (Exception e) {
+                log.warn("向量化任务策略快照缺失或损坏, taskId={}", taskId, e);
+                finishFailed(taskId, PipelineTaskErrorCode.EMBED_FAILED.name(),
+                        "任务未带向量化策略快照或快照已损坏，无法向量化");
                 return;
             }
-            EmbedStrategy strategy = strategyParser.parse(task.getStrategySnapshot());
             ChunkSet chunkSet;
             try {
                 byte[] content = fileStorage.getObject(ObjectRef.ofProduct(chunkProduct));
@@ -174,11 +178,24 @@ public class EmbedTaskRunner {
         return NullUtil.isNull(chunkSet) ? null : chunkSet.getId();
     }
 
+    /**
+     * 上游切片产物的策略快照 → 切片策略对象（窗口兼容校验据此推算最大片长）。
+     *
+     * <p>快照缺失或损坏返回 null（不构造默认策略）：该次运行跳过窗口兼容校验，任务照跑。
+     *
+     * @param snapshot 切片产物行上的策略快照 JSON 文本，可空
+     * @return 补全后的切片策略；缺失或损坏返回 null
+     */
     private ChunkStrategy resolveChunkStrategy(String snapshot) {
         if (StrUtil.isBlank(snapshot)) {
             return null;
         }
-        return chunkStrategyParser.parse(snapshot);
+        try {
+            return chunkStrategyParser.parse(snapshot);
+        } catch (Exception e) {
+            log.warn("上游切片策略快照缺失或损坏，跳过窗口兼容校验", e);
+            return null;
+        }
     }
 
     /** 写产物存储 + product/kb_embedding_set/kb_embedding_record + 子步骤记录（成功/PARTIAL_SUCCESS 路径） */

@@ -1,6 +1,5 @@
 package com.knowledge.biz.task;
 
-import cn.hutool.core.util.StrUtil;
 import com.knowledge.biz.service.db.KbFileResultDbService;
 import com.knowledge.biz.service.db.KbPipelineProductDbService;
 import com.knowledge.biz.service.db.KbPipelineTaskDbService;
@@ -74,12 +73,16 @@ public class PreprocessTaskRunner {
                 return;
             }
 
-            // 策略只来自策略版本表：任务行缺快照即失败，不用代码里的默认策略兜底
-            if (StrUtil.isBlank(task.getStrategySnapshot())) {
-                finishFailed(taskId, PipelineTaskErrorCode.PREPROCESS_FAILED.name(), "任务未带预处理策略快照，无法预处理");
+            // 策略只来自策略版本表：任务行快照缺失或损坏即失败，不用代码里的默认策略兜底
+            PreprocessStrategy strategy;
+            try {
+                strategy = strategyParser.parse(task.getStrategySnapshot());
+            } catch (Exception e) {
+                log.warn("预处理任务策略快照缺失或损坏, taskId={}", taskId, e);
+                finishFailed(taskId, PipelineTaskErrorCode.PREPROCESS_FAILED.name(),
+                        "任务未带预处理策略快照或快照已损坏，无法预处理");
                 return;
             }
-            PreprocessStrategy strategy = strategyParser.parse(task.getStrategySnapshot());
             UnifiedDocument document;
             try {
                 byte[] content = fileStorage.getObject(ObjectRef.ofProduct(structureProduct));

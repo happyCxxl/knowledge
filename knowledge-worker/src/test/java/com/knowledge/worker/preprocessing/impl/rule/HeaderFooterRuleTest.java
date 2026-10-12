@@ -6,6 +6,7 @@ import com.knowledge.common.enums.preprocess.PreprocessRule;
 import com.knowledge.worker.preprocessing.PreprocessProperties;
 import com.knowledge.worker.preprocessing.strategy.PreprocessStrategy;
 import com.knowledge.worker.preprocessing.rule.RuleContext;
+import com.knowledge.worker.testkit.StrategyFixtures;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -34,7 +35,7 @@ class HeaderFooterRuleTest {
     }
 
     private RuleContext context(String pageHeaderFooter) {
-        PreprocessStrategy strategy = PreprocessStrategy.defaultStrategy();
+        PreprocessStrategy strategy = StrategyFixtures.preprocessDefaults();
         strategy.rule(PreprocessRule.HEADER_FOOTER).setAction(pageHeaderFooter);
         RuleContext context = new RuleContext();
         context.setStrategy(strategy);

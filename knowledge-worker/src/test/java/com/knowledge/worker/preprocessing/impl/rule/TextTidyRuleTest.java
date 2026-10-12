@@ -5,8 +5,8 @@ import com.knowledge.common.domain.preprocess.TraceEntry;
 import com.knowledge.common.domain.preprocess.ViewCell;
 import com.knowledge.common.domain.preprocess.ViewElement;
 import com.knowledge.worker.preprocessing.PreprocessProperties;
-import com.knowledge.worker.preprocessing.strategy.PreprocessStrategy;
 import com.knowledge.worker.preprocessing.rule.RuleContext;
+import com.knowledge.worker.testkit.StrategyFixtures;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -26,7 +26,7 @@ class TextTidyRuleTest {
 
     private RuleContext context() {
         RuleContext context = new RuleContext();
-        context.setStrategy(PreprocessStrategy.defaultStrategy());
+        context.setStrategy(StrategyFixtures.preprocessDefaults());
         context.setProperties(new PreprocessProperties());
         return context;
     }

@@ -459,13 +459,13 @@ CREATE TABLE kb_storage_source
 INSERT INTO kb_user (id, username, display_name, password, status, role, token_version, del_flag)
 VALUES (1, 'admin', '管理员', '$2a$10$Z/lASt5WwaaR.Y84fMsDkeoUtIxb4jiniyYaH5AmkTyh1oCVJc8Hq', 1, 'ADMIN', 1, '0');
 
--- 预处理策略：页眉页脚/目录/噪声只标记，重复只留首份，字段/文本整理/编码开（与内置默认同参）
+-- 预处理策略：页眉页脚/目录/噪声只标记，重复只留首份，字段/文本整理/编码开（策略版本行的初始参数，与代码侧模板同参）
 INSERT INTO kb_pipeline_strategy_version (type, name, version, config_snapshot, status)
 VALUES ('PREPROCESS', 'preproc-default', 'v1',
         '{"rules":{"headerFooter":{"action":"MARK"},"toc":{"action":"MARK","params":{"minLinesPerPage":"3","runMinLength":"3"}},"noise":{"action":"MARK"},"repeat":{"action":"EXCLUDE"},"field":{"enabled":"ON","params":{"amount":"ON","date":"ON","area":"ON","certNo":"ON"}},"tidy":{"enabled":"ON","params":{"whitespace":"ON","joinLines":"ON","punct":"ON","dashes":"ON","bullets":"ON","urls":"ON"}},"encoding":{"enabled":"ON"}},"custom":{"enabled":"ON","rules":[]}}',
         'ACTIVE');
 
--- 切片策略：段落聚合 + 行级表切片 + 递归兜底（与内置默认同参）
+-- 切片策略：段落聚合 + 行级表切片 + 递归兜底（策略版本行的初始参数，与代码侧模板同参）
 INSERT INTO kb_pipeline_strategy_version (type, name, version, config_snapshot, status)
 VALUES ('CHUNK', 'chunk-hybrid', 'v1',
         '{"routes":{"body":{"algorithm":"paragraph-aggregate","params":{"targetMaxLen":"800","softMaxLen":"1000"}},"table":{"algorithm":"row-slice","params":{"groupThreshold":"30","groupSize":"3"}},"image":{"algorithm":"caption-placeholder"},"fallback":{"algorithm":"recursive-length","params":{"len":"500","overlap":"50"}}},"pipeline":{"titlePathMaxLevel":"3","parentChild":"ON","tableInBodyFlow":"OFF","minMergeLen":"300","structureOverlap":"0","titleInContent":"ON"}}',

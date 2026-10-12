@@ -240,6 +240,26 @@ class PreprocessTaskRunnerTest {
     }
 
     @Test
+    void corruptStrategySnapshotShouldFailPreprocessFailed() {
+        // 快照坏（"{oops"）：解析抛异常被显式接住，任务落 PREPROCESS_FAILED 且文案干净可辨识
+        KbPipelineTask task = queuedTask();
+        task.setStrategySnapshot("{oops");
+        when(pipelineTaskDbService.getById(60L)).thenReturn(task);
+        when(pipelineTaskDbService.claim(60L)).thenReturn(1);
+        when(fileResultDbService.getById(10L)).thenReturn(fileResult());
+        when(pipelineProductDbService.getById(50L)).thenReturn(structureProduct());
+
+        runner.run(60L);
+
+        verify(pipelineTaskDbService).finish(eq(60L), eq(PipelineTaskStatus.FAILED.name()),
+                eq(PipelineTaskErrorCode.PREPROCESS_FAILED.name()),
+                eq("任务未带预处理策略快照或快照已损坏，无法预处理"));
+        // 守卫在读取上游产物本体之前：坏快照不读对象、不进管线
+        verify(fileStorage, never()).getObject(any(ObjectRef.class));
+        verify(preprocessor, never()).preprocess(any());
+    }
+
+    @Test
     void failedOutcomeShouldFinishFailedWithoutProduct() {
         when(pipelineTaskDbService.getById(60L)).thenReturn(queuedTask());
         when(pipelineTaskDbService.claim(60L)).thenReturn(1);

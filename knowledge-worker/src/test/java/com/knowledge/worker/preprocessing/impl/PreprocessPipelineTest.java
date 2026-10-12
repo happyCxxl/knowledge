@@ -31,6 +31,7 @@ import com.knowledge.common.enums.preprocess.PreprocessRule;
 import com.knowledge.worker.preprocessing.strategy.PreprocessStrategy;
 import com.knowledge.worker.preprocessing.rule.RuleContext;
 import com.knowledge.worker.preprocessing.rule.RuleOutcome;
+import com.knowledge.worker.testkit.StrategyFixtures;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Test;
 
@@ -108,7 +109,7 @@ class PreprocessPipelineTest {
             e.setMarks(new ArrayList<>(List.of(ElementMark.TOC_LINE.name())));
         }
         // Word 无页概念：3 行连续窗口默认（runMinLength=3）判目录，阈值提到 4 就不再判
-        PreprocessStrategy strict = PreprocessStrategy.defaultStrategy();
+        PreprocessStrategy strict = StrategyFixtures.preprocessDefaults();
         strict.rule(PreprocessRule.TOC).getParams()
                 .put(PreprocessParam.TOC_RUN_MIN_LENGTH.key(), "4");
 
@@ -116,7 +117,7 @@ class PreprocessPipelineTest {
                 .preprocess(context(document(elements, new ArrayList<>()), strict)).getView();
         PreprocessView defaultView = pipeline()
                 .preprocess(context(document(elements, new ArrayList<>()),
-                        PreprocessStrategy.defaultStrategy())).getView();
+                        StrategyFixtures.preprocessDefaults())).getView();
 
         assertEquals(ViewElementStatus.NORMAL.name(), strictView.getElements().get(0).getStatus());
         assertEquals(ViewElementStatus.MARKED_TOC.name(), defaultView.getElements().get(0).getStatus());
@@ -140,7 +141,7 @@ class PreprocessPipelineTest {
         }
         UnifiedDocument document = document(elements, List.of(page(1, null)));
 
-        PreprocessOutcome outcome = pipeline().preprocess(context(document, PreprocessStrategy.defaultStrategy()));
+        PreprocessOutcome outcome = pipeline().preprocess(context(document, StrategyFixtures.preprocessDefaults()));
 
         assertEquals(PipelineTaskStatus.SUCCESS.name(), outcome.getSuggestedStatus());
         PreprocessView view = outcome.getView();
@@ -193,7 +194,7 @@ class PreprocessPipelineTest {
         elements.add(table);
         UnifiedDocument document = document(elements, null);
 
-        PreprocessOutcome outcome = pipeline().preprocess(context(document, PreprocessStrategy.defaultStrategy()));
+        PreprocessOutcome outcome = pipeline().preprocess(context(document, StrategyFixtures.preprocessDefaults()));
 
         ViewElement viewTable = outcome.getView().getElements().getFirst();
         assertEquals(2, viewTable.getCells().size());
@@ -220,7 +221,7 @@ class PreprocessPipelineTest {
         UnifiedDocument document = document(elements, List.of(
                 page(1, null), page(2, PageMark.NOISE_PAGE.name())));
 
-        PreprocessStrategy strategy = PreprocessStrategy.defaultStrategy();
+        PreprocessStrategy strategy = StrategyFixtures.preprocessDefaults();
         strategy.rule(PreprocessRule.HEADER_FOOTER).setAction(PreprocessAction.EXCLUDE.name());
         strategy.rule(PreprocessRule.TOC).setAction(PreprocessAction.EXCLUDE.name());
         strategy.rule(PreprocessRule.NOISE).setAction(PreprocessAction.EXCLUDE.name());
@@ -244,7 +245,7 @@ class PreprocessPipelineTest {
         elements.add(repeated);
         UnifiedDocument document = document(elements, null);
 
-        PreprocessOutcome outcome = pipeline().preprocess(context(document, PreprocessStrategy.defaultStrategy()));
+        PreprocessOutcome outcome = pipeline().preprocess(context(document, StrategyFixtures.preprocessDefaults()));
 
         assertEquals(ViewElementStatus.NORMAL.name(), outcome.getView().getElements().get(0).getStatus());
         assertNotNull(outcome.getView().getElements().get(0).getNormalizedText());
@@ -260,7 +261,7 @@ class PreprocessPipelineTest {
         elements.add(element("n-1", UnifiedElementType.PARAGRAPH.name(), null, "正文内容"));
         UnifiedDocument document = document(elements, null);
 
-        PreprocessOutcome outcome = pipeline.preprocess(context(document, PreprocessStrategy.defaultStrategy()));
+        PreprocessOutcome outcome = pipeline.preprocess(context(document, StrategyFixtures.preprocessDefaults()));
 
         assertEquals(PipelineTaskStatus.PARTIAL_SUCCESS.name(), outcome.getSuggestedStatus());
         assertTrue(outcome.getWarnings().stream().anyMatch(w -> w.contains("异常规则")));
@@ -308,10 +309,25 @@ class PreprocessPipelineTest {
     void emptyDocumentShouldFailWithPreprocessEmpty() {
         UnifiedDocument document = document(new ArrayList<>(), null);
 
-        PreprocessOutcome outcome = pipeline().preprocess(context(document, PreprocessStrategy.defaultStrategy()));
+        PreprocessOutcome outcome = pipeline().preprocess(context(document, StrategyFixtures.preprocessDefaults()));
 
         assertEquals(PipelineTaskStatus.FAILED.name(), outcome.getSuggestedStatus());
         assertEquals(PipelineTaskErrorCode.PREPROCESS_EMPTY.name(), outcome.getErrorCode());
+    }
+
+    @Test
+    void missingStrategyShouldFailWithPreprocessFailed() {
+        // 上下文无策略（快照缺失或损坏由 Runner 拦截）：管线自身同样拒绝，不构造默认策略
+        List<UnifiedElement> elements = new ArrayList<>();
+        elements.add(element("n-1", UnifiedElementType.PARAGRAPH.name(), null, "正文内容"));
+        UnifiedDocument document = document(elements, null);
+
+        PreprocessOutcome outcome = pipeline().preprocess(context(document, null));
+
+        assertEquals(PipelineTaskStatus.FAILED.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskErrorCode.PREPROCESS_FAILED.name(), outcome.getErrorCode());
+        assertEquals("任务未带预处理策略快照，无法预处理", outcome.getErrorMsg());
+        assertNull(outcome.getView());
     }
 
     @Test
@@ -321,8 +337,8 @@ class PreprocessPipelineTest {
                 "投标保证金为人民币叁佰万元整（￥3,000,000.00）。"));
         UnifiedDocument document = document(elements, null);
 
-        PreprocessOutcome first = pipeline().preprocess(context(document, PreprocessStrategy.defaultStrategy()));
-        PreprocessOutcome second = pipeline().preprocess(context(document, PreprocessStrategy.defaultStrategy()));
+        PreprocessOutcome first = pipeline().preprocess(context(document, StrategyFixtures.preprocessDefaults()));
+        PreprocessOutcome second = pipeline().preprocess(context(document, StrategyFixtures.preprocessDefaults()));
 
         assertEquals(JsonUtilLike.toJson(first), JsonUtilLike.toJson(second));
     }

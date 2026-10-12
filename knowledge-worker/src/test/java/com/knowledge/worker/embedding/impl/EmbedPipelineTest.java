@@ -31,6 +31,7 @@ import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -236,6 +237,19 @@ class EmbedPipelineTest {
     }
 
     @Test
+    void missingStrategyShouldFailEmbedFailed() {
+        // 上下文无策略（快照缺失或损坏由 Runner 拦截）：管线自身同样拒绝，不构造默认策略
+        EmbedContext context = context(chunkSet(chunk("chunk-0001", "第一段", "PARAGRAPH")), null, List.of());
+
+        EmbedOutcome outcome = pipeline.embed(context);
+
+        assertEquals(PipelineTaskStatus.FAILED.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskErrorCode.EMBED_FAILED.name(), outcome.getErrorCode());
+        assertEquals("任务未带向量化策略快照，无法向量化", outcome.getErrorMsg());
+        assertNull(outcome.getEmbeddingSet());
+    }
+
+    @Test
     void batchAllFailedShouldFailEmbedFailed() {
         gateway.alwaysFail = true;
         EmbedStrategy strategy = strategy("text-embedding-v4", true);
@@ -268,10 +282,11 @@ class EmbedPipelineTest {
 
     // ---------------- fixtures ----------------
 
+    /** 用例基线策略：模板名/版本与 init.sql 种子行同名同版本，参数按代码侧模板补全 */
     private EmbedStrategy strategy(String model, boolean cacheOn) {
         EmbedStrategy strategy = new EmbedStrategy();
-        strategy.setName(EmbedStrategy.BUILTIN_NAME);
-        strategy.setVersion(EmbedStrategy.BUILTIN_VERSION);
+        strategy.setName("embed-default");
+        strategy.setVersion("v1");
         strategy.setModel(model);
         strategy.setCacheEnabled(cacheOn ? EmbedStrategy.ON : EmbedStrategy.OFF);
         return EmbedAlgorithmSpec.normalize(strategy, new EmbedProperties(), new StaticModelCatalog());

@@ -249,6 +249,37 @@ class SearchServiceImplTest {
     }
 
     @Test
+    void corruptEmbedStrategyRowShouldDegradeVectorChannel() {
+        // EMBED 策略版本行配置快照坏：查询向量化中止（向量通道降级为空），全文通道照跑，不炸不造默认
+        SearchRequest request = request();
+        request.setVersionId(30L);
+        request.setRuleId(500L);
+        KbIndexVersion version = versionRow(30L, "v9", IndexVersionStatus.READY.name(), comboAll());
+        when(indexVersionDbService.getById(30L)).thenReturn(version);
+        KbPipelineStrategyVersion rule = ruleRow();
+        when(strategyVersionDbService.getById(500L)).thenReturn(rule);
+        RetrievalRuleSpec spec = new RetrievalRuleSpec();
+        spec.setChannel(RetrievalRuleSpec.CHANNEL_HYBRID);
+        when(retrievalRuleResolver.validate(rule.getConfigSnapshot())).thenReturn(spec);
+        KbPipelineStrategyVersion embedRow = new KbPipelineStrategyVersion();
+        embedRow.setConfigSnapshot("{oops");
+        when(strategyVersionDbService.getByTypeAndNameAndVersion("EMBED", "embed-default", "v1"))
+                .thenReturn(embedRow);
+        when(embedStrategyParser.parse("{oops")).thenThrow(
+                new IllegalStateException("向量化策略快照为空或已损坏，无法解析, snapshot={oops"));
+        when(milvusIndexPort.searchFullText(eq("kb_1_v9"), any(FullTextQuery.class)))
+                .thenReturn(List.of(fullTextHit("c1")));
+        when(retrievalRunDbService.save(any(KbRetrievalRun.class))).thenReturn(true);
+
+        SearchVO vo = service.search(1L, request);
+
+        assertEquals(1, vo.getHits().size());
+        assertEquals("c1", vo.getHits().getFirst().getChunkId());
+        verify(modelGatewayPort, never()).embed(any());
+        verify(milvusIndexPort, never()).searchVector(anyString(), any());
+    }
+
+    @Test
     void lockedCapabilityRuleShouldBeRejectedAtEngine() {
         SearchRequest request = request();
         request.setVersionId(30L);

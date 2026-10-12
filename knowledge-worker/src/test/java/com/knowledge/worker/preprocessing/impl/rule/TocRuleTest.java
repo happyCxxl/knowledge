@@ -8,6 +8,7 @@ import com.knowledge.common.enums.preprocess.PreprocessRule;
 import com.knowledge.worker.preprocessing.PreprocessProperties;
 import com.knowledge.worker.preprocessing.strategy.PreprocessStrategy;
 import com.knowledge.worker.preprocessing.rule.RuleContext;
+import com.knowledge.worker.testkit.StrategyFixtures;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashMap;
@@ -45,7 +46,7 @@ class TocRuleTest {
 
     private RuleContext context(String action, Map<Integer, Integer> tocCount,
                                 Set<String> tocRunIds) {
-        PreprocessStrategy strategy = PreprocessStrategy.defaultStrategy();
+        PreprocessStrategy strategy = StrategyFixtures.preprocessDefaults();
         strategy.rule(PreprocessRule.TOC).setAction(action);
         return context(strategy, tocCount, tocRunIds);
     }
@@ -106,7 +107,7 @@ class TocRuleTest {
 
     @Test
     void customThresholdShouldDriveDispose() {
-        PreprocessStrategy strategy = PreprocessStrategy.defaultStrategy();
+        PreprocessStrategy strategy = StrategyFixtures.preprocessDefaults();
         strategy.rule(PreprocessRule.TOC).setAction("MARK");
         strategy.rule(PreprocessRule.TOC).getParams()
                 .put(PreprocessParam.TOC_MIN_LINES_PER_PAGE.key(), "5");

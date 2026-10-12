@@ -24,10 +24,6 @@ public class ChunkStrategy implements StageStrategy {
     /** 策略类型 */
     public static final String TYPE = "CHUNK";
 
-    /** 内置默认策略名/版本（库内无启用版本时回退） */
-    public static final String BUILTIN_NAME = "chunk-hybrid";
-    public static final String BUILTIN_VERSION = "v1";
-
     /** 流程层开关值（JSON 契约） */
     public static final String ON = "ON";
     public static final String OFF = "OFF";

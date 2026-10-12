@@ -112,9 +112,22 @@ public class ChunkControlServiceImpl implements ChunkControlService {
         return vo;
     }
 
-    /** 任务快照 → 切片策略（片长上限与兜底参数从它取；无任务 / 快照缺失回退内置默认） */
+    /**
+     * 任务快照 → 切片策略（片长上限与兜底参数从它取）。
+     *
+     * <p>无任务、快照缺失或快照损坏一律返回 null（不构造默认策略）：这几个策略口径整组留空，
+     * 页面上如实表现为无策略快照，其余统计项照常下发。
+     */
     private ChunkStrategy strategyOf(KbPipelineTask task) {
-        return strategyParser.parse(NullUtil.isNull(task) ? null : task.getStrategySnapshot());
+        if (NullUtil.isNull(task)) {
+            return null;
+        }
+        try {
+            return strategyParser.parse(task.getStrategySnapshot());
+        } catch (Exception e) {
+            log.warn("切片详情策略快照缺失或损坏，策略类口径留空, taskId={}", task.getId(), e);
+            return null;
+        }
     }
 
     /** 产物里的片按 chunkId 建索引（产物读不到时为空表） */
@@ -157,7 +170,7 @@ public class ChunkControlServiceImpl implements ChunkControlService {
     }
 
     private ChunkStrategy toStrategy(KbPipelineStrategyVersion row) {
-        // configSnapshot 为 routes/pipeline 结构（无 name/version），解析补全默认后回填行信息
-        return strategySupport.bindMeta(strategyParser.parse(row.getConfigSnapshot()), row);
+        // configSnapshot 为 routes/pipeline 结构（无 name/version），解析补全默认后回填行信息；快照损坏按 40433 拒绝
+        return strategySupport.bindRow(row, strategyParser::parse);
     }
 }

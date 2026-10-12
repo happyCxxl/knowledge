@@ -18,6 +18,8 @@ import com.knowledge.biz.service.support.TaskDetailSupport;
 import com.knowledge.biz.task.TaskQueueSupport;
 import com.knowledge.biz.task.TaskTriggerSupport;
 import com.knowledge.biz.testkit.SecurityTestSupport;
+import com.knowledge.common.domain.chunk.Chunk;
+import com.knowledge.common.domain.chunk.ChunkSet;
 import com.knowledge.common.domain.entity.KbChunk;
 import com.knowledge.common.domain.entity.KbChunkSet;
 import com.knowledge.common.domain.entity.KbFileResult;
@@ -33,6 +35,7 @@ import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.enums.task.PipelineTaskStatus;
 import com.knowledge.common.enums.task.RowStatus;
 import com.knowledge.common.error.ErrorCode;
+import com.knowledge.common.utils.JsonUtil;
 import com.knowledge.filecenter.provider.StorageRouter;
 import com.knowledge.filecenter.service.FileStorage;
 import com.knowledge.common.exception.KnowledgeException;
@@ -46,9 +49,13 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -430,6 +437,85 @@ class ChunkControlServiceImplTest {
         assertEquals(2, detail.getChunks().size());
         assertEquals("c-1-1", detail.getChunks().get(1).getChunkId());
         assertEquals("c-1", detail.getChunks().get(1).getParentChunkId());
+    }
+
+    @Test
+    void detailWithValidStrategySnapshotShouldExposeStrategyStats() {
+        stubDetail(taskWithStrategySnapshot("{\"name\":\"chunk-hybrid\",\"version\":\"v1\"}"));
+
+        ChunkDetailVO detail = service.chunkDetail(10L, null);
+
+        Map<String, Object> stats = detail.getStageStats();
+        assertNotNull(stats);
+        assertEquals(1, stats.get("chunkCount"));
+        // 策略可解析：片长上限与兜底参数照常下发
+        assertTrue(stats.containsKey("targetMaxLen"), String.valueOf(stats));
+        assertTrue(stats.containsKey("softMaxLen"), String.valueOf(stats));
+        assertTrue(stats.containsKey("fallbackLen"), String.valueOf(stats));
+    }
+
+    @Test
+    void detailWithCorruptStrategySnapshotShouldLeaveStrategyStatsEmpty() {
+        stubDetail(taskWithStrategySnapshot("{oops"));
+
+        ChunkDetailVO detail = service.chunkDetail(10L, null);
+
+        Map<String, Object> stats = detail.getStageStats();
+        assertNotNull(stats);
+        assertEquals(1, stats.get("chunkCount"));
+        // 策略快照损坏：策略类口径整组留空（页面上如实表现为无策略快照），不炸也不造默认
+        assertFalse(stats.containsKey("targetMaxLen"), String.valueOf(stats));
+        assertFalse(stats.containsKey("softMaxLen"), String.valueOf(stats));
+        assertFalse(stats.containsKey("fallbackLen"), String.valueOf(stats));
+        assertFalse(stats.containsKey("minMergeLen"), String.valueOf(stats));
+    }
+
+    /** 详情用例共用桩：任务行 + 产物行 + 产物本体 + 集合行 + 一条切片；strategySnapshot 由用例指定 */
+    private void stubDetail(KbPipelineTask task) {
+        when(fileResultDbService.getById(10L)).thenReturn(fileResult());
+        when(pipelineTaskDbService.getByFileResultIdAndStage(10L, PipelineStage.CHUNK.name())).thenReturn(task);
+        KbPipelineProduct product = new KbPipelineProduct();
+        product.setArtifactId("abc".repeat(16));
+        product.setStorageType(StorageType.MINIO.getCode());
+        product.setStorageSourceId(SOURCE_ID);
+        product.setBucket("artifacts");
+        when(pipelineProductDbService.getById(50L)).thenReturn(product);
+        // 统计与摘要读产物现算：产物本体缺失时统计不下发，用例必须给本体
+        ChunkSet body = new ChunkSet();
+        body.setChunkSetId("cs-doc-10-chunk-hybrid-v1");
+        Chunk chunk = new Chunk();
+        chunk.setChunkId("c-1");
+        chunk.setContentType("PARAGRAPH");
+        chunk.setContent("正文片");
+        chunk.setCharCount(3);
+        body.setChunks(List.of(chunk));
+        when(fileStorage.getObject(ObjectRef.of(SOURCE_ID, StorageType.MINIO.getCode(), "artifacts", "abc".repeat(16))))
+                .thenReturn(Objects.requireNonNull(JsonUtil.toJsonStr(body)).getBytes(StandardCharsets.UTF_8));
+        KbChunkSet chunkSet = new KbChunkSet();
+        chunkSet.setId(70L);
+        chunkSet.setChunkCount(1);
+        chunkSet.setArtifactId("abc".repeat(16));
+        chunkSet.setStorageType(StorageType.MINIO.getCode());
+        chunkSet.setStorageSourceId(SOURCE_ID);
+        chunkSet.setBucket("artifacts");
+        when(chunkSetDbService.getByArtifactId("abc".repeat(16))).thenReturn(chunkSet);
+        KbChunk child = new KbChunk();
+        child.setChunkId("c-1");
+        child.setContentType("PARAGRAPH");
+        child.setContent("正文片");
+        child.setOrderNo(1);
+        child.setCharCount(3);
+        when(chunkDbService.listByChunkSetId(70L)).thenReturn(List.of(child));
+    }
+
+    private KbPipelineTask taskWithStrategySnapshot(String snapshot) {
+        KbPipelineTask task = new KbPipelineTask();
+        task.setId(41L);
+        task.setStage(PipelineStage.CHUNK.name());
+        task.setStatus(PipelineTaskStatus.SUCCESS.name());
+        task.setProductId(50L);
+        task.setStrategySnapshot(snapshot);
+        return task;
     }
 
     @Test

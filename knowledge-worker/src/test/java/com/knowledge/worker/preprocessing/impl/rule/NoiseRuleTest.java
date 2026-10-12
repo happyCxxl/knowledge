@@ -6,6 +6,7 @@ import com.knowledge.common.enums.preprocess.PreprocessRule;
 import com.knowledge.worker.preprocessing.PreprocessProperties;
 import com.knowledge.worker.preprocessing.strategy.PreprocessStrategy;
 import com.knowledge.worker.preprocessing.rule.RuleContext;
+import com.knowledge.worker.testkit.StrategyFixtures;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashMap;
@@ -39,7 +40,7 @@ class NoiseRuleTest {
     }
 
     private RuleContext context(String action) {
-        PreprocessStrategy strategy = PreprocessStrategy.defaultStrategy();
+        PreprocessStrategy strategy = StrategyFixtures.preprocessDefaults();
         strategy.rule(PreprocessRule.NOISE).setAction(action);
         RuleContext context = new RuleContext();
         context.setStrategy(strategy);

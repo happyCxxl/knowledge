@@ -1,20 +1,18 @@
 package com.knowledge.worker.embedding.strategy;
 
-import cn.hutool.core.util.StrUtil;
-import com.knowledge.common.utils.JsonUtil;
 import com.knowledge.model.catalog.ModelCatalogPort;
 import com.knowledge.worker.embedding.EmbedProperties;
+import com.knowledge.worker.pipeline.StrategySnapshotSupport;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 /**
  * 向量化策略解析器：快照 JSON → EmbedStrategy（补默认 + 目录冗余回填）。
- * 触发（runner 读任务快照）与保存侧（控制面 toStrategy）共用同一解析口径；解析失败回退内置默认（防御性兜底）。
+ * 触发（runner 读任务快照）与保存侧（控制面 toStrategy）共用同一解析口径；
+ * 快照为空或损坏一律抛异常，由上层按数据问题处置，本类不提供任何内置默认策略。
  *
  * @author cxxl
  */
-@Slf4j
 @Component
 @RequiredArgsConstructor
 public class EmbedStrategyParser {
@@ -23,36 +21,28 @@ public class EmbedStrategyParser {
 
     private final ModelCatalogPort catalog;
 
-    /** 内置默认策略（库内无启用版本时回退；name=embed-default, version=v1，模型=首个启用模型） */
-    public EmbedStrategy defaultStrategy() {
-        EmbedStrategy strategy = new EmbedStrategy();
-        strategy.setName(EmbedStrategy.BUILTIN_NAME);
-        strategy.setVersion(EmbedStrategy.BUILTIN_VERSION);
-        return EmbedAlgorithmSpec.normalize(strategy, properties, catalog);
-    }
-
-    /** 快照解析：空/失败回退内置默认；成功则补全默认后返回 */
+    /**
+     * 快照解析：空快照、JSON 非法、反序列化为 null 与后续补全失败一律抛 IllegalStateException；
+     * 成功则补默认与目录冗余后返回。
+     *
+     * @param snapshot 策略快照 JSON 文本（任务行或策略版本行），可空
+     * @return 补全后的向量化策略（非空）
+     * @throws IllegalStateException 快照为空或损坏（消息带截断后的快照）
+     */
     public EmbedStrategy parse(String snapshot) {
-        if (StrUtil.isBlank(snapshot)) {
-            return defaultStrategy();
-        }
-        try {
-            EmbedStrategy strategy = JsonUtil.toObject(snapshot, EmbedStrategy.class);
-            if (strategy == null) {
-                return defaultStrategy();
-            }
-            return EmbedAlgorithmSpec.normalize(strategy, properties, catalog);
-        } catch (Exception e) {
-            log.warn("向量化策略快照解析失败，回退内置默认, snapshot={}", StrUtil.maxLength(snapshot, 200), e);
-            return defaultStrategy();
-        }
+        return StrategySnapshotSupport.parse(snapshot, EmbedStrategy.class, "向量化",
+                strategy -> EmbedAlgorithmSpec.normalize(strategy, properties, catalog));
     }
 
-    /** 配置 JSON（无 name/version）→ 补全默认后的策略对象（name/version 由回填补全） */
+    /**
+     * 配置 JSON（无 name/version）→ 补全默认后的策略对象（name/version 由回填补全）。
+     * 快照为空或损坏与 {@link #parse(String)} 同样抛异常。
+     *
+     * @param configSnapshot 策略版本行上的配置快照 JSON 文本，可空
+     * @return 补全后的向量化策略（name/version 为空，非空）
+     * @throws IllegalStateException 快照为空或损坏（消息带截断后的快照）
+     */
     public EmbedStrategy parseConfig(String configSnapshot) {
-        EmbedStrategy strategy = parse(configSnapshot);
-        strategy.setName(null);
-        strategy.setVersion(null);
-        return strategy;
+        return StrategySnapshotSupport.clearMeta(parse(configSnapshot));
     }
 }

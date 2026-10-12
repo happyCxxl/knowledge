@@ -9,6 +9,7 @@ import com.knowledge.common.enums.preprocess.PreprocessRule;
 import com.knowledge.worker.preprocessing.strategy.PreprocessStrategy;
 import com.knowledge.worker.preprocessing.rule.RuleContext;
 import com.knowledge.worker.preprocessing.rule.RuleOutcome;
+import com.knowledge.worker.testkit.StrategyFixtures;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -36,7 +37,7 @@ class FieldNormalizeRuleTest {
     @BeforeEach
     void setUp() {
         context = new RuleContext();
-        context.setStrategy(PreprocessStrategy.defaultStrategy());
+        context.setStrategy(StrategyFixtures.preprocessDefaults());
         context.setProperties(new PreprocessProperties());
         context.setTocLineCountByPage(new HashMap<>());
         context.setTocRunElementIds(new HashSet<>());
@@ -241,11 +242,11 @@ class FieldNormalizeRuleTest {
 
     @Test
     void disabledShouldReportOff() {
-        PreprocessStrategy strategy = PreprocessStrategy.defaultStrategy();
+        PreprocessStrategy strategy = StrategyFixtures.preprocessDefaults();
         strategy.rule(PreprocessRule.FIELD).setEnabled(PreprocessStrategy.OFF);
 
         assertFalse(rule.enabledIn(strategy));
-        assertTrue(rule.enabledIn(PreprocessStrategy.defaultStrategy()));
+        assertTrue(rule.enabledIn(StrategyFixtures.preprocessDefaults()));
     }
 
     @Test

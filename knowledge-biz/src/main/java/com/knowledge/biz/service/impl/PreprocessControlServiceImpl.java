@@ -151,7 +151,7 @@ public class PreprocessControlServiceImpl implements PreprocessControlService {
     }
 
     private PreprocessStrategy toStrategy(KbPipelineStrategyVersion row) {
-        // configSnapshot 为 rules/custom 结构（无 name/version），解析补全默认后回填行信息
-        return strategySupport.bindMeta(strategyParser.parseConfig(row.getConfigSnapshot()), row);
+        // configSnapshot 为 rules/custom 结构（无 name/version），解析补全默认后回填行信息；快照损坏按 40433 拒绝
+        return strategySupport.bindRow(row, strategyParser::parseConfig);
     }
 }

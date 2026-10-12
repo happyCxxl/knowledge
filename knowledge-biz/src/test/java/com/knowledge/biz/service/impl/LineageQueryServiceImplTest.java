@@ -8,6 +8,8 @@ import com.knowledge.biz.service.db.KbPipelineProductDbService;
 import com.knowledge.biz.service.db.KbPipelineStepLogDbService;
 import com.knowledge.biz.service.db.KbPipelineTaskDbService;
 import com.knowledge.biz.testkit.SecurityTestSupport;
+import com.knowledge.common.domain.chunk.Chunk;
+import com.knowledge.common.domain.chunk.ChunkSet;
 import com.knowledge.common.domain.entity.KnowledgeBase;
 import com.knowledge.common.domain.entity.KbChunkSet;
 import com.knowledge.common.domain.entity.KbEmbeddingSet;
@@ -48,9 +50,11 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
@@ -236,6 +240,45 @@ class LineageQueryServiceImplTest {
 
         assertEquals(1, vo.getNodes().size());
         assertEquals(0, vo.getEdges().size());
+    }
+
+    @Test
+    void chunkNodeWithCorruptStrategySnapshotShouldLeaveStrategyStatsEmpty() {
+        when(fileResultDbService.getById(10L)).thenReturn(fileResultOfKb10());
+        // 同环节两个节点：71 快照可解析（策略类口径有值），72 快照损坏（策略类口径留空）
+        when(pipelineTaskDbService.listByFileResultId(10L)).thenReturn(List.of(
+                task(71L, PipelineStage.CHUNK.name(), null, 40L, "{\"name\":\"chunk-hybrid\",\"version\":\"v1\"}"),
+                task(72L, PipelineStage.CHUNK.name(), null, 70L, "{oops")));
+        when(pipelineProductDbService.listByFileResultId(10L)).thenReturn(List.of(
+                product(40L, PipelineStage.CHUNK.name(), "art-c1", null),
+                product(70L, PipelineStage.CHUNK.name(), "art-c2", null)));
+        when(chunkSetDbService.listByFileResultId(10L)).thenReturn(List.of());
+        when(embeddingSetDbService.listByFileResultId(10L)).thenReturn(List.of());
+        ChunkSet body = new ChunkSet();
+        Chunk chunk = new Chunk();
+        chunk.setChunkId("c-1");
+        chunk.setContentType("PARAGRAPH");
+        chunk.setContent("正文片");
+        chunk.setCharCount(3);
+        body.setChunks(List.of(chunk));
+        byte[] bodyBytes = JsonUtil.toJsonStr(body).getBytes(StandardCharsets.UTF_8);
+        when(fileStorage.getObject(ObjectRef.of(SOURCE_ID, StorageType.MINIO.getCode(), "artifacts", "art-c1")))
+                .thenReturn(bodyBytes);
+        when(fileStorage.getObject(ObjectRef.of(SOURCE_ID, StorageType.MINIO.getCode(), "artifacts", "art-c2")))
+                .thenReturn(bodyBytes);
+
+        LineageVO vo = service.lineage(10L);
+
+        LineageNodeVO good = vo.getNodes().get(0);
+        LineageNodeVO corrupt = vo.getNodes().get(1);
+        // 快照可解析：策略版本与片长口径照常下发
+        assertEquals("chunk-hybrid-v1", good.getStrategyVersion());
+        assertTrue(good.getStats().containsKey("targetMaxLen"), String.valueOf(good.getStats()));
+        // 快照损坏：策略版本留空、策略类口径整组留空，其余统计照常（如实展示无策略快照）
+        assertNull(corrupt.getStrategyVersion());
+        assertEquals(1, corrupt.getStats().get("chunkCount"));
+        assertFalse(corrupt.getStats().containsKey("targetMaxLen"), String.valueOf(corrupt.getStats()));
+        assertFalse(corrupt.getStats().containsKey("minMergeLen"), String.valueOf(corrupt.getStats()));
     }
 
     @Test

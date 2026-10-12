@@ -319,6 +319,25 @@ class EmbedControlServiceImplTest {
     }
 
     @Test
+    void corruptChunkCapabilitySnapshotShouldSkipWindowCheck() {
+        // 上游切片产物行的策略快照坏：窗口兼容校验跳过（留空），触发照常入队，不造默认策略
+        when(fileResultDbService.getById(10L)).thenReturn(fileResult());
+        stubBoundStrategy();
+        when(pipelineProductDbService.getById(50L)).thenReturn(chunkProduct("{oops"));
+        existingEmbedTask(50L, 66L, null);
+        when(pipelineTaskDbService.save(any(KbPipelineTask.class))).thenAnswer(inv -> {
+            inv.getArgument(0, KbPipelineTask.class).setId(46L);
+            return true;
+        });
+
+        var response = service.embed(10L, null, 50L);
+
+        assertEquals(46L, response.getPipelineTaskId());
+        assertNotNull(response.getStrategyVersion());
+        verify(taskQueue).enqueue(46L);
+    }
+
+    @Test
     void windowCompatibleShouldProceed() {
         stubCommon();
         existingEmbedTask(50L, 66L, null);

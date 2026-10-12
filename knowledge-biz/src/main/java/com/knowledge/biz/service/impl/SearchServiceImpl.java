@@ -243,7 +243,11 @@ public class SearchServiceImpl implements SearchService {
         return baseline;
     }
 
-    /** 查询向量化：跟随集合 EMBED 策略（模型 + queryTemplate）；网关失败 → null（该通道降级为空） */
+    /**
+     * 查询向量化：跟随集合 EMBED 策略（模型 + queryTemplate）；网关失败 → null（该通道降级为空）。
+     *
+     * <p>策略版本行配置快照缺失或损坏（解析抛异常）→ 同样返回 null：向量通道降级为空，不构造默认策略。
+     */
     private List<Float> embedQuery(KbIndexVersion version, String query) {
         ComboSnapshot combo = JsonUtil.toObject(version.getComboSnapshot(), ComboSnapshot.class);
         if (NullUtil.isNull(combo) || !combo.hasCompleteStageStrategies()) {
@@ -257,7 +261,14 @@ public class SearchServiceImpl implements SearchService {
                     combo.getEmbedStrategy());
             return null;
         }
-        EmbedStrategy strategy = embedStrategyParser.parse(row.getConfigSnapshot());
+        EmbedStrategy strategy;
+        try {
+            strategy = embedStrategyParser.parse(row.getConfigSnapshot());
+        } catch (Exception e) {
+            log.warn("===> SearchServiceImpl 查询向量化中止：EMBED 策略版本行配置快照缺失或损坏, versionId={}, strategy={}",
+                    version.getId(), combo.getEmbedStrategy(), e);
+            return null;
+        }
         String template = StrUtil.isBlank(strategy.getQueryTemplate()) ? "{query}" : strategy.getQueryTemplate();
         String input = template.replace("{query}", query);
         EmbeddingRequest request = new EmbeddingRequest();

@@ -51,6 +51,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -266,6 +267,52 @@ class EmbedTaskRunnerTest {
                 PipelineTaskErrorCode.TASK_UPSTREAM_MISSING.name(), "任务未指定上游切片产物");
         verify(fileStorage, never()).putObject(any(byte[].class));
         verify(embedder, never()).embed(any());
+    }
+
+    @Test
+    void corruptStrategySnapshotShouldFailEmbedFailed() {
+        // 快照坏（"{oops"）：解析抛异常被显式接住，任务落 EMBED_FAILED 且文案干净可辨识
+        KbPipelineTask task = queuedTask();
+        task.setStrategySnapshot("{oops");
+        when(pipelineTaskDbService.getById(70L)).thenReturn(task);
+        when(pipelineTaskDbService.claim(70L)).thenReturn(1);
+        KbFileResult fileResult = new KbFileResult();
+        fileResult.setId(10L);
+        when(fileResultDbService.getById(10L)).thenReturn(fileResult);
+        when(pipelineProductDbService.getById(50L)).thenReturn(chunkProduct());
+
+        runner.run(70L);
+
+        verify(pipelineTaskDbService).finish(70L, PipelineTaskStatus.FAILED.name(),
+                PipelineTaskErrorCode.EMBED_FAILED.name(), "任务未带向量化策略快照或快照已损坏，无法向量化");
+        // 守卫在读取上游产物本体之前：坏快照不读对象、不进管线
+        verify(fileStorage, never()).getObject(any(ObjectRef.class));
+        verify(embedder, never()).embed(any());
+    }
+
+    @Test
+    void corruptChunkCapabilitySnapshotShouldSkipWindowCheck() {
+        // 上游切片产物行的策略快照坏：该次运行跳过窗口兼容校验（留空），不阻断向量化
+        KbPipelineProduct product = chunkProduct();
+        product.setCapabilitySnapshot("{oops");
+        when(pipelineTaskDbService.getById(70L)).thenReturn(queuedTask());
+        when(pipelineTaskDbService.claim(70L)).thenReturn(1);
+        KbFileResult fileResult = new KbFileResult();
+        fileResult.setId(10L);
+        fileResult.setSourceFileId(1L);
+        when(fileResultDbService.getById(10L)).thenReturn(fileResult);
+        when(pipelineProductDbService.getById(50L)).thenReturn(product);
+        when(fileStorage.getObject(ObjectRef.of(SOURCE_ID, StorageType.MINIO.getCode(), "artifacts", "abc".repeat(22))))
+                .thenReturn(Objects.requireNonNull(JsonUtil.toJsonStr(chunkSet())).getBytes(StandardCharsets.UTF_8));
+        stubPersist();
+        when(embedder.embed(any(EmbedContext.class))).thenReturn(successOutcome());
+
+        runner.run(70L);
+
+        ArgumentCaptor<EmbedContext> contextCaptor = ArgumentCaptor.forClass(EmbedContext.class);
+        verify(embedder).embed(contextCaptor.capture());
+        assertNull(contextCaptor.getValue().getChunkStrategy());
+        verify(pipelineTaskDbService).finish(70L, PipelineTaskStatus.SUCCESS.name(), null, null);
     }
 
     @Test
