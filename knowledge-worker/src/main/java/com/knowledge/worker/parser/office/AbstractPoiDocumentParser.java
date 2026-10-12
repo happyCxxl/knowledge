@@ -92,30 +92,37 @@ public abstract class AbstractPoiDocumentParser implements DocumentParserPort {
     }
 
     /**
-     * Word 系单元指标：整档正文文本按 pageChars 折算虚拟页（Azure 文档智能页单位口径），
-     * 逐单元回填字符数、乱码率与内嵌图片数（图片无页归属，统一记在首个单元）。
+     * Word 系单元指标：整档正文按 pageChars 折算虚拟页（页单位口径），逐单元回填字符数、乱码率与内嵌图片数；
+     * 图片按它在正文里的**位置**归属当前单元（文本先推进、遇到图片计入当前单元），不再一律记在首个单元。
      */
     protected void fillVirtualPageMetrics(ParseSource source, int pageChars) {
-        String text = bodyText(source);
         List<String> pages = new ArrayList<>();
+        List<Integer> imageCounts = new ArrayList<>();
         StringBuilder page = new StringBuilder();
         int budget = 0;
-        for (int i = 0; i < text.length(); ) {
-            int codePoint = text.codePointAt(i);
-            page.appendCodePoint(codePoint);
-            if (!Character.isWhitespace(codePoint) && ++budget >= pageChars) {
-                pages.add(page.toString());
-                page = new StringBuilder();
-                budget = 0;
+        int pendingImages = 0;
+        for (ParseElement element : bodyElements(source)) {
+            if (ElementType.IMAGE.name().equals(element.getType())) {
+                pendingImages++;
+                continue;
             }
-            i += Character.charCount(codePoint);
+            String elementText = StrUtil.blankToDefault(element.getText(), "");
+            for (int i = 0; i < elementText.length(); ) {
+                int codePoint = elementText.codePointAt(i);
+                page.appendCodePoint(codePoint);
+                if (!Character.isWhitespace(codePoint) && ++budget >= pageChars) {
+                    pages.add(page.toString());
+                    imageCounts.add(pendingImages);
+                    pendingImages = 0;
+                    page = new StringBuilder();
+                    budget = 0;
+                }
+                i += Character.charCount(codePoint);
+            }
         }
         if (!page.isEmpty() || pages.isEmpty()) {
             pages.add(page.toString());
-        }
-        List<Integer> imageCounts = new ArrayList<>();
-        for (int i = 0; i < pages.size(); i++) {
-            imageCounts.add(i == 0 ? imageCount(source) : 0);
+            imageCounts.add(pendingImages);
         }
         fillUnitMetrics(source, pages, imageCounts);
     }
@@ -136,11 +143,19 @@ public abstract class AbstractPoiDocumentParser implements DocumentParserPort {
         source.setUnitCount(metrics.size());
     }
 
-    /** 正文文本：正文元素的文本按顺序拼接（页眉页脚不计入单元指标） */
-    protected static String bodyText(ParseSource source) {
+    /** 正文元素（不含页眉页脚，剔除空白文本），单元折算与图片归属都按它的顺序推进 */
+    protected static List<ParseElement> bodyElements(ParseSource source) {
         return source.getElements().stream()
                 .filter(element -> !ElementType.HEADER.name().equals(element.getType())
                         && !ElementType.FOOTER.name().equals(element.getType()))
+                .filter(element -> ElementType.IMAGE.name().equals(element.getType())
+                        || StrUtil.isNotBlank(element.getText()))
+                .toList();
+    }
+
+    /** 正文文本：正文元素的文本按顺序拼接（页眉页脚不计入单元指标） */
+    protected static String bodyText(ParseSource source) {
+        return bodyElements(source).stream()
                 .map(ParseElement::getText)
                 .filter(StrUtil::isNotBlank)
                 .collect(Collectors.joining("\n"));

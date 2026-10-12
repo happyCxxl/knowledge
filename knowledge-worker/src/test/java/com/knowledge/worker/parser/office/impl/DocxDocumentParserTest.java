@@ -173,6 +173,28 @@ class DocxDocumentParserTest {
         }
     }
 
+    /** 图片按位置归属单元：文本先推到第二单元，图片计入它所在的单元（不再一律记首单元） */
+    @Test
+    void pictureShouldBelongToItsUnitByPosition() throws Exception {
+        try (XWPFDocument doc = new XWPFDocument()) {
+            doc.createParagraph().createRun().setText("abcdefgh");
+            XWPFRun run = doc.createParagraph().createRun();
+            run.addPicture(new ByteArrayInputStream(pngBytes()), XWPFDocument.PICTURE_TYPE_PNG, "p.png",
+                    Units.toEMU(8), Units.toEMU(8));
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            doc.write(out);
+
+            ParseContext context = context(out.toByteArray());
+            context.getProperties().setOfficePageChars(6);
+            ParseSource source = parser.parse(context);
+
+            List<PageMetric> metrics = source.getPageMetrics();
+            assertEquals(2, metrics.size(), () -> "metrics=" + metrics);
+            assertEquals(0, metrics.getFirst().getImageCount());
+            assertEquals(1, metrics.get(1).getImageCount());
+        }
+    }
+
     @Test
     void docxVerticalMergeShouldFillRowSpan() throws Exception {
         try (XWPFDocument doc = new XWPFDocument()) {
