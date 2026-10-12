@@ -29,6 +29,8 @@ import java.io.ByteArrayInputStream;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * DOCX 原生结构解析器（POI 路径）。
@@ -116,9 +118,36 @@ public class DocxDocumentParser extends AbstractPoiDocumentParser {
                 new PartKind("f", ElementType.FOOTER, "docx#footer[", "DOCX 页脚部件读取失败");
     }
 
+    /**
+     * 文本框文字：段落 XML 里 `w:txbxContent` 内的 `w:t` 文本按出现顺序拼接。
+     * POI 的 `XWPFParagraph.getText()` 只遍历 run 的 `w:t`，文本框内容（`w:txbxContent` / `w:ps:txbx`）不在其中。
+     *
+     * @param paragraphXml 段落 XML（`CTP.xmlText()`）
+     * @return 文本框文字（无文本框给空串）
+     */
+    static String docxTextBoxText(String paragraphXml) {
+        if (StrUtil.isBlank(paragraphXml)) {
+            return "";
+        }
+        StringBuilder text = new StringBuilder();
+        Matcher contents = Pattern.compile("<w:txbxContent[^>]*>(.*?)</w:txbxContent>", Pattern.DOTALL)
+                .matcher(paragraphXml);
+        while (contents.find()) {
+            Matcher runs = Pattern.compile("<w:t[^>]*>(.*?)</w:t>", Pattern.DOTALL).matcher(contents.group(1));
+            while (runs.find()) {
+                text.append(runs.group(1));
+            }
+        }
+        return text.toString().trim();
+    }
+
     /** DOCX 段落元素：空段跳过；样式名 + 首个有效 run 的字体事实（无样式标题只输出事实，层级归组装环节）。 */
     private ParseElement toDocxParagraphElement(XWPFParagraph paragraph, int index, String fileId) {
         String text = paragraph.getText();
+        String boxText = docxTextBoxText(paragraph.getCTP().xmlText());
+        if (StrUtil.isNotBlank(boxText)) {
+            text = StrUtil.isBlank(text) ? boxText : text + "\n" + boxText;
+        }
         if (StrUtil.isBlank(text)) {
             return null;
         }
