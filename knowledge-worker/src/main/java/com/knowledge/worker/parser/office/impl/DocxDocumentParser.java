@@ -185,6 +185,7 @@ public class DocxDocumentParser extends AbstractPoiDocumentParser {
         tableElement.setCols(rows.stream().mapToInt(DocxDocumentParser::gridWidth).max().orElse(0));
         tableElement.setHeaderRow(0);
         Map<Integer, Integer> columnMergePending = new HashMap<>();
+        Map<Integer, ParseElement> columnMergeAnchor = new HashMap<>();
         int rowIndex = 0;
         for (XWPFTableRow row : rows) {
             int colIndex = 0;
@@ -204,9 +205,11 @@ public class DocxDocumentParser extends AbstractPoiDocumentParser {
                     appendCell(tableElement, cellElement);
                     if (STMerge.RESTART.equals(vMerge)) {
                         columnMergePending.put(colIndex, 1);
+                        columnMergeAnchor.put(colIndex, cellElement);
                     }
                 } else if (STMerge.CONTINUE.equals(vMerge) && columnMergePending.containsKey(colIndex)) {
                     columnMergePending.merge(colIndex, 1, Integer::sum);
+                    mergeContinueText(columnMergeAnchor.get(colIndex), cell.getText());
                 }
                 colIndex += gridSpan;
             }
@@ -229,6 +232,15 @@ public class DocxDocumentParser extends AbstractPoiDocumentParser {
             width += gridSpan(cell);
         }
         return width;
+    }
+
+    /** vMerge=continue 格的文本并入其起始格（换行分隔，与多段落单元格同一形态），保证不丢 */
+    private static void mergeContinueText(ParseElement anchor, String continueText) {
+        if (NullUtil.isNull(anchor) || StrUtil.isBlank(continueText)) {
+            return;
+        }
+        anchor.setText(StrUtil.isBlank(anchor.getText()) ? continueText.trim()
+                : anchor.getText() + "\n" + continueText.trim());
     }
 
     /** 单元格横向跨度（无 gridSpan 记 1） */

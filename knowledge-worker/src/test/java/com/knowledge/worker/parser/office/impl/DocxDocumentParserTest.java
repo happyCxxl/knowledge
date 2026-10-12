@@ -116,6 +116,40 @@ class DocxDocumentParserTest {
         assertEquals("评分表", cellText(table, 1, 3));
     }
 
+    /** vMerge=continue 格自带文本：并入起始格（换行分隔），不丢 */
+    @Test
+    void continueCellTextShouldBeMergedIntoRestartCell() throws Exception {
+        try (XWPFDocument doc = new XWPFDocument()) {
+            XWPFTable table = doc.createTable(3, 2);
+            table.getRow(0).getCell(0).setText("评分项");
+            table.getRow(0).getCell(1).setText("分值");
+            table.getRow(1).getCell(0).setText("A1 报价");
+            table.getRow(1).getCell(1).setText("30");
+            tcPr(table.getRow(1).getCell(0)).addNewVMerge().setVal(STMerge.RESTART);
+            table.getRow(2).getCell(0).setText("续接文本");
+            table.getRow(2).getCell(1).setText("15");
+            tcPr(table.getRow(2).getCell(0)).addNewVMerge().setVal(STMerge.CONTINUE);
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            doc.write(out);
+
+            ParseSource source = parser.parse(context(out.toByteArray()));
+
+            ParseElement tableElement = source.getElements().stream()
+                    .filter(e -> ElementType.TABLE.name().equals(e.getType()))
+                    .findFirst().orElseThrow();
+            // 单元格嵌在 TABLE 元素内部，不在顶层元素列表里
+            ParseElement anchor = tableElement.getCells().stream()
+                    .filter(cell -> Integer.valueOf(1).equals(cell.getRow())
+                            && Integer.valueOf(0).equals(cell.getCol()))
+                    .findFirst().orElse(null);
+            assertNotNull(anchor, () -> "cells=" + tableElement.getCells().stream()
+                    .map(cell -> cell.getRow() + "," + cell.getCol() + "=" + cell.getText()).toList());
+            assertTrue(anchor.getText().contains("A1 报价"), () -> "text=" + anchor.getText());
+            assertTrue(anchor.getText().contains("续接文本"), () -> "text=" + anchor.getText());
+            assertEquals(2, anchor.getRowSpan());
+        }
+    }
+
     @Test
     void docxVerticalMergeShouldFillRowSpan() throws Exception {
         try (XWPFDocument doc = new XWPFDocument()) {
