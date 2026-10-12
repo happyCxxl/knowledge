@@ -52,8 +52,7 @@ class EmbedPipelineTest {
         EmbedProperties properties = new EmbedProperties();
         properties.setRetryBackoffBaseMs(0);
         gateway = new StubGateway();
-        pipeline = new EmbedPipeline(new EmbedStrategyParser(properties, new StaticModelCatalog()),
-                properties, gateway, new EmbedConsistencyChecker(), new IdentityTemplate());
+        pipeline = new EmbedPipeline(properties, gateway, new EmbedConsistencyChecker(), new IdentityTemplate());
     }
 
     // ---------------- 前置校验 ----------------

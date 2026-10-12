@@ -100,6 +100,12 @@ class StructureControlServiceImplTest {
         return fileResult;
     }
 
+    /** 组装执行键命中检查：文件结果 10 + 上游解析产物 + 无策略（0） */
+    private void existingStructureTask(Long upstreamProductId, KbPipelineTask task) {
+        when(pipelineTaskDbService.getByExecKey(10L, PipelineStage.STRUCTURE.name(), upstreamProductId, 0L))
+                .thenReturn(task);
+    }
+
     @Test
     void structureShouldCreateTaskWithUpstream() {
         when(fileResultDbService.getById(10L)).thenReturn(fileResult());
@@ -109,8 +115,7 @@ class StructureControlServiceImplTest {
         parseProduct.setStage(PipelineStage.PARSE.name());
         parseProduct.setArtifactId("abc");
         when(pipelineProductDbService.getById(50L)).thenReturn(parseProduct);
-        when(pipelineTaskDbService.getByFileResultIdAndStage(10L, PipelineStage.STRUCTURE.name()))
-                .thenReturn(null);
+        existingStructureTask(50L, null);
         when(pipelineTaskDbService.save(any(KbPipelineTask.class))).thenAnswer(inv -> {
             inv.getArgument(0, KbPipelineTask.class).setId(51L);
             return true;
@@ -123,6 +128,8 @@ class StructureControlServiceImplTest {
         verify(pipelineTaskDbService).save(captor.capture());
         assertEquals(PipelineStage.STRUCTURE.name(), captor.getValue().getStage());
         assertEquals(50L, captor.getValue().getUpstreamProductId());
+        // 组装无策略：任务行的策略位落 0 哨兵
+        assertEquals(0L, captor.getValue().getStrategyVersionId());
         verify(taskQueue).enqueue(51L);
     }
 
@@ -135,8 +142,7 @@ class StructureControlServiceImplTest {
         specified.setStage(PipelineStage.PARSE.name());
         // 指定路径：按 id 查产物并校验
         when(pipelineProductDbService.getById(88L)).thenReturn(specified);
-        when(pipelineTaskDbService.getByFileResultIdAndStage(10L, PipelineStage.STRUCTURE.name()))
-                .thenReturn(null);
+        existingStructureTask(88L, null);
         when(pipelineTaskDbService.save(any(KbPipelineTask.class))).thenAnswer(inv -> {
             inv.getArgument(0, KbPipelineTask.class).setId(89L);
             return true;
@@ -184,17 +190,20 @@ class StructureControlServiceImplTest {
         KbPipelineTask running = new KbPipelineTask();
         running.setId(51L);
         running.setStatus(PipelineTaskStatus.RUNNING.name());
-        when(pipelineTaskDbService.getByFileResultIdAndStage(10L, PipelineStage.STRUCTURE.name()))
-                .thenReturn(running);
+        existingStructureTask(50L, running);
 
         KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.structure(10L, 50L));
+
         assertEquals(ErrorCode.TASK_ALREADY_PENDING, e.getErrorCode());
+        // 拒绝文案带任务号与状态：用户能看出是哪条任务占着执行键
+        assertTrue(e.getMessage().contains("taskId=51"), e.getMessage());
+        assertTrue(e.getMessage().contains(PipelineTaskStatus.RUNNING.name()), e.getMessage());
         verify(pipelineTaskDbService, never()).save(any());
         verify(taskQueue, never()).enqueue(any());
     }
 
     @Test
-    void structureQueuedShouldEnqueueExistingWithoutNewTask() {
+    void structureExistingQueuedTaskShouldReject40431() {
         when(fileResultDbService.getById(10L)).thenReturn(fileResult());
         KbPipelineProduct parseProduct = new KbPipelineProduct();
         parseProduct.setId(50L);
@@ -204,14 +213,14 @@ class StructureControlServiceImplTest {
         KbPipelineTask queued = new KbPipelineTask();
         queued.setId(51L);
         queued.setStatus(PipelineTaskStatus.QUEUED.name());
-        when(pipelineTaskDbService.getByFileResultIdAndStage(10L, PipelineStage.STRUCTURE.name()))
-                .thenReturn(queued);
+        existingStructureTask(50L, queued);
 
-        var response = service.structure(10L, 50L);
+        // 执行键命中即拒绝，触发入口不再补投唤醒；QUEUED 补投归启动补偿与低频扫描
+        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.structure(10L, 50L));
 
-        assertEquals(51L, response.getPipelineTaskId());
+        assertEquals(ErrorCode.TASK_ALREADY_PENDING, e.getErrorCode());
         verify(pipelineTaskDbService, never()).save(any());
-        verify(taskQueue).enqueue(51L);
+        verify(taskQueue, never()).enqueue(any());
     }
 
     @Test

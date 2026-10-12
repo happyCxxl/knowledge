@@ -31,6 +31,7 @@ import com.knowledge.common.dto.response.chunk.ChunkDetailVO;
 import com.knowledge.common.enums.storage.StorageType;
 import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.enums.task.PipelineTaskStatus;
+import com.knowledge.common.enums.task.RowStatus;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.filecenter.provider.StorageRouter;
 import com.knowledge.filecenter.service.FileStorage;
@@ -58,7 +59,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 切片控制面服务单测：策略解析四档（显式/KB 绑定/最新启用/内置默认）/ 上游产物校验 / 防重复用 / 建任务快照入队 / 切片详情。
+ * 切片控制面服务单测：策略解析两档（显式指定 / 知识库绑定）/ 上游产物校验 / 执行键查重 /
+ * 建任务快照入队 / 切片详情。
  *
  * @author cxxl
  */
@@ -136,6 +138,19 @@ class ChunkControlServiceImplTest {
     private void stubCommon() {
         when(fileResultDbService.getById(10L)).thenReturn(fileResult());
         when(pipelineProductDbService.getById(50L)).thenReturn(preprocessProduct());
+        stubBoundStrategy();
+    }
+
+    /** 绑定档桩：KB 10 → 绑定行 → 启用中的策略版本行 66（显式指定档的用例不命中它，按宽松桩登记） */
+    private void stubBoundStrategy() {
+        lenient().when(strategyBindingDbService.getByKbAndType(10L, ChunkStrategy.TYPE)).thenReturn(binding());
+        lenient().when(strategyVersionDbService.getById(66L)).thenReturn(chunkVersion(66L, "chunk-bound", "v3"));
+    }
+
+    /** 切片执行键检查：文件结果 10 + 上游预处理产物 + 策略版本（0 表示该环节无策略） */
+    private void existingChunkTask(Long upstreamProductId, Long strategyVersionId, KbPipelineTask task) {
+        when(pipelineTaskDbService.getByExecKey(10L, PipelineStage.CHUNK.name(), upstreamProductId,
+                strategyVersionId)).thenReturn(task);
     }
 
     /** 知识库夹具（绑定开关未显式关闭 → 视为开启） */
@@ -143,6 +158,15 @@ class ChunkControlServiceImplTest {
         KnowledgeBase kb = new KnowledgeBase();
         kb.setId(10L);
         kb.setStrategyBindingEnabled(1);
+        kb.setUserId(SecurityTestSupport.VIEWER_ID);
+        return kb;
+    }
+
+    /** 绑定开关关闭的知识库 */
+    private KnowledgeBase bindingOffKnowledgeBase() {
+        KnowledgeBase kb = new KnowledgeBase();
+        kb.setId(10L);
+        kb.setStrategyBindingEnabled(0);
         kb.setUserId(SecurityTestSupport.VIEWER_ID);
         return kb;
     }
@@ -157,23 +181,21 @@ class ChunkControlServiceImplTest {
         return binding;
     }
 
-    private KbPipelineStrategyVersion chunkVersion(String name, String version) {
+    private KbPipelineStrategyVersion chunkVersion(Long id, String name, String version) {
         KbPipelineStrategyVersion row = new KbPipelineStrategyVersion();
-        row.setId(66L);
+        row.setId(id);
         row.setType(ChunkStrategy.TYPE);
         row.setName(name);
         row.setVersion(version);
         row.setConfigSnapshot("{\"routes\":{},\"pipeline\":{\"titleInContent\":\"ON\"}}");
-        row.setStatus("ACTIVE");
+        row.setStatus(RowStatus.ACTIVE.name());
         return row;
     }
 
     @Test
-    void shouldCreateTaskWithDefaultStrategySnapshotAndEnqueue() {
+    void boundStrategyShouldDriveTaskSnapshotAndEnqueue() {
         stubCommon();
-        when(strategyVersionDbService.getLatestEnabledByType(ChunkStrategy.TYPE)).thenReturn(null);
-        when(pipelineTaskDbService.getByFileResultIdAndStage(10L, PipelineStage.CHUNK.name()))
-                .thenReturn(null);
+        existingChunkTask(50L, 66L, null);
         when(pipelineTaskDbService.save(any(KbPipelineTask.class))).thenAnswer(inv -> {
             inv.getArgument(0, KbPipelineTask.class).setId(41L);
             return true;
@@ -182,22 +204,49 @@ class ChunkControlServiceImplTest {
         var response = service.chunk(10L, null, 50L);
 
         assertEquals(41L, response.getPipelineTaskId());
-        assertEquals("chunk-hybrid-v1", response.getStrategyVersion());
+        assertEquals("chunk-bound-v3", response.getStrategyVersion());
         ArgumentCaptor<KbPipelineTask> captor = ArgumentCaptor.forClass(KbPipelineTask.class);
         verify(pipelineTaskDbService).save(captor.capture());
         KbPipelineTask task = captor.getValue();
         assertEquals(PipelineStage.CHUNK.name(), task.getStage());
         assertEquals(PipelineTaskStatus.QUEUED.name(), task.getStatus());
         assertEquals(50L, task.getUpstreamProductId());
+        assertEquals(66L, task.getStrategyVersionId());
         assertNotNull(task.getStrategySnapshot());
-        assertTrue(task.getStrategySnapshot().contains("parentChild"));
+        assertTrue(task.getStrategySnapshot().contains("titleInContent"));
         verify(taskQueue).enqueue(41L);
+    }
+
+    @Test
+    void unboundStrategyShouldReject40438() {
+        // 知识库未绑定：不再取"启用中最新"兜底，一律拒绝
+        when(fileResultDbService.getById(10L)).thenReturn(fileResult());
+        when(strategyBindingDbService.getByKbAndType(10L, ChunkStrategy.TYPE)).thenReturn(null);
+
+        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.chunk(10L, null, 50L));
+
+        assertEquals(ErrorCode.TASK_STRATEGY_MISSING, e.getErrorCode());
+        verify(pipelineTaskDbService, never()).save(any());
+        verify(taskQueue, never()).enqueue(any());
+    }
+
+    @Test
+    void bindingSwitchOffShouldReject40438() {
+        // 绑定开关关闭：即使库内存在绑定行也不生效
+        when(fileResultDbService.getById(10L)).thenReturn(fileResult());
+        when(knowledgeBaseDbService.getActiveById(10L)).thenReturn(bindingOffKnowledgeBase());
+
+        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.chunk(10L, null, 50L));
+
+        assertEquals(ErrorCode.TASK_STRATEGY_MISSING, e.getErrorCode());
+        verify(strategyBindingDbService, never()).getByKbAndType(any(), any());
+        verify(pipelineTaskDbService, never()).save(any());
     }
 
     @Test
     void missingUpstreamProductShouldThrow40436() {
         when(fileResultDbService.getById(10L)).thenReturn(fileResult());
-        when(strategyVersionDbService.getLatestEnabledByType(ChunkStrategy.TYPE)).thenReturn(null);
+        stubBoundStrategy();
 
         KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.chunk(10L, null, null));
         assertEquals(ErrorCode.TASK_UPSTREAM_MISSING, e.getErrorCode());
@@ -218,31 +267,27 @@ class ChunkControlServiceImplTest {
     @Test
     void explicitStrategyVersionShouldResolveFromDb() {
         stubCommon();
-        when(strategyVersionDbService.getById(66L))
-                .thenReturn(chunkVersion("chunk-strict", "v2"));
-        when(pipelineTaskDbService.getByFileResultIdAndStage(10L, PipelineStage.CHUNK.name()))
-                .thenReturn(null);
+        when(strategyVersionDbService.getById(77L))
+                .thenReturn(chunkVersion(77L, "chunk-strict", "v2"));
+        existingChunkTask(50L, 77L, null);
         when(pipelineTaskDbService.save(any(KbPipelineTask.class))).thenAnswer(inv -> {
             inv.getArgument(0, KbPipelineTask.class).setId(42L);
             return true;
         });
 
-        var response = service.chunk(10L, 66L, 50L);
+        var response = service.chunk(10L, 77L, 50L);
 
         assertEquals("chunk-strict-v2", response.getStrategyVersion());
         ArgumentCaptor<KbPipelineTask> captor = ArgumentCaptor.forClass(KbPipelineTask.class);
         verify(pipelineTaskDbService).save(captor.capture());
         assertTrue(captor.getValue().getStrategySnapshot().contains("titleInContent"));
+        assertEquals(77L, captor.getValue().getStrategyVersionId());
     }
 
     @Test
     void boundStrategyShouldBeUsedWhenNoExplicitVersion() {
         stubCommon();
-        when(knowledgeBaseDbService.getActiveById(10L)).thenReturn(knowledgeBase());
-        when(strategyBindingDbService.getByKbAndType(10L, ChunkStrategy.TYPE)).thenReturn(binding());
-        when(strategyVersionDbService.getById(66L)).thenReturn(chunkVersion("chunk-bound", "v3"));
-        when(pipelineTaskDbService.getByFileResultIdAndStage(10L, PipelineStage.CHUNK.name()))
-                .thenReturn(null);
+        existingChunkTask(50L, 66L, null);
         when(pipelineTaskDbService.save(any(KbPipelineTask.class))).thenAnswer(inv -> {
             inv.getArgument(0, KbPipelineTask.class).setId(43L);
             return true;
@@ -251,93 +296,83 @@ class ChunkControlServiceImplTest {
         var response = service.chunk(10L, null, 50L);
 
         assertEquals("chunk-bound-v3", response.getStrategyVersion());
-        // 绑定生效时不查全局最新启用
-        verify(strategyVersionDbService, never()).getLatestEnabledByType(any());
     }
 
     @Test
     void explicitStrategyShouldOverrideBinding() {
         stubCommon();
-        when(strategyVersionDbService.getById(66L)).thenReturn(chunkVersion("chunk-explicit", "v4"));
-        when(pipelineTaskDbService.getByFileResultIdAndStage(10L, PipelineStage.CHUNK.name()))
-                .thenReturn(null);
+        when(strategyVersionDbService.getById(77L)).thenReturn(chunkVersion(77L, "chunk-explicit", "v4"));
+        existingChunkTask(50L, 77L, null);
         when(pipelineTaskDbService.save(any(KbPipelineTask.class))).thenAnswer(inv -> {
             inv.getArgument(0, KbPipelineTask.class).setId(44L);
             return true;
         });
 
-        var response = service.chunk(10L, 66L, 50L);
+        var response = service.chunk(10L, 77L, 50L);
 
         assertEquals("chunk-explicit-v4", response.getStrategyVersion());
-        // 显式指定时不经绑定档与全局最新档
+        // 显式指定时不走绑定档
         verify(strategyBindingDbService, never()).getByKbAndType(any(), any());
-        verify(strategyVersionDbService, never()).getLatestEnabledByType(any());
     }
 
     @Test
-    void staleBindingShouldFallbackToLatestEnabled() {
-        // 绑定行指向的策略版本行缺失 → 失效回退全局最新启用
-        stubCommon();
+    void staleBindingShouldReject40438() {
+        // 绑定行指向的策略版本行缺失：不再回退"启用中最新"，一律拒绝
+        when(fileResultDbService.getById(10L)).thenReturn(fileResult());
         when(knowledgeBaseDbService.getActiveById(10L)).thenReturn(knowledgeBase());
         when(strategyBindingDbService.getByKbAndType(10L, ChunkStrategy.TYPE)).thenReturn(binding());
         when(strategyVersionDbService.getById(66L)).thenReturn(null);
-        when(strategyVersionDbService.getLatestEnabledByType(ChunkStrategy.TYPE))
-                .thenReturn(chunkVersion("chunk-latest", "v5"));
-        when(pipelineTaskDbService.getByFileResultIdAndStage(10L, PipelineStage.CHUNK.name()))
-                .thenReturn(null);
-        when(pipelineTaskDbService.save(any(KbPipelineTask.class))).thenAnswer(inv -> {
-            inv.getArgument(0, KbPipelineTask.class).setId(45L);
-            return true;
-        });
 
-        var response = service.chunk(10L, null, 50L);
+        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.chunk(10L, null, 50L));
 
-        assertEquals("chunk-latest-v5", response.getStrategyVersion());
+        assertEquals(ErrorCode.TASK_STRATEGY_MISSING, e.getErrorCode());
+        verify(pipelineTaskDbService, never()).save(any());
     }
 
     @Test
     void mismatchedStrategyTypeShouldReject() {
         // 显式策略按行 id 引用，类型不匹配拒绝
         when(fileResultDbService.getById(10L)).thenReturn(fileResult());
-        KbPipelineStrategyVersion wrongType = chunkVersion("chunk-x", "v1");
+        KbPipelineStrategyVersion wrongType = chunkVersion(77L, "chunk-x", "v1");
         wrongType.setType("PREPROCESS");
-        when(strategyVersionDbService.getById(66L)).thenReturn(wrongType);
+        when(strategyVersionDbService.getById(77L)).thenReturn(wrongType);
 
-        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.chunk(10L, 66L, 50L));
+        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.chunk(10L, 77L, 50L));
         assertEquals(ErrorCode.STRATEGY_VERSION_NOT_FOUND, e.getErrorCode());
     }
 
     @Test
     void runningShouldReject40431() {
         stubCommon();
-        when(strategyVersionDbService.getLatestEnabledByType(ChunkStrategy.TYPE)).thenReturn(null);
         KbPipelineTask running = new KbPipelineTask();
         running.setId(41L);
         running.setStatus(PipelineTaskStatus.RUNNING.name());
-        when(pipelineTaskDbService.getByFileResultIdAndStage(10L, PipelineStage.CHUNK.name()))
-                .thenReturn(running);
+        existingChunkTask(50L, 66L, running);
 
         KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.chunk(10L, null, 50L));
+
         assertEquals(ErrorCode.TASK_ALREADY_PENDING, e.getErrorCode());
+        // 拒绝文案带任务号与状态：用户能看出是哪条任务占着执行键
+        assertTrue(e.getMessage().contains("taskId=41"), e.getMessage());
+        assertTrue(e.getMessage().contains(PipelineTaskStatus.RUNNING.name()), e.getMessage());
         verify(pipelineTaskDbService, never()).save(any());
         verify(taskQueue, never()).enqueue(any());
     }
 
     @Test
-    void queuedShouldReuseExistingTask() {
+    void existingQueuedTaskShouldReject40431() {
         stubCommon();
-        when(strategyVersionDbService.getLatestEnabledByType(ChunkStrategy.TYPE)).thenReturn(null);
         KbPipelineTask queued = new KbPipelineTask();
         queued.setId(41L);
         queued.setStatus(PipelineTaskStatus.QUEUED.name());
-        when(pipelineTaskDbService.getByFileResultIdAndStage(10L, PipelineStage.CHUNK.name()))
-                .thenReturn(queued);
+        existingChunkTask(50L, 66L, queued);
 
-        var response = service.chunk(10L, null, 50L);
+        // 执行键命中即拒绝，触发入口不再补投唤醒；QUEUED 补投归启动补偿与低频扫描
+        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.chunk(10L, null, 50L));
 
-        assertEquals(41L, response.getPipelineTaskId());
+        assertEquals(ErrorCode.TASK_ALREADY_PENDING, e.getErrorCode());
         verify(pipelineTaskDbService, never()).save(any());
-        verify(taskQueue).enqueue(41L);
+        verify(taskQueue, never()).enqueue(any());
     }
 
     @Test

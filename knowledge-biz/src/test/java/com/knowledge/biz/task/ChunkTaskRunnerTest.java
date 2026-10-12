@@ -110,6 +110,8 @@ class ChunkTaskRunnerTest {
         task.setFileResultId(10L);
         // 上游产物按任务行上的显式引用取（触发时确定）；指定别的上游场景由专门用例自行覆盖
         task.setUpstreamProductId(50L);
+        // 策略快照按任务行上的快照取（触发时固定）：触发时写入的是带 type/name/version 的完整快照
+        task.setStrategySnapshot("{\"type\":\"CHUNK\",\"name\":\"chunk-hybrid\",\"version\":\"v1\"}");
         task.setStage(PipelineStage.CHUNK.name());
         task.setStatus(PipelineTaskStatus.QUEUED.name());
         return task;

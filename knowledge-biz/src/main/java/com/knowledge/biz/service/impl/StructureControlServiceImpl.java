@@ -31,8 +31,8 @@ import java.util.Map;
 
 /**
  * 结构组装控制面服务实现（手动逐环节）：
- * 上游产物校验 → 防重/唤醒（RUNNING 40431；QUEUED 补投唤醒，与其余环节口径一致）→
- * 新建 STRUCTURE 任务（upstream=最新 PARSE 产物）入队；
+ * 上游产物校验（必填，未指定或传 0 报 40436）→ 执行键查重（已有任务一律拒绝 40431）→
+ * 新建 STRUCTURE 任务（upstream=指定 PARSE 产物）入队；QUEUED 补投归启动补偿与低频扫描。
  * 组装详情：任务状态 + 子步骤 + 统一文档产物推导的统计/告警/冲突/文档内容大纲。
  *
  * @author cxxl
@@ -50,20 +50,18 @@ public class StructureControlServiceImpl implements StructureControlService {
     private final FileResultAccessGuard accessGuard;
 
     /**
-     * 触发组装（手动逐环节，重跑同入口）：上游解析产物校验 → 防重/唤醒 → 新建 STRUCTURE 任务入队。
+     * 触发组装（手动逐环节）：上游解析产物校验（必填，未指定或传 0 报 40436）→ 执行键查重（已有任务一律拒绝 40431）→ 新建 STRUCTURE 任务入队。
      *
      * @param fileResultId      文件结果 ID
-     * @param upstreamProductId 上游解析产物 ID（可选，缺省取最新）
-     * @return 触发响应（新登记/已有任务 ID）
+     * @param upstreamProductId 上游解析产物 ID（必填，须显式指定）
+     * @return 触发响应（新建任务 ID）
      */
     @Override
     public StageTriggerVO structure(Long fileResultId, Long upstreamProductId) {
         accessGuard.requireExisting(fileResultId);
-        // 可选指定上游解析产物；缺省取最新
+        // 上游解析产物：必须显式指定，校验存在/环节/归属；未指定直接拒绝（无按时间猜的兜底）。
         KbPipelineProduct parseProduct = requireParseProduct(fileResultId, upstreamProductId);
-        ThrowUtil.throwIf(NullUtil.isNull(parseProduct), ErrorCode.FILE_RESULT_NOT_FOUND,
-                "解析产物不存在，请先触发解析");
-        return triggerSupport.trigger(fileResultId, PipelineStage.STRUCTURE, parseProduct.getId(), null, "组装", false);
+        return triggerSupport.trigger(fileResultId, PipelineStage.STRUCTURE, parseProduct.getId(), null, null, "组装");
     }
 
     @Override
@@ -94,7 +92,7 @@ public class StructureControlServiceImpl implements StructureControlService {
 
     /** 上游解析产物校验：必须显式指定，校验存在/环节/归属；未指定直接拒绝（无按时间猜的兜底）。 */
     private KbPipelineProduct requireParseProduct(Long fileResultId, Long productId) {
-        ThrowUtil.throwIf(NullUtil.isNull(productId), ErrorCode.TASK_UPSTREAM_MISSING,
+        ThrowUtil.throwIf(NullUtil.isNull(productId) || productId == 0L, ErrorCode.TASK_UPSTREAM_MISSING,
                 "未指定上游解析产物，请从解析产物的卡片发起触发");
         KbPipelineProduct product = pipelineProductDbService.getById(productId);
         ThrowUtil.throwIf(NullUtil.isNull(product), ErrorCode.FILE_RESULT_NOT_FOUND, "指定上游产物不存在");

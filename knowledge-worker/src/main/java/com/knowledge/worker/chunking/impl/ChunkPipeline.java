@@ -1,6 +1,5 @@
 package com.knowledge.worker.chunking.impl;
 
-import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.knowledge.common.domain.chunk.Chunk;
 import com.knowledge.common.domain.chunk.ChunkOutcome;
@@ -11,36 +10,24 @@ import com.knowledge.common.domain.rules.PreprocessViewRules;
 import com.knowledge.common.domain.structure.UnifiedDocument;
 import com.knowledge.common.domain.structure.UnifiedElement;
 import com.knowledge.common.domain.task.StepLogInfo;
-import com.knowledge.common.enums.chunk.ChunkContentType;
-import com.knowledge.common.enums.chunk.ChunkKind;
+import com.knowledge.common.enums.chunk.*;
 import com.knowledge.common.enums.structure.UnifiedElementType;
 import com.knowledge.common.enums.task.PipelineTaskErrorCode;
 import com.knowledge.common.enums.task.PipelineTaskStatus;
 import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.chunking.ChunkContext;
+import com.knowledge.worker.chunking.ChunkProperties;
 import com.knowledge.worker.chunking.ChunkerPort;
 import com.knowledge.worker.chunking.SliceContext;
 import com.knowledge.worker.chunking.slice.ChunkPostProcessor;
 import com.knowledge.worker.chunking.slice.SliceStrategy;
-import com.knowledge.common.enums.chunk.ChunkAlgorithm;
-import com.knowledge.worker.chunking.ChunkProperties;
-import com.knowledge.common.enums.chunk.ChunkRoute;
 import com.knowledge.worker.chunking.strategy.ChunkStrategy;
-import com.knowledge.worker.chunking.strategy.ChunkStrategyParser;
-import com.knowledge.common.enums.chunk.PipelineKey;
 import com.knowledge.worker.pipeline.StepLogHelper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Deque;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
  * 切片编排（模板方法模式）：固定流程骨架 + 可替换策略（registry 按 (路, 算法) 查找）。
@@ -58,7 +45,6 @@ public class ChunkPipeline implements ChunkerPort {
     private final SliceStrategyRegistry registry;
     private final FallbackSlicerRegistry fallbackRegistry;
     private final ChunkProperties properties;
-    private final ChunkStrategyParser parser;
     private final List<ChunkPostProcessor> postProcessors;
 
     /**
@@ -74,7 +60,11 @@ public class ChunkPipeline implements ChunkerPort {
             return outcome;
         }
 
-        ChunkStrategy strategy = ObjectUtil.defaultIfNull(context.getStrategy(), parser.defaultStrategy());
+        ChunkStrategy strategy = context.getStrategy();
+        if (NullUtil.isNull(strategy)) {
+            outcome.fail(PipelineTaskErrorCode.CHUNK_FAILED.name(), "任务未带切片策略快照，无法切片");
+            return outcome;
+        }
         SliceContext sliceContext = buildSliceContext(context, strategy);
         log.info("===> ChunkPipeline 开始切片, fileResultId={}, elements={}, strategy={}",
                 context.getFileResultId(), view.getElements().size(), strategy.fullVersion());

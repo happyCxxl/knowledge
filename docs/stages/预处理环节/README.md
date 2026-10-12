@@ -6,16 +6,16 @@
 
 ## 环节定位
 
-| 项   | 值                                                                                                                                       |
-|------|------------------------------------------------------------------------------------------------------------------------------------------|
-| 上游 | 组装环节（`UnifiedDocument`：`elements` 与 `pages[].marks`）；任务编排（biz 侧 `PreprocessTaskRunner` 领取预处理任务）                   |
-| 输入 | `PreprocessContext`（`document` / `strategy` 策略快照 / `properties` / `fileResultId` / `upstreamProductRef`）                           |
-| 输出 | `PreprocessOutcome`（`view` 派生视图 + 九条步骤日志 + `warnings` + `suggestedStatus`）                                                   |
-| 触发 | `KnowledgeFilePreprocessController` 的触发接口 → 按策略四档解析生效版本 → 快照进任务 → 入队 → `PreprocessTaskRunner` 领取并调用管线      |
-| 下游 | 切片环节（按 `PreprocessViewRules.CHUNK_SKIP_STATUSES` 跳过不进内容流的元素）；向量化、检索沿执行链继续                                  |
-| 落库 | 不在本环节内：`PreprocessPipeline` 是纯算法，不碰 DB 与对象存储；产物行与任务终态由 biz 侧编排完成                                       |
-| 实现 | 八条规则固定顺序、逐条按策略开关与档位生效；策略在**触发时快照**，执行只读快照（可复现）                                                 |
-| 代码 | `knowledge-worker/src/main/java/com/knowledge/worker/preprocessing/`（全局默认值在 `PreprocessProperties`，前缀 `knowledge.preprocess`） |
+| 项   | 值                                                                                                                                                                                    |
+|------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 上游 | 组装环节（`UnifiedDocument`：`elements` 与 `pages[].marks`）；任务编排（biz 侧 `PreprocessTaskRunner` 领取预处理任务）                                                                |
+| 输入 | `PreprocessContext`（`document` / `strategy` 策略快照 / `properties` / `fileResultId` / `upstreamProductRef`）                                                                        |
+| 输出 | `PreprocessOutcome`（`view` 派生视图 + 九条步骤日志 + `warnings` + `suggestedStatus`）                                                                                                |
+| 触发 | `KnowledgeFilePreprocessController` 的触发接口 → 策略两档解析生效版本（显式指定 → 知识库绑定）→ 上游产物校验 → 执行键查重 → 快照进任务 → 入队 → `PreprocessTaskRunner` 领取并调用管线 |
+| 下游 | 切片环节（按 `PreprocessViewRules.CHUNK_SKIP_STATUSES` 跳过不进内容流的元素）；向量化、检索沿执行链继续                                                                               |
+| 落库 | 不在本环节内：`PreprocessPipeline` 是纯算法，不碰 DB 与对象存储；产物行与任务终态由 biz 侧编排完成                                                                                    |
+| 实现 | 八条规则固定顺序、逐条按策略开关与档位生效；策略在**触发时快照**，执行只读快照（可复现）                                                                                              |
+| 代码 | `knowledge-worker/src/main/java/com/knowledge/worker/preprocessing/`（全局默认值在 `PreprocessProperties`，前缀 `knowledge.preprocess`）                                              |
 
 原文零改动是硬约束：处置只落在派生视图副本上（`rawText` 从不修改），视图元素带 `status` / `displayText` / `normalizedText` / `normalizedFields` / `preprocessTrace`。
 

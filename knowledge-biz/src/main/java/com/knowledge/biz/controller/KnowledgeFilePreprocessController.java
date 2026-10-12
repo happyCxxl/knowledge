@@ -33,8 +33,10 @@ public class KnowledgeFilePreprocessController {
     private final PreprocessControlService preprocessControlService;
 
     @PostMapping("/{fileResultId}/preprocess")
-    @Operation(summary = "触发预处理", description = "触发预处理/重跑（手动逐环节）；"
-            + "strategyVersionId 可选（策略行 ID，缺省取库内启用中最新版本）；upstreamProductId 可选（指定上游 STRUCTURE 产物，缺省取最新）；RUNNING 拒绝（40431）、QUEUED 补投唤醒、终态/无任务新建")
+    @Operation(summary = "触发预处理", description = "触发预处理（手动逐环节）；"
+            + "strategyVersionId 可选（策略行 ID，不传用知识库绑定，两档都不命中 40438）；"
+            + "upstreamProductId 必填（指定上游 STRUCTURE 产物，未指定或传 0 报 40436）；"
+            + "已有任务一律 40431；QUEUED 补投归启动补偿与低频扫描")
     public R<PreprocessTriggerVO> preprocess(
             @Parameter(description = "文件结果ID", required = true) @PathVariable("fileResultId") Long fileResultId,
             @ParameterObject StageTriggerQueryDto query) {

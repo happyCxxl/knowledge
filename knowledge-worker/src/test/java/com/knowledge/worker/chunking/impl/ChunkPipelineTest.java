@@ -68,7 +68,6 @@ class ChunkPipelineTest {
                 new FallbackSlicerRegistry(List.of(new RecursiveLengthFallback(),
                         new FixedWindowFallback(), new NoneFallback())),
                 props,
-                new ChunkStrategyParser(props),
                 List.of(new StructureOverlapProcessor(), new MinMergeProcessor(), new TitleInContentProcessor()));
     }
 
@@ -80,7 +79,6 @@ class ChunkPipelineTest {
                 new SliceStrategyRegistry(all),
                 new FallbackSlicerRegistry(List.of(new RecursiveLengthFallback())),
                 props,
-                new ChunkStrategyParser(props),
                 List.of(new StructureOverlapProcessor(), new MinMergeProcessor(), new TitleInContentProcessor()));
     }
 

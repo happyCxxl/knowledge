@@ -121,6 +121,10 @@ class EmbedTaskRunnerTest {
         task.setFileResultId(10L);
         // 上游产物按任务行上的显式引用取（触发时确定）
         task.setUpstreamProductId(50L);
+        // 策略快照按任务行上的快照取（触发时固定）：触发时写入的是带 type/name/version 的完整快照
+        task.setStrategySnapshot(
+                "{\"type\":\"EMBED\",\"name\":\"embed-default\",\"version\":\"v1\",\"model\":\"text-embedding-v4\","
+                        + "\"cacheEnabled\":\"ON\"}");
         task.setStage(PipelineStage.EMBED.name());
         task.setStatus(PipelineTaskStatus.QUEUED.name());
         return task;

@@ -37,8 +37,9 @@ import java.util.Map;
 
 /**
  * 预处理控制面服务实现（手动逐环节）：
- * 策略解析（显式传参 > KB 绑定 > 启用中最新 > 内置默认）→ 上游产物校验 → 防重/唤醒 → 建任务入队。
- * 策略快照写 task.strategy_snapshot（触发时固定），执行只用快照。
+ * 策略解析两档：显式指定（校验存在/类型/启用，任一不满足 40433）→ 知识库绑定（绑定开关开启 + 绑定行存在 + 绑定行启用）；
+ * 两档都不命中一律 40438。上游产物校验（必填，未指定或传 0 报 40436）→ 执行键查重（已有任务一律拒绝 40431）→ 建任务入队。
+ * 策略快照写 task.strategy_snapshot（触发时固定），执行只用快照。QUEUED 补投归启动补偿与低频扫描。
  *
  * @author cxxl
  */
@@ -57,25 +58,24 @@ public class PreprocessControlServiceImpl implements PreprocessControlService {
     private final FileResultAccessGuard accessGuard;
 
     /**
-     * 触发预处理（手动逐环节，重跑同入口）：策略解析 → 上游组装产物校验 → 防重/唤醒 → 新建 PREPROCESS 任务入队。
+     * 触发预处理（手动逐环节，重跑同入口）：策略解析两档 → 上游组装产物校验（必填）→ 执行键查重（已有任务一律拒绝 40431）→ 新建 PREPROCESS 任务入队。
      *
      * @param fileResultId      文件结果 ID
-     * @param strategyVersionId 策略版本行 ID（可选，缺省取库内启用中最新，库内无回退内置默认）
-     * @param upstreamProductId 上游组装产物 ID（可选，缺省取最新）
+     * @param strategyVersionId 策略版本行 ID（可选；不传用知识库绑定，两档都不命中报 40438）
+     * @param upstreamProductId 上游组装产物 ID（必填，未指定或传 0 报 40436）
      * @return 触发响应（任务 ID + 生效策略版本）
      */
     @Override
     public PreprocessTriggerVO preprocess(Long fileResultId, Long strategyVersionId, Long upstreamProductId) {
         KbFileResult fileResult = accessGuard.requireExisting(fileResultId);
-        PreprocessStrategy strategy = resolveStrategy(fileResult, strategyVersionId);
+        KbPipelineStrategyVersion strategyRow = resolveStrategyRow(fileResult, strategyVersionId);
+        PreprocessStrategy strategy = toStrategy(strategyRow);
 
-        // 可选指定上游组装产物；缺省取最新
+        // 上游组装产物：必须显式指定
         KbPipelineProduct structureProduct = requireStructureProduct(fileResultId, upstreamProductId);
-        ThrowUtil.throwIf(NullUtil.isNull(structureProduct), ErrorCode.FILE_RESULT_NOT_FOUND,
-                "统一结构产物不存在，请先触发组装");
 
         StageTriggerVO triggered = triggerSupport.trigger(fileResultId, PipelineStage.PREPROCESS,
-                structureProduct.getId(), JsonUtil.toJsonStr(strategy), "预处理", false);
+                structureProduct.getId(), strategyRow.getId(), JsonUtil.toJsonStr(strategy), "预处理");
         return new PreprocessTriggerVO(fileResultId, triggered.getPipelineTaskId(), strategy.fullVersion());
     }
 
@@ -131,16 +131,15 @@ public class PreprocessControlServiceImpl implements PreprocessControlService {
         }
     }
 
-    /** 策略解析四档：显式指定（40433 校验存在/类型/启用）→ KB 绑定（开关开启时，失效回退告警）→ 启用中最新 → 内置默认。 */
-    private PreprocessStrategy resolveStrategy(KbFileResult fileResult, Long strategyVersionId) {
-        KbPipelineStrategyVersion row = strategySupport.resolve(
+    /** 策略解析两档：显式指定（40433 校验存在/类型/启用）→ 知识库绑定；两档都不命中一律拒绝 40438。 */
+    private KbPipelineStrategyVersion resolveStrategyRow(KbFileResult fileResult, Long strategyVersionId) {
+        return strategySupport.resolve(
                 fileResult, strategyVersionId, PreprocessStrategy.TYPE, "PreprocessControlServiceImpl 预处理");
-        return NullUtil.isNull(row) ? strategyParser.defaultStrategy() : toStrategy(row);
     }
 
     /** 上游组装产物校验：必须显式指定，校验存在/环节/归属；未指定直接拒绝（无按时间猜的兜底）。 */
     private KbPipelineProduct requireStructureProduct(Long fileResultId, Long productId) {
-        ThrowUtil.throwIf(NullUtil.isNull(productId), ErrorCode.TASK_UPSTREAM_MISSING,
+        ThrowUtil.throwIf(NullUtil.isNull(productId) || productId == 0L, ErrorCode.TASK_UPSTREAM_MISSING,
                 "未指定上游统一结构产物，请从组装产物的卡片发起触发");
         KbPipelineProduct product = pipelineProductDbService.getById(productId);
         ThrowUtil.throwIf(NullUtil.isNull(product), ErrorCode.FILE_RESULT_NOT_FOUND, "指定上游产物不存在");

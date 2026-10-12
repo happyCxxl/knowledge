@@ -154,6 +154,8 @@
       :upstream="triggerSource"
       :submitting="triggering"
       :block-reason="storageBlockReason"
+      :has-bound-strategy="triggerHasBoundStrategy"
+      :bound-strategy-label="triggerBoundStrategyLabel"
       @confirm="onTriggerConfirm"
     />
 
@@ -317,6 +319,9 @@ function stageAfter(node: LineageNode | null): PipelineStage | null {
 /** 本次触发要跑的环节：**被点那张卡**的下一环节（与分叉点同源） */
 const triggerStage = computed(() => stageAfter(triggerSource.value));
 
+/** 各环节知识库绑定的策略展示名（键为策略类型；无绑定的环节没有该键） */
+const boundStrategies = ref<Map<string, string>>(new Map());
+
 async function loadStrategyBindings(): Promise<void> {
   const results = await Promise.all(
     STRATEGY_BINDING_TYPES.map((type) =>
@@ -324,13 +329,25 @@ async function loadStrategyBindings(): Promise<void> {
     ),
   );
   const versions = new Set<string>();
-  for (const binding of results) {
+  const bound = new Map<string, string>();
+  results.forEach((binding, index) => {
     if (binding?.strategyName && binding.strategyVersion) {
-      versions.add(`${binding.strategyName}-${binding.strategyVersion}`);
+      const label = `${binding.strategyName}-${binding.strategyVersion}`;
+      versions.add(label);
+      bound.set(STRATEGY_BINDING_TYPES[index], label);
     }
-  }
+  });
   boundVersions.value = versions;
+  boundStrategies.value = bound;
 }
+
+/** 本次触发环节已有知识库绑定（没有绑定即要求显式选策略） */
+const triggerHasBoundStrategy = computed(() => boundStrategies.value.has(triggerStage.value ?? ''));
+
+/** 本次触发环节绑定的策略展示名（没有绑定时为空串） */
+const triggerBoundStrategyLabel = computed(
+  () => boundStrategies.value.get(triggerStage.value ?? '') ?? '',
+);
 
 async function loadKnowledgeBase(): Promise<void> {
   try {

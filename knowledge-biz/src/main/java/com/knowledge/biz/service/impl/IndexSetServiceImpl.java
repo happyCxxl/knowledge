@@ -351,7 +351,7 @@ public class IndexSetServiceImpl implements IndexSetService {
     /**
      * 拓扑重放补齐（单文件）：缺预处理产物 → 投递预处理（目标预处理策略）；
      * 有预处理缺切片 → 投递切片（目标切片策略 + 显式 upstreamProductId=匹配预处理产物，根治混合口径）；
-     * 有切片缺向量 → 提示手动（逐环节口径不变）。投递幂等由各环节防重（RUNNING 拒绝/唤醒）保证。
+     * 有切片缺向量 → 提示手动（逐环节口径不变）。投递幂等由各环节执行键查重（已有任务一律拒绝 40431）保证。
      */
     private void backfillFile(Long fileResultId, ComboSnapshot target) {
         String targetPreprocess = target.getPreprocessStrategy();

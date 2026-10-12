@@ -60,17 +60,15 @@
           </span>
         </el-option>
       </el-select>
-      <p class="trigger-note">不选则由后端按知识库绑定的策略解析</p>
+      <p class="trigger-note">{{ strategyHint }}</p>
+      <p v-if="!hasBoundStrategy && strategies.length === 0" class="trigger-note">
+        该环节暂无可用策略，请先在策略页创建并启用后再触发
+      </p>
     </div>
 
     <template #footer>
       <el-button @click="visible = false">取消</el-button>
-      <el-button
-        type="primary"
-        :loading="submitting"
-        :disabled="!upstream || blockReason !== ''"
-        @click="onConfirm"
-      >
+      <el-button type="primary" :loading="submitting" :disabled="!canConfirm" @click="onConfirm">
         触发执行
       </el-button>
     </template>
@@ -102,6 +100,14 @@ const props = defineProps<{
    * <p>判据与文案由页面给：弹窗只负责显示与置灰。
    */
   blockReason: string;
+  /**
+   * 当前环节是否已有知识库绑定策略。
+   *
+   * <p>没有绑定时必须显式选择策略：后端两档都不命中会直接拒绝（40438）。
+   */
+  hasBoundStrategy: boolean;
+  /** 当前环节绑定的策略展示名（没有绑定时为空串） */
+  boundStrategyLabel: string;
 }>();
 
 const emit = defineEmits<{
@@ -132,9 +138,25 @@ const upstreamText = computed(() => {
 const upstreamTone = computed(() => statusTone(props.upstream?.status));
 const upstreamStatusText = computed(() => taskStatusLabel(props.upstream?.status ?? ''));
 
-const strategyHint = computed(() =>
-  pickedStrategyId.value ? '按所选策略执行' : '未指定，将使用知识库绑定的策略',
-);
+const strategyHint = computed(() => {
+  if (pickedStrategyId.value) {
+    return '按所选策略执行';
+  }
+  if (props.hasBoundStrategy) {
+    return props.boundStrategyLabel
+      ? `未指定，将使用知识库绑定的策略（${props.boundStrategyLabel}）`
+      : '未指定，将使用知识库绑定的策略';
+  }
+  return '该环节没有绑定的策略，必须选择策略后才能触发';
+});
+
+/** 能否触发：有上游、无阻塞原因；没有绑定策略时必须选了策略 */
+const canConfirm = computed(() => {
+  if (!props.upstream || props.blockReason !== '') {
+    return false;
+  }
+  return props.hasBoundStrategy || pickedStrategyId.value !== '';
+});
 
 async function loadStrategies(): Promise<void> {
   if (!strategyRequired.value || !props.stage) {

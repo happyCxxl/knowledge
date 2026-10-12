@@ -26,7 +26,6 @@ import com.knowledge.worker.embedding.check.ConsistencyChecker;
 import com.knowledge.worker.embedding.check.ConsistencyResult;
 import com.knowledge.worker.embedding.EmbedProperties;
 import com.knowledge.worker.embedding.strategy.EmbedStrategy;
-import com.knowledge.worker.embedding.strategy.EmbedStrategyParser;
 import com.knowledge.worker.embedding.template.InputTemplatePort;
 import com.knowledge.worker.pipeline.StepLogHelper;
 import lombok.RequiredArgsConstructor;
@@ -51,7 +50,6 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class EmbedPipeline implements EmbedderPort {
 
-    private final EmbedStrategyParser parser;
     private final EmbedProperties properties;
     private final ModelGatewayPort gateway;
     private final ConsistencyChecker checker;
@@ -60,7 +58,11 @@ public class EmbedPipeline implements EmbedderPort {
     @Override
     public EmbedOutcome embed(EmbedContext context) {
         EmbedOutcome outcome = new EmbedOutcome();
-        EmbedStrategy strategy = ObjectUtil.defaultIfNull(context.getStrategy(), parser.defaultStrategy());
+        EmbedStrategy strategy = context.getStrategy();
+        if (NullUtil.isNull(strategy)) {
+            outcome.fail(PipelineTaskErrorCode.EMBED_FAILED.name(), "任务未带向量化策略快照，无法向量化");
+            return outcome;
+        }
         log.info("===> EmbedPipeline 开始向量化, fileResultId={}, strategy={}",
                 context.getFileResultId(), strategy.fullVersion());
 

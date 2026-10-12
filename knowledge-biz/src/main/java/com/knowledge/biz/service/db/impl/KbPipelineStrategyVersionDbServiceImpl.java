@@ -22,11 +22,6 @@ public class KbPipelineStrategyVersionDbServiceImpl
         implements KbPipelineStrategyVersionDbService {
 
     @Override
-    public KbPipelineStrategyVersion getLatestEnabledByType(String type) {
-        return getOne(enabledByType(type).last("LIMIT 1"), false);
-    }
-
-    @Override
     public List<KbPipelineStrategyVersion> listByType(String type) {
         return list(byType(type));
     }

@@ -16,7 +16,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * 环节任务触发共用助手（手动逐环节触发接口族共用）：
- * 存储一致性校验 + 防重/补投唤醒 + 新建 QUEUED 任务入队，口径与各环节一致。
+ * 存储一致性校验 + 执行键查重（已有任务一律拒绝 40431）+ 新建 QUEUED 任务入队，口径与各环节一致。
  *
  * <p>存储一致性校验委托 {@link ChainStorageSupport}（产物写入入口共用同一份判定）。
  *
@@ -32,48 +32,42 @@ public class TaskTriggerSupport {
     private final TaskQueueSupport taskQueue;
 
     /**
-     * 触发前先校验存储一致性（链的数据源与当前启用的数据源不一致 → 40453），再按状态分派：
-     * RUNNING → 40431；QUEUED → 补投唤醒；banOnSuccess=true 时 SUCCESS/PARTIAL_SUCCESS → 40437；
-     * 其余终态/无任务 → 新建 QUEUED 任务入队，旧任务/旧产物保留。
+     * 触发环节任务：先校验存储一致性（链的数据源与当前启用的数据源不一致 → 40453），
+     * 再按「执行键」（文件结果 + 上游产物 + 策略版本）查重：已有任务一律拒绝 40431
+     * （不因任务状态分流、也不返回既有结果），没有才新建 QUEUED 任务并入队。
+     * 上游产物与策略版本用 0 表示"没有"那两档（解析没有上游也没有策略、组装没有策略）。
      *
-     * @param fileResultId     文件结果 ID
-     * @param stage            环节（PipelineStage）
-     * @param upstreamProductId 上游产物 ID（可空）
-     * @param strategySnapshot 环节策略快照 JSON（可空；有策略的环节触发时固定，执行只用快照）
-     * @param stageLabel       环节中文名（日志与错误提示用）
-     * @param banOnSuccess     成功后是否禁止再次触发
-     * @return 触发响应（新登记/已有任务 ID）
+     * @param fileResultId      文件结果 ID
+     * @param stage             环节（PipelineStage）
+     * @param upstreamProductId 上游产物 ID（可空；解析是链路起点，没有上游）
+     * @param strategyVersionId 策略版本 ID（可空；解析/组装没有策略）
+     * @param strategySnapshot  环节策略快照 JSON（可空；有策略的环节触发时固定，执行只用快照）
+     * @param stageLabel        环节中文名（日志与拒绝文案用）
+     * @return 触发响应（新建任务 ID）
      */
     public StageTriggerVO trigger(Long fileResultId, PipelineStage stage, Long upstreamProductId,
-                                  String strategySnapshot, String stageLabel, boolean banOnSuccess) {
+                                  Long strategyVersionId, String strategySnapshot, String stageLabel) {
         chainStorageSupport.requireStorageMatch(fileResultId);
-        KbPipelineTask existing = pipelineTaskDbService.getByFileResultIdAndStage(fileResultId, stage.name());
-        if (NullUtil.isNotNull(existing)) {
-            ThrowUtil.throwIf(PipelineTaskStatus.RUNNING.name().equals(existing.getStatus()),
-                    ErrorCode.TASK_ALREADY_PENDING, stageLabel + "任务进行中，请勿重复触发");
-            if (PipelineTaskStatus.QUEUED.name().equals(existing.getStatus())) {
-                // 已登记未入队（登记与入队间崩溃的窗口）：直接入队唤醒，不重复建任务
-                taskQueue.enqueue(existing.getId());
-                log.info("===> TaskTriggerSupport trigger 唤醒待{}任务, fileResultId={}, taskId={}",
-                        stageLabel, fileResultId, existing.getId());
-                return new StageTriggerVO(existing.getId());
-            }
-            ThrowUtil.throwIf(banOnSuccess
-                            && (PipelineTaskStatus.SUCCESS.name().equals(existing.getStatus())
-                            || PipelineTaskStatus.PARTIAL_SUCCESS.name().equals(existing.getStatus())),
-                    ErrorCode.PARSE_ALREADY_SUCCEEDED);
-        }
+        long upstream = NullUtil.isNull(upstreamProductId) ? 0L : upstreamProductId;
+        long strategyVersion = NullUtil.isNull(strategyVersionId) ? 0L : strategyVersionId;
+        KbPipelineTask existing = pipelineTaskDbService.getByExecKey(fileResultId, stage.name(),
+                upstream, strategyVersion);
+        String duplicate = NullUtil.isNull(existing) ? null
+                : stageLabel + "任务已创建（taskId=" + existing.getId() + "，状态 "
+                + existing.getStatus() + "），请勿重复触发";
+        ThrowUtil.throwIf(NullUtil.isNotNull(duplicate), ErrorCode.TASK_ALREADY_PENDING, duplicate);
         KbPipelineTask task = new KbPipelineTask();
         task.setFileResultId(fileResultId);
         task.setStage(stage.name());
         task.setStatus(PipelineTaskStatus.QUEUED.name());
         task.setRetryCount(0);
-        task.setUpstreamProductId(upstreamProductId);
+        task.setUpstreamProductId(upstream);
+        task.setStrategyVersionId(strategyVersion);
         task.setStrategySnapshot(strategySnapshot);
         pipelineTaskDbService.save(task);
         enqueueNewTask(task, stageLabel, fileResultId);
-        log.info("===> TaskTriggerSupport trigger 触发{}任务, fileResultId={}, taskId={}, upstream={}",
-                stageLabel, fileResultId, task.getId(), upstreamProductId);
+        log.info("===> TaskTriggerSupport trigger 触发{}任务, fileResultId={}, taskId={}, upstream={}, strategyVersion={}",
+                stageLabel, fileResultId, task.getId(), upstream, strategyVersion);
         return new StageTriggerVO(task.getId());
     }
 

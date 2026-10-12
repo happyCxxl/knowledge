@@ -6,16 +6,16 @@
 
 ## 环节定位
 
-| 项   | 值                                                                                                                                            |
-|------|-----------------------------------------------------------------------------------------------------------------------------------------------|
-| 上游 | 预处理环节（`PreprocessView`：元素、状态、`normalizedText`、`titlePath` 相关结构）；任务编排（biz 侧 `ChunkTaskRunner` 领取切片任务）         |
-| 输入 | `ChunkContext`（`view` 派生视图 / `document` 结构产物 / `strategy` 策略快照 / `properties` 全局默认 / `fileResultId` / `upstreamProductRef`） |
-| 输出 | `ChunkOutcome`（`chunkSet` 切片集合 + 六条子步骤日志 + `warnings` + `suggestedStatus`）                                                       |
-| 触发 | `KnowledgeFileChunkController` 的触发接口 → 策略四档解析生效版本 → 快照进任务 → 入队 → `ChunkTaskRunner` 领取并调用管线                       |
-| 下游 | 向量化环节（父片默认跳过；片长超过模型窗口允许字符数时向量化直接失败 `EMBED_MODEL_INCOMPATIBLE`）；检索侧 `PARENT_EXPAND` 预留                |
-| 落库 | 不在本环节内：`ChunkPipeline` 是纯算法（不碰 DB 与对象存储）；产物行与任务终态由 biz `ChunkTaskRunner` 编排                                   |
-| 实现 | 四路由（正文 / 表格 / 图片 / 兜底降级）+ 固定后置链（结构重叠 → 碎片合并 → 标题入正文）+ 单层父子片；算法按 `(route, key)` 注册表查找         |
-| 代码 | `knowledge-worker/src/main/java/com/knowledge/worker/chunking/`（全局默认值在 `ChunkProperties`，前缀 `knowledge.chunk`）                     |
+| 项   | 值                                                                                                                                                                          |
+|------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 上游 | 预处理环节（`PreprocessView`：元素、状态、`normalizedText`、`titlePath` 相关结构）；任务编排（biz 侧 `ChunkTaskRunner` 领取切片任务）                                       |
+| 输入 | `ChunkContext`（`view` 派生视图 / `document` 结构产物 / `strategy` 策略快照 / `properties` 全局默认 / `fileResultId` / `upstreamProductRef`）                               |
+| 输出 | `ChunkOutcome`（`chunkSet` 切片集合 + 六条子步骤日志 + `warnings` + `suggestedStatus`）                                                                                     |
+| 触发 | `KnowledgeFileChunkController` 的触发接口 → 策略两档解析生效版本（显式指定 → 知识库绑定）→ 上游产物校验 → 执行键查重 → 快照进任务 → 入队 → `ChunkTaskRunner` 领取并调用管线 |
+| 下游 | 向量化环节（父片默认跳过；片长超过模型窗口允许字符数时向量化直接失败 `EMBED_MODEL_INCOMPATIBLE`）；检索侧 `PARENT_EXPAND` 预留                                              |
+| 落库 | 不在本环节内：`ChunkPipeline` 是纯算法（不碰 DB 与对象存储）；产物行与任务终态由 biz `ChunkTaskRunner` 编排                                                                 |
+| 实现 | 四路由（正文 / 表格 / 图片 / 兜底降级）+ 固定后置链（结构重叠 → 碎片合并 → 标题入正文）+ 单层父子片；算法按 `(route, key)` 注册表查找                                       |
+| 代码 | `knowledge-worker/src/main/java/com/knowledge/worker/chunking/`（全局默认值在 `ChunkProperties`，前缀 `knowledge.chunk`）                                                   |
 
 ## 文档导航
 

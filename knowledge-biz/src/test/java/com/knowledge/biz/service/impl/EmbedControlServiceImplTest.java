@@ -30,6 +30,7 @@ import com.knowledge.common.dto.response.embed.EmbedDetailVO;
 import com.knowledge.common.enums.storage.StorageType;
 import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.enums.task.PipelineTaskStatus;
+import com.knowledge.common.enums.task.RowStatus;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
 import com.knowledge.filecenter.provider.StorageRouter;
@@ -60,8 +61,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 向量化控制面服务单测：策略解析四档（显式/KB 绑定/最新启用/内置默认）/ 上游切片产物校验 /
- * 窗口前置校验（触发时明确报错）/ 防重复用 / 建任务快照入队 / 详情组装。
+ * 向量化控制面服务单测：策略解析两档（显式指定 / 知识库绑定）/ 上游切片产物校验 /
+ * 窗口前置校验（触发时明确报错）/ 执行键查重 / 建任务快照入队 / 详情组装。
  *
  * @author cxxl
  */
@@ -142,14 +143,54 @@ class EmbedControlServiceImplTest {
     private void stubCommon() {
         when(fileResultDbService.getById(10L)).thenReturn(fileResult());
         when(pipelineProductDbService.getById(50L)).thenReturn(chunkProduct(null));
+        stubBoundStrategy();
+    }
+
+    /** 绑定档桩：KB 10 → 绑定行 → 启用中的策略版本行 66（显式指定档的用例不命中它，按宽松桩登记） */
+    private void stubBoundStrategy() {
+        lenient().when(strategyBindingDbService.getByKbAndType(10L, EmbedStrategy.TYPE)).thenReturn(binding());
+        lenient().when(strategyVersionDbService.getById(66L))
+                .thenReturn(embedVersion(66L, "embed-bound", "v3", RowStatus.ACTIVE.name()));
+    }
+
+    /** 向量化执行键检查：文件结果 10 + 上游切片产物 + 策略版本（0 表示该环节无策略） */
+    private void existingEmbedTask(Long upstreamProductId, Long strategyVersionId, KbPipelineTask task) {
+        when(pipelineTaskDbService.getByExecKey(10L, PipelineStage.EMBED.name(), upstreamProductId,
+                strategyVersionId)).thenReturn(task);
+    }
+
+    /** 知识库夹具（绑定开关未显式关闭 → 视为开启） */
+    private KnowledgeBase knowledgeBase() {
+        KnowledgeBase kb = new KnowledgeBase();
+        kb.setId(10L);
+        kb.setStrategyBindingEnabled(1);
+        kb.setUserId(SecurityTestSupport.VIEWER_ID);
+        return kb;
+    }
+
+    /** 绑定开关关闭的知识库 */
+    private KnowledgeBase bindingOffKnowledgeBase() {
+        KnowledgeBase kb = new KnowledgeBase();
+        kb.setId(10L);
+        kb.setStrategyBindingEnabled(0);
+        kb.setUserId(SecurityTestSupport.VIEWER_ID);
+        return kb;
+    }
+
+    /** 有效绑定行：KB 10 绑定 EMBED 策略版本 66 */
+    private KbStrategyBinding binding() {
+        KbStrategyBinding binding = new KbStrategyBinding();
+        binding.setId(1L);
+        binding.setKnowledgeBaseId(10L);
+        binding.setStrategyType(EmbedStrategy.TYPE);
+        binding.setStrategyVersionId(66L);
+        return binding;
     }
 
     @Test
-    void shouldCreateTaskWithBuiltinDefaultStrategyAndEnqueue() {
+    void boundStrategyShouldDriveTaskSnapshotAndEnqueue() {
         stubCommon();
-        when(strategyVersionDbService.getLatestEnabledByType(EmbedStrategy.TYPE)).thenReturn(null);
-        when(pipelineTaskDbService.getByFileResultIdAndStage(10L, PipelineStage.EMBED.name()))
-                .thenReturn(null);
+        existingEmbedTask(50L, 66L, null);
         when(pipelineTaskDbService.save(any(KbPipelineTask.class))).thenAnswer(inv -> {
             inv.getArgument(0, KbPipelineTask.class).setId(41L);
             return true;
@@ -158,22 +199,49 @@ class EmbedControlServiceImplTest {
         var response = service.embed(10L, null, 50L);
 
         assertEquals(41L, response.getPipelineTaskId());
-        assertEquals("embed-default-v1", response.getStrategyVersion());
+        assertEquals("embed-bound-v3", response.getStrategyVersion());
         ArgumentCaptor<KbPipelineTask> captor = ArgumentCaptor.forClass(KbPipelineTask.class);
         verify(pipelineTaskDbService).save(captor.capture());
         KbPipelineTask task = captor.getValue();
         assertEquals(PipelineStage.EMBED.name(), task.getStage());
         assertEquals(PipelineTaskStatus.QUEUED.name(), task.getStatus());
         assertEquals(50L, task.getUpstreamProductId());
+        assertEquals(66L, task.getStrategyVersionId());
         assertNotNull(task.getStrategySnapshot());
         assertTrue(task.getStrategySnapshot().contains("text-embedding-v4"));
         verify(taskQueue).enqueue(41L);
     }
 
     @Test
+    void unboundStrategyShouldReject40438() {
+        // 知识库未绑定：不再取"启用中最新"兜底，一律拒绝
+        when(fileResultDbService.getById(10L)).thenReturn(fileResult());
+        when(strategyBindingDbService.getByKbAndType(10L, EmbedStrategy.TYPE)).thenReturn(null);
+
+        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.embed(10L, null, 50L));
+
+        assertEquals(ErrorCode.TASK_STRATEGY_MISSING, e.getErrorCode());
+        verify(pipelineTaskDbService, never()).save(any());
+        verify(taskQueue, never()).enqueue(any());
+    }
+
+    @Test
+    void bindingSwitchOffShouldReject40438() {
+        // 绑定开关关闭：即使库内存在绑定行也不生效
+        when(fileResultDbService.getById(10L)).thenReturn(fileResult());
+        when(knowledgeBaseDbService.getActiveById(10L)).thenReturn(bindingOffKnowledgeBase());
+
+        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.embed(10L, null, 50L));
+
+        assertEquals(ErrorCode.TASK_STRATEGY_MISSING, e.getErrorCode());
+        verify(strategyBindingDbService, never()).getByKbAndType(any(), any());
+        verify(pipelineTaskDbService, never()).save(any());
+    }
+
+    @Test
     void missingUpstreamProductShouldThrow40436() {
         when(fileResultDbService.getById(10L)).thenReturn(fileResult());
-        when(strategyVersionDbService.getLatestEnabledByType(EmbedStrategy.TYPE)).thenReturn(null);
+        stubBoundStrategy();
 
         KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.embed(10L, null, null));
         assertEquals(ErrorCode.TASK_UPSTREAM_MISSING, e.getErrorCode());
@@ -191,14 +259,9 @@ class EmbedControlServiceImplTest {
     }
 
     @Test
-    void boundStrategyShouldWinOverLatestEnabled() {
+    void boundStrategyShouldBeUsedWhenNoExplicitVersion() {
         stubCommon();
-        KbStrategyBinding binding = new KbStrategyBinding();
-        binding.setStrategyVersionId(77L);
-        when(strategyBindingDbService.getByKbAndType(10L, EmbedStrategy.TYPE)).thenReturn(binding);
-        when(strategyVersionDbService.getById(77L)).thenReturn(embedVersion(77L, "embed-bound", "v3", "ACTIVE"));
-        when(pipelineTaskDbService.getByFileResultIdAndStage(10L, PipelineStage.EMBED.name()))
-                .thenReturn(null);
+        existingEmbedTask(50L, 66L, null);
         when(pipelineTaskDbService.save(any(KbPipelineTask.class))).thenAnswer(inv -> {
             inv.getArgument(0, KbPipelineTask.class).setId(43L);
             return true;
@@ -210,9 +273,40 @@ class EmbedControlServiceImplTest {
     }
 
     @Test
+    void staleBindingShouldReject40438() {
+        // 绑定行指向的策略版本行缺失：不再回退"启用中最新"，一律拒绝
+        when(fileResultDbService.getById(10L)).thenReturn(fileResult());
+        when(knowledgeBaseDbService.getActiveById(10L)).thenReturn(knowledgeBase());
+        when(strategyBindingDbService.getByKbAndType(10L, EmbedStrategy.TYPE)).thenReturn(binding());
+        when(strategyVersionDbService.getById(66L)).thenReturn(null);
+
+        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.embed(10L, null, 50L));
+
+        assertEquals(ErrorCode.TASK_STRATEGY_MISSING, e.getErrorCode());
+        verify(pipelineTaskDbService, never()).save(any());
+    }
+
+    @Test
+    void explicitStrategyVersionShouldResolveFromDb() {
+        stubCommon();
+        when(strategyVersionDbService.getById(77L))
+                .thenReturn(embedVersion(77L, "embed-strict", "v2", RowStatus.ACTIVE.name()));
+        existingEmbedTask(50L, 77L, null);
+        when(pipelineTaskDbService.save(any(KbPipelineTask.class))).thenAnswer(inv -> {
+            inv.getArgument(0, KbPipelineTask.class).setId(45L);
+            return true;
+        });
+
+        var response = service.embed(10L, 77L, 50L);
+
+        assertEquals("embed-strict-v2", response.getStrategyVersion());
+        verify(strategyBindingDbService, never()).getByKbAndType(any(), any());
+    }
+
+    @Test
     void windowIncompatibleShouldThrow40435() {
         when(fileResultDbService.getById(10L)).thenReturn(fileResult());
-        when(strategyVersionDbService.getLatestEnabledByType(EmbedStrategy.TYPE)).thenReturn(null);
+        stubBoundStrategy();
         // 切片策略 softMaxLen=20000 超 text-embedding-v4 窗口（8192×1.5=12288）
         when(pipelineProductDbService.getById(50L))
                 .thenReturn(chunkProduct("{\"routes\":{\"body\":{\"algorithm\":\"paragraph-aggregate\","
@@ -227,9 +321,7 @@ class EmbedControlServiceImplTest {
     @Test
     void windowCompatibleShouldProceed() {
         stubCommon();
-        when(strategyVersionDbService.getLatestEnabledByType(EmbedStrategy.TYPE)).thenReturn(null);
-        when(pipelineTaskDbService.getByFileResultIdAndStage(10L, PipelineStage.EMBED.name()))
-                .thenReturn(null);
+        existingEmbedTask(50L, 66L, null);
         when(pipelineTaskDbService.save(any(KbPipelineTask.class))).thenAnswer(inv -> {
             inv.getArgument(0, KbPipelineTask.class).setId(44L);
             return true;
@@ -243,33 +335,34 @@ class EmbedControlServiceImplTest {
     @Test
     void runningShouldReject40431() {
         stubCommon();
-        when(strategyVersionDbService.getLatestEnabledByType(EmbedStrategy.TYPE)).thenReturn(null);
         KbPipelineTask running = new KbPipelineTask();
         running.setId(41L);
         running.setStatus(PipelineTaskStatus.RUNNING.name());
-        when(pipelineTaskDbService.getByFileResultIdAndStage(10L, PipelineStage.EMBED.name()))
-                .thenReturn(running);
+        existingEmbedTask(50L, 66L, running);
 
         KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.embed(10L, null, 50L));
+
         assertEquals(ErrorCode.TASK_ALREADY_PENDING, e.getErrorCode());
+        // 拒绝文案带任务号与状态：用户能看出是哪条任务占着执行键
+        assertTrue(e.getMessage().contains("taskId=41"), e.getMessage());
+        assertTrue(e.getMessage().contains(PipelineTaskStatus.RUNNING.name()), e.getMessage());
         verify(pipelineTaskDbService, never()).save(any());
     }
 
     @Test
-    void queuedShouldReuseExistingTask() {
+    void existingQueuedTaskShouldReject40431() {
         stubCommon();
-        when(strategyVersionDbService.getLatestEnabledByType(EmbedStrategy.TYPE)).thenReturn(null);
         KbPipelineTask queued = new KbPipelineTask();
         queued.setId(41L);
         queued.setStatus(PipelineTaskStatus.QUEUED.name());
-        when(pipelineTaskDbService.getByFileResultIdAndStage(10L, PipelineStage.EMBED.name()))
-                .thenReturn(queued);
+        existingEmbedTask(50L, 66L, queued);
 
-        var response = service.embed(10L, null, 50L);
+        // 执行键命中即拒绝，触发入口不再补投唤醒；QUEUED 补投归启动补偿与低频扫描
+        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.embed(10L, null, 50L));
 
-        assertEquals(41L, response.getPipelineTaskId());
+        assertEquals(ErrorCode.TASK_ALREADY_PENDING, e.getErrorCode());
         verify(pipelineTaskDbService, never()).save(any());
-        verify(taskQueue).enqueue(41L);
+        verify(taskQueue, never()).enqueue(any());
     }
 
     @Test

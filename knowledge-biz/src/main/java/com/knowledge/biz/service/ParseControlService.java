@@ -11,9 +11,8 @@ import com.knowledge.common.dto.response.task.StageTriggerVO;
 public interface ParseControlService {
 
     /**
-     * 触发解析（首次解析与失败重跑同一入口，手动逐环节）：
-     * QUEUED 任务直接入队唤醒、RUNNING 拒绝（40431）、成功/部分成功拒绝（40437）、
-     * FAILED/无任务新建 PARSE 任务并入队；旧任务/旧产物不动。完成后停在终态，不自动触发组装。
+     * 触发解析（手动逐环节，链路起点）：执行键 = 文件结果（解析没有上游产物与策略版本）。
+     * 已有任务（任何状态）一律拒绝 40431，没有才新建 PARSE 任务并入队；完成后停在终态，不自动触发组装。
      */
     StageTriggerVO parse(Long fileResultId);
 

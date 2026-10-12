@@ -14,11 +14,6 @@ import java.util.List;
 public interface KbPipelineStrategyVersionDbService extends InfraDbService<KbPipelineStrategyVersion> {
 
     /**
-     * 取类型下启用中的最新版本（无 → null）。
-     */
-    KbPipelineStrategyVersion getLatestEnabledByType(String type);
-
-    /**
      * 取类型下全部版本（含停用，新→旧）。
      */
     List<KbPipelineStrategyVersion> listByType(String type);

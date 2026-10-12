@@ -34,18 +34,18 @@ public class KnowledgeFileParseController {
     private final ParseControlService parseControlService;
 
     /**
-     * 触发解析（首次解析与失败后再次触发同一入口，手动逐环节）。
+     * 触发解析（手动逐环节，链路起点）。
      *
-     * <p>四分支：QUEUED 任务直接补投入队；RUNNING 拒绝（40431）；成功/部分成功拒绝（40437）；
-     * FAILED/无任务新建 PARSE 任务并入队。旧任务/旧产物保留；完成后停在终态，不自动触发组装。
+     * <p>执行键 = 文件结果（解析没有上游产物与策略版本）：已有任务（任何状态，含执行中）一律拒绝 40431，
+     * 没有才新建 PARSE 任务并入队。完成后停在终态，不自动触发组装。
      *
      * @param fileResultId 文件结果 ID（路径参数）
-     * @return 触发响应（新登记/已有任务 ID）
-     * @apiNote 文件结果不存在 40432；进行中 40431；成功后再次触发 40437
+     * @return 触发响应（新建任务 ID）
+     * @apiNote 文件结果不存在 40432；已有任务（含执行中）40431
      */
     @PostMapping("/{fileResultId}/parse")
-    @Operation(summary = "触发解析", description = "触发解析（手动逐环节，首次解析与失败后再次触发同一入口）："
-            + "QUEUED 任务直接入队、RUNNING 拒绝（40431）、成功/部分成功拒绝（40437）、FAILED/无任务新建入队；旧任务/旧产物保留")
+    @Operation(summary = "触发解析", description = "触发解析（手动逐环节，链路起点）：执行键 = 文件结果，"
+            + "已有任务（任何状态）一律拒绝 40431，没有才新建入队；旧任务/旧产物保留")
     public R<StageTriggerVO> parse(
             @Parameter(description = "文件结果ID", required = true) @PathVariable("fileResultId") Long fileResultId) {
         log.info("===> KnowledgeFileParseController parse 触发解析, fileResultId={}", fileResultId);

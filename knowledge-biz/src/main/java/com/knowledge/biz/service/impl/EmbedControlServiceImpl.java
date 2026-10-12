@@ -42,8 +42,9 @@ import java.util.List;
 
 /**
  * 向量化控制面服务实现（手动逐环节，与切片/预处理控制面同构）：
- * 策略解析（传参校验 / KB 绑定 / 全局最新启用 / 内置默认）→ 上游 CHUNK 产物校验 →
- * 窗口前置校验（不兜底，触发时明确报错）→ 防重复用 → 建任务入队。
+ * 策略解析两档：显式指定（校验存在/类型/启用，任一不满足 40433）→ 知识库绑定；两档都不命中一律 40438。
+ * 上游 CHUNK 产物校验（必填，未指定或传 0 报 40436）→ 窗口前置校验（不兜底，触发时明确报错）→
+ * 执行键查重（已有任务一律拒绝 40431）→ 建任务入队。QUEUED 补投归启动补偿与低频扫描。
  *
  * @author cxxl
  */
@@ -69,17 +70,17 @@ public class EmbedControlServiceImpl implements EmbedControlService {
     @Override
     public EmbedTriggerVO embed(Long fileResultId, Long strategyVersionId, Long upstreamProductId) {
         KbFileResult fileResult = accessGuard.requireExisting(fileResultId);
-        EmbedStrategy strategy = resolveStrategy(fileResult, strategyVersionId);
+        KbPipelineStrategyVersion strategyRow = resolveStrategyRow(fileResult, strategyVersionId);
+        EmbedStrategy strategy = toStrategy(strategyRow);
 
-        // 上游切片产物：可选指定，缺省取最新
+        // 上游切片产物：必须显式指定
         KbPipelineProduct chunkProduct = requireChunkProduct(fileResultId, upstreamProductId);
-        ThrowUtil.throwIf(NullUtil.isNull(chunkProduct), ErrorCode.EMBED_UPSTREAM_MISSING);
 
         // 窗口前置校验：切片策略最大片长 ≤ 模型窗口（不兼容即报错，不做兜底）
         precheckWindow(chunkProduct, strategy);
 
         StageTriggerVO triggered = triggerSupport.trigger(fileResultId, PipelineStage.EMBED,
-                chunkProduct.getId(), JsonUtil.toJsonStr(strategy), "向量化", false);
+                chunkProduct.getId(), strategyRow.getId(), JsonUtil.toJsonStr(strategy), "向量化");
         return new EmbedTriggerVO(fileResultId, triggered.getPipelineTaskId(), strategy.fullVersion());
     }
 
@@ -136,7 +137,7 @@ public class EmbedControlServiceImpl implements EmbedControlService {
 
     /** 上游切片产物校验：必须显式指定，校验存在/环节/归属；未指定直接拒绝（无按时间猜的兜底）。 */
     private KbPipelineProduct requireChunkProduct(Long fileResultId, Long productId) {
-        ThrowUtil.throwIf(NullUtil.isNull(productId), ErrorCode.TASK_UPSTREAM_MISSING,
+        ThrowUtil.throwIf(NullUtil.isNull(productId) || productId == 0L, ErrorCode.TASK_UPSTREAM_MISSING,
                 "未指定上游切片产物，请从切片产物的卡片发起触发");
         KbPipelineProduct product = pipelineProductDbService.getById(productId);
         ThrowUtil.throwIf(NullUtil.isNull(product), ErrorCode.FILE_RESULT_NOT_FOUND, "指定上游产物不存在");
@@ -154,11 +155,10 @@ public class EmbedControlServiceImpl implements EmbedControlService {
         return chunkStrategyParser.parse(snapshot);
     }
 
-    /** 策略解析四档：显式指定（40433 校验存在/类型/启用）→ 知识库绑定（开关开启时，失效回退告警；测评模式的库跳过绑定档）→ 启用中最新 → 内置默认。 */
-    private EmbedStrategy resolveStrategy(KbFileResult fileResult, Long strategyVersionId) {
-        KbPipelineStrategyVersion row = strategySupport.resolve(
+    /** 策略解析两档：显式指定（40433 校验存在/类型/启用）→ 知识库绑定；两档都不命中一律拒绝 40438。 */
+    private KbPipelineStrategyVersion resolveStrategyRow(KbFileResult fileResult, Long strategyVersionId) {
+        return strategySupport.resolve(
                 fileResult, strategyVersionId, EmbedStrategy.TYPE, "EmbedControlServiceImpl 向量化");
-        return NullUtil.isNull(row) ? strategyParser.defaultStrategy() : toStrategy(row);
     }
 
     private EmbedStrategy toStrategy(KbPipelineStrategyVersion row) {

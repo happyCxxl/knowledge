@@ -1,5 +1,6 @@
 package com.knowledge.biz.task;
 
+import cn.hutool.core.util.StrUtil;
 import com.knowledge.biz.service.db.KbChunkDbService;
 import com.knowledge.biz.service.db.KbChunkSetDbService;
 import com.knowledge.biz.service.db.KbFileResultDbService;
@@ -88,6 +89,11 @@ public class ChunkTaskRunner {
                 return;
             }
 
+            // 策略只来自策略版本表：任务行缺快照即失败，不用代码里的默认策略兜底
+            if (StrUtil.isBlank(task.getStrategySnapshot())) {
+                finishFailed(taskId, PipelineTaskErrorCode.CHUNK_FAILED.name(), "任务未带切片策略快照，无法切片");
+                return;
+            }
             ChunkStrategy strategy = strategyParser.parse(task.getStrategySnapshot());
             PreprocessView view;
             try {

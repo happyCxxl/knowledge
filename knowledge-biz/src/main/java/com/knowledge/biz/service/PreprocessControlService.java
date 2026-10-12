@@ -11,11 +11,12 @@ import com.knowledge.common.dto.response.preprocess.PreprocessTriggerVO;
 public interface PreprocessControlService {
 
     /**
-     * 触发预处理（strategyVersionId 可选：策略行 ID，缺省取库内启用中最新版本，库内无回退内置默认）。
+     * 触发预处理（strategyVersionId 可选：显式指定策略版本行 ID（校验存在/类型/启用，任一不满足 40433）；
+     * 不传用知识库绑定；两档都不命中一律 40438）。
      *
      * @param fileResultId       文件结果 ID
-     * @param strategyVersionId  策略版本行 ID（可空）
-     * @param upstreamProductId 上游产物 ID（可选，指定 STRUCTURE 产物，缺省取最新）
+     * @param strategyVersionId  策略版本行 ID（可空；不传用知识库绑定）
+     * @param upstreamProductId 上游产物 ID（必填，指定 STRUCTURE 产物，未指定或传 0 报 40436）
      * @return 任务 ID + 生效策略版本
      */
     PreprocessTriggerVO preprocess(Long fileResultId, Long strategyVersionId, Long upstreamProductId);

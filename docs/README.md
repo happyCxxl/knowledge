@@ -121,9 +121,9 @@
 | 40431 | `TASK_ALREADY_PENDING`                 | 任务进行中，请勿重复触发                             |
 | 40432 | `FILE_RESULT_NOT_FOUND`                | 文件结果不存在                                       |
 | 40433 | `STRATEGY_VERSION_NOT_FOUND`           | 策略版本不存在或未启用                               |
-| 40434 | `EMBED_UPSTREAM_MISSING`               | 切片产物不存在，请先触发切片                         |
 | 40435 | `EMBED_MODEL_INCOMPATIBLE`             | 切片最大片长超过模型窗口，请更换模型或调整切片策略   |
-| 40437 | `PARSE_ALREADY_SUCCEEDED`              | 解析已成功或部分成功，无需再次触发                   |
+| 40436 | `TASK_UPSTREAM_MISSING`                | 未指定上游产物，请从上游产物的卡片发起触发           |
+| 40438 | `TASK_STRATEGY_MISSING`                | 未解析到可用策略，请绑定策略或显式选择后触发         |
 | 40441 | `INDEX_VERSION_NOT_FOUND`              | 索引版本不存在                                       |
 | 40442 | `INDEX_ONLINE_DELETE_FORBIDDEN`        | 在线发布版本禁止删除                                 |
 | 40443 | `INDEX_BUILDING_CONFLICT`              | 该索引版本构建中，禁止重复操作                       |
@@ -150,6 +150,10 @@
 | `TASK_ENQUEUE_FAILED`   | 任务没排进队列（队列 / Redis 故障）；库里不留"排不上队"的 QUEUED     |
 | `EXECUTOR_TIMEOUT`      | 看门狗判死：执行超时或进程中断留下的孤儿任务                         |
 | `TASK_STORAGE_MISMATCH` | 链的数据源与当前启用的数据源不一致，产物写入被拒（五个环节都会出现） |
+
+**环节触发与执行键**（五个环节共用，逐环节的校验顺序见各环节 `03-接口逻辑.md`）：`kb_pipeline_task` 的**执行键**是「文件结果 + 环节 + 上游产物 + 策略版本」，落库时由唯一键 `uk_exec` 约束；`upstream_product_id` 与 `strategy_version_id` 都是 `NOT NULL DEFAULT 0`，0 分别表示"没有上游"（解析）与"该环节无策略"（解析 / 组装）。`TaskTriggerSupport.trigger` 先校验存储一致性（不一致 → `40453`），再按执行键查任务：**查到就拒 `40431`**（任何状态，含执行中，且不返回既有结果），查不到才新建 `QUEUED` 任务并入队。**QUEUED 补投完全归 `TaskStartupCompensator`**（启动补偿一次 + 低频周期扫描，默认开启、间隔 1 分钟），触发入口不做唤醒；失败即终局，再次发起要落在**新的执行键**上 —— 解析是重新提交文件，下游四个环节是换上游产物或换策略版本。
+
+**策略来源**（只有预处理 / 切片 / 向量化三个环节有策略）：显式指定的策略版本行 → 知识库绑定的策略版本行；两档都不命中（绑定开关关闭、未绑定、绑定行缺失或已停用）一律拒 `40438`，没有「取库内启用中最新」与代码内置默认策略这两类兜底。
 
 ### 三、前端请求层
 

@@ -35,8 +35,8 @@ public class KnowledgeFileEmbedController {
 
     @PostMapping("/{fileResultId}/embed")
     @Operation(summary = "触发向量化", description = "触发向量化/重跑（手动逐环节）；"
-            + "strategyVersionId 可选（策略行 ID，缺省 KB 绑定优先，再取库内启用中最新）；upstreamProductId 可选（指定上游 CHUNK 产物，缺省取最新）；"
-            + "无切片产物 40434、窗口不兼容 40435、进行中 40431")
+            + "strategyVersionId 可选（策略行 ID，不传用知识库绑定，两档都不命中 40438）；upstreamProductId 必填（指定上游 CHUNK 产物，未指定或传 0 报 40436）；"
+            + "窗口不兼容 40435、已有任务一律 40431；QUEUED 补投归启动补偿与低频扫描")
     public R<EmbedTriggerVO> embed(
             @Parameter(description = "文件结果ID", required = true) @PathVariable("fileResultId") Long fileResultId,
             @ParameterObject StageTriggerQueryDto query) {

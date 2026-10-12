@@ -23,6 +23,17 @@ public interface KbPipelineTaskDbService extends InfraDbService<KbPipelineTask> 
     KbPipelineTask getByFileResultIdAndStage(Long fileResultId, String stage);
 
     /**
+     * 按执行键查任务：同一份输入（上游产物）与同一策略版本只允许一条任务（唯一键 uk_exec 的应用侧查询）。
+     *
+     * @param fileResultId      文件结果 ID
+     * @param stage             环节（PipelineStage 枚举名）
+     * @param upstreamProductId 上游产物 ID（0 表示没有上游）
+     * @param strategyVersionId 策略版本 ID（0 表示该环节无策略）
+     * @return 任务实体；不存在返回 null
+     */
+    KbPipelineTask getByExecKey(Long fileResultId, String stage, Long upstreamProductId, Long strategyVersionId);
+
+    /**
      * 按文件结果查全部环节任务（id 升序；执行链血缘数据源）。
      */
     List<KbPipelineTask> listByFileResultId(Long fileResultId);

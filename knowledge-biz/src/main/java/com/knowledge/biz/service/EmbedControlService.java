@@ -11,8 +11,8 @@ import com.knowledge.common.dto.response.embed.EmbedTriggerVO;
 public interface EmbedControlService {
 
     /**
-     * 触发向量化/重跑：策略解析（传参校验 / KB 绑定 / 全局最新启用 / 内置默认）→ 上游 CHUNK 产物校验 →
-     * 窗口前置校验 → 防重复用 → 建任务入队。
+     * 触发向量化/重跑：策略解析两档（显式指定 / 知识库绑定，其余 40438）→ 上游 CHUNK 产物校验（必填）→
+     * 窗口前置校验（不兼容 40435）→ 执行键查重（已有任务一律拒绝 40431）→ 建任务入队。
      */
     EmbedTriggerVO embed(Long fileResultId, Long strategyVersionId, Long upstreamProductId);
 

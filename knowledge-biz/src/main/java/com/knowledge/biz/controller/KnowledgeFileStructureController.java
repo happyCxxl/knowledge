@@ -33,10 +33,10 @@ public class KnowledgeFileStructureController {
     private final StructureControlService structureControlService;
 
     @PostMapping("/{fileResultId}/structure")
-    @Operation(summary = "触发组装", description = "触发统一组装/重跑（手动逐环节）；upstreamProductId 可选（指定上游解析产物，缺省取最新）；RUNNING 拒绝（40431）、QUEUED 补投唤醒、终态/无任务新建")
+    @Operation(summary = "触发组装", description = "触发统一组装/重跑（手动逐环节）；upstreamProductId 必填（指定上游解析产物，未指定或传 0 报 40436）；已有任务一律 40431；QUEUED 补投归启动补偿与低频扫描")
     public R<StageTriggerVO> structure(
             @Parameter(description = "文件结果ID", required = true) @PathVariable("fileResultId") Long fileResultId,
-            @Parameter(description = "上游产物ID（可选，指定 PARSE 产物）") @RequestParam(value = "upstreamProductId", required = false) Long upstreamProductId) {
+            @Parameter(description = "上游产物ID（必填，指定 PARSE 产物）") @RequestParam(value = "upstreamProductId", required = false) Long upstreamProductId) {
         log.info("===> KnowledgeFileStructureController structure 触发组装, fileResultId={}, upstreamProductId={}",
                 fileResultId, upstreamProductId);
         return R.ok(structureControlService.structure(fileResultId, upstreamProductId));

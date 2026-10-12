@@ -2328,26 +2328,24 @@ function fieldCount(): number {
   return total ?? fieldRows.value.length;
 }
 
-/** 失败建议：按错误码给下一步动作（同码不同意的都归到这几种） */
+/** 失败建议：按错误码给下一步动作（同一执行键只能跑一次，重来要么换输入要么换策略） */
 const FAIL_ADVICE: Record<string, string> = {
   PARSE_CORRUPTED:
-    '文件内容无法解析：确认文件未损坏，或用带文本层的版本重新导出后，从页面工具栏再发起一次解析',
-  SCANNED_UNSUPPORTED:
-    '纯扫描件暂不支持：请提供带文本层的 PDF（OCR 能力尚未开放），再从页面工具栏发起解析',
-  RATIO_BELOW_THRESHOLD:
-    '成功单元占比过低：检查是否有大量扫描页或乱码，换一版文件后从页面工具栏发起解析',
+    '文件内容无法解析：确认文件未损坏，或用带文本层的版本重新导出后，重新提交该文件（同一份文件重新提交会产生新的文件结果）',
+  SCANNED_UNSUPPORTED: '纯扫描件暂不支持：请提供带文本层的 PDF（OCR 能力尚未开放）后重新提交该文件',
+  RATIO_BELOW_THRESHOLD: '成功单元占比过低：检查是否有大量扫描页或乱码，换一版文件重新提交',
   STRUCTURE_EMPTY: '解析产物里没有可组装的元素（空树）：确认上游解析结果有内容后再触发组装',
   STRUCTURE_UPSTREAM_UNREADABLE:
-    '读不到上游解析产物：确认上游解析已成功产出产物，或重新触发一次解析后再组装',
+    '读不到上游解析产物：确认上游解析已成功产出产物；本次解析已失败则需重新提交文件后再组装',
   PREPROCESS_EMPTY: '上游组装产物缺失或读不到：确认组装已成功产出产物后再触发预处理',
-  PREPROCESS_FAILED: '预处理执行异常：看「过程」页签里失败的步骤，必要时重新触发一次预处理',
+  PREPROCESS_FAILED: '预处理执行异常：看「过程」页签里失败的步骤，改好策略或换上游产物后重新触发',
 };
 
 const failAdvice = computed(() => {
   const code = detail.value?.errorCode ?? '';
   return (
     FAIL_ADVICE[code] ??
-    '本次运行没有产物：确认文件可用后，从页面工具栏发起解析（会新建一条执行链）'
+    '本次运行没有产物：确认文件可用后重新提交文件（同一份文件重新提交会产生新的文件结果）'
   );
 });
 

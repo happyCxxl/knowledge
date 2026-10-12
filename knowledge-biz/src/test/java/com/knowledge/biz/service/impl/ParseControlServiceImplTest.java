@@ -100,11 +100,15 @@ class ParseControlServiceImplTest {
         return fileResult;
     }
 
+    /** 解析执行键：文件结果 10 + 无上游（0）+ 无策略（0） */
+    private void existingParseTask(KbPipelineTask task) {
+        when(pipelineTaskDbService.getByExecKey(10L, PipelineStage.PARSE.name(), 0L, 0L)).thenReturn(task);
+    }
+
     @Test
     void parseShouldCreateTaskAndEnqueue() {
         when(fileResultDbService.getById(10L)).thenReturn(fileResult());
-        when(pipelineTaskDbService.getByFileResultIdAndStage(10L, PipelineStage.PARSE.name()))
-                .thenReturn(null);
+        existingParseTask(null);
         when(pipelineTaskDbService.save(any(KbPipelineTask.class))).thenAnswer(inv -> {
             inv.getArgument(0, KbPipelineTask.class).setId(21L);
             return true;
@@ -117,6 +121,9 @@ class ParseControlServiceImplTest {
         verify(pipelineTaskDbService).save(captor.capture());
         assertEquals(PipelineTaskStatus.QUEUED.name(), captor.getValue().getStatus());
         assertEquals(PipelineStage.PARSE.name(), captor.getValue().getStage());
+        // 解析是链路起点：任务行的上游与策略两档都落 0 哨兵
+        assertEquals(0L, captor.getValue().getUpstreamProductId());
+        assertEquals(0L, captor.getValue().getStrategyVersionId());
         verify(taskQueue).enqueue(21L);
     }
 
@@ -126,8 +133,7 @@ class ParseControlServiceImplTest {
         KbPipelineTask running = new KbPipelineTask();
         running.setId(21L);
         running.setStatus(PipelineTaskStatus.RUNNING.name());
-        when(pipelineTaskDbService.getByFileResultIdAndStage(10L, PipelineStage.PARSE.name()))
-                .thenReturn(running);
+        existingParseTask(running);
 
         KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.parse(10L));
         assertEquals(ErrorCode.TASK_ALREADY_PENDING, e.getErrorCode());
@@ -136,67 +142,62 @@ class ParseControlServiceImplTest {
     }
 
     @Test
-    void parseQueuedShouldEnqueueExistingWithoutNewTask() {
+    void parseQueuedShouldReject40431() {
         when(fileResultDbService.getById(10L)).thenReturn(fileResult());
         KbPipelineTask queued = new KbPipelineTask();
         queued.setId(21L);
         queued.setStatus(PipelineTaskStatus.QUEUED.name());
-        when(pipelineTaskDbService.getByFileResultIdAndStage(10L, PipelineStage.PARSE.name()))
-                .thenReturn(queued);
+        existingParseTask(queued);
 
-        var response = service.parse(10L);
-
-        assertEquals(21L, response.getPipelineTaskId());
-        verify(pipelineTaskDbService, never()).save(any());
-        verify(taskQueue).enqueue(21L);
-    }
-
-    @Test
-    void parseSuccessShouldReject() {
-        when(fileResultDbService.getById(10L)).thenReturn(fileResult());
-        KbPipelineTask success = new KbPipelineTask();
-        success.setId(21L);
-        success.setStatus(PipelineTaskStatus.SUCCESS.name());
-        when(pipelineTaskDbService.getByFileResultIdAndStage(10L, PipelineStage.PARSE.name()))
-                .thenReturn(success);
-
+        // 执行键命中即拒绝，触发入口不再补投唤醒；QUEUED 补投归启动补偿与低频扫描
         KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.parse(10L));
-        assertEquals(ErrorCode.PARSE_ALREADY_SUCCEEDED, e.getErrorCode());
+
+        assertEquals(ErrorCode.TASK_ALREADY_PENDING, e.getErrorCode());
         verify(pipelineTaskDbService, never()).save(any());
         verify(taskQueue, never()).enqueue(any());
     }
 
     @Test
-    void parsePartialSuccessShouldReject() {
+    void parseSuccessShouldReject40431() {
+        when(fileResultDbService.getById(10L)).thenReturn(fileResult());
+        KbPipelineTask success = new KbPipelineTask();
+        success.setId(21L);
+        success.setStatus(PipelineTaskStatus.SUCCESS.name());
+        existingParseTask(success);
+
+        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.parse(10L));
+        assertEquals(ErrorCode.TASK_ALREADY_PENDING, e.getErrorCode());
+        verify(pipelineTaskDbService, never()).save(any());
+        verify(taskQueue, never()).enqueue(any());
+    }
+
+    @Test
+    void parsePartialSuccessShouldReject40431() {
         when(fileResultDbService.getById(10L)).thenReturn(fileResult());
         KbPipelineTask partial = new KbPipelineTask();
         partial.setId(21L);
         partial.setStatus(PipelineTaskStatus.PARTIAL_SUCCESS.name());
-        when(pipelineTaskDbService.getByFileResultIdAndStage(10L, PipelineStage.PARSE.name()))
-                .thenReturn(partial);
+        existingParseTask(partial);
 
         KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.parse(10L));
-        assertEquals(ErrorCode.PARSE_ALREADY_SUCCEEDED, e.getErrorCode());
+        assertEquals(ErrorCode.TASK_ALREADY_PENDING, e.getErrorCode());
         verify(pipelineTaskDbService, never()).save(any());
     }
 
     @Test
-    void parseFailedShouldCreateNewTask() {
+    void parseFailedShouldReject40431() {
         when(fileResultDbService.getById(10L)).thenReturn(fileResult());
         KbPipelineTask failed = new KbPipelineTask();
         failed.setId(21L);
         failed.setStatus(PipelineTaskStatus.FAILED.name());
-        when(pipelineTaskDbService.getByFileResultIdAndStage(10L, PipelineStage.PARSE.name()))
-                .thenReturn(failed);
-        when(pipelineTaskDbService.save(any(KbPipelineTask.class))).thenAnswer(inv -> {
-            inv.getArgument(0, KbPipelineTask.class).setId(22L);
-            return true;
-        });
+        existingParseTask(failed);
 
-        var response = service.parse(10L);
+        // 查重只看执行键：失败任务仍占着「无上游 + 无策略」这一档，触发入口不再按状态分流
+        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.parse(10L));
 
-        assertEquals(22L, response.getPipelineTaskId());
-        verify(taskQueue).enqueue(22L);
+        assertEquals(ErrorCode.TASK_ALREADY_PENDING, e.getErrorCode());
+        verify(pipelineTaskDbService, never()).save(any());
+        verify(taskQueue, never()).enqueue(any());
     }
 
     @Test

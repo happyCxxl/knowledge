@@ -75,17 +75,14 @@ public enum ErrorCode {
     /** 策略版本不存在或未启用 */
     STRATEGY_VERSION_NOT_FOUND(40433, "策略版本不存在或未启用"),
 
-    /** 解析已成功或部分成功，禁止再次触发 */
-    PARSE_ALREADY_SUCCEEDED(40437, "解析已成功或部分成功，无需再次触发"),
-
-    /** 切片产物缺失（向量化上游） */
-    EMBED_UPSTREAM_MISSING(40434, "切片产物不存在，请先触发切片"),
-
     /** 切片最大片长超过模型窗口 */
     EMBED_MODEL_INCOMPATIBLE(40435, "切片最大片长超过模型窗口，请更换模型或调整切片策略"),
 
     /** 触发下游环节时未指定上游产物 */
     TASK_UPSTREAM_MISSING(40436, "未指定上游产物，请从上游产物的卡片发起触发"),
+
+    /** 触发时未解析到可用策略（知识库未绑定且未显式指定） */
+    TASK_STRATEGY_MISSING(40438, "未解析到可用策略，请绑定策略或显式选择后触发"),
 
     /** 索引版本不存在 */
     INDEX_VERSION_NOT_FOUND(40441, "索引版本不存在"),

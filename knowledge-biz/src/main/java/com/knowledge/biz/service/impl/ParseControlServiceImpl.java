@@ -39,23 +39,19 @@ public class ParseControlServiceImpl implements ParseControlService {
     private final FileResultAccessGuard accessGuard;
 
     /**
-     * 触发解析（首次解析与失败重跑同一入口）四分支：
-     * <ol>
-     *   <li>RUNNING → 拒绝（40431，进行中勿重复触发）；</li>
-     *   <li>QUEUED → 已登记未入队（登记与入队间崩溃的窗口），直接补投唤醒，不新建任务；</li>
-     *   <li>SUCCESS/PARTIAL_SUCCESS → 拒绝（40437，成功后禁止重跑）；</li>
-     *   <li>FAILED/无任务 → 新建 PARSE 任务（QUEUED）落库并入队。</li>
-     * </ol>
-     * 旧任务/旧产物不动（重跑 = 新任务，历史可查）；完成后停在终态，不自动触发组装。
+     * 触发解析（手动逐环节，链路起点）：解析没有上游产物、也没有策略版本，
+     * 执行键即「文件结果」——一份文件结果只解析一次。
+     *
+     * <p>已有任务（任何状态，含执行中）一律拒绝 40431；没有才新建 PARSE 任务（QUEUED）落库并入队。
+     * 完成后停在终态，不自动触发组装；需要重新解析请重新提交文件（产生新的文件结果）。
      *
      * @param fileResultId 文件结果 ID
-     * @return 触发响应（新登记/已有任务 ID）
+     * @return 触发响应（新建任务 ID）
      */
     @Override
     public StageTriggerVO parse(Long fileResultId) {
         accessGuard.requireExisting(fileResultId);
-        // 手动逐环节口径：本接口 = "触发解析"（首次解析 / 失败后重跑同一个入口；成功后禁止重跑）
-        return triggerSupport.trigger(fileResultId, PipelineStage.PARSE, null, null, "解析", true);
+        return triggerSupport.trigger(fileResultId, PipelineStage.PARSE, null, null, null, "解析");
     }
 
     @Override

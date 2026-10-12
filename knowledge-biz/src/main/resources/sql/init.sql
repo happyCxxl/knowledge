@@ -148,7 +148,8 @@ CREATE TABLE kb_pipeline_task
     id                  BIGINT      NOT NULL AUTO_INCREMENT COMMENT '主键（雪花，应用显式传 id）',
     file_result_id      BIGINT               DEFAULT NULL   COMMENT '所属文件结果（BUILD_INDEX 知识库级任务为空）',
     stage               VARCHAR(32) NOT NULL                COMMENT '环节：PARSE/STRUCTURE/PREPROCESS/CHUNK/EMBED/BUILD_INDEX',
-    upstream_product_id BIGINT               DEFAULT NULL   COMMENT '上游产物 ID（可空）',
+    upstream_product_id BIGINT      NOT NULL DEFAULT 0      COMMENT '上游产物 ID（0 = 没有上游：解析是链路起点）',
+    strategy_version_id BIGINT      NOT NULL DEFAULT 0      COMMENT '策略版本 ID（0 = 该环节无策略：解析/组装；其余取 kb_pipeline_strategy_version.id）',
     strategy_snapshot   varchar(1024)                 DEFAULT NULL   COMMENT '环节策略快照（触发时固定）',
     product_id          BIGINT               DEFAULT NULL   COMMENT '成功运行回写的产物 ID（kb_pipeline_product.id）',
     status              VARCHAR(32) NOT NULL DEFAULT 'QUEUED' COMMENT '状态：QUEUED/RUNNING/SUCCESS/PARTIAL_SUCCESS/FAILED',
@@ -159,6 +160,10 @@ CREATE TABLE kb_pipeline_task
     started_at          DATETIME(3)          DEFAULT NULL   COMMENT '开始执行时间',
     finished_at         DATETIME(3)          DEFAULT NULL   COMMENT '结束时间',
     PRIMARY KEY (id),
+    -- 执行唯一键：同一份输入 + 同一策略只能有一条任务（0 表示"没有上游"与"无策略"两档，避开 NULL 不参与唯一比较）
+    -- 键包含 stage，与应用侧 getByExecKey(fileResultId, stage, 上游, 策略) 的查询键完全对齐
+    -- 知识库级 BUILD_INDEX 任务的 file_result_id 为空，NULL 不参与唯一比较，不在本约束范围内
+    UNIQUE KEY uk_exec (file_result_id, stage, upstream_product_id, strategy_version_id),
     KEY idx_fr_stage (file_result_id, stage),
     KEY idx_status (status)
 )  COMMENT ='处理链任务：一次触发一条任务（机器表 append-only）';

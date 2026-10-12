@@ -71,7 +71,7 @@ public class StrategyVersionController {
     }
 
     @PostMapping("/{id}/disable")
-    @Operation(summary = "停用策略版本", description = "停用（幂等；停用后触发时不再作为启用中最新候选）")
+    @Operation(summary = "停用策略版本", description = "停用（幂等；停用后不再作为显式指定或知识库绑定的可用策略版本，触发报 40433/40438）")
     public R<StrategyVersionVO> disable(
             @Parameter(description = "策略版本ID", required = true) @PathVariable("id") Long id) {
         log.info("===> StrategyVersionController disable 停用策略版本, id={}", id);

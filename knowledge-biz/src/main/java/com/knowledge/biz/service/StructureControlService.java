@@ -11,9 +11,9 @@ import com.knowledge.common.dto.response.task.StageTriggerVO;
 public interface StructureControlService {
 
     /**
-     * 触发组装：上游解析产物校验 → 防重/唤醒（RUNNING 40431、QUEUED 补投唤醒）→
-     * 新建 STRUCTURE 任务入队（不重新解析）；upstreamProductId 可选（指定上游解析产物，缺省取最新）；
-     * 无解析产物时拒绝（40432）。
+     * 触发组装：上游解析产物校验（必填，未指定或传 0 报 40436）→ 执行键查重（已有任务一律拒绝 40431）→
+     * 新建 STRUCTURE 任务入队（不重新解析）；upstreamProductId 必填（指定上游解析产物）；
+     * 指定产物不存在或不属于该文件结果时拒绝（40432）；QUEUED 补投归启动补偿与低频扫描。
      */
     StageTriggerVO structure(Long fileResultId, Long upstreamProductId);
 

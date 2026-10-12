@@ -33,8 +33,9 @@ public class KnowledgeFileChunkController {
     private final ChunkControlService chunkControlService;
 
     @PostMapping("/{fileResultId}/chunk")
-    @Operation(summary = "触发切片", description = "触发切片/重跑（手动逐环节）；"
-            + "strategyVersionId 可选（策略行 ID，缺省取库内启用中最新版本）；upstreamProductId 可选（指定上游 PREPROCESS 产物，缺省取最新）；进行中任务拒绝（40431）")
+    @Operation(summary = "触发切片", description = "触发切片（手动逐环节）；"
+            + "strategyVersionId 可选（策略行 ID，不传用知识库绑定，两档都不命中 40438）；"
+            + "upstreamProductId 必填（指定上游 PREPROCESS 产物，未指定或传 0 报 40436）；已有任务一律 40431")
     public R<ChunkTriggerVO> chunk(
             @Parameter(description = "文件结果ID", required = true) @PathVariable("fileResultId") Long fileResultId,
             @ParameterObject StageTriggerQueryDto query) {

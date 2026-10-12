@@ -46,17 +46,39 @@ public final class TaskRunnerSupport {
     }
 
     /**
-     * 上游产物解析：只认任务行上显式指定的 {@code upstreamProductId}（触发时确定），查不到返回 null。
-     * 不做「取该环节最新产物」这类按时间猜的兜底 —— 引用缺失按任务失败处理，由触发入口与执行器两端把关。
+     * 上游产物解析：只认任务行上显式指定的 {@code upstreamProductId}（触发时确定，0 表示没有上游），
+     * 查不到返回 null。不做「取该环节最新产物」这类按时间猜的兜底 —— 引用缺失按任务失败处理。
      *
      * @param productDbService 产物数据访问
      * @param task             当前任务
-     * @return 上游产物；未指定或查不到时返回 null
+     * @return 上游产物；没有上游或查不到时返回 null
      */
     public static KbPipelineProduct resolveUpstreamProduct(KbPipelineProductDbService productDbService,
                                                            KbPipelineTask task) {
-        return NullUtil.isNull(task.getUpstreamProductId()) ? null
-                : productDbService.getById(task.getUpstreamProductId());
+        Long upstreamProductId = upstreamOf(task);
+        return NullUtil.isNull(upstreamProductId) ? null : productDbService.getById(upstreamProductId);
+    }
+
+    /**
+     * 任务行上的上游产物 ID：0 与 null 都表示"没有上游"（解析是链路起点），统一返回 null 表示没有。
+     *
+     * @param task 当前任务
+     * @return 上游产物 ID；没有上游时返回 null
+     */
+    public static Long upstreamOf(KbPipelineTask task) {
+        Long upstreamProductId = NullUtil.isNull(task) ? null : task.getUpstreamProductId();
+        return NullUtil.isNull(upstreamProductId) || upstreamProductId == 0L ? null : upstreamProductId;
+    }
+
+    /**
+     * 任务行上的策略版本 ID：0 与 null 都表示"该环节无策略"（解析/组装），统一返回 null 表示没有。
+     *
+     * @param task 当前任务
+     * @return 策略版本 ID；该环节无策略时返回 null
+     */
+    public static Long strategyVersionOf(KbPipelineTask task) {
+        Long strategyVersionId = NullUtil.isNull(task) ? null : task.getStrategyVersionId();
+        return NullUtil.isNull(strategyVersionId) || strategyVersionId == 0L ? null : strategyVersionId;
     }
 
     /**

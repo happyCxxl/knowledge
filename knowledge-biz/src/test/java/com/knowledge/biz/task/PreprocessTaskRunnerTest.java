@@ -96,6 +96,8 @@ class PreprocessTaskRunnerTest {
         task.setId(60L);
         task.setFileResultId(10L);
         task.setUpstreamProductId(50L);
+        // 策略快照按任务行上的快照取（触发时固定）；空对象即解析器默认参数
+        task.setStrategySnapshot("{}");
         task.setStage(PipelineStage.PREPROCESS.name());
         task.setStatus(PipelineTaskStatus.QUEUED.name());
         return task;

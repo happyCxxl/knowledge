@@ -96,6 +96,11 @@ public class EmbedTaskRunner {
                 return;
             }
 
+            // 策略只来自策略版本表：任务行缺快照即失败，不用代码里的默认策略兜底
+            if (StrUtil.isBlank(task.getStrategySnapshot())) {
+                finishFailed(taskId, PipelineTaskErrorCode.EMBED_FAILED.name(), "任务未带向量化策略快照，无法向量化");
+                return;
+            }
             EmbedStrategy strategy = strategyParser.parse(task.getStrategySnapshot());
             ChunkSet chunkSet;
             try {
