@@ -163,6 +163,40 @@ class ExcelDocumentParserTest {
                 () -> "cells=" + table.getCells());
     }
 
+    /** .xls 公式缓存不可辨别：有公式格时按档在路说明里留痕，取值仍按缓存值 */
+    @Test
+    void xlsFormulaCacheShouldBeNoted() throws Exception {
+        try (HSSFWorkbook workbook = new HSSFWorkbook()) {
+            Sheet sheet = workbook.createSheet("S1");
+            sheet.createRow(0).createCell(0).setCellValue("指标");
+            sheet.createRow(1).createCell(0).setCellFormula("1+1");
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            workbook.write(out);
+
+            ParseSource source = parser.parse(context(out.toByteArray(), MIME_XLS));
+
+            assertTrue(source.getNote().contains("旧格式公式缓存可能未计算"),
+                    () -> "note=" + source.getNote());
+            assertTrue(source.getNote().contains("1 个公式格"), () -> "note=" + source.getNote());
+        }
+    }
+
+    /** xlsx 公式缓存可辨别：不留旧格式口径说明 */
+    @Test
+    void xlsxFormulaCacheShouldNotBeNoted() throws Exception {
+        try (XSSFWorkbook workbook = new XSSFWorkbook()) {
+            Sheet sheet = workbook.createSheet("S1");
+            sheet.createRow(0).createCell(0).setCellValue("指标");
+            sheet.createRow(1).createCell(0).setCellFormula("1+1");
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            workbook.write(out);
+
+            ParseSource source = parser.parse(context(out.toByteArray(), MIME_XLSX));
+
+            assertEquals(null, source.getNote());
+        }
+    }
+
     /** 公式格以缓存显示值为准：手工把 <v> 写成 7（公式现算是 2）→ 产物取 7 */
     @Test
     void formulaShouldPreferCachedDisplayValue() throws Exception {

@@ -74,6 +74,7 @@ public class ExcelDocumentParser extends AbstractPoiDocumentParser {
                 sheetImages.add(pictureCount(workbook.getSheetAt(s)));
             }
             fillUnitMetrics(source, sheetTexts, sheetImages);
+            appendXlsFormulaNote(source, workbook);
         } catch (Exception e) {
             log.warn("Excel 解析失败, fileId={}", fileId, e);
             throw new IllegalStateException("Excel 解析失败: " + e.getMessage(), e);
@@ -281,6 +282,33 @@ public class ExcelDocumentParser extends AbstractPoiDocumentParser {
         element.setText(text);
         element.setProvenance(new Provenance(fileId, path));
         source.getElements().add(element);
+    }
+
+    /**
+     * 旧格式（xls）公式缓存留痕：HSSF 的公式记录总带数值缓存，从未计算过的公式取出来是 0、与真的 0 无法区分。
+     * 有公式格时把这条口径写进路说明（不产信号事实，避免被判定成表格或图片问题）。
+     */
+    private void appendXlsFormulaNote(ParseSource source, Workbook workbook) {
+        if (!(workbook instanceof HSSFWorkbook)) {
+            return;
+        }
+        int formulaCells = 0;
+        for (int s = 0; s < workbook.getNumberOfSheets(); s++) {
+            Sheet sheet = workbook.getSheetAt(s);
+            for (Row row : sheet) {
+                for (Cell cell : row) {
+                    if (CellType.FORMULA.equals(cell.getCellType())) {
+                        formulaCells++;
+                    }
+                }
+            }
+        }
+        if (formulaCells == 0) {
+            return;
+        }
+        String note = StrUtil.blankToDefault(source.getNote(), "");
+        source.setNote((note.isEmpty() ? "" : note + "; ")
+                + "旧格式公式缓存可能未计算（本档 " + formulaCells + " 个公式格按缓存值取值）");
     }
 
     /**
