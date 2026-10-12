@@ -67,6 +67,7 @@ public class ExcelDocumentParser extends AbstractPoiDocumentParser {
             for (int s = 0; s < sheetCount; s++) {
                 ParseElement tableElement = toSheetTableElement(workbook, formatter, evaluator, s, fileId);
                 source.getElements().add(tableElement);
+                appendSheetHeaderFooter(source, workbook.getSheetAt(s), s, fileId);
                 sheetTexts.add(tableText(tableElement));
                 sheetImages.add(pictureCount(workbook.getSheetAt(s)));
             }
@@ -203,6 +204,51 @@ public class ExcelDocumentParser extends AbstractPoiDocumentParser {
             }
         }
         return count;
+    }
+
+    /** 单个工作表页眉页脚 → HEADER/FOOTER 元素（与 DOCX 口径一致：文本非空才产出） */
+    private void appendSheetHeaderFooter(ParseSource source, Sheet sheet, int sheetIndex, String fileId) {
+        addSheetPart(source, sheetHeaderFooterText(sheetPartText(sheet.getHeader().getLeft(),
+                        sheet.getHeader().getCenter(), sheet.getHeader().getRight())),
+                ElementType.HEADER, "h" + sheetIndex,
+                "office#sheet[" + sheet.getSheetName() + "]/header", fileId);
+        addSheetPart(source, sheetHeaderFooterText(sheetPartText(sheet.getFooter().getLeft(),
+                        sheet.getFooter().getCenter(), sheet.getFooter().getRight())),
+                ElementType.FOOTER, "f" + sheetIndex,
+                "office#sheet[" + sheet.getSheetName() + "]/footer", fileId);
+    }
+
+    /** 页眉页脚三区拼接（POI 按左中右三区承载文本） */
+    private static String sheetPartText(String left, String center, String right) {
+        return StrUtil.blankToDefault(left, "") + " " + StrUtil.blankToDefault(center, "") + " "
+                + StrUtil.blankToDefault(right, "");
+    }
+
+    /** 页眉/页脚元素入列 */
+    private void addSheetPart(ParseSource source, String text, ElementType type, String id, String path,
+                              String fileId) {
+        if (StrUtil.isBlank(text)) {
+            return;
+        }
+        ParseElement element = ParseElement.of(id, type);
+        element.setText(text);
+        element.setProvenance(new Provenance(fileId, path));
+        source.getElements().add(element);
+    }
+
+    /**
+     * 页眉页脚文本去格式码：`&L` / `&C` / `&R` 段标记转为分隔、`&"字体"` 与其余 `&` 开头的格式码去掉，
+     * 连续空白合并；只保留人可读文本。
+     */
+    static String sheetHeaderFooterText(String raw) {
+        if (StrUtil.isBlank(raw)) {
+            return "";
+        }
+        String cleaned = raw.replaceAll("&[LCR]", " ")
+                .replaceAll("&\"[^\"]*\"", " ")
+                .replaceAll("&[A-Za-z0-9]+", " ")
+                .replace("&&", "&");
+        return cleaned.replaceAll("\\s+", " ").trim();
     }
 
     /** 行列坐标 → 单键（高 32 位行、低 32 位列）。 */

@@ -10,10 +10,13 @@ import com.knowledge.common.enums.input.FileFormat;
 import com.knowledge.common.utils.NullUtil;
 import com.knowledge.worker.parser.ParseContext;
 import com.knowledge.worker.parser.office.AbstractPoiDocumentParser;
+import com.knowledge.worker.parser.support.TocLineFeature;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.hwpf.HWPFDocument;
 import org.apache.poi.hwpf.model.PicturesTable;
+import org.apache.poi.hwpf.model.StyleDescription;
 import org.apache.poi.hwpf.usermodel.CharacterRun;
+import org.apache.poi.hwpf.usermodel.HeaderStories;
 import org.apache.poi.hwpf.usermodel.Paragraph;
 import org.apache.poi.hwpf.usermodel.Picture;
 import org.apache.poi.hwpf.usermodel.Range;
@@ -50,7 +53,7 @@ public class DocDocumentParser extends AbstractPoiDocumentParser {
                 if (paragraph.isInTable()) {
                     continue; // 表格内容由 TableIterator 统一输出
                 }
-                ParseElement element = toDocParagraphElement(paragraph, paragraphIndex, fileId);
+                ParseElement element = toDocParagraphElement(doc, paragraph, paragraphIndex, fileId);
                 if (NullUtil.isNotNull(element)) {
                     source.getElements().add(element);
                 }
@@ -70,6 +73,8 @@ public class DocDocumentParser extends AbstractPoiDocumentParser {
                 source.getFacts().add(fact("picture",
                         "嵌入图片仅引用无文字（" + pictures.getAllPictures().size() + " 张）"));
             }
+            // 页眉页脚（首页故事）：与 DOCX 口径一致，独立产出 HEADER/FOOTER 元素
+            appendDocHeaderFooter(source, doc, fileId);
             // 表格（HWPF 结构支持弱；合并信息读不到，只取行列文本）
             TableIterator tableIterator = new TableIterator(range);
             int tableIndex = 0;
@@ -85,14 +90,17 @@ public class DocDocumentParser extends AbstractPoiDocumentParser {
         }
     }
 
-    /** DOC 段落元素：字体事实取首 run；HWPF 字号为半点单位，换算 pt。 */
-    private ParseElement toDocParagraphElement(Paragraph paragraph, int index, String fileId) {
+    /** DOC 段落元素：样式名 + 目录候选 + 字体事实取首 run；HWPF 字号为半点单位，换算 pt。 */
+    private ParseElement toDocParagraphElement(HWPFDocument document, Paragraph paragraph, int index,
+                                               String fileId) {
         String text = paragraph.text().trim();
         if (StrUtil.isBlank(text)) {
             return null;
         }
         ParseElement element = ParseElement.of("p" + index, ElementType.PARAGRAPH);
         element.setText(text);
+        element.setStyle(docStyleName(document, paragraph));
+        element.setTocCandidate(TocLineFeature.isTocLine(text));
         if (paragraph.numCharacterRuns() > 0) {
             CharacterRun run = paragraph.getCharacterRun(0);
             FontInfo font = new FontInfo();
@@ -105,6 +113,39 @@ public class DocDocumentParser extends AbstractPoiDocumentParser {
         }
         element.setProvenance(new Provenance(fileId, "office#document/paragraph[" + index + "]"));
         return element;
+    }
+
+    /** DOC 页眉页脚（HeaderStories 的首页故事）→ HEADER/FOOTER 元素；读取异常不阻断整档解析 */
+    private void appendDocHeaderFooter(ParseSource source, HWPFDocument document, String fileId) {
+        try {
+            HeaderStories stories = new HeaderStories(document);
+            addStoryElement(source, stories.getFirstHeader(), ElementType.HEADER, "h0", "doc#header[0]", fileId);
+            addStoryElement(source, stories.getFirstFooter(), ElementType.FOOTER, "f0", "doc#footer[0]", fileId);
+        } catch (RuntimeException e) {
+            log.warn("DOC 页眉页脚读取失败, fileId={}", fileId, e);
+        }
+    }
+
+    /** 单个页眉/页脚故事 → 元素（文本非空才产出） */
+    private void addStoryElement(ParseSource source, String storyText, ElementType type, String id, String path,
+                                 String fileId) {
+        if (StrUtil.isBlank(storyText)) {
+            return;
+        }
+        ParseElement element = ParseElement.of(id, type);
+        element.setText(storyText.trim());
+        element.setProvenance(new Provenance(fileId, path));
+        source.getElements().add(element);
+    }
+
+    /** 段落样式名：HWPF 样式表按索引取名字；索引越界或读取异常给 null（不阻断解析） */
+    private static String docStyleName(HWPFDocument document, Paragraph paragraph) {
+        try {
+            StyleDescription description = document.getStyleSheet().getStyleDescription(paragraph.getStyleIndex());
+            return NullUtil.isNull(description) ? null : description.getName();
+        } catch (RuntimeException e) {
+            return null;
+        }
     }
 
     /** DOC 表格元素（HWPF 结构支持弱：合并信息读不到，只取行列文本）。 */

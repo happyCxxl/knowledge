@@ -83,6 +83,48 @@ class ExcelDocumentParserTest {
                 () -> "cells=" + texts);
     }
 
+    /** 页眉页脚产元素：三区拼接成一条 HEADER、页脚一条 FOOTER，格式码被清掉 */
+    @Test
+    void sheetHeaderFooterShouldEmitElements() throws Exception {
+        ParseSource source = parser.parse(context(buildXlsxWithHeaderFooter(), MIME_XLSX));
+
+        List<ParseElement> headers = source.getElements().stream()
+                .filter(e -> ElementType.HEADER.name().equals(e.getType())).toList();
+        List<ParseElement> footers = source.getElements().stream()
+                .filter(e -> ElementType.FOOTER.name().equals(e.getType())).toList();
+        assertEquals(1, headers.size(), () -> "elements=" + source.getElements());
+        assertEquals(1, footers.size());
+        assertTrue(headers.getFirst().getText().contains("报表标题"), () -> "header=" + headers.getFirst().getText());
+        assertTrue(headers.getFirst().getText().contains("机密"), () -> "header=" + headers.getFirst().getText());
+        assertFalse(headers.getFirst().getText().contains("&"), () -> "header=" + headers.getFirst().getText());
+        assertTrue(footers.getFirst().getText().contains("第 1 页"), () -> "footer=" + footers.getFirst().getText());
+        assertEquals("office#sheet[页眉表]/header", headers.getFirst().getProvenance().getPath());
+    }
+
+    /** 格式码清理：段标记转分隔、格式码去掉、空白合并 */
+    @Test
+    void headerFooterCodesShouldBeStripped() {
+        assertEquals("左 中 右", ExcelDocumentParser.sheetHeaderFooterText("&L左&C中&R右"));
+        assertEquals("报表 & 页", ExcelDocumentParser.sheetHeaderFooterText("&\"Arial,Bold\"报表 && 页"));
+        assertEquals("", ExcelDocumentParser.sheetHeaderFooterText("   "));
+    }
+
+    /** 一表两列数据 + 页眉三区 + 页脚 */
+    private byte[] buildXlsxWithHeaderFooter() throws Exception {
+        try (XSSFWorkbook workbook = new XSSFWorkbook()) {
+            Sheet sheet = workbook.createSheet("页眉表");
+            Row row = sheet.createRow(0);
+            row.createCell(0).setCellValue("A");
+            row.createCell(1).setCellValue("B");
+            sheet.getHeader().setLeft("报表标题");
+            sheet.getHeader().setRight("机密");
+            sheet.getFooter().setCenter("第 1 页");
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            workbook.write(out);
+            return out.toByteArray();
+        }
+    }
+
     /** 首行两列，第 2 行横向合并 A2:B2，且被覆盖的 B2 自带文本 */
     private byte[] buildXlsxWithCoveredText() throws Exception {
         try (XSSFWorkbook workbook = new XSSFWorkbook()) {
