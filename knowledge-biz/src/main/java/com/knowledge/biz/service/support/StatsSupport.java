@@ -79,7 +79,7 @@ public final class StatsSupport {
     }
 
     /**
-     * 结论文案的前置判断：失败与已取消取失败原因，非成功 / 部分成功不陈述结论。
+     * 结论文案的前置判断：失败取失败原因，非成功 / 部分成功不陈述结论。
      *
      * @param errorMsg 失败原因
      * @param status   任务状态
@@ -88,8 +88,7 @@ public final class StatsSupport {
      * @return 结论文案；无可陈述内容时返回 null
      */
     public static String summaryOf(String errorMsg, String status, String failText, Supplier<String> body) {
-        if (PipelineTaskStatus.FAILED.name().equals(status)
-                || PipelineTaskStatus.CANCELLED.name().equals(status)) {
+        if (PipelineTaskStatus.FAILED.name().equals(status)) {
             return StrUtil.blankToDefault(errorMsg, failText);
         }
         if (!PipelineTaskStatus.SUCCESS.name().equals(status)

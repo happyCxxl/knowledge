@@ -37,7 +37,7 @@ public class KnowledgeFileParseController {
      * 触发解析（首次解析与失败后再次触发同一入口，手动逐环节）。
      *
      * <p>四分支：QUEUED 任务直接补投入队；RUNNING 拒绝（40431）；成功/部分成功拒绝（40437）；
-     * FAILED/CANCELLED/无任务新建 PARSE 任务并入队。旧任务/旧产物保留；完成后停在终态，不自动触发组装。
+     * FAILED/无任务新建 PARSE 任务并入队。旧任务/旧产物保留；完成后停在终态，不自动触发组装。
      *
      * @param fileResultId 文件结果 ID（路径参数）
      * @return 触发响应（新登记/已有任务 ID）

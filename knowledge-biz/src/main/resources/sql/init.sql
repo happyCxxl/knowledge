@@ -151,7 +151,7 @@ CREATE TABLE kb_pipeline_task
     upstream_product_id BIGINT               DEFAULT NULL   COMMENT '上游产物 ID（可空）',
     strategy_snapshot   varchar(1024)                 DEFAULT NULL   COMMENT '环节策略快照（触发时固定）',
     product_id          BIGINT               DEFAULT NULL   COMMENT '成功运行回写的产物 ID（kb_pipeline_product.id）',
-    status              VARCHAR(32) NOT NULL DEFAULT 'QUEUED' COMMENT '状态：QUEUED/RUNNING/SUCCESS/PARTIAL_SUCCESS/FAILED/CANCELLED',
+    status              VARCHAR(32) NOT NULL DEFAULT 'QUEUED' COMMENT '状态：QUEUED/RUNNING/SUCCESS/PARTIAL_SUCCESS/FAILED',
     retry_count         INT         NOT NULL DEFAULT 0      COMMENT '重试次数',
     error_code          VARCHAR(64)          DEFAULT NULL   COMMENT '错误码',
     error_msg           VARCHAR(1024)        DEFAULT NULL   COMMENT '错误信息',

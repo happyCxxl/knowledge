@@ -44,7 +44,7 @@ public class ParseControlServiceImpl implements ParseControlService {
      *   <li>RUNNING → 拒绝（40431，进行中勿重复触发）；</li>
      *   <li>QUEUED → 已登记未入队（登记与入队间崩溃的窗口），直接补投唤醒，不新建任务；</li>
      *   <li>SUCCESS/PARTIAL_SUCCESS → 拒绝（40437，成功后禁止重跑）；</li>
-     *   <li>FAILED/CANCELLED/无任务 → 新建 PARSE 任务（QUEUED）落库并入队。</li>
+     *   <li>FAILED/无任务 → 新建 PARSE 任务（QUEUED）落库并入队。</li>
      * </ol>
      * 旧任务/旧产物不动（重跑 = 新任务，历史可查）；完成后停在终态，不自动触发组装。
      *

@@ -2,8 +2,8 @@ package com.knowledge.common.enums.task;
 
 /**
  * 处理链任务状态：
- * QUEUED → RUNNING → SUCCESS / PARTIAL_SUCCESS / FAILED / CANCELLED；
- * QUEUED 可直接 CANCELLED（CREATED 为入队前瞬时态，不落库）。
+ * QUEUED → RUNNING → SUCCESS / PARTIAL_SUCCESS / FAILED（CREATED 为入队前瞬时态，不落库）。
+ * 失败即该环节终局，不设取消态：链路只由输入与策略推导，状态不参与链路决策。
  *
  * @author cxxl
  */
@@ -22,8 +22,5 @@ public enum PipelineTaskStatus {
     PARTIAL_SUCCESS,
 
     /** 失败（保留错误与已生成产物，失败不覆盖成功） */
-    FAILED,
-
-    /** 已取消（管理员取消未开始或可取消的任务） */
-    CANCELLED
+    FAILED
 }

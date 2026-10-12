@@ -162,7 +162,6 @@ const STATUS_LABELS: Record<string, string> = {
   SUCCESS: '成功',
   PARTIAL_SUCCESS: '部分成功',
   FAILED: '失败',
-  CANCELLED: '已取消',
   QUEUED: '排队中',
 };
 

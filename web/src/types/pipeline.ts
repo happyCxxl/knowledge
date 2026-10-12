@@ -69,8 +69,7 @@ export function chunkTypeLabel(type: string | null | undefined): string {
 }
 
 /** 任务状态（与后端 PipelineTaskStatus 枚举对齐） */
-export type PipelineTaskStatus =
-  'QUEUED' | 'RUNNING' | 'SUCCESS' | 'PARTIAL_SUCCESS' | 'FAILED' | 'CANCELLED';
+export type PipelineTaskStatus = 'QUEUED' | 'RUNNING' | 'SUCCESS' | 'PARTIAL_SUCCESS' | 'FAILED';
 
 /** 任务状态中文名（同样用索引签名，未知状态回落原值） */
 export const TASK_STATUS_LABELS: Record<string, string> = {
@@ -79,7 +78,6 @@ export const TASK_STATUS_LABELS: Record<string, string> = {
   SUCCESS: '成功',
   PARTIAL_SUCCESS: '部分成功',
   FAILED: '失败',
-  CANCELLED: '已取消',
 };
 
 /** 取任务状态展示名；未知状态回落原值 */
@@ -93,12 +91,7 @@ export function taskStatusLabel(status: string): string {
  * <p>用白名单而非「是否 RUNNING」判断：任务可能长期处于 QUEUED，也可能直接进入
  * PARTIAL_SUCCESS / FAILED；只排除 RUNNING 会漏判（轮询永不停止）。
  */
-export const TERMINAL_TASK_STATUSES = new Set<string>([
-  'SUCCESS',
-  'PARTIAL_SUCCESS',
-  'FAILED',
-  'CANCELLED',
-]);
+export const TERMINAL_TASK_STATUSES = new Set<string>(['SUCCESS', 'PARTIAL_SUCCESS', 'FAILED']);
 
 /** 任务是否仍在推进（未进入终态） */
 export function isTaskPending(status: string | null | undefined): boolean {
@@ -121,7 +114,6 @@ export function statusTone(status: string | null | undefined): StatusTone {
     case 'RUNNING':
       return 'run';
     case 'FAILED':
-    case 'CANCELLED':
       return 'fail';
     default:
       return 'wait';
