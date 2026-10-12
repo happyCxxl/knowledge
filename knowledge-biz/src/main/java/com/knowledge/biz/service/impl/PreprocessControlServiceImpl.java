@@ -9,6 +9,7 @@ import com.knowledge.biz.service.support.StatsSupport;
 import com.knowledge.biz.service.support.FileResultAccessGuard;
 import com.knowledge.biz.service.support.TaskDetailSupport;
 import com.knowledge.biz.task.TaskTriggerSupport;
+import com.knowledge.biz.task.UpstreamProductGate;
 import com.knowledge.common.domain.entity.KbFileResult;
 import com.knowledge.common.domain.entity.KbPipelineProduct;
 import com.knowledge.common.domain.entity.KbPipelineStrategyVersion;
@@ -38,7 +39,7 @@ import java.util.Map;
 /**
  * 预处理控制面服务实现（手动逐环节）：
  * 策略解析两档：显式指定（校验存在/类型/启用，任一不满足 40433）→ 知识库绑定（绑定开关开启 + 绑定行存在 + 绑定行启用）；
- * 两档都不命中一律 40438。上游产物校验（必填，未指定或传 0 报 40436）→ 执行键查重（已有任务一律拒绝 40431）→ 建任务入队。
+ * 两档都不命中一律 40438。上游产物校验（必填，未指定或传 0 报 40436；产出任务未成功报 40439）→ 执行键查重（已有任务一律拒绝 40431）→ 建任务入队。
  * 策略快照写 task.strategy_snapshot（触发时固定），执行只用快照。QUEUED 补投归启动补偿与低频扫描。
  *
  * @author cxxl
@@ -56,6 +57,7 @@ public class PreprocessControlServiceImpl implements PreprocessControlService {
     private final PreprocessStrategyParser strategyParser;
     private final PreprocessVoAssembler voAssembler;
     private final FileResultAccessGuard accessGuard;
+    private final UpstreamProductGate upstreamProductGate;
 
     /**
      * 触发预处理（手动逐环节，重跑同入口）：策略解析两档 → 上游组装产物校验（必填）→ 执行键查重（已有任务一律拒绝 40431）→ 新建 PREPROCESS 任务入队。
@@ -147,6 +149,8 @@ public class PreprocessControlServiceImpl implements PreprocessControlService {
                 "指定产物环节不匹配：期望 STRUCTURE");
         ThrowUtil.throwIf(!fileResultId.equals(product.getFileResultId()), ErrorCode.FILE_RESULT_NOT_FOUND,
                 "指定产物不属于该文件结果");
+        // 下游门禁：产出任务已成功或部分成功才放行（未成功的运行留下的产物不再被消费）
+        upstreamProductGate.requireConsumable(product);
         return product;
     }
 

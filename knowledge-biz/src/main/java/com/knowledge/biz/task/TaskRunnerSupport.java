@@ -1,8 +1,10 @@
 package com.knowledge.biz.task;
 
 import cn.hutool.core.util.StrUtil;
+import com.knowledge.biz.service.db.KbFileResultDbService;
 import com.knowledge.biz.service.db.KbPipelineProductDbService;
 import com.knowledge.biz.service.db.KbPipelineTaskDbService;
+import com.knowledge.common.domain.entity.KbFileResult;
 import com.knowledge.common.domain.entity.KbPipelineProduct;
 import com.knowledge.common.domain.entity.KbPipelineTask;
 import com.knowledge.common.domain.task.StageOutcome;
@@ -11,15 +13,19 @@ import com.knowledge.common.enums.task.PipelineTaskStatus;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
 import com.knowledge.common.utils.NullUtil;
+import lombok.extern.slf4j.Slf4j;
+
+import java.util.function.Function;
 
 /**
- * 环节任务执行器共用助手：**领任务的准入判断**、**上游产物解析**、**终态收尾**三件事各环节完全同构，
- * 集中在这里，执行器只管自己的管线调用与落库。
+ * 环节任务执行器共用助手：**领任务的准入判断**、**上游产物解析与门禁**、**策略快照解析**、
+ * **终态收尾**各环节完全同构，集中在这里，执行器只管自己的管线调用与落库。
  *
  * <p>手动逐环节口径：成功后停在终态，不自动触发下游。
  *
  * @author cxxl
  */
+@Slf4j
 public final class TaskRunnerSupport {
 
     /** 失败原因入库前的截断长度（字符） */
@@ -45,6 +51,36 @@ public final class TaskRunnerSupport {
         return pipelineTaskDbService.claim(taskId) == 1 ? task : null;
     }
 
+    /** 领任务 + 取文件结果的结果对（领不到或文件结果缺失时为 null）。 */
+    public record Claimed(KbPipelineTask task, KbFileResult fileResult) {
+    }
+
+    /**
+     * 领任务并取文件结果：任务未领到（不存在、非 QUEUED、未抢到）返回 null；
+     * 文件结果不存在按该环节失败收尾并返回 null。
+     *
+     * @param pipelineTaskDbService 任务数据访问
+     * @param fileResultDbService   文件结果数据访问
+     * @param taskId                任务 ID
+     * @param failureCode           该环节的兜底任务错误码
+     * @param finisher              该执行器的失败回写
+     * @return 领取到的任务与文件结果；未领取到或文件结果缺失时返回 null
+     */
+    public static Claimed claimFileResult(KbPipelineTaskDbService pipelineTaskDbService,
+                                          KbFileResultDbService fileResultDbService, Long taskId,
+                                          PipelineTaskErrorCode failureCode, FailedFinisher finisher) {
+        KbPipelineTask task = claim(pipelineTaskDbService, taskId);
+        if (NullUtil.isNull(task)) {
+            return null;
+        }
+        KbFileResult fileResult = fileResultDbService.getById(task.getFileResultId());
+        if (NullUtil.isNull(fileResult)) {
+            finisher.finish(taskId, failureCode.name(), "文件结果不存在: " + task.getFileResultId());
+            return null;
+        }
+        return new Claimed(task, fileResult);
+    }
+
     /**
      * 上游产物解析：只认任务行上显式指定的 {@code upstreamProductId}（触发时确定，0 表示没有上游），
      * 查不到返回 null。不做「取该环节最新产物」这类按时间猜的兜底 —— 引用缺失按任务失败处理。
@@ -57,6 +93,54 @@ public final class TaskRunnerSupport {
                                                            KbPipelineTask task) {
         Long upstreamProductId = upstreamOf(task);
         return NullUtil.isNull(upstreamProductId) ? null : productDbService.getById(upstreamProductId);
+    }
+
+    /**
+     * 上游产物门禁 + 存在性：任务行引用缺失按该环节失败收尾；产出任务未成功（非
+     * SUCCESS/PARTIAL_SUCCESS）由门禁直接拒绝。校验不过时助手上报终态并返回 null，调用方直接 return。
+     *
+     * @param productDbService 产物数据访问
+     * @param gate             上游产物门禁
+     * @param task             当前任务
+     * @param taskId           任务 ID（回写终态用）
+     * @param missingText      缺上游引用时的失败文案（按环节给）
+     * @param finisher         该执行器的失败回写
+     * @return 上游产物；缺引用时返回 null
+     */
+    public static KbPipelineProduct requireUpstream(KbPipelineProductDbService productDbService,
+                                                    UpstreamProductGate gate, KbPipelineTask task, Long taskId,
+                                                    String missingText, FailedFinisher finisher) {
+        KbPipelineProduct product = resolveUpstreamProduct(productDbService, task);
+        if (NullUtil.isNotNull(product)) {
+            gate.requireConsumable(product);
+            return product;
+        }
+        finisher.finish(taskId, PipelineTaskErrorCode.TASK_UPSTREAM_MISSING.name(), missingText);
+        return null;
+    }
+
+    /**
+     * 策略快照 → 策略对象：快照缺失或损坏按该环节失败收尾（策略只来自策略版本表，不用代码里的默认兜底）。
+     * 解析失败时助手上报终态并返回 null，调用方直接 return。
+     *
+     * @param task         当前任务
+     * @param taskId       任务 ID（回写终态用）
+     * @param strategyCode 该环节的兜底任务错误码
+     * @param failureText  失败文案（按环节给）
+     * @param parse        按快照解析策略（各环节解析器）
+     * @param finisher     该执行器的失败回写
+     * @param <T>          策略类型
+     * @return 解析后的策略；快照缺失或损坏时返回 null
+     */
+    public static <T> T parseStrategy(KbPipelineTask task, Long taskId, PipelineTaskErrorCode strategyCode,
+                                      String failureText, Function<String, T> parse, FailedFinisher finisher) {
+        try {
+            return parse.apply(task.getStrategySnapshot());
+        } catch (RuntimeException e) {
+            log.warn("任务策略快照缺失或损坏, taskId={}, stage={}", taskId, task.getStage(), e);
+            finisher.finish(taskId, strategyCode.name(), failureText);
+            return null;
+        }
     }
 
     /**

@@ -45,6 +45,7 @@ public class StructureTaskRunner {
     private final StructureProperties structureProperties;
     private final StepLogPersistence stepLogPersistence;
     private final ProductPersistence productPersistence;
+    private final UpstreamProductGate upstreamProductGate;
 
     /**
      * 执行单个组装任务（由消费循环提交，外层看门狗负责超时）。
@@ -66,6 +67,8 @@ public class StructureTaskRunner {
                         "任务未指定上游解析产物");
                 return;
             }
+            // 下游门禁：产出任务已成功或部分成功才继续，未成功的运行留下的产物不读也不落库
+            upstreamProductGate.requireConsumable(parseProduct);
             ParseResult parseResult;
             try {
                 byte[] content = fileStorage.getObject(ObjectRef.ofProduct(parseProduct));

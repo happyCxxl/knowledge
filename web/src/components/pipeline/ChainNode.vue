@@ -304,18 +304,30 @@ const hasProduct = computed(() => Boolean(props.data.node.productId));
 const storageBlocked = computed(() => props.data.storageBlockReason !== '');
 
 /**
- * 触发下一环节是否可点：**本节点有产物**、且**数据源一致**，两个条件并列。
+ * 产出本节点产物的运行是否已成功或部分成功。
+ *
+ * <p>判据用节点自身的任务状态（与后端的下游门禁同一口径）：任务失败但产物已落盘时，
+ * 这份产物不能再作为下游的输入。
+ */
+const runConsumable = computed(
+  () => props.data.node.status === 'SUCCESS' || props.data.node.status === 'PARTIAL_SUCCESS',
+);
+
+/**
+ * 触发下一环节是否可点：**本节点有产物**、**数据源一致**、**产出运行已成功或部分成功**，三个条件并列。
  *
  * <p>不要求本节点是选中路径末端：点击用的是**这张卡自己的产物**作上游
  * （`onTrigger` 把本节点交出去），同环节多个产物各自成链，就是接口的分叉语义。
  */
-const triggerEnabled = computed(() => hasProduct.value && !storageBlocked.value);
+const triggerEnabled = computed(
+  () => hasProduct.value && !storageBlocked.value && runConsumable.value,
+);
 
 /**
  * 不可用原因（简短，挂在按钮 title 上）：按"用户下一步能做什么"分档。
  *
  * <p>数据源不一致时给这条专属原因：它是可修复的（把当前启用切回原数据源后即可继续），
- * 比"本次运行没有产物"更能说明下一步。
+ * 比"本次运行没有产物"更能说明下一步。运行未成功同样可修复：重跑上游环节。
  */
 const triggerDisabledReason = computed(() => {
   if (triggerEnabled.value) {
@@ -324,7 +336,12 @@ const triggerDisabledReason = computed(() => {
   if (storageBlocked.value) {
     return props.data.storageBlockReason;
   }
-  return isTaskPending(props.data.node.status) ? '任务完成后可用' : '本次运行没有产物';
+  if (!hasProduct.value) {
+    return isTaskPending(props.data.node.status) ? '任务完成后可用' : '本次运行没有产物';
+  }
+  return isTaskPending(props.data.node.status)
+    ? '任务完成后可用'
+    : '上游运行未成功，请重新触发上游环节';
 });
 
 const hit = computed(() => props.data.hit);

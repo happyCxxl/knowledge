@@ -7,7 +7,6 @@ import com.knowledge.common.domain.entity.KbPipelineProduct;
 import com.knowledge.common.domain.entity.KbPipelineTask;
 import com.knowledge.common.domain.storage.ObjectRef;
 import com.knowledge.common.enums.task.PipelineStage;
-import com.knowledge.common.enums.task.RowStatus;
 import com.knowledge.common.utils.JsonUtil;
 import com.knowledge.common.utils.NullUtil;
 import com.knowledge.filecenter.service.FileStorage;
@@ -76,7 +75,6 @@ public class ProductPersistence {
         product.setStorageSourceId(ref.sourceId());
         product.setBucket(ref.bucket());
         product.setContentHash(ref.objectKey());
-        product.setStatus(RowStatus.ACTIVE.name());
         pipelineProductDbService.save(product);
         pipelineTaskDbService.updateProductId(task.getId(), product.getId());
         return product;

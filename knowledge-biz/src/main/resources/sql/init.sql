@@ -180,7 +180,6 @@ CREATE TABLE kb_pipeline_product
     storage_source_id   BIGINT       NOT NULL                COMMENT '数据源实例 ID（kb_storage_source.id）：读取按它定位后端',
     bucket              VARCHAR(64)  NOT NULL                COMMENT '存储桶名（local 下为一级子目录）',
     content_hash        CHAR(64)     NOT NULL                COMMENT '产物内容指纹（sha256）',
-    status              VARCHAR(32)  NOT NULL DEFAULT 'ACTIVE' COMMENT '状态',
     create_time         DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
     PRIMARY KEY (id),
     -- 一次执行（一条任务）至多一份产物：重复执行按既有行复用，不新增行

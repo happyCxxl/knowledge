@@ -62,40 +62,33 @@ public class ChunkTaskRunner {
     private final ChunkStrategyParser strategyParser;
     private final StepLogPersistence stepLogPersistence;
     private final ProductPersistence productPersistence;
+    private final UpstreamProductGate upstreamProductGate;
 
     /**
      * 执行单个切片任务（由消费循环提交，外层看门狗负责超时）。
      */
     public void run(Long taskId) {
-        KbPipelineTask task = TaskRunnerSupport.claim(pipelineTaskDbService, taskId);
-        if (NullUtil.isNull(task)) {
+        TaskRunnerSupport.Claimed claimed = TaskRunnerSupport.claimFileResult(pipelineTaskDbService,
+                fileResultDbService, taskId, PipelineTaskErrorCode.CHUNK_FAILED, this::finishFailed);
+        if (NullUtil.isNull(claimed)) {
             return;
         }
+        KbPipelineTask task = claimed.task();
+        KbFileResult fileResult = claimed.fileResult();
         log.info("===> ChunkTaskRunner 领取切片任务, taskId={}, fileResultId={}",
                 taskId, task.getFileResultId());
         try {
-            KbFileResult fileResult = fileResultDbService.getById(task.getFileResultId());
-            if (NullUtil.isNull(fileResult)) {
-                finishFailed(taskId, PipelineTaskErrorCode.CHUNK_FAILED.name(),
-                        "文件结果不存在: " + task.getFileResultId());
-                return;
-            }
-            // 上游预处理视图产物：只认任务行上的显式引用，缺引用按任务失败处理
-            KbPipelineProduct preprocessProduct = resolvePreprocessProduct(task);
+            // 上游预处理视图产物：任务行缺引用与产出任务未成功都在助手里拒绝（门禁：未成功的运行不读也不落库）
+            KbPipelineProduct preprocessProduct = TaskRunnerSupport.requireUpstream(pipelineProductDbService,
+                    upstreamProductGate, task, taskId, ChunkRules.UPSTREAM_PREPROCESS_MISSING, this::finishFailed);
             if (NullUtil.isNull(preprocessProduct)) {
-                finishFailed(taskId, PipelineTaskErrorCode.TASK_UPSTREAM_MISSING.name(),
-                        ChunkRules.UPSTREAM_PREPROCESS_MISSING);
                 return;
             }
 
             // 策略只来自策略版本表：任务行快照缺失或损坏即失败，不用代码里的默认策略兜底
-            ChunkStrategy strategy;
-            try {
-                strategy = strategyParser.parse(task.getStrategySnapshot());
-            } catch (Exception e) {
-                log.warn("切片任务策略快照缺失或损坏, taskId={}", taskId, e);
-                finishFailed(taskId, PipelineTaskErrorCode.CHUNK_FAILED.name(),
-                        "任务未带切片策略快照或快照已损坏，无法切片");
+            ChunkStrategy strategy = TaskRunnerSupport.parseStrategy(task, taskId, PipelineTaskErrorCode.CHUNK_FAILED,
+                    "任务未带切片策略快照或快照已损坏，无法切片", strategyParser::parse, this::finishFailed);
+            if (NullUtil.isNull(strategy)) {
                 return;
             }
             PreprocessView view;
@@ -133,11 +126,6 @@ public class ChunkTaskRunner {
             finishFailed(taskId, TaskRunnerSupport.failureCode(e, PipelineTaskErrorCode.CHUNK_FAILED),
                     String.valueOf(e.getMessage()));
         }
-    }
-
-    /** 上游预处理产物解析：任务指定 upstreamProductId 优先，查不到或缺省回退该环节最新产物。 */
-    private KbPipelineProduct resolvePreprocessProduct(KbPipelineTask task) {
-        return TaskRunnerSupport.resolveUpstreamProduct(pipelineProductDbService, task);
     }
 
     /** 结构参照：PREPROCESS 产物上游的 STRUCTURE 产物（缺失不阻断，titlePath/图注降级） */

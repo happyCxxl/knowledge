@@ -124,6 +124,7 @@
 | 40435 | `EMBED_MODEL_INCOMPATIBLE`             | 切片最大片长超过模型窗口，请更换模型或调整切片策略   |
 | 40436 | `TASK_UPSTREAM_MISSING`                | 未指定上游产物，请从上游产物的卡片发起触发           |
 | 40438 | `TASK_STRATEGY_MISSING`                | 未解析到可用策略，请绑定策略或显式选择后触发         |
+| 40439 | `TASK_UPSTREAM_NOT_READY`              | 上游产物来自未成功的运行，请重新触发上游环节         |
 | 40441 | `INDEX_VERSION_NOT_FOUND`              | 索引版本不存在                                       |
 | 40442 | `INDEX_ONLINE_DELETE_FORBIDDEN`        | 在线发布版本禁止删除                                 |
 | 40443 | `INDEX_BUILDING_CONFLICT`              | 该索引版本构建中，禁止重复操作                       |

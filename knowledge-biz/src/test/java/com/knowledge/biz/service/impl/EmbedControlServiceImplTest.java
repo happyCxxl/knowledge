@@ -17,6 +17,7 @@ import com.knowledge.biz.service.support.StageStrategySupport;
 import com.knowledge.biz.service.support.TaskDetailSupport;
 import com.knowledge.biz.task.TaskQueueSupport;
 import com.knowledge.biz.task.TaskTriggerSupport;
+import com.knowledge.biz.task.UpstreamProductGate;
 import com.knowledge.biz.testkit.SecurityTestSupport;
 import com.knowledge.common.domain.entity.KnowledgeBase;
 import com.knowledge.common.domain.entity.KbEmbeddingRecord;
@@ -72,6 +73,9 @@ class EmbedControlServiceImplTest {
     /** 产物所在的数据源 */
     private static final Long SOURCE_ID = 1L;
 
+    /** 上游产物的产出任务 ID（门禁按它的状态判定） */
+    private static final Long UPSTREAM_TASK_ID = 40L;
+
     @Mock
     private KbFileResultDbService fileResultDbService;
     @Mock
@@ -116,7 +120,20 @@ class EmbedControlServiceImplTest {
                 new EmbedProperties(), new ChunkProperties(),
                 new StageStrategySupport(strategyVersionDbService, strategyBindingDbService, knowledgeBaseDbService),
                 new TaskTriggerSupport(pipelineTaskDbService, chainStorage, taskQueue),
-                new TaskDetailSupport(pipelineTaskDbService, stepLogDbService, pipelineProductDbService), accessGuard);
+                new TaskDetailSupport(pipelineTaskDbService, stepLogDbService, pipelineProductDbService), accessGuard,
+                new UpstreamProductGate(pipelineTaskDbService));
+        // 上游产物的产出任务默认成功：门禁放行；不放行的状态由各用例自行改写（宽松桩）
+        lenient().when(pipelineTaskDbService.getById(UPSTREAM_TASK_ID)).thenReturn(upstreamTask(PipelineTaskStatus.SUCCESS));
+    }
+
+    /** 上游产物的产出任务（环节 CHUNK、归属文件结果 10） */
+    private KbPipelineTask upstreamTask(PipelineTaskStatus status) {
+        KbPipelineTask task = new KbPipelineTask();
+        task.setId(UPSTREAM_TASK_ID);
+        task.setFileResultId(10L);
+        task.setStage(PipelineStage.CHUNK.name());
+        task.setStatus(status.name());
+        return task;
     }
 
     private KbFileResult fileResult() {
@@ -130,6 +147,7 @@ class EmbedControlServiceImplTest {
     private KbPipelineProduct chunkProduct(String capabilitySnapshot) {
         KbPipelineProduct product = new KbPipelineProduct();
         product.setId(50L);
+        product.setTaskId(UPSTREAM_TASK_ID);
         product.setFileResultId(10L);
         product.setStage(PipelineStage.CHUNK.name());
         product.setCapabilitySnapshot(capabilitySnapshot);
@@ -245,6 +263,22 @@ class EmbedControlServiceImplTest {
 
         KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.embed(10L, null, null));
         assertEquals(ErrorCode.TASK_UPSTREAM_MISSING, e.getErrorCode());
+        verify(pipelineTaskDbService, never()).save(any());
+        verify(taskQueue, never()).enqueue(any());
+    }
+
+    @Test
+    void failedUpstreamTaskShouldThrow40439() {
+        when(fileResultDbService.getById(10L)).thenReturn(fileResult());
+        stubBoundStrategy();
+        when(pipelineProductDbService.getById(50L)).thenReturn(chunkProduct(null));
+        // 产出任务已失败，产物行却已经落盘（孤儿产物）：下游门禁拒绝消费
+        when(pipelineTaskDbService.getById(UPSTREAM_TASK_ID)).thenReturn(upstreamTask(PipelineTaskStatus.FAILED));
+
+        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.embed(10L, null, 50L));
+
+        assertEquals(ErrorCode.TASK_UPSTREAM_NOT_READY, e.getErrorCode());
+        assertTrue(e.getMessage().contains(PipelineTaskStatus.FAILED.name()), e.getMessage());
         verify(pipelineTaskDbService, never()).save(any());
         verify(taskQueue, never()).enqueue(any());
     }

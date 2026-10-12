@@ -8,6 +8,7 @@ import com.knowledge.biz.service.support.StructureStatsSupport;
 import com.knowledge.biz.service.support.StructureVoAssembler;
 import com.knowledge.biz.service.support.TaskDetailSupport;
 import com.knowledge.biz.task.TaskTriggerSupport;
+import com.knowledge.biz.task.UpstreamProductGate;
 import com.knowledge.common.domain.entity.KbPipelineProduct;
 import com.knowledge.common.domain.entity.KbPipelineTask;
 import com.knowledge.common.domain.storage.ObjectRef;
@@ -31,7 +32,7 @@ import java.util.Map;
 
 /**
  * 结构组装控制面服务实现（手动逐环节）：
- * 上游产物校验（必填，未指定或传 0 报 40436）→ 执行键查重（已有任务一律拒绝 40431）→
+ * 上游产物校验（必填，未指定或传 0 报 40436；产出任务未成功报 40439）→ 执行键查重（已有任务一律拒绝 40431）→
  * 新建 STRUCTURE 任务（upstream=指定 PARSE 产物）入队；QUEUED 补投归启动补偿与低频扫描。
  * 组装详情：任务状态 + 子步骤 + 统一文档产物推导的统计/告警/冲突/文档内容大纲。
  *
@@ -48,6 +49,7 @@ public class StructureControlServiceImpl implements StructureControlService {
     private final FileStorage fileStorage;
     private final StructureVoAssembler voAssembler;
     private final FileResultAccessGuard accessGuard;
+    private final UpstreamProductGate upstreamProductGate;
 
     /**
      * 触发组装（手动逐环节）：上游解析产物校验（必填，未指定或传 0 报 40436）→ 执行键查重（已有任务一律拒绝 40431）→ 新建 STRUCTURE 任务入队。
@@ -100,6 +102,8 @@ public class StructureControlServiceImpl implements StructureControlService {
                 "指定产物环节不匹配：期望 PARSE");
         ThrowUtil.throwIf(!fileResultId.equals(product.getFileResultId()), ErrorCode.FILE_RESULT_NOT_FOUND,
                 "指定产物不属于该文件结果");
+        // 下游门禁：产出任务已成功或部分成功才放行（未成功的运行留下的产物不再被消费）
+        upstreamProductGate.requireConsumable(product);
         return product;
     }
 

@@ -70,19 +70,10 @@ public class FileResultAccessGuard {
     public KbFileResult requireExisting(Long fileResultId) {
         KbFileResult fileResult = fileResultDbService.getById(fileResultId);
         ThrowUtil.throwIf(NullUtil.isNull(fileResult), ErrorCode.FILE_RESULT_NOT_FOUND);
-        check(fileResult);
+        check(fileResult,SecurityUtil.getUser());
         return fileResult;
     }
 
-    /**
-     * 校验「已取到的」文件结果是否可访问（取不到同样拒绝）。
-     *
-     * @param fileResult 已取到的文件结果，可空
-     * @throws KnowledgeException 无登录上下文（UNAUTHORIZED 40101）或不可访问（KB_NOT_FOUND 40401）
-     */
-    public void check(KbFileResult fileResult) {
-        check(fileResult, SecurityUtil.getUser());
-    }
 
     /**
      * 按指定用户校验「已取到的」文件结果。

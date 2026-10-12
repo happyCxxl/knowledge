@@ -35,6 +35,11 @@
     <!-- 存储类型不一致：与上面的空态并列显示，确认按钮同时置灰 -->
     <div v-if="blockReason" class="trigger-block">{{ blockReason }}</div>
 
+    <!-- 上游运行未成功：与卡片按钮、后端下游门禁同一口径，确认按钮同时置灰 -->
+    <div v-if="upstream && !upstreamConsumable" class="trigger-block">
+      上游运行未成功，请重新触发上游环节
+    </div>
+
     <!-- 有策略的环节才需要选策略；解析/组装无策略 -->
     <div v-if="strategyRequired" class="trigger-strategy">
       <div class="trigger-row">
@@ -150,9 +155,18 @@ const strategyHint = computed(() => {
   return '该环节没有绑定的策略，必须选择策略后才能触发';
 });
 
-/** 能否触发：有上游、无阻塞原因；没有绑定策略时必须选了策略 */
+/**
+ * 上游节点所属的运行是否已成功或部分成功。
+ *
+ * <p>与卡片上「触发下一环节」的可点条件、后端下游门禁同一口径：上游节点自身就带着任务状态。
+ */
+const upstreamConsumable = computed(
+  () => props.upstream?.status === 'SUCCESS' || props.upstream?.status === 'PARTIAL_SUCCESS',
+);
+
+/** 能否触发：有上游、无阻塞原因、上游运行已成功或部分成功；没有绑定策略时必须选了策略 */
 const canConfirm = computed(() => {
-  if (!props.upstream || props.blockReason !== '') {
+  if (!props.upstream || props.blockReason !== '' || !upstreamConsumable.value) {
     return false;
   }
   return props.hasBoundStrategy || pickedStrategyId.value !== '';

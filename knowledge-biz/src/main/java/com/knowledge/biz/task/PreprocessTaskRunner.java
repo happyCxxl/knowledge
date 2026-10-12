@@ -47,40 +47,35 @@ public class PreprocessTaskRunner {
     private final PreprocessStrategyParser strategyParser;
     private final StepLogPersistence stepLogPersistence;
     private final ProductPersistence productPersistence;
+    private final UpstreamProductGate upstreamProductGate;
 
     /**
      * 执行单个预处理任务（由消费循环提交，外层看门狗负责超时）。
      */
     public void run(Long taskId) {
-        KbPipelineTask task = TaskRunnerSupport.claim(pipelineTaskDbService, taskId);
-        if (NullUtil.isNull(task)) {
+        TaskRunnerSupport.Claimed claimed = TaskRunnerSupport.claimFileResult(pipelineTaskDbService,
+                fileResultDbService, taskId, PipelineTaskErrorCode.PREPROCESS_FAILED, this::finishFailed);
+        if (NullUtil.isNull(claimed)) {
             return;
         }
+        KbPipelineTask task = claimed.task();
+        KbFileResult fileResult = claimed.fileResult();
         log.info("===> PreprocessTaskRunner 领取预处理任务, taskId={}, fileResultId={}",
                 taskId, task.getFileResultId());
         try {
-            KbFileResult fileResult = fileResultDbService.getById(task.getFileResultId());
-            if (NullUtil.isNull(fileResult)) {
-                finishFailed(taskId, PipelineTaskErrorCode.PREPROCESS_FAILED.name(),
-                        "文件结果不存在: " + task.getFileResultId());
-                return;
-            }
             // 上游组装产物：只认任务行上的显式引用，缺引用按任务失败处理
-            KbPipelineProduct structureProduct = resolveStructureProduct(task);
+            // 上游组装产物：任务行缺引用与产出任务未成功都在助手里拒绝（门禁：未成功的运行不读也不落库）
+            KbPipelineProduct structureProduct = TaskRunnerSupport.requireUpstream(pipelineProductDbService,
+                    upstreamProductGate, task, taskId, "任务未指定上游统一结构产物", this::finishFailed);
             if (NullUtil.isNull(structureProduct)) {
-                finishFailed(taskId, PipelineTaskErrorCode.TASK_UPSTREAM_MISSING.name(),
-                        "任务未指定上游统一结构产物");
                 return;
             }
 
             // 策略只来自策略版本表：任务行快照缺失或损坏即失败，不用代码里的默认策略兜底
-            PreprocessStrategy strategy;
-            try {
-                strategy = strategyParser.parse(task.getStrategySnapshot());
-            } catch (Exception e) {
-                log.warn("预处理任务策略快照缺失或损坏, taskId={}", taskId, e);
-                finishFailed(taskId, PipelineTaskErrorCode.PREPROCESS_FAILED.name(),
-                        "任务未带预处理策略快照或快照已损坏，无法预处理");
+            PreprocessStrategy strategy = TaskRunnerSupport.parseStrategy(task, taskId,
+                    PipelineTaskErrorCode.PREPROCESS_FAILED, "任务未带预处理策略快照或快照已损坏，无法预处理",
+                    strategyParser::parse, this::finishFailed);
+            if (NullUtil.isNull(strategy)) {
                 return;
             }
             UnifiedDocument document;
@@ -116,11 +111,6 @@ public class PreprocessTaskRunner {
             finishFailed(taskId, TaskRunnerSupport.failureCode(e, PipelineTaskErrorCode.PREPROCESS_FAILED),
                     String.valueOf(e.getMessage()));
         }
-    }
-
-    /** 上游组装产物解析：任务指定 upstreamProductId 优先，查不到或缺省回退该环节最新产物。 */
-    private KbPipelineProduct resolveStructureProduct(KbPipelineTask task) {
-        return TaskRunnerSupport.resolveUpstreamProduct(pipelineProductDbService, task);
     }
 
     /** 写产物存储 + 阶段产物引用 + 子步骤记录（成功/PARTIAL_SUCCESS 路径） */

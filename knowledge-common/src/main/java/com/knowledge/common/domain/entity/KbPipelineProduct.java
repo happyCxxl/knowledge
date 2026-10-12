@@ -51,9 +51,6 @@ public class KbPipelineProduct {
     /** 产物内容指纹（sha256） */
     private String contentHash;
 
-    /** 状态（ACTIVE） */
-    private String status;
-
     /** 创建时间（DB 默认填充） */
     private LocalDateTime createTime;
 }

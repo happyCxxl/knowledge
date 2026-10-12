@@ -57,6 +57,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -72,6 +73,9 @@ class EmbedTaskRunnerTest {
 
     /** 档案与产物所在的数据源 */
     private static final Long SOURCE_ID = 1L;
+
+    /** 上游产物的产出任务 ID（门禁按它的状态判定） */
+    private static final Long UPSTREAM_TASK_ID = 40L;
 
     @Mock
     private KbPipelineTaskDbService pipelineTaskDbService;
@@ -113,7 +117,20 @@ class EmbedTaskRunnerTest {
                 new ChunkStrategyParser(new ChunkProperties()),
                 embedProperties, new ChunkProperties(),
                 new StepLogPersistence(stepLogDbService),
-                new ProductPersistence(pipelineProductDbService, pipelineTaskDbService, chainStorage, fileStorage));
+                new ProductPersistence(pipelineProductDbService, pipelineTaskDbService, chainStorage, fileStorage),
+                new UpstreamProductGate(pipelineTaskDbService));
+        // 上游产物的产出任务默认成功：门禁放行；不放行的状态由各用例自行改写（宽松桩）
+        lenient().when(pipelineTaskDbService.getById(UPSTREAM_TASK_ID)).thenReturn(upstreamTask(PipelineTaskStatus.SUCCESS));
+    }
+
+    /** 上游产物的产出任务（环节 CHUNK） */
+    private KbPipelineTask upstreamTask(PipelineTaskStatus status) {
+        KbPipelineTask task = new KbPipelineTask();
+        task.setId(UPSTREAM_TASK_ID);
+        task.setFileResultId(10L);
+        task.setStage(PipelineStage.CHUNK.name());
+        task.setStatus(status.name());
+        return task;
     }
 
     private KbPipelineTask queuedTask() {
@@ -134,6 +151,7 @@ class EmbedTaskRunnerTest {
     private KbPipelineProduct chunkProduct() {
         KbPipelineProduct product = new KbPipelineProduct();
         product.setId(50L);
+        product.setTaskId(UPSTREAM_TASK_ID);
         product.setArtifactId("abc".repeat(22));
         product.setStorageType(StorageType.MINIO.getCode());
         product.setStorageSourceId(SOURCE_ID);
@@ -266,6 +284,28 @@ class EmbedTaskRunnerTest {
         verify(pipelineTaskDbService).finish(70L, PipelineTaskStatus.FAILED.name(),
                 PipelineTaskErrorCode.TASK_UPSTREAM_MISSING.name(), "任务未指定上游切片产物");
         verify(fileStorage, never()).putObject(any(byte[].class));
+        verify(embedder, never()).embed(any());
+    }
+
+    @Test
+    void failedUpstreamTaskShouldFailEmbedFailed() {
+        when(pipelineTaskDbService.getById(70L)).thenReturn(queuedTask());
+        when(pipelineTaskDbService.claim(70L)).thenReturn(1);
+        KbFileResult fileResult = new KbFileResult();
+        fileResult.setId(10L);
+        when(fileResultDbService.getById(10L)).thenReturn(fileResult);
+        when(pipelineProductDbService.getById(50L)).thenReturn(chunkProduct());
+        // 上游产物所属任务已失败，产物本体却已落盘：门禁按任务状态拒绝继续
+        when(pipelineTaskDbService.getById(UPSTREAM_TASK_ID)).thenReturn(upstreamTask(PipelineTaskStatus.FAILED));
+
+        runner.run(70L);
+
+        ArgumentCaptor<String> errorMsg = ArgumentCaptor.forClass(String.class);
+        verify(pipelineTaskDbService).finish(eq(70L), eq(PipelineTaskStatus.FAILED.name()),
+                eq(PipelineTaskErrorCode.EMBED_FAILED.name()), errorMsg.capture());
+        assertTrue(errorMsg.getValue().contains(PipelineTaskStatus.FAILED.name()), errorMsg.getValue());
+        // 门禁在读取产物本体之前：不读对象、不进向量化管线
+        verify(fileStorage, never()).getObject(any(ObjectRef.class));
         verify(embedder, never()).embed(any());
     }
 

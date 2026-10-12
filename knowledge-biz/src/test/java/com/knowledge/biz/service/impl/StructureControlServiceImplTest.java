@@ -12,6 +12,7 @@ import com.knowledge.biz.service.support.StructureVoAssembler;
 import com.knowledge.biz.service.support.TaskDetailSupport;
 import com.knowledge.biz.task.TaskQueueSupport;
 import com.knowledge.biz.task.TaskTriggerSupport;
+import com.knowledge.biz.task.UpstreamProductGate;
 import com.knowledge.biz.testkit.SecurityTestSupport;
 import com.knowledge.common.domain.entity.KnowledgeBase;
 import com.knowledge.common.domain.entity.KbFileResult;
@@ -58,6 +59,9 @@ class StructureControlServiceImplTest {
     /** 档案与产物所在的数据源 */
     private static final Long SOURCE_ID = 1L;
 
+    /** 上游产物的产出任务 ID（门禁按它的状态判定） */
+    private static final Long UPSTREAM_TASK_ID = 40L;
+
     @Mock
     private KbFileResultDbService fileResultDbService;
     @Mock
@@ -90,7 +94,19 @@ class StructureControlServiceImplTest {
         service = new StructureControlServiceImpl(pipelineProductDbService,
                 new TaskTriggerSupport(pipelineTaskDbService, chainStorage, taskQueue),
                 new TaskDetailSupport(pipelineTaskDbService, stepLogDbService, pipelineProductDbService), fileStorage,
-                new StructureVoAssembler(), accessGuard);
+                new StructureVoAssembler(), accessGuard, new UpstreamProductGate(pipelineTaskDbService));
+        // 上游产物的产出任务默认成功：门禁放行；不放行的状态由各用例自行改写（宽松桩）
+        lenient().when(pipelineTaskDbService.getById(UPSTREAM_TASK_ID)).thenReturn(upstreamTask(PipelineTaskStatus.SUCCESS));
+    }
+
+    /** 上游产物的产出任务（环节 PARSE、归属文件结果 10） */
+    private KbPipelineTask upstreamTask(PipelineTaskStatus status) {
+        KbPipelineTask task = new KbPipelineTask();
+        task.setId(UPSTREAM_TASK_ID);
+        task.setFileResultId(10L);
+        task.setStage(PipelineStage.PARSE.name());
+        task.setStatus(status.name());
+        return task;
     }
 
     private KbFileResult fileResult() {
@@ -111,6 +127,7 @@ class StructureControlServiceImplTest {
         when(fileResultDbService.getById(10L)).thenReturn(fileResult());
         KbPipelineProduct parseProduct = new KbPipelineProduct();
         parseProduct.setId(50L);
+        parseProduct.setTaskId(UPSTREAM_TASK_ID);
         parseProduct.setFileResultId(10L);
         parseProduct.setStage(PipelineStage.PARSE.name());
         parseProduct.setArtifactId("abc");
@@ -138,6 +155,7 @@ class StructureControlServiceImplTest {
         when(fileResultDbService.getById(10L)).thenReturn(fileResult());
         KbPipelineProduct specified = new KbPipelineProduct();
         specified.setId(88L);
+        specified.setTaskId(UPSTREAM_TASK_ID);
         specified.setFileResultId(10L);
         specified.setStage(PipelineStage.PARSE.name());
         // 指定路径：按 id 查产物并校验
@@ -171,6 +189,51 @@ class StructureControlServiceImplTest {
     }
 
     @Test
+    void structureWithFailedUpstreamTaskShouldThrow40439() {
+        when(fileResultDbService.getById(10L)).thenReturn(fileResult());
+        KbPipelineProduct parseProduct = new KbPipelineProduct();
+        parseProduct.setId(50L);
+        parseProduct.setTaskId(UPSTREAM_TASK_ID);
+        parseProduct.setFileResultId(10L);
+        parseProduct.setStage(PipelineStage.PARSE.name());
+        when(pipelineProductDbService.getById(50L)).thenReturn(parseProduct);
+        // 产出任务已失败，产物行却已经落盘（孤儿产物）：下游门禁拒绝消费
+        when(pipelineTaskDbService.getById(UPSTREAM_TASK_ID)).thenReturn(upstreamTask(PipelineTaskStatus.FAILED));
+
+        KnowledgeException e = assertThrows(KnowledgeException.class, () -> service.structure(10L, 50L));
+
+        assertEquals(ErrorCode.TASK_UPSTREAM_NOT_READY, e.getErrorCode());
+        assertTrue(e.getMessage().contains(PipelineTaskStatus.FAILED.name()), e.getMessage());
+        assertTrue(e.getMessage().contains("请重新触发上游环节"), e.getMessage());
+        verify(pipelineTaskDbService, never()).save(any());
+        verify(taskQueue, never()).enqueue(any());
+    }
+
+    @Test
+    void structureWithPartialSuccessUpstreamTaskShouldPass() {
+        when(fileResultDbService.getById(10L)).thenReturn(fileResult());
+        KbPipelineProduct parseProduct = new KbPipelineProduct();
+        parseProduct.setId(50L);
+        parseProduct.setTaskId(UPSTREAM_TASK_ID);
+        parseProduct.setFileResultId(10L);
+        parseProduct.setStage(PipelineStage.PARSE.name());
+        when(pipelineProductDbService.getById(50L)).thenReturn(parseProduct);
+        when(pipelineTaskDbService.getById(UPSTREAM_TASK_ID))
+                .thenReturn(upstreamTask(PipelineTaskStatus.PARTIAL_SUCCESS));
+        existingStructureTask(50L, null);
+        when(pipelineTaskDbService.save(any(KbPipelineTask.class))).thenAnswer(inv -> {
+            inv.getArgument(0, KbPipelineTask.class).setId(52L);
+            return true;
+        });
+
+        var response = service.structure(10L, 50L);
+
+        // 部分成功在放行集内：任务照常新建并入队
+        assertEquals(52L, response.getPipelineTaskId());
+        verify(taskQueue).enqueue(52L);
+    }
+
+    @Test
     void structureWithoutParseProductShouldThrow40436() {
         when(fileResultDbService.getById(10L)).thenReturn(fileResult());
 
@@ -184,6 +247,7 @@ class StructureControlServiceImplTest {
         when(fileResultDbService.getById(10L)).thenReturn(fileResult());
         KbPipelineProduct parseProduct = new KbPipelineProduct();
         parseProduct.setId(50L);
+        parseProduct.setTaskId(UPSTREAM_TASK_ID);
         parseProduct.setFileResultId(10L);
         parseProduct.setStage(PipelineStage.PARSE.name());
         when(pipelineProductDbService.getById(50L)).thenReturn(parseProduct);
@@ -207,6 +271,7 @@ class StructureControlServiceImplTest {
         when(fileResultDbService.getById(10L)).thenReturn(fileResult());
         KbPipelineProduct parseProduct = new KbPipelineProduct();
         parseProduct.setId(50L);
+        parseProduct.setTaskId(UPSTREAM_TASK_ID);
         parseProduct.setFileResultId(10L);
         parseProduct.setStage(PipelineStage.PARSE.name());
         when(pipelineProductDbService.getById(50L)).thenReturn(parseProduct);

@@ -11,6 +11,7 @@ import com.knowledge.biz.service.support.StageStrategySupport;
 import com.knowledge.biz.service.support.FileResultAccessGuard;
 import com.knowledge.biz.service.support.TaskDetailSupport;
 import com.knowledge.biz.task.TaskTriggerSupport;
+import com.knowledge.biz.task.UpstreamProductGate;
 import com.knowledge.common.domain.entity.KbEmbeddingRecord;
 import com.knowledge.common.domain.entity.KbEmbeddingSet;
 import com.knowledge.common.domain.entity.KbFileResult;
@@ -43,7 +44,7 @@ import java.util.List;
 /**
  * 向量化控制面服务实现（手动逐环节，与切片/预处理控制面同构）：
  * 策略解析两档：显式指定（校验存在/类型/启用，任一不满足 40433）→ 知识库绑定；两档都不命中一律 40438。
- * 上游 CHUNK 产物校验（必填，未指定或传 0 报 40436）→ 窗口前置校验（不兜底，触发时明确报错）→
+ * 上游 CHUNK 产物校验（必填，未指定或传 0 报 40436；产出任务未成功报 40439）→ 窗口前置校验（不兜底，触发时明确报错）→
  * 执行键查重（已有任务一律拒绝 40431）→ 建任务入队。QUEUED 补投归启动补偿与低频扫描。
  *
  * @author cxxl
@@ -66,6 +67,7 @@ public class EmbedControlServiceImpl implements EmbedControlService {
     private final TaskTriggerSupport triggerSupport;
     private final TaskDetailSupport detailSupport;
     private final FileResultAccessGuard accessGuard;
+    private final UpstreamProductGate upstreamProductGate;
 
     @Override
     public EmbedTriggerVO embed(Long fileResultId, Long strategyVersionId, Long upstreamProductId) {
@@ -145,6 +147,8 @@ public class EmbedControlServiceImpl implements EmbedControlService {
                 "指定产物环节不匹配：期望 CHUNK");
         ThrowUtil.throwIf(!fileResultId.equals(product.getFileResultId()), ErrorCode.FILE_RESULT_NOT_FOUND,
                 "指定产物不属于该文件结果");
+        // 下游门禁：产出任务已成功或部分成功才放行（未成功的运行留下的产物不再被消费）
+        upstreamProductGate.requireConsumable(product);
         return product;
     }
 

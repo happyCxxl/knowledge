@@ -37,8 +37,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -53,6 +55,9 @@ class StructureTaskRunnerTest {
 
     /** 档案与产物所在的数据源 */
     private static final Long SOURCE_ID = 1L;
+
+    /** 上游产物的产出任务 ID（门禁按它的状态判定） */
+    private static final Long UPSTREAM_TASK_ID = 40L;
 
     @Mock
     private KbPipelineTaskDbService pipelineTaskDbService;
@@ -81,7 +86,20 @@ class StructureTaskRunnerTest {
         runner = new StructureTaskRunner(pipelineTaskDbService, pipelineProductDbService,
                 fileStorage, documentAssembler, new StructureProperties(),
                 new StepLogPersistence(stepLogDbService),
-                new ProductPersistence(pipelineProductDbService, pipelineTaskDbService, chainStorage, fileStorage));
+                new ProductPersistence(pipelineProductDbService, pipelineTaskDbService, chainStorage, fileStorage),
+                new UpstreamProductGate(pipelineTaskDbService));
+        // 上游产物的产出任务默认成功：门禁放行；不放行的状态由各用例自行改写（宽松桩）
+        lenient().when(pipelineTaskDbService.getById(UPSTREAM_TASK_ID)).thenReturn(upstreamTask(PipelineTaskStatus.SUCCESS));
+    }
+
+    /** 上游产物的产出任务（环节 PARSE） */
+    private KbPipelineTask upstreamTask(PipelineTaskStatus status) {
+        KbPipelineTask task = new KbPipelineTask();
+        task.setId(UPSTREAM_TASK_ID);
+        task.setFileResultId(10L);
+        task.setStage(PipelineStage.PARSE.name());
+        task.setStatus(status.name());
+        return task;
     }
 
     private KbPipelineTask queuedTask() {
@@ -97,6 +115,7 @@ class StructureTaskRunnerTest {
     private KbPipelineProduct parseProduct() {
         KbPipelineProduct product = new KbPipelineProduct();
         product.setId(50L);
+        product.setTaskId(UPSTREAM_TASK_ID);
         product.setArtifactId("abc".repeat(22));
         product.setStorageType(StorageType.MINIO.getCode());
         product.setStorageSourceId(SOURCE_ID);
@@ -158,6 +177,50 @@ class StructureTaskRunnerTest {
         assertEquals("artifacts", captor.getValue().getBucket());
         verify(pipelineTaskDbService).finish(60L, PipelineTaskStatus.SUCCESS.name(), null, null);
         verify(pipelineTaskDbService).updateProductId(60L, 70L);
+    }
+
+    @Test
+    void failedUpstreamTaskShouldFailStructureFailed() {
+        when(pipelineTaskDbService.getById(60L)).thenReturn(queuedTask());
+        when(pipelineTaskDbService.claim(60L)).thenReturn(1);
+        when(pipelineProductDbService.getById(50L)).thenReturn(parseProduct());
+        // 上游产物所属任务已失败，产物本体却已落盘：门禁按任务状态拒绝继续
+        when(pipelineTaskDbService.getById(UPSTREAM_TASK_ID)).thenReturn(upstreamTask(PipelineTaskStatus.FAILED));
+
+        runner.run(60L);
+
+        ArgumentCaptor<String> errorMsg = ArgumentCaptor.forClass(String.class);
+        verify(pipelineTaskDbService).finish(eq(60L), eq(PipelineTaskStatus.FAILED.name()),
+                eq(PipelineTaskErrorCode.STRUCTURE_FAILED.name()), errorMsg.capture());
+        assertTrue(errorMsg.getValue().contains(PipelineTaskStatus.FAILED.name()), errorMsg.getValue());
+        // 门禁在读取产物本体之前：不读对象、不进组装管线
+        verify(fileStorage, never()).getObject(any(ObjectRef.class));
+        verify(documentAssembler, never()).assemble(any(), any());
+    }
+
+    @Test
+    void partialSuccessUpstreamTaskShouldPass() {
+        when(pipelineTaskDbService.getById(60L)).thenReturn(queuedTask());
+        when(pipelineTaskDbService.claim(60L)).thenReturn(1);
+        when(pipelineProductDbService.getById(50L)).thenReturn(parseProduct());
+        when(pipelineTaskDbService.getById(UPSTREAM_TASK_ID))
+                .thenReturn(upstreamTask(PipelineTaskStatus.PARTIAL_SUCCESS));
+        when(fileStorage.getObject(ObjectRef.of(SOURCE_ID, StorageType.MINIO.getCode(), "artifacts", "abc".repeat(22))))
+                .thenReturn(JsonUtil.toJsonStr(new ParseResult()).getBytes(StandardCharsets.UTF_8));
+        when(documentAssembler.assemble(any(ParseResult.class), any(AssembleContext.class)))
+                .thenReturn(successOutcome());
+        when(fileStorage.putObject(any(byte[].class)))
+                .thenReturn(ObjectRef.of(SOURCE_ID, StorageType.MINIO.getCode(), "artifacts", "def".repeat(21) + "0"));
+        when(pipelineProductDbService.save(any(KbPipelineProduct.class))).thenAnswer(inv -> {
+            inv.getArgument(0, KbPipelineProduct.class).setId(70L);
+            return true;
+        });
+
+        runner.run(60L);
+
+        // 部分成功在放行集内：产物照常落库、任务落成功终态
+        verify(pipelineProductDbService).save(any(KbPipelineProduct.class));
+        verify(pipelineTaskDbService).finish(60L, PipelineTaskStatus.SUCCESS.name(), null, null);
     }
 
     @Test

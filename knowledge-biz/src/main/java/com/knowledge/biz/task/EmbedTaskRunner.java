@@ -71,39 +71,34 @@ public class EmbedTaskRunner {
     private final ChunkProperties chunkProperties;
     private final StepLogPersistence stepLogPersistence;
     private final ProductPersistence productPersistence;
+    private final UpstreamProductGate upstreamProductGate;
 
     /**
      * 执行单个向量化任务（由消费循环提交，外层看门狗负责超时）。
      */
     public void run(Long taskId) {
-        KbPipelineTask task = TaskRunnerSupport.claim(pipelineTaskDbService, taskId);
-        if (NullUtil.isNull(task)) {
+        TaskRunnerSupport.Claimed claimed = TaskRunnerSupport.claimFileResult(pipelineTaskDbService,
+                fileResultDbService, taskId, PipelineTaskErrorCode.EMBED_FAILED, this::finishFailed);
+        if (NullUtil.isNull(claimed)) {
             return;
         }
+        KbPipelineTask task = claimed.task();
+        KbFileResult fileResult = claimed.fileResult();
         log.info("===> EmbedTaskRunner 领取向量化任务, taskId={}, fileResultId={}",
                 taskId, task.getFileResultId());
         try {
-            KbFileResult fileResult = fileResultDbService.getById(task.getFileResultId());
-            if (NullUtil.isNull(fileResult)) {
-                finishFailed(taskId, PipelineTaskErrorCode.EMBED_FAILED.name(),
-                        "文件结果不存在: " + task.getFileResultId());
-                return;
-            }
             // 上游切片产物：只认任务行上的显式引用，缺引用按任务失败处理
-            KbPipelineProduct chunkProduct = resolveChunkProduct(task);
+            // 上游切片产物：任务行缺引用与产出任务未成功都在助手里拒绝（门禁：未成功的运行不读也不落库）
+            KbPipelineProduct chunkProduct = TaskRunnerSupport.requireUpstream(pipelineProductDbService,
+                    upstreamProductGate, task, taskId, "任务未指定上游切片产物", this::finishFailed);
             if (NullUtil.isNull(chunkProduct)) {
-                finishFailed(taskId, PipelineTaskErrorCode.TASK_UPSTREAM_MISSING.name(), "任务未指定上游切片产物");
                 return;
             }
 
             // 策略只来自策略版本表：任务行快照缺失或损坏即失败，不用代码里的默认策略兜底
-            EmbedStrategy strategy;
-            try {
-                strategy = strategyParser.parse(task.getStrategySnapshot());
-            } catch (Exception e) {
-                log.warn("向量化任务策略快照缺失或损坏, taskId={}", taskId, e);
-                finishFailed(taskId, PipelineTaskErrorCode.EMBED_FAILED.name(),
-                        "任务未带向量化策略快照或快照已损坏，无法向量化");
+            EmbedStrategy strategy = TaskRunnerSupport.parseStrategy(task, taskId, PipelineTaskErrorCode.EMBED_FAILED,
+                    "任务未带向量化策略快照或快照已损坏，无法向量化", strategyParser::parse, this::finishFailed);
+            if (NullUtil.isNull(strategy)) {
                 return;
             }
             ChunkSet chunkSet;
@@ -143,11 +138,6 @@ public class EmbedTaskRunner {
             finishFailed(taskId, TaskRunnerSupport.failureCode(e, PipelineTaskErrorCode.EMBED_FAILED),
                     String.valueOf(e.getMessage()));
         }
-    }
-
-    /** 上游切片产物解析：任务指定 upstreamProductId 优先，查不到或缺省回退该环节最新产物。 */
-    private KbPipelineProduct resolveChunkProduct(KbPipelineTask task) {
-        return TaskRunnerSupport.resolveUpstreamProduct(pipelineProductDbService, task);
     }
 
     /** 复用候选账本：同文件同策略成功集合（新→旧，回溯上限）；账本文件读取失败跳过继续（复用是优化） */
