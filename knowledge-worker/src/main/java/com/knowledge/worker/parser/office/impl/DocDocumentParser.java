@@ -111,9 +111,10 @@ public class DocDocumentParser extends AbstractPoiDocumentParser {
     private ParseElement toDocTableElement(Table table, int tableIndex, String fileId) {
         ParseElement tableElement = ParseElement.of("t" + tableIndex, ElementType.TABLE);
         tableElement.setRows(table.numRows());
-        tableElement.setHeaderRow(0);
+        int maxCols = 0;
         for (int r = 0; r < table.numRows(); r++) {
             org.apache.poi.hwpf.usermodel.TableRow row = table.getRow(r);
+            maxCols = Math.max(maxCols, row.numCells());
             for (int c = 0; c < row.numCells(); c++) {
                 ParseElement cellElement = ParseElement.of("t" + tableIndex + "c" + r + "_" + c,
                         ElementType.TABLE_CELL);
@@ -126,6 +127,8 @@ public class DocDocumentParser extends AbstractPoiDocumentParser {
                 appendCell(tableElement, cellElement);
             }
         }
+        tableElement.setCols(maxCols);
+        tableElement.setHeaderRow(settleHeaderRow(tableElement));
         return tableElement;
     }
 }

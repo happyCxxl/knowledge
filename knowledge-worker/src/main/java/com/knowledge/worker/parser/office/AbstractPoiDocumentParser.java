@@ -1,5 +1,6 @@
 package com.knowledge.worker.parser.office;
 
+import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.knowledge.common.domain.parse.ParseElement;
 import com.knowledge.common.domain.parse.ParseSource;
@@ -50,6 +51,25 @@ public abstract class AbstractPoiDocumentParser implements DocumentParserPort {
             tableElement.setCells(new ArrayList<>());
         }
         tableElement.getCells().add(cellElement);
+    }
+
+    /**
+     * 表头行判定（各格式统一口径）：首行存在非空文本单元格即判第 0 行为表头行；首行全空时表头行为 null。
+     * 同时把单元格的 `isHeader` 收敛为该判定（有表头时仅第 0 行置真）。
+     *
+     * @param tableElement 表格元素（单元格已追加完毕）
+     * @return 表头行号或 null
+     */
+    public static Integer settleHeaderRow(ParseElement tableElement) {
+        List<ParseElement> cells = ObjectUtil.defaultIfNull(tableElement.getCells(), List.of());
+        boolean hasHeader = cells.stream()
+                .filter(cell -> Integer.valueOf(0).equals(cell.getRow()))
+                .anyMatch(cell -> StrUtil.isNotBlank(cell.getText()));
+        Integer headerRow = hasHeader ? 0 : null;
+        for (ParseElement cell : cells) {
+            cell.setIsHeader(headerRow != null && Integer.valueOf(0).equals(cell.getRow()));
+        }
+        return headerRow;
     }
 
     @Override

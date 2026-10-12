@@ -183,7 +183,6 @@ public class DocxDocumentParser extends AbstractPoiDocumentParser {
         List<XWPFTableRow> rows = table.getRows();
         tableElement.setRows(rows.size());
         tableElement.setCols(rows.stream().mapToInt(DocxDocumentParser::gridWidth).max().orElse(0));
-        tableElement.setHeaderRow(0);
         Map<Integer, Integer> columnMergePending = new HashMap<>();
         Map<Integer, ParseElement> columnMergeAnchor = new HashMap<>();
         int rowIndex = 0;
@@ -222,6 +221,7 @@ public class DocxDocumentParser extends AbstractPoiDocumentParser {
                 cell.setRowSpan(pending);
             }
         }
+        tableElement.setHeaderRow(settleHeaderRow(tableElement));
         return tableElement;
     }
 
