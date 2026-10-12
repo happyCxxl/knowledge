@@ -172,7 +172,6 @@ class ChunkTaskRunnerTest {
             StepLogInfo step = new StepLogInfo();
             step.setStepName(name);
             step.setStatus("SUCCESS");
-            step.setAttemptCount(1);
             step.setMatchedCount(1);
             step.setAvgLen(5);
             steps.add(step);

@@ -40,9 +40,6 @@ public class KbPipelineStepLog implements StepLogFields {
     /** 输出产物引用（可空） */
     private Long outputRef;
 
-    /** 尝试次数 */
-    private Integer attemptCount;
-
     /** 开始时间 */
     private LocalDateTime startedAt;
 

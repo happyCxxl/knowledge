@@ -31,7 +31,6 @@ public class StepLogPersistence {
             KbPipelineStepLog stepLog = new KbPipelineStepLog();
             stepLog.copyFrom(step);
             stepLog.setTaskId(taskId);
-            stepLog.setAttemptCount(ObjectUtil.defaultIfNull(step.getAttemptCount(), 1));
             stepLog.setWarningCount(ObjectUtil.defaultIfNull(stepLog.getWarningCount(), 0));
             stepLog.setMatchedCount(ObjectUtil.defaultIfNull(stepLog.getMatchedCount(), 0));
             stepLog.setChangedCount(ObjectUtil.defaultIfNull(stepLog.getChangedCount(), 0));

@@ -140,7 +140,6 @@ class PreprocessTaskRunnerTest {
             StepLogInfo step = new StepLogInfo();
             step.setStepName(name);
             step.setStatus("SUCCESS");
-            step.setAttemptCount(1);
             step.setWarningCount(0);
             step.setMatchedCount(1);
             step.setChangedCount(0);

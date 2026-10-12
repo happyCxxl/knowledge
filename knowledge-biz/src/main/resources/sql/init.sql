@@ -194,7 +194,6 @@ CREATE TABLE kb_pipeline_step_log
     capability_version VARCHAR(64)           DEFAULT NULL   COMMENT '能力/模型版本（如 pdfbox-3.0.4）',
     input_ref          BIGINT                DEFAULT NULL   COMMENT '输入产物引用（可空）',
     output_ref         BIGINT                DEFAULT NULL   COMMENT '输出产物引用（可空）',
-    attempt_count      INT          NOT NULL DEFAULT 1      COMMENT '尝试次数',
     started_at         DATETIME(3)           DEFAULT NULL   COMMENT '开始时间',
     finished_at        DATETIME(3)           DEFAULT NULL   COMMENT '结束时间',
     duration           INT                   DEFAULT NULL   COMMENT '耗时（毫秒）',

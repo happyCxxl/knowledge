@@ -9,7 +9,7 @@ import java.time.LocalDateTime;
 /**
  * 子步骤日志助手（各环节管线共用，静态工具）：
  * begin/finish 一对记真实耗时（统一口径）；elapsedMillis 供批量统计式步骤累计各阶段耗时；
- * build 供批量统计式步骤统一组装（状态 SUCCESS、attemptCount=1、平均长度=总长÷命中数）。
+ * build 供批量统计式步骤统一组装（状态 SUCCESS、平均长度=总长÷命中数）。
  * 收口解析/组装两份相同私有 newStep/finishStep，以及切片/向量化/预处理三家的手工构造。
  *
  * @author cxxl
@@ -19,12 +19,11 @@ public final class StepLogHelper {
     private StepLogHelper() {
     }
 
-    /** 开表：stepName + startedAt=now + attemptCount=1。 */
+    /** 开表：stepName + startedAt=now。 */
     public static StepLogInfo begin(String stepName) {
         StepLogInfo step = new StepLogInfo();
         step.setStepName(stepName);
         step.setStartedAt(LocalDateTime.now());
-        step.setAttemptCount(1);
         return step;
     }
 
@@ -39,7 +38,7 @@ public final class StepLogHelper {
         return Math.round((System.nanoTime() - startedNanos) / 1_000_000.0);
     }
 
-    /** 批量统计式子步骤组装：统一字段口径（状态 SUCCESS、attemptCount=1、平均长度=总长÷命中数）。 */
+    /** 批量统计式子步骤组装：统一字段口径（状态 SUCCESS、平均长度=总长÷命中数）。 */
     public static StepLogInfo build(String stepName, String capability, int matched, int totalLen,
                                     int warnings, long durationMillis) {
         StepLogInfo step = begin(stepName);

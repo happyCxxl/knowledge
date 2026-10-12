@@ -18,9 +18,6 @@ public class StepLogInfo implements StepLogFields {
     /** 步骤状态（StepStatus 枚举名） */
     private String status;
 
-    /** 尝试次数 */
-    private Integer attemptCount;
-
     /** 能力/模型版本 */
     private String capabilityVersion;
 
