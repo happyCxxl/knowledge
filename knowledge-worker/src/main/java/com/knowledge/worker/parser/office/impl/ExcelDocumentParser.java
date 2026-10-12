@@ -137,7 +137,7 @@ public class ExcelDocumentParser extends AbstractPoiDocumentParser {
         }
         int firstRow = sheet.getFirstRowNum();
         int lastRow = sheet.getLastRowNum();
-        boolean hasData = false;
+        int firstDataRow = -1;
         int maxCol = 0;
         for (int r = firstRow; r <= lastRow; r++) {
             Row row = sheet.getRow(r);
@@ -160,13 +160,16 @@ public class ExcelDocumentParser extends AbstractPoiDocumentParser {
                 if (StrUtil.isBlank(text)) {
                     continue;
                 }
-                hasData = true;
+                if (firstDataRow < 0) {
+                    firstDataRow = r;
+                }
                 ParseElement cellElement = ParseElement.of("s" + sheetIndex + "c" + r + "_" + c,
                         ElementType.TABLE_CELL);
                 cellElement.setText(text);
                 cellElement.setRow(r);
                 cellElement.setCol(c);
-                cellElement.setIsHeader(r == firstRow);
+                // 表头行 = 首个有非空文本的行（不是 sheet 的首个存在行），isHeader 与该行一致
+                cellElement.setIsHeader(r == firstDataRow);
                 int[] span = mergeSpans.get(key(r, c));
                 if (NullUtil.isNotNull(span)) {
                     cellElement.setRowSpan(span[0] > 1 ? span[0] : null);
@@ -178,9 +181,9 @@ public class ExcelDocumentParser extends AbstractPoiDocumentParser {
                 appendCell(tableElement, cellElement);
             }
         }
-        tableElement.setRows(hasData ? lastRow - firstRow + 1 : 0);
-        tableElement.setCols(hasData ? maxCol : 0);
-        tableElement.setHeaderRow(hasData ? 0 : null);
+        tableElement.setRows(firstDataRow >= 0 ? lastRow - firstRow + 1 : 0);
+        tableElement.setCols(firstDataRow >= 0 ? maxCol : 0);
+        tableElement.setHeaderRow(firstDataRow >= 0 ? firstDataRow : null);
         return tableElement;
     }
 

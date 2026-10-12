@@ -144,6 +144,24 @@ class ExcelDocumentParserTest {
         }
     }
 
+    /** 首行空时表头行指向真实数据首行（第 1 行），isHeader 只标该行 */
+    @Test
+    void headerRowShouldPointToFirstDataRow() throws Exception {
+        ParseSource source = parser.parse(context(buildXlsxWithEmptyFirstRow(), MIME_XLSX));
+
+        ParseElement table = source.getElements().stream()
+                .filter(element -> ElementType.TABLE.name().equals(element.getType())).findFirst().orElseThrow();
+        assertEquals(1, table.getHeaderRow(), () -> "headerRow=" + table.getHeaderRow());
+        assertTrue(table.getCells().stream()
+                        .filter(cell -> Integer.valueOf(1).equals(cell.getRow()))
+                        .allMatch(cell -> Boolean.TRUE.equals(cell.getIsHeader())),
+                () -> "cells=" + table.getCells());
+        assertTrue(table.getCells().stream()
+                        .filter(cell -> Integer.valueOf(2).equals(cell.getRow()))
+                        .noneMatch(cell -> Boolean.TRUE.equals(cell.getIsHeader())),
+                () -> "cells=" + table.getCells());
+    }
+
     /** 一表两列数据 + 页眉三区 + 页脚 */
     private byte[] buildXlsxWithHeaderFooter() throws Exception {
         try (XSSFWorkbook workbook = new XSSFWorkbook()) {
