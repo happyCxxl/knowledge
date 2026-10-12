@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.util.Base64;
 import java.util.List;
 import javax.imageio.ImageIO;
 
@@ -107,6 +108,40 @@ class ExcelDocumentParserTest {
         assertEquals("左 中 右", ExcelDocumentParser.sheetHeaderFooterText("&L左&C中&R右"));
         assertEquals("报表 & 页", ExcelDocumentParser.sheetHeaderFooterText("&\"Arial,Bold\"报表 && 页"));
         assertEquals("", ExcelDocumentParser.sheetHeaderFooterText("   "));
+    }
+
+    /** 工作表内嵌图片：产 IMAGE 元素（needsOcr）并按表记一条 OCR_IMAGE 事实 */
+    @Test
+    void embeddedPictureShouldEmitImageAndFact() throws Exception {
+        ParseSource source = parser.parse(context(buildXlsxWithPicture(), MIME_XLSX));
+
+        List<ParseElement> images = source.getElements().stream()
+                .filter(e -> ElementType.IMAGE.name().equals(e.getType())).toList();
+        assertEquals(1, images.size(), () -> "elements=" + source.getElements());
+        assertEquals(Boolean.TRUE, images.getFirst().getNeedsOcr());
+        assertTrue(images.getFirst().getAssetRef().startsWith("image-0"), () -> "asset=" + images.getFirst().getAssetRef());
+        assertEquals("office#sheet[图表]/picture[0]", images.getFirst().getProvenance().getPath());
+        assertTrue(source.getFacts().stream()
+                        .anyMatch(fact -> fact.getEvidence().contains("本表 1 张")),
+                () -> "facts=" + source.getFacts());
+    }
+
+    /** 一表两列数据 + 一张内嵌 PNG（1×1 透明图） */
+    private byte[] buildXlsxWithPicture() throws Exception {
+        try (XSSFWorkbook workbook = new XSSFWorkbook()) {
+            Sheet sheet = workbook.createSheet("图表");
+            Row row = sheet.createRow(0);
+            row.createCell(0).setCellValue("A");
+            row.createCell(1).setCellValue("B");
+            byte[] png = Base64.getDecoder().decode(
+                    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg==");
+            int pictureIndex = workbook.addPicture(png, Workbook.PICTURE_TYPE_PNG);
+            XSSFDrawing drawing = (XSSFDrawing) sheet.createDrawingPatriarch();
+            drawing.createPicture(new XSSFClientAnchor(0, 0, 0, 0, 2, 2, 4, 6), pictureIndex);
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            workbook.write(out);
+            return out.toByteArray();
+        }
     }
 
     /** 一表两列数据 + 页眉三区 + 页脚 */

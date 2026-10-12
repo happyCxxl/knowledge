@@ -17,6 +17,7 @@ import org.apache.poi.ss.usermodel.DataFormatter;
 import org.apache.poi.ss.usermodel.Drawing;
 import org.apache.poi.ss.usermodel.FormulaEvaluator;
 import org.apache.poi.ss.usermodel.Picture;
+import org.apache.poi.ss.usermodel.PictureData;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Shape;
 import org.apache.poi.ss.usermodel.Sheet;
@@ -68,6 +69,7 @@ public class ExcelDocumentParser extends AbstractPoiDocumentParser {
                 ParseElement tableElement = toSheetTableElement(workbook, formatter, evaluator, s, fileId);
                 source.getElements().add(tableElement);
                 appendSheetHeaderFooter(source, workbook.getSheetAt(s), s, fileId);
+                appendSheetPictures(source, workbook.getSheetAt(s), fileId);
                 sheetTexts.add(tableText(tableElement));
                 sheetImages.add(pictureCount(workbook.getSheetAt(s)));
             }
@@ -75,6 +77,36 @@ public class ExcelDocumentParser extends AbstractPoiDocumentParser {
         } catch (Exception e) {
             log.warn("Excel 解析失败, fileId={}", fileId, e);
             throw new IllegalStateException("Excel 解析失败: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 工作表图片：逐张产 `IMAGE` 元素（`assetRef` 取图片文件名、`needsOcr=true`）并按表记一条
+     * `OCR_IMAGE` 事实（证据带本表张数），与 PDF / DOCX 的图片口径一致。
+     */
+    private void appendSheetPictures(ParseSource source, Sheet sheet, String fileId) {
+        Drawing<?> drawing = sheet.getDrawingPatriarch();
+        if (NullUtil.isNull(drawing)) {
+            return;
+        }
+        int index = 0;
+        for (Shape shape : drawing) {
+            if (!(shape instanceof Picture picture)) {
+                continue;
+            }
+            ParseElement image = ParseElement.of("img" + index, ElementType.IMAGE);
+            PictureData data = picture.getPictureData();
+            image.setAssetRef(NullUtil.isNull(data) ? "image-" + index
+                    : "image-" + index + "." + data.suggestFileExtension());
+            image.setNeedsOcr(true);
+            image.setProvenance(new Provenance(fileId,
+                    "office#sheet[" + sheet.getSheetName() + "]/picture[" + index + "]"));
+            source.getElements().add(image);
+            index++;
+        }
+        if (index > 0) {
+            source.getFacts().add(fact("sheet[" + sheet.getSheetName() + "]",
+                    "嵌入图片仅引用无文字（本表 " + index + " 张）"));
         }
     }
 
