@@ -85,9 +85,10 @@ public class ExcelDocumentParser extends AbstractPoiDocumentParser {
         ParseElement tableElement = ParseElement.of("sheet" + sheetIndex, ElementType.TABLE);
         tableElement.setPage(sheetIndex);
         tableElement.setSheetName(sheetName);
-        // 合并区域：origin 单元格记 span，其余跳过
+        // 合并区域：origin 单元格记 span，被覆盖格记归属（其文本并入 origin，不丢）
         Map<Long, int[]> mergeSpans = new HashMap<>();
         java.util.Set<Long> covered = new java.util.HashSet<>();
+        Map<Long, Long> coveredAnchor = new HashMap<>();
         for (CellRangeAddress region : sheet.getMergedRegions()) {
             int rowSpan = region.getLastRow() - region.getFirstRow() + 1;
             int colSpan = region.getLastColumn() - region.getFirstColumn() + 1;
@@ -96,6 +97,7 @@ public class ExcelDocumentParser extends AbstractPoiDocumentParser {
                 for (int c = region.getFirstColumn(); c <= region.getLastColumn(); c++) {
                     if (r != region.getFirstRow() || c != region.getFirstColumn()) {
                         covered.add(key(r, c));
+                        coveredAnchor.put(key(r, c), key(region.getFirstRow(), region.getFirstColumn()));
                     }
                 }
             }
@@ -110,11 +112,15 @@ public class ExcelDocumentParser extends AbstractPoiDocumentParser {
                 continue;
             }
             for (int c = row.getFirstCellNum(); c < row.getLastCellNum(); c++) {
-                if (covered.contains(key(r, c))) {
-                    continue;
-                }
                 Cell cell = row.getCell(c);
                 if (NullUtil.isNull(cell)) {
+                    continue;
+                }
+                if (covered.contains(key(r, c))) {
+                    String coveredText = cellText(cell, formatter, evaluator);
+                    if (StrUtil.isNotBlank(coveredText)) {
+                        mergeCoveredText(tableElement, coveredAnchor.get(key(r, c)), coveredText);
+                    }
                     continue;
                 }
                 String text = cellText(cell, formatter, evaluator);
@@ -202,5 +208,21 @@ public class ExcelDocumentParser extends AbstractPoiDocumentParser {
     /** 行列坐标 → 单键（高 32 位行、低 32 位列）。 */
     private long key(int row, int col) {
         return ((long) row << 32) | (col & 0xFFFFFFFFL);
+    }
+
+    /** 被合并覆盖格的文本并入锚格（换行分隔，与单元格多段落文本同一形态），保证不丢 */
+    private void mergeCoveredText(ParseElement tableElement, Long anchorKey, String coveredText) {
+        if (NullUtil.isNull(anchorKey)) {
+            return;
+        }
+        int anchorRow = (int) (anchorKey >> 32);
+        int anchorCol = (int) (anchorKey & 0xFFFFFFFFL);
+        for (ParseElement cell : tableElement.getCells()) {
+            if (NullUtil.isNotNull(cell.getRow()) && cell.getRow() == anchorRow
+                    && NullUtil.isNotNull(cell.getCol()) && cell.getCol() == anchorCol) {
+                cell.setText(StrUtil.isBlank(cell.getText()) ? coveredText : cell.getText() + "\n" + coveredText);
+                return;
+            }
+        }
     }
 }

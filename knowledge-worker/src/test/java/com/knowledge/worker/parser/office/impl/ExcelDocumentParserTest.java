@@ -73,6 +73,33 @@ class ExcelDocumentParserTest {
         assertEquals(3, table.getCols(), () -> "cols=" + table.getCols());
     }
 
+    /** 合并区被覆盖格带文本：并入锚格（换行分隔），不丢 */
+    @Test
+    void coveredCellTextShouldBeMergedIntoAnchor() throws Exception {
+        ParseSource source = parser.parse(context(buildXlsxWithCoveredText(), MIME_XLSX));
+
+        List<String> texts = cellTexts(source);
+        assertTrue(texts.stream().anyMatch(text -> text.contains("合并块") && text.contains("被覆盖值")),
+                () -> "cells=" + texts);
+    }
+
+    /** 首行两列，第 2 行横向合并 A2:B2，且被覆盖的 B2 自带文本 */
+    private byte[] buildXlsxWithCoveredText() throws Exception {
+        try (XSSFWorkbook workbook = new XSSFWorkbook()) {
+            Sheet sheet = workbook.createSheet("覆盖文本");
+            Row header = sheet.createRow(0);
+            header.createCell(0).setCellValue("列A");
+            header.createCell(1).setCellValue("列B");
+            sheet.addMergedRegion(new CellRangeAddress(1, 1, 0, 1));
+            Row merged = sheet.createRow(1);
+            merged.createCell(0).setCellValue("合并块");
+            merged.createCell(1).setCellValue("被覆盖值");
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            workbook.write(out);
+            return out.toByteArray();
+        }
+    }
+
     /** 首行只有标题一格，数据行有三列 */
     private byte[] buildXlsxWithNarrowTitleRow() throws Exception {
         try (XSSFWorkbook workbook = new XSSFWorkbook()) {
