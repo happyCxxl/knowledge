@@ -60,7 +60,6 @@ public class TaskTriggerSupport {
         task.setFileResultId(fileResultId);
         task.setStage(stage.name());
         task.setStatus(PipelineTaskStatus.QUEUED.name());
-        task.setRetryCount(0);
         task.setUpstreamProductId(upstream);
         task.setStrategyVersionId(strategyVersion);
         task.setStrategySnapshot(strategySnapshot);

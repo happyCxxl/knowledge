@@ -44,9 +44,6 @@ public class KbPipelineTask {
     /** 状态（PipelineTaskStatus 枚举名） */
     private String status;
 
-    /** 重试次数 */
-    private Integer retryCount;
-
     /** 错误码 */
     private String errorCode;
 

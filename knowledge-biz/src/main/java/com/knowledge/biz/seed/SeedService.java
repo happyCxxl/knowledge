@@ -491,7 +491,6 @@ public class SeedService {
         task.setUpstreamProductId(upstreamProductId);
         task.setStrategySnapshot(strategySnapshot);
         task.setStatus(PipelineTaskStatus.SUCCESS.name());
-        task.setRetryCount(0);
         task.setCreateTime(LocalDateTime.now());
         task.setStartedAt(LocalDateTime.now());
         task.setFinishedAt(LocalDateTime.now());

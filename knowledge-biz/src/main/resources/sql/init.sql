@@ -153,7 +153,6 @@ CREATE TABLE kb_pipeline_task
     strategy_snapshot   varchar(1024)                 DEFAULT NULL   COMMENT '环节策略快照（触发时固定）',
     product_id          BIGINT               DEFAULT NULL   COMMENT '成功运行回写的产物 ID（kb_pipeline_product.id）',
     status              VARCHAR(32) NOT NULL DEFAULT 'QUEUED' COMMENT '状态：QUEUED/RUNNING/SUCCESS/PARTIAL_SUCCESS/FAILED',
-    retry_count         INT         NOT NULL DEFAULT 0      COMMENT '重试次数',
     error_code          VARCHAR(64)          DEFAULT NULL   COMMENT '错误码',
     error_msg           VARCHAR(1024)        DEFAULT NULL   COMMENT '错误信息',
     create_time         DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',

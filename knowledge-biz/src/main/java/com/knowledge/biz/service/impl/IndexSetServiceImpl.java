@@ -825,7 +825,6 @@ public class IndexSetServiceImpl implements IndexSetService {
         KbPipelineTask task = new KbPipelineTask();
         task.setStage(PipelineStage.BUILD_INDEX.name());
         task.setStatus(PipelineTaskStatus.QUEUED.name());
-        task.setRetryCount(0);
         task.setStrategySnapshot(JsonUtil.toJsonStr(order));
         pipelineTaskDbService.save(task);
 
