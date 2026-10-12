@@ -195,6 +195,44 @@ class DocxDocumentParserTest {
         }
     }
 
+    /** 表格单元格文本计入单元预算：只有表格、单元格共 12 个非空白字符、预算 6 → 两个单元 */
+    @Test
+    void tableCellTextShouldCountIntoUnitBudget() throws Exception {
+        try (XWPFDocument doc = new XWPFDocument()) {
+            XWPFTable table = doc.createTable(1, 2);
+            table.getRow(0).getCell(0).setText("abcdef");
+            table.getRow(0).getCell(1).setText("ghijkl");
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            doc.write(out);
+
+            ParseContext context = context(out.toByteArray());
+            context.getProperties().setOfficePageChars(6);
+            ParseSource source = parser.parse(context);
+
+            assertEquals(2, source.getUnitCount(), () -> "metrics=" + source.getPageMetrics());
+            assertTrue(source.getPageMetrics().getFirst().getCharCount() > 0,
+                    () -> "metrics=" + source.getPageMetrics());
+        }
+    }
+
+    /** 页眉文本计入单元预算：正文为空但页眉有字 → 单元字符数不为 0 */
+    @Test
+    void headerTextShouldCountIntoUnitBudget() throws Exception {
+        try (XWPFDocument doc = new XWPFDocument()) {
+            XWPFHeader header = doc.createHeader(org.apache.poi.wp.usermodel.HeaderFooterType.DEFAULT);
+            header.createParagraph().createRun().setText("页眉文字");
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            doc.write(out);
+
+            ParseContext context = context(out.toByteArray());
+            context.getProperties().setOfficePageChars(6);
+            ParseSource source = parser.parse(context);
+
+            assertTrue(source.getPageMetrics().getFirst().getCharCount() > 0,
+                    () -> "metrics=" + source.getPageMetrics());
+        }
+    }
+
     @Test
     void docxVerticalMergeShouldFillRowSpan() throws Exception {
         try (XWPFDocument doc = new XWPFDocument()) {

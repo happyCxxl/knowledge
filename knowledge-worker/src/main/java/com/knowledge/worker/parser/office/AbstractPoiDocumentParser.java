@@ -15,7 +15,6 @@ import com.knowledge.worker.parser.support.ParserStreamSupport;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * POI 系解析器基类（非 Spring Bean）：能力标识、parse 骨架
@@ -101,12 +100,12 @@ public abstract class AbstractPoiDocumentParser implements DocumentParserPort {
         StringBuilder page = new StringBuilder();
         int budget = 0;
         int pendingImages = 0;
-        for (ParseElement element : bodyElements(source)) {
+        for (ParseElement element : budgetElements(source)) {
             if (ElementType.IMAGE.name().equals(element.getType())) {
                 pendingImages++;
                 continue;
             }
-            String elementText = StrUtil.blankToDefault(element.getText(), "");
+            String elementText = budgetText(element);
             for (int i = 0; i < elementText.length(); ) {
                 int codePoint = elementText.codePointAt(i);
                 page.appendCodePoint(codePoint);
@@ -143,22 +142,25 @@ public abstract class AbstractPoiDocumentParser implements DocumentParserPort {
         source.setUnitCount(metrics.size());
     }
 
-    /** 正文元素（不含页眉页脚，剔除空白文本），单元折算与图片归属都按它的顺序推进 */
-    protected static List<ParseElement> bodyElements(ParseSource source) {
-        return source.getElements().stream()
-                .filter(element -> !ElementType.HEADER.name().equals(element.getType())
-                        && !ElementType.FOOTER.name().equals(element.getType()))
-                .filter(element -> ElementType.IMAGE.name().equals(element.getType())
-                        || StrUtil.isNotBlank(element.getText()))
-                .toList();
+    /**
+     * 单元预算元素：全档元素按产出顺序，**页眉页脚也算进预算**（口径：预算覆盖整档可见文字，
+     * 不只正文），图片元素保留占位以便按位置归属单元。
+     */
+    protected static List<ParseElement> budgetElements(ParseSource source) {
+        return source.getElements();
     }
 
-    /** 正文文本：正文元素的文本按顺序拼接（页眉页脚不计入单元指标） */
-    protected static String bodyText(ParseSource source) {
-        return bodyElements(source).stream()
-                .map(ParseElement::getText)
-                .filter(StrUtil::isNotBlank)
-                .collect(Collectors.joining("\n"));
+    /**
+     * 单元预算文本：段落取自身文本；表格取自身文本 + **各单元格文本**（单元格在嵌套 `cells` 里，
+     * 只取表格元素自身会漏掉整张表的文字）；页眉页脚元素取自身文本。
+     */
+    protected static String budgetText(ParseElement element) {
+        StringBuilder text = new StringBuilder(StrUtil.blankToDefault(element.getText(), ""));
+        List<ParseElement> cells = element.getCells() == null ? List.of() : element.getCells();
+        for (ParseElement cell : cells) {
+            text.append(StrUtil.blankToDefault(cell.getText(), ""));
+        }
+        return text.toString();
     }
 
     /** 嵌入图片元素数 */
