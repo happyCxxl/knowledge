@@ -150,6 +150,29 @@ class DocxDocumentParserTest {
         }
     }
 
+    /**
+     * 段落序号取源文档序号：中间的空段不产元素但仍占号，元素序号不错位 ——
+     * 预览按「段落序号」定位的前提（判定单元另有字符折算的虚拟页口径）。
+     */
+    @Test
+    void paragraphOrdinalShouldFollowSourceDocument() throws Exception {
+        try (XWPFDocument doc = new XWPFDocument()) {
+            doc.createParagraph().createRun().setText("第一段");
+            doc.createParagraph();
+            doc.createParagraph().createRun().setText("第三段");
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            doc.write(out);
+
+            ParseSource source = parser.parse(context(out.toByteArray()));
+
+            List<String> paths = source.getElements().stream()
+                    .filter(e -> ElementType.PARAGRAPH.name().equals(e.getType()))
+                    .map(e -> e.getProvenance().getPath())
+                    .toList();
+            assertEquals(List.of("office#document.xml/paragraph[0]", "office#document.xml/paragraph[2]"), paths);
+        }
+    }
+
     @Test
     void docxVerticalMergeShouldFillRowSpan() throws Exception {
         try (XWPFDocument doc = new XWPFDocument()) {
