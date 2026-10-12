@@ -77,14 +77,16 @@ public class PreprocessControlServiceImpl implements PreprocessControlService {
         KbPipelineProduct structureProduct = requireStructureProduct(fileResultId, upstreamProductId);
 
         StageTriggerVO triggered = triggerSupport.trigger(fileResultId, PipelineStage.PREPROCESS,
-                structureProduct.getId(), strategyRow.getId(), JsonUtil.toJsonStr(strategy), "预处理");
+                structureProduct.getId(), strategyRow.getId(), JsonUtil.toJsonStr(strategy),
+                PipelineStage.PREPROCESS.getLabel());
         return new PreprocessTriggerVO(fileResultId, triggered.getPipelineTaskId(), strategy.fullVersion());
     }
 
     @Override
     public PreprocessDetailVO preprocessDetail(Long fileResultId, Long taskId) {
         accessGuard.requireExisting(fileResultId);
-        KbPipelineTask task = detailSupport.resolveTask(fileResultId, PipelineStage.PREPROCESS, taskId, "预处理");
+        KbPipelineTask task = detailSupport.resolveTask(fileResultId, PipelineStage.PREPROCESS, taskId,
+                PipelineStage.PREPROCESS.getLabel());
 
         PreprocessDetailVO vo = new PreprocessDetailVO();
         detailSupport.withTask(vo, fileResultId, task);

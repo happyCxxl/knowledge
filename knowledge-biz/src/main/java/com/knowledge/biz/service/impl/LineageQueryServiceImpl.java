@@ -114,13 +114,17 @@ public class LineageQueryServiceImpl implements LineageQueryService {
                 .stream()
                 .collect(Collectors.toMap(KbEmbeddingSet::getArtifactId, s -> s, (a, b) -> a));
         Map<Long, long[]> stepAgg = aggregateStepLogs(tasks);
-        Map<Long, ParseResult> parseResultByTaskId = readProductBodies(tasks, productById, PipelineStage.PARSE, "解析",
+        Map<Long, ParseResult> parseResultByTaskId = readProductBodies(tasks, productById, PipelineStage.PARSE,
+                PipelineStage.PARSE.getLabel(),
                 product -> ParseStatsSupport.readArtifact(fileStorage, ObjectRef.ofProduct(product)));
         Map<Long, UnifiedDocument> documentByTaskId = readProductBodies(tasks, productById, PipelineStage.STRUCTURE,
-                "组装", product -> StructureStatsSupport.readDocument(fileStorage, ObjectRef.ofProduct(product)));
+                PipelineStage.STRUCTURE.getLabel(),
+                product -> StructureStatsSupport.readDocument(fileStorage, ObjectRef.ofProduct(product)));
         Map<Long, PreprocessView> viewByTaskId = readProductBodies(tasks, productById, PipelineStage.PREPROCESS,
-                "预处理", product -> PreprocessStatsSupport.readView(fileStorage, ObjectRef.ofProduct(product)));
-        Map<Long, ChunkSet> chunkSetByTaskId = readProductBodies(tasks, productById, PipelineStage.CHUNK, "切片",
+                PipelineStage.PREPROCESS.getLabel(),
+                product -> PreprocessStatsSupport.readView(fileStorage, ObjectRef.ofProduct(product)));
+        Map<Long, ChunkSet> chunkSetByTaskId = readProductBodies(tasks, productById, PipelineStage.CHUNK,
+                PipelineStage.CHUNK.getLabel(),
                 product -> ChunkStatsSupport.readChunkSet(fileStorage, ObjectRef.ofProduct(product)));
         // 切片节点要上游视图的"进入切片 / 跳过"元素数：上游产物已在本批读过，不再重复读对象
         Map<Long, PreprocessView> upstreamViewByTaskId =

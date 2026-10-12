@@ -533,14 +533,12 @@ public class StageContentQueryServiceImpl implements StageContentQueryService {
         return PipelineStage.valueOf(stage);
     }
 
+    /** 环节中文标签：可识别的环节取枚举标签，未知环节回落原值 */
     private String stageLabel(String stage) {
-        return switch (stage) {
-            case "PARSE" -> "解析";
-            case "STRUCTURE" -> "组装";
-            case "PREPROCESS" -> "预处理";
-            case "CHUNK" -> "切片";
-            case "EMBED" -> "向量化";
-            default -> stage;
-        };
+        try {
+            return stageOf(stage).getLabel();
+        } catch (IllegalArgumentException e) {
+            return stage;
+        }
     }
 }

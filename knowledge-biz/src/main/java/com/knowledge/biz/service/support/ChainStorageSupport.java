@@ -9,6 +9,7 @@ import com.knowledge.common.domain.storage.StorageRef;
 import com.knowledge.common.enums.storage.StorageType;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
+import com.knowledge.common.exception.ThrowUtil;
 import com.knowledge.common.utils.NullUtil;
 import com.knowledge.filecenter.provider.StorageRouter;
 import com.knowledge.filecenter.service.FileStorage;
@@ -149,25 +150,28 @@ public class ChainStorageSupport {
     public void requireStorageMatch(Long fileResultId) {
         Long chainSourceId = chainSourceIdOf(fileResultId);
         Long currentSourceId = currentSourceId();
-        if (!mismatch(chainSourceId, currentSourceId)) {
-            return;
-        }
-        throw new KnowledgeException(ErrorCode.STORAGE_TYPE_MISMATCH,
+        ThrowUtil.throwIf(mismatch(chainSourceId, currentSourceId), ErrorCode.STORAGE_TYPE_MISMATCH,
                 "该任务属于 " + sourceName(chainSourceId) + "，当前启用的是 " + sourceName(currentSourceId)
                         + "，无法继续执行");
     }
 
-    /** 当前启用的数据源 ID（随数据源切换热替换） */
+    /**
+     * 当前启用的数据源 ID（随数据源切换热替换）
+     */
     public Long currentSourceId() {
         return storageRouter.currentSourceId();
     }
 
-    /** 当前启用的数据源显示名 */
+    /**
+     * 当前启用的数据源显示名
+     */
     public String currentSourceName() {
         return sourceName(currentSourceId());
     }
 
-    /** 数据源显示名：未注册的 ID 回落该数据源的存储类型显示名，取不到类型时带上 ID */
+    /**
+     * 数据源显示名：未注册的 ID 回落该数据源的存储类型显示名，取不到类型时带上 ID
+     */
     public String sourceName(Long sourceId) {
         if (NullUtil.isNull(sourceId)) {
             return "未记录的数据源";
@@ -180,7 +184,9 @@ public class ChainStorageSupport {
         return NullUtil.isNull(type) ? "数据源#" + sourceId : storageName(type);
     }
 
-    /** 存储类型显示名（新增存储类型时这里补一行） */
+    /**
+     * 存储类型显示名（新增存储类型时这里补一行）
+     */
     public static String storageName(StorageType type) {
         return switch (type) {
             case MINIO -> "MinIO";

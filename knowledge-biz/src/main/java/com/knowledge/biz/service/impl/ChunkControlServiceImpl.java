@@ -79,14 +79,16 @@ public class ChunkControlServiceImpl implements ChunkControlService {
         KbPipelineProduct preprocessProduct = requirePreprocessProduct(fileResultId, upstreamProductId);
 
         StageTriggerVO triggered = triggerSupport.trigger(fileResultId, PipelineStage.CHUNK,
-                preprocessProduct.getId(), strategyRow.getId(), JsonUtil.toJsonStr(strategy), "切片");
+                preprocessProduct.getId(), strategyRow.getId(), JsonUtil.toJsonStr(strategy),
+                PipelineStage.CHUNK.getLabel());
         return new ChunkTriggerVO(fileResultId, triggered.getPipelineTaskId(), strategy.fullVersion());
     }
 
     @Override
     public ChunkDetailVO chunkDetail(Long fileResultId, Long taskId) {
         accessGuard.requireExisting(fileResultId);
-        KbPipelineTask task = detailSupport.resolveTask(fileResultId, PipelineStage.CHUNK, taskId, "切片");
+        KbPipelineTask task = detailSupport.resolveTask(fileResultId, PipelineStage.CHUNK, taskId,
+                PipelineStage.CHUNK.getLabel());
 
         ChunkDetailVO vo = new ChunkDetailVO();
         detailSupport.withTask(vo, fileResultId, task);

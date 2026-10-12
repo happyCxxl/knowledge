@@ -82,14 +82,16 @@ public class EmbedControlServiceImpl implements EmbedControlService {
         precheckWindow(chunkProduct, strategy);
 
         StageTriggerVO triggered = triggerSupport.trigger(fileResultId, PipelineStage.EMBED,
-                chunkProduct.getId(), strategyRow.getId(), JsonUtil.toJsonStr(strategy), "向量化");
+                chunkProduct.getId(), strategyRow.getId(), JsonUtil.toJsonStr(strategy),
+                PipelineStage.EMBED.getLabel());
         return new EmbedTriggerVO(fileResultId, triggered.getPipelineTaskId(), strategy.fullVersion());
     }
 
     @Override
     public EmbedDetailVO embedDetail(Long fileResultId, Long taskId) {
         accessGuard.requireExisting(fileResultId);
-        KbPipelineTask task = detailSupport.resolveTask(fileResultId, PipelineStage.EMBED, taskId, "向量化");
+        KbPipelineTask task = detailSupport.resolveTask(fileResultId, PipelineStage.EMBED, taskId,
+                PipelineStage.EMBED.getLabel());
 
         EmbedDetailVO vo = new EmbedDetailVO();
         vo.setFileResultId(fileResultId);

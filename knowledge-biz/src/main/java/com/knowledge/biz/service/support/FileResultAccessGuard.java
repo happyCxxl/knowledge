@@ -32,45 +32,24 @@ public class FileResultAccessGuard {
     private final KnowledgeBaseDbService knowledgeBaseDbService;
 
     /**
-     * 取「当前用户可访问的」文件结果：不存在或不可访问一律拒绝。
+     * 取「该文件结果」并按三种语义分别拒绝：**先定登录上下文**（无登录给 UNAUTHORIZED），
+     * 再按 ID 取数（记录不存在给 {@link ErrorCode#FILE_RESULT_NOT_FOUND}），最后校验可访问性
+     * （不可访问给 {@link ErrorCode#KB_NOT_FOUND}）。
+     *
+     * <p>登录校验必须排在取数之前：未登录的请求不进入"按 ID 取数"路径，既不做无谓查询，
+     * 也不会把"该 ID 有没有记录"透给匿名调用者。
      *
      * @param fileResultId 文件结果 ID
      * @return 文件结果实体
-     * @throws KnowledgeException 无登录上下文（UNAUTHORIZED 40101）或不可访问（KB_NOT_FOUND 40401）
-     */
-    public KbFileResult require(Long fileResultId) {
-        return require(fileResultId, SecurityUtil.getUser());
-    }
-
-    /**
-     * 按指定用户取「可访问的」文件结果。
-     *
-     * @param fileResultId 文件结果 ID
-     * @param user         登录用户（可空：无登录上下文一律拒绝）
-     * @return 文件结果实体
-     * @throws KnowledgeException 无登录上下文（UNAUTHORIZED 40101）或不可访问（KB_NOT_FOUND 40401）
-     */
-    public KbFileResult require(Long fileResultId, KnowledgeUser user) {
-        // 先定登录上下文：无登录不进入"按 ID 取数"的路径
-        KnowledgeBaseRules.visibleOwnerId(user);
-        KbFileResult fileResult = NullUtil.isNull(fileResultId) ? null : fileResultDbService.getById(fileResultId);
-        check(fileResult, user);
-        return fileResult;
-    }
-
-    /**
-     * 取「该文件结果」并按两种语义分别拒绝：记录不存在给 {@link ErrorCode#FILE_RESULT_NOT_FOUND}，
-     * 无登录上下文或不可访问给 {@link ErrorCode#KB_NOT_FOUND}。
-     *
-     * @param fileResultId 文件结果 ID
-     * @return 文件结果实体
-     * @throws KnowledgeException 记录不存在（FILE_RESULT_NOT_FOUND 40432）、无登录上下文（UNAUTHORIZED 40101）
+     * @throws KnowledgeException 无登录上下文（UNAUTHORIZED 40101）、记录不存在（FILE_RESULT_NOT_FOUND 40432）
      *                            或不可访问（KB_NOT_FOUND 40401）
      */
     public KbFileResult requireExisting(Long fileResultId) {
+        KnowledgeUser user = SecurityUtil.getUser();
+        KnowledgeBaseRules.visibleOwnerId(user);
         KbFileResult fileResult = fileResultDbService.getById(fileResultId);
         ThrowUtil.throwIf(NullUtil.isNull(fileResult), ErrorCode.FILE_RESULT_NOT_FOUND);
-        check(fileResult,SecurityUtil.getUser());
+        check(fileResult, user);
         return fileResult;
     }
 
@@ -84,9 +63,7 @@ public class FileResultAccessGuard {
      */
     public void check(KbFileResult fileResult, KnowledgeUser user) {
         KnowledgeBaseRules.visibleOwnerId(user);
-        if (NullUtil.isNull(fileResult)) {
-            throw new KnowledgeException(ErrorCode.KB_NOT_FOUND);
-        }
+        ThrowUtil.throwIf(NullUtil.isNull(fileResult), ErrorCode.KB_NOT_FOUND);
         // 库不存在/已删除（40401）或非本人可访问（40401）
         KnowledgeBaseRules.checkAccessible(
                 knowledgeBaseDbService.getActiveById(fileResult.getKnowledgeBaseId()), user);

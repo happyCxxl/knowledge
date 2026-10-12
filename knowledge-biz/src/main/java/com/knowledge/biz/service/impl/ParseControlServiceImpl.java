@@ -1,7 +1,6 @@
 package com.knowledge.biz.service.impl;
 
 import com.knowledge.biz.service.ParseControlService;
-import com.knowledge.biz.service.db.KbPipelineProductDbService;
 import com.knowledge.biz.service.support.FileResultAccessGuard;
 import com.knowledge.biz.service.support.ParseStatsSupport;
 import com.knowledge.biz.service.support.TaskDetailSupport;
@@ -32,7 +31,6 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ParseControlServiceImpl implements ParseControlService {
 
-    private final KbPipelineProductDbService pipelineProductDbService;
     private final TaskTriggerSupport triggerSupport;
     private final TaskDetailSupport detailSupport;
     private final FileStorage fileStorage;
@@ -51,13 +49,15 @@ public class ParseControlServiceImpl implements ParseControlService {
     @Override
     public StageTriggerVO parse(Long fileResultId) {
         accessGuard.requireExisting(fileResultId);
-        return triggerSupport.trigger(fileResultId, PipelineStage.PARSE, null, null, null, "解析");
+        return triggerSupport.trigger(fileResultId, PipelineStage.PARSE, null, null, null,
+                PipelineStage.PARSE.getLabel());
     }
 
     @Override
     public ParseDetailVO parseDetail(Long fileResultId, Long taskId) {
         accessGuard.requireExisting(fileResultId);
-        KbPipelineTask task = detailSupport.resolveTask(fileResultId, PipelineStage.PARSE, taskId, "解析");
+        KbPipelineTask task = detailSupport.resolveTask(fileResultId, PipelineStage.PARSE, taskId,
+                PipelineStage.PARSE.getLabel());
 
         ParseDetailVO vo = new ParseDetailVO();
         detailSupport.withTask(vo, fileResultId, task);

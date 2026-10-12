@@ -63,13 +63,15 @@ public class StructureControlServiceImpl implements StructureControlService {
         accessGuard.requireExisting(fileResultId);
         // 上游解析产物：必须显式指定，校验存在/环节/归属；未指定直接拒绝（无按时间猜的兜底）。
         KbPipelineProduct parseProduct = requireParseProduct(fileResultId, upstreamProductId);
-        return triggerSupport.trigger(fileResultId, PipelineStage.STRUCTURE, parseProduct.getId(), null, null, "组装");
+        return triggerSupport.trigger(fileResultId, PipelineStage.STRUCTURE, parseProduct.getId(), null, null,
+                PipelineStage.STRUCTURE.getLabel());
     }
 
     @Override
     public StructureDetailVO structureDetail(Long fileResultId, Long taskId) {
         accessGuard.requireExisting(fileResultId);
-        KbPipelineTask task = detailSupport.resolveTask(fileResultId, PipelineStage.STRUCTURE, taskId, "组装");
+        KbPipelineTask task = detailSupport.resolveTask(fileResultId, PipelineStage.STRUCTURE, taskId,
+                PipelineStage.STRUCTURE.getLabel());
 
         StructureDetailVO vo = new StructureDetailVO();
         detailSupport.withTask(vo, fileResultId, task);

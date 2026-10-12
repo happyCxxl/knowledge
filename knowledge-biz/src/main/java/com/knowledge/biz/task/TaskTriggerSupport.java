@@ -52,10 +52,10 @@ public class TaskTriggerSupport {
         long strategyVersion = NullUtil.isNull(strategyVersionId) ? 0L : strategyVersionId;
         KbPipelineTask existing = pipelineTaskDbService.getByExecKey(fileResultId, stage.name(),
                 upstream, strategyVersion);
-        String duplicate = NullUtil.isNull(existing) ? null
-                : stageLabel + "任务已创建（taskId=" + existing.getId() + "，状态 "
-                + existing.getStatus() + "），请勿重复触发";
-        ThrowUtil.throwIf(NullUtil.isNotNull(duplicate), ErrorCode.TASK_ALREADY_PENDING, duplicate);
+        ThrowUtil.throwIf(NullUtil.isNotNull(existing), ErrorCode.TASK_ALREADY_PENDING,
+                existing == null ? null
+                        : stageLabel + "任务已创建（taskId=" + existing.getId() + "，状态 "
+                        + existing.getStatus() + "），请勿重复触发");
         KbPipelineTask task = new KbPipelineTask();
         task.setFileResultId(fileResultId);
         task.setStage(stage.name());
@@ -70,7 +70,9 @@ public class TaskTriggerSupport {
         return new StageTriggerVO(task.getId());
     }
 
-    /** 新任务入队：写不进队列时把任务落 FAILED（库里不留"永远排不上队"的 QUEUED），随后仍抛出（触发未成功） */
+    /**
+     * 新任务入队：写不进队列时把任务落 FAILED（库里不留"永远排不上队"的 QUEUED），随后仍抛出（触发未成功）
+     */
     private void enqueueNewTask(KbPipelineTask task, String stageLabel, Long fileResultId) {
         try {
             taskQueue.enqueue(task.getId());
