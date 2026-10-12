@@ -49,12 +49,6 @@
             <scope>provided</scope>
         </dependency>
 
-        <!-- Web 容器 -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-undertow</artifactId>
-        </dependency>
-
         <!-- MyBatis-Plus（Boot 3 专用 starter） -->
         <dependency>
             <groupId>com.baomidou</groupId>
