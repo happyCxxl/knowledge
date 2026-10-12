@@ -53,12 +53,10 @@ public class SignalDetectorImpl implements SignalDetector {
                         signals.add(Signal.of(SignalType.OCR_TEXT, page,
                                 "整单元无文本且无图片（空白单元）", imageEvidence, SignalSubtype.BLANK));
                     }
-                } else if ((metric.getTextAreaRatio() > 0
-                        && metric.getTextAreaRatio() < p.getTextAreaRatioThreshold())
-                        || (metric.getImageCount() > 0 && metric.getCharCount() < p.getScanPageMinChars())) {
+                } else if (isSuspectImageUnit(metric, p)) {
                     signals.add(Signal.of(SignalType.OCR_IMAGE, page,
                             "文字极少或文字占比低（疑似图片单元）",
-                            "chars=" + metric.getCharCount() + "," + imageEvidence,
+                            suspectImageEvidence(metric, p),
                             SignalSubtype.IMAGE_LOW_RATIO));
                 } else if (metric.getGarbledRatio() > p.getGarbledRateThreshold()) {
                     // 乱码页：字符主要来自缺 Unicode 映射的 CID 字体时单列子类型，降级分支可区分根因
@@ -77,7 +75,7 @@ public class SignalDetectorImpl implements SignalDetector {
         }
 
         // ② 解析事实 → 信号（表格规则失败 / 版面异常 / 结构缺口；子类型按事实类型推导）
-        if (NullUtil.isNotNull(nativeSource.getFacts())) {
+    if (NullUtil.isNotNull(nativeSource.getFacts())) {
             for (ParseFact fact : nativeSource.getFacts()) {
                 if (NullUtil.isNull(fact.getType())) {
                     continue;
@@ -101,6 +99,30 @@ public class SignalDetectorImpl implements SignalDetector {
     private String imageEvidence(PageMetric metric, ParseProperties properties) {
         return String.format("imageArea=%.2f(≥%.2f),imageCount=%d",
                 metric.getImageAreaRatio(), properties.getScanPageImageRatio(), metric.getImageCount());
+    }
+
+    /**
+     * 疑似图片单元（两条口径任一成立）：
+     * ① 文字占比低 —— 只有回填了 `textAreaRatio` 的单元才参与（PDF 侧），占比为 0 表示该口径不适用；
+     * ② 有内嵌图片且字符极少 —— Office 侧口径（DOC/DOCX/XLS/XLSX/PPT/PPTX 不回填面积类指标，
+     *    判定只看「内嵌图片数 + 字符数」组合）。
+     */
+    private boolean isSuspectImageUnit(PageMetric metric, ParseProperties p) {
+        boolean lowTextRatio = metric.getTextAreaRatio() > 0
+                && metric.getTextAreaRatio() < p.getTextAreaRatioThreshold();
+        boolean imageWithFewChars = metric.getImageCount() > 0
+                && metric.getCharCount() < p.getScanPageMinChars();
+        return lowTextRatio || imageWithFewChars;
+    }
+
+    /** 疑似图片单元的证据：点名命中的是哪条口径（文字占比低 / 图片多字符少） */
+    private String suspectImageEvidence(PageMetric metric, ParseProperties p) {
+        if (metric.getTextAreaRatio() > 0 && metric.getTextAreaRatio() < p.getTextAreaRatioThreshold()) {
+            return String.format("textArea=%.3f(<%.3f),chars=%d,imageCount=%d", metric.getTextAreaRatio(),
+                    p.getTextAreaRatioThreshold(), metric.getCharCount(), metric.getImageCount());
+        }
+        return String.format("chars=%d(<%d),imageCount=%d（无面积口径，按图片数与字符数判定）",
+                metric.getCharCount(), p.getScanPageMinChars(), metric.getImageCount());
     }
 
     /** 解析事实类型 → 信号子类型（OCR_IMAGE 事实均为嵌入图片；无对应子类型返回 null）。 */
