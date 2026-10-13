@@ -85,12 +85,12 @@ class TaskStartupCompensatorTest {
         orphan.setStage(PipelineStage.PARSE.name());
         orphan.setStartedAt(LocalDateTime.now().minusMinutes(30));
         when(pipelineTaskDbService.listStaleRunning(any(LocalDateTime.class))).thenReturn(List.of(orphan));
-        when(pipelineTaskDbService.finish(eq(7L), eq(PipelineTaskStatus.FAILED.name()),
+        when(pipelineTaskDbService.finish(eq(7L), eq(PipelineTaskStatus.FAILED),
                 eq(PipelineTaskErrorCode.EXECUTOR_TIMEOUT.name()), anyString())).thenReturn(1);
 
         compensator.onStartup();
 
-        verify(pipelineTaskDbService).finish(eq(7L), eq(PipelineTaskStatus.FAILED.name()),
+        verify(pipelineTaskDbService).finish(eq(7L), eq(PipelineTaskStatus.FAILED),
                 eq(PipelineTaskErrorCode.EXECUTOR_TIMEOUT.name()), anyString());
     }
 

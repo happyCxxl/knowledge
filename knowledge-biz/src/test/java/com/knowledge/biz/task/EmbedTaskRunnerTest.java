@@ -267,7 +267,7 @@ class EmbedTaskRunnerTest {
 
         verify(embeddingRecordDbService).saveBatch(any(), eq(500));
         verify(stepLogDbService).save(any());
-        verify(pipelineTaskDbService).finish(70L, PipelineTaskStatus.SUCCESS.name(), null, null);
+        verify(pipelineTaskDbService).finish(70L, PipelineTaskStatus.SUCCESS, null, null);
         verify(indexSetService).onFileProductsReady(10L);
     }
 
@@ -281,7 +281,7 @@ class EmbedTaskRunnerTest {
 
         runner.run(70L);
 
-        verify(pipelineTaskDbService).finish(70L, PipelineTaskStatus.FAILED.name(),
+        verify(pipelineTaskDbService).finish(70L, PipelineTaskStatus.FAILED,
                 PipelineTaskErrorCode.TASK_UPSTREAM_MISSING.name(), "任务未指定上游切片产物");
         verify(fileStorage, never()).putObject(any(byte[].class));
         verify(embedder, never()).embed(any());
@@ -301,7 +301,7 @@ class EmbedTaskRunnerTest {
         runner.run(70L);
 
         ArgumentCaptor<String> errorMsg = ArgumentCaptor.forClass(String.class);
-        verify(pipelineTaskDbService).finish(eq(70L), eq(PipelineTaskStatus.FAILED.name()),
+        verify(pipelineTaskDbService).finish(eq(70L), eq(PipelineTaskStatus.FAILED),
                 eq(PipelineTaskErrorCode.EMBED_FAILED.name()), errorMsg.capture());
         assertTrue(errorMsg.getValue().contains(PipelineTaskStatus.FAILED.name()), errorMsg.getValue());
         // 门禁在读取产物本体之前：不读对象、不进向量化管线
@@ -323,7 +323,7 @@ class EmbedTaskRunnerTest {
 
         runner.run(70L);
 
-        verify(pipelineTaskDbService).finish(70L, PipelineTaskStatus.FAILED.name(),
+        verify(pipelineTaskDbService).finish(70L, PipelineTaskStatus.FAILED,
                 PipelineTaskErrorCode.EMBED_FAILED.name(), "任务未带向量化策略快照或快照已损坏，无法向量化");
         // 守卫在读取上游产物本体之前：坏快照不读对象、不进管线
         verify(fileStorage, never()).getObject(any(ObjectRef.class));
@@ -352,7 +352,7 @@ class EmbedTaskRunnerTest {
         ArgumentCaptor<EmbedContext> contextCaptor = ArgumentCaptor.forClass(EmbedContext.class);
         verify(embedder).embed(contextCaptor.capture());
         assertNull(contextCaptor.getValue().getChunkStrategy());
-        verify(pipelineTaskDbService).finish(70L, PipelineTaskStatus.SUCCESS.name(), null, null);
+        verify(pipelineTaskDbService).finish(70L, PipelineTaskStatus.SUCCESS, null, null);
     }
 
     @Test
@@ -366,7 +366,7 @@ class EmbedTaskRunnerTest {
 
         runner.run(70L);
 
-        verify(pipelineTaskDbService).finish(70L, PipelineTaskStatus.FAILED.name(),
+        verify(pipelineTaskDbService).finish(70L, PipelineTaskStatus.FAILED,
                 PipelineTaskErrorCode.EMBED_CONSISTENCY_FAILED.name(), "维度不一致");
         verify(fileStorage, never()).putObject(any(byte[].class));
     }
@@ -436,7 +436,7 @@ class EmbedTaskRunnerTest {
 
         runner.run(70L);
 
-        verify(pipelineTaskDbService).finish(70L, PipelineTaskStatus.PARTIAL_SUCCESS.name(), null, null);
+        verify(pipelineTaskDbService).finish(70L, PipelineTaskStatus.PARTIAL_SUCCESS, null, null);
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Collection<KbEmbeddingRecord>> batchCaptor = ArgumentCaptor.forClass(Collection.class);
         verify(embeddingRecordDbService).saveBatch(batchCaptor.capture(), eq(500));

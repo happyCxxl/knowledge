@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.conditions.AbstractWrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.knowledge.biz.mapper.KbPipelineTaskMapper;
 import com.knowledge.common.domain.entity.KbPipelineTask;
+import com.knowledge.common.enums.task.PipelineTaskStatus;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -17,15 +18,17 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 任务数据访问单测：过期 QUEUED / 孤儿 RUNNING 查询条件与终态回写条件。
+ * 任务数据访问单测：过期 QUEUED / 孤儿 RUNNING 查询条件、终态回写的迁移守卫与回写条件。
  *
  * @author cxxl
  */
@@ -88,7 +91,7 @@ class KbPipelineTaskDbServiceImplTest {
     void finishShouldConditionallyUpdateRunningToTerminal() {
         when(mapper.update(isNull(), any())).thenReturn(1);
 
-        int rows = impl.finish(9L, "FAILED", "EXECUTOR_TIMEOUT", "超时");
+        int rows = impl.finish(9L, PipelineTaskStatus.FAILED, "EXECUTOR_TIMEOUT", "超时");
 
         assertEquals(1, rows);
         verify(mapper).update(isNull(), argThat(wrapper -> {
@@ -96,10 +99,39 @@ class KbPipelineTaskDbServiceImplTest {
             assertTrue(w.getSqlSegment().contains("status"));
             assertTrue(w.getSqlSet().contains("status"));
             assertTrue(w.getSqlSet().contains("error_code"));
+            assertTrue(w.getSqlSet().contains("error_msg"));
             assertTrue(w.getSqlSet().contains("finished_at"));
             assertTrue(w.getParamNameValuePairs().containsValue("RUNNING"));
             assertTrue(w.getParamNameValuePairs().containsValue("FAILED"));
+            assertTrue(w.getParamNameValuePairs().containsValue("EXECUTOR_TIMEOUT"));
+            assertTrue(w.getParamNameValuePairs().containsValue("超时"));
+            assertTrue(w.getParamNameValuePairs().values().stream().anyMatch(LocalDateTime.class::isInstance));
             return true;
         }));
+    }
+
+    @Test
+    void finishShouldRejectTargetOutsideRunningAllowedSetBeforeAnySql() {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> impl.finish(9L, PipelineTaskStatus.RUNNING, null, null));
+
+        assertTrue(e.getMessage().contains("非法的任务状态迁移"), e.getMessage());
+        verify(mapper, never()).update(any(), any());
+    }
+
+    @Test
+    void finishShouldReturnZeroWhenConditionalUpdateMatchesNoRow() {
+        when(mapper.update(isNull(), any())).thenReturn(0);
+
+        assertEquals(0, impl.finish(9L, PipelineTaskStatus.SUCCESS, null, null));
+
+        verify(mapper).update(isNull(), any());
+    }
+
+    @Test
+    void failQueuedShouldReturnZeroWhenClaimWon() {
+        when(mapper.update(isNull(), any())).thenReturn(0);
+
+        assertEquals(0, impl.failQueued(9L, "TASK_ENQUEUE_FAILED", "入队失败"));
     }
 }

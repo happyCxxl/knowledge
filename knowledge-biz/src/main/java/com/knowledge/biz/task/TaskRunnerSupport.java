@@ -209,7 +209,7 @@ public final class TaskRunnerSupport {
      */
     public static void finishFailed(KbPipelineTaskDbService pipelineTaskDbService, Long taskId,
                                     String errorCode, String errorMsg) {
-        pipelineTaskDbService.finish(taskId, PipelineTaskStatus.FAILED.name(), errorCode,
+        pipelineTaskDbService.finish(taskId, PipelineTaskStatus.FAILED, errorCode,
                 StrUtil.isBlank(errorMsg) ? null : StrUtil.maxLength(errorMsg, MAX_ERROR_MESSAGE_LENGTH));
     }
 
@@ -221,7 +221,7 @@ public final class TaskRunnerSupport {
         if (PipelineTaskStatus.SUCCESS.name().equals(suggested)
                 || PipelineTaskStatus.PARTIAL_SUCCESS.name().equals(suggested)) {
             onSuccess.run();
-            pipelineTaskDbService.finish(taskId, suggested, null, null);
+            pipelineTaskDbService.finish(taskId, PipelineTaskStatus.valueOf(suggested), null, null);
         } else {
             stepLogPersistence.save(taskId, outcome.getStepLogs());
             onFailure.finish(taskId, outcome.getErrorCode(), outcome.getErrorMsg());

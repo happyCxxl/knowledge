@@ -8,6 +8,7 @@ import com.knowledge.common.domain.entity.KbPipelineTask;
 import com.knowledge.common.enums.task.PipelineTaskStatus;
 import com.knowledge.common.utils.NullUtil;
 import com.knowledge.infra.persistence.InfraDbServiceImpl;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -18,6 +19,7 @@ import java.util.List;
  *
  * @author cxxl
  */
+@Slf4j
 @Service
 public class KbPipelineTaskDbServiceImpl extends InfraDbServiceImpl<KbPipelineTaskMapper, KbPipelineTask>
         implements KbPipelineTaskDbService {
@@ -86,26 +88,31 @@ public class KbPipelineTaskDbServiceImpl extends InfraDbServiceImpl<KbPipelineTa
     }
 
     @Override
-    public int finish(Long id, String status, String errorCode, String errorMsg) {
-        return finishFrom(id, PipelineTaskStatus.RUNNING.name(), status, errorCode, errorMsg);
+    public int finish(Long id, PipelineTaskStatus status, String errorCode, String errorMsg) {
+        return finishFrom(id, PipelineTaskStatus.RUNNING, status, errorCode, errorMsg);
     }
 
     @Override
     public int failQueued(Long id, String errorCode, String errorMsg) {
-        return finishFrom(id, PipelineTaskStatus.QUEUED.name(), PipelineTaskStatus.FAILED.name(),
-                errorCode, errorMsg);
+        return finishFrom(id, PipelineTaskStatus.QUEUED, PipelineTaskStatus.FAILED, errorCode, errorMsg);
     }
 
-    /** 终态回写：条件更新（fromStatus → toStatus）+ 结束时间 + 错误码/信息，后到者影响 0 行（编排层靠它互斥） */
-    private int finishFrom(Long id, String fromStatus, String toStatus, String errorCode, String errorMsg) {
+    /** 终态回写：条件更新（from → to）+ 结束时间 + 错误码/信息；迁移先过真值表校验，后到者影响 0 行 */
+    private int finishFrom(Long id, PipelineTaskStatus from, PipelineTaskStatus to,
+                           String errorCode, String errorMsg) {
+        PipelineTaskStatus.requireTransition(from, to);
         LambdaUpdateWrapper<KbPipelineTask> updateWrapper = new LambdaUpdateWrapper<>();
         updateWrapper.eq(KbPipelineTask::getId, id)
-                .eq(KbPipelineTask::getStatus, fromStatus)
-                .set(KbPipelineTask::getStatus, toStatus)
+                .eq(KbPipelineTask::getStatus, from.name())
+                .set(KbPipelineTask::getStatus, to.name())
                 .set(KbPipelineTask::getErrorCode, errorCode)
                 .set(KbPipelineTask::getErrorMsg, errorMsg)
                 .set(KbPipelineTask::getFinishedAt, LocalDateTime.now());
-        return baseMapper.update(null, updateWrapper);
+        int rows = baseMapper.update(null, updateWrapper);
+        if (rows == 0) {
+            log.info("任务状态迁移未生效，状态已被其他路径先写, taskId={}, from={}, to={}", id, from, to);
+        }
+        return rows;
     }
 
     @Override
@@ -123,6 +130,7 @@ public class KbPipelineTaskDbServiceImpl extends InfraDbServiceImpl<KbPipelineTa
 
     @Override
     public int claim(Long id) {
+        PipelineTaskStatus.requireTransition(PipelineTaskStatus.QUEUED, PipelineTaskStatus.RUNNING);
         LambdaUpdateWrapper<KbPipelineTask> updateWrapper = new LambdaUpdateWrapper<>();
         updateWrapper.eq(KbPipelineTask::getId, id)
                 .eq(KbPipelineTask::getStatus, PipelineTaskStatus.QUEUED.name())

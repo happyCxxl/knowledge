@@ -150,7 +150,7 @@ public class IndexBuildTaskRunner {
         version.setVectorCount(expected.vectorCount());
         version.setBuildError(null);
         indexVersionDbService.updateById(version);
-        pipelineTaskDbService.finish(taskId, PipelineTaskStatus.SUCCESS.name(), null, null);
+        pipelineTaskDbService.finish(taskId, PipelineTaskStatus.SUCCESS, null, null);
 
         // ⑤ 发布判定：COMPENSATE 恒自动；INCREMENT 且绑定开启自动；LIST 冻结集永不自动；其余停留 READY
         if (shouldAutoPublish(kbId, combo, order.getTrigger())) {

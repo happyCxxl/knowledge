@@ -178,7 +178,7 @@ class ParseTaskRunnerTest {
         assertEquals(StorageType.MINIO.getCode(), captor.getValue().getStorageType());
         assertEquals(SOURCE_ID, captor.getValue().getStorageSourceId());
         assertEquals("artifacts", captor.getValue().getBucket());
-        verify(pipelineTaskDbService).finish(20L, PipelineTaskStatus.SUCCESS.name(), null, null);
+        verify(pipelineTaskDbService).finish(20L, PipelineTaskStatus.SUCCESS, null, null);
         verify(pipelineTaskDbService).updateProductId(20L, 40L);
         // 手动逐环节口径：PARSE 完成后停在终态，不再自动登记 STRUCTURE
         verify(pipelineTaskDbService, never()).save(any(KbPipelineTask.class));
@@ -198,7 +198,7 @@ class ParseTaskRunnerTest {
 
         runner.run(20L);
 
-        verify(pipelineTaskDbService).finish(20L, PipelineTaskStatus.FAILED.name(),
+        verify(pipelineTaskDbService).finish(20L, PipelineTaskStatus.FAILED,
                 PipelineTaskErrorCode.SCANNED_UNSUPPORTED.name(), "扫描件暂不支持（OCR 预留）");
         verify(pipelineProductDbService, never()).save(any());
     }
@@ -211,7 +211,7 @@ class ParseTaskRunnerTest {
 
         runner.run(20L);
 
-        verify(pipelineTaskDbService).finish(eq(20L), eq(PipelineTaskStatus.FAILED.name()),
+        verify(pipelineTaskDbService).finish(eq(20L), eq(PipelineTaskStatus.FAILED),
                 eq(PipelineTaskErrorCode.PARSE_FAILED.name()), any());
     }
 
@@ -225,7 +225,7 @@ class ParseTaskRunnerTest {
 
         runner.run(20L);
 
-        verify(pipelineTaskDbService).finish(eq(20L), eq(PipelineTaskStatus.FAILED.name()),
+        verify(pipelineTaskDbService).finish(eq(20L), eq(PipelineTaskStatus.FAILED),
                 eq(PipelineTaskErrorCode.PARSE_FAILED.name()), any());
     }
 }

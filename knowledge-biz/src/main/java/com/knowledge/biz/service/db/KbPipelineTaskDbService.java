@@ -1,6 +1,7 @@
 package com.knowledge.biz.service.db;
 
 import com.knowledge.common.domain.entity.KbPipelineTask;
+import com.knowledge.common.enums.task.PipelineTaskStatus;
 import com.knowledge.infra.persistence.InfraDbService;
 
 import java.time.LocalDateTime;
@@ -75,14 +76,16 @@ public interface KbPipelineTaskDbService extends InfraDbService<KbPipelineTask> 
     /**
      * 终态回写：RUNNING → 指定终态 + 结束时间 + 错误码/信息（条件更新，后到者得 0）。
      * 条件更新是编排层互斥的依据：看门狗超时回写与执行器成功/失败回写只可能有一个生效。
+     * 目标态必须是 {@link PipelineTaskStatus#RUNNING} 的合法目标态，非法目标态在写库前抛
+     * IllegalArgumentException。
      *
      * @param id        任务 ID
-     * @param status    目标终态（PipelineTaskStatus 枚举名）
+     * @param status    目标终态
      * @param errorCode 错误码（失败时传入；成功为 null）
      * @param errorMsg  错误信息（失败时传入；成功为 null）
      * @return 受影响行数
      */
-    int finish(Long id, String status, String errorCode, String errorMsg);
+    int finish(Long id, PipelineTaskStatus status, String errorCode, String errorMsg);
 
     /**
      * 未入队即失败回写：QUEUED → FAILED + 结束时间 + 错误码/信息（条件更新，已被领取的任务不受影响）。

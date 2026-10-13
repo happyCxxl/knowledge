@@ -166,7 +166,7 @@ public class ParseTaskConsumer {
     private int markInFlightFailed() {
         int marked = 0;
         for (Long taskId : inFlight) {
-            pipelineTaskDbService.finish(taskId, PipelineTaskStatus.FAILED.name(),
+            pipelineTaskDbService.finish(taskId, PipelineTaskStatus.FAILED,
                     PipelineTaskErrorCode.TASK_SHUTDOWN_INTERRUPTED.name(), "服务停机中断，任务未完成");
             marked++;
         }
@@ -182,7 +182,7 @@ public class ParseTaskConsumer {
         } catch (TimeoutException e) {
             future.cancel(true);
             // 终态回写带 RUNNING 条件：与 runner 的兜底回写互斥，后到者受影响行数为 0
-            pipelineTaskDbService.finish(taskId, PipelineTaskStatus.FAILED.name(),
+            pipelineTaskDbService.finish(taskId, PipelineTaskStatus.FAILED,
                     PipelineTaskErrorCode.EXECUTOR_TIMEOUT.name(), "单任务超时（看门狗判定）");
             log.warn("任务超时, taskId={}", taskId);
         } catch (RejectedExecutionException e) {

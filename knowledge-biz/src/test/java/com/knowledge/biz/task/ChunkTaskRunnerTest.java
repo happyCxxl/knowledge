@@ -253,7 +253,7 @@ class ChunkTaskRunnerTest {
         assertEquals("chunk-0001", chunkRowsCaptor.getValue().get(1).getParentChunkId());
         assertEquals(90L, chunkRowsCaptor.getValue().getFirst().getChunkSetId());
 
-        verify(pipelineTaskDbService).finish(70L, PipelineTaskStatus.SUCCESS.name(), null, null);
+        verify(pipelineTaskDbService).finish(70L, PipelineTaskStatus.SUCCESS, null, null);
         verify(pipelineTaskDbService).updateProductId(70L, 80L);
         verify(stepLogDbService, times(6)).save(any());
     }
@@ -302,7 +302,7 @@ class ChunkTaskRunnerTest {
 
         runner.run(70L);
 
-        verify(pipelineTaskDbService).finish(eq(70L), eq(PipelineTaskStatus.FAILED.name()),
+        verify(pipelineTaskDbService).finish(eq(70L), eq(PipelineTaskStatus.FAILED),
                 eq(PipelineTaskErrorCode.TASK_UPSTREAM_MISSING.name()), any());
         verify(fileStorage, never()).putObject(any(byte[].class));
     }
@@ -319,7 +319,7 @@ class ChunkTaskRunnerTest {
         runner.run(70L);
 
         ArgumentCaptor<String> errorMsg = ArgumentCaptor.forClass(String.class);
-        verify(pipelineTaskDbService).finish(eq(70L), eq(PipelineTaskStatus.FAILED.name()),
+        verify(pipelineTaskDbService).finish(eq(70L), eq(PipelineTaskStatus.FAILED),
                 eq(PipelineTaskErrorCode.CHUNK_FAILED.name()), errorMsg.capture());
         assertTrue(errorMsg.getValue().contains(PipelineTaskStatus.FAILED.name()), errorMsg.getValue());
         // 门禁在读取产物本体之前：不读对象、不进切片管线
@@ -339,7 +339,7 @@ class ChunkTaskRunnerTest {
 
         runner.run(70L);
 
-        verify(pipelineTaskDbService).finish(eq(70L), eq(PipelineTaskStatus.FAILED.name()),
+        verify(pipelineTaskDbService).finish(eq(70L), eq(PipelineTaskStatus.FAILED),
                 eq(PipelineTaskErrorCode.CHUNK_FAILED.name()),
                 eq("任务未带切片策略快照或快照已损坏，无法切片"));
         // 守卫在读取上游产物本体之前：坏快照不读对象、不进管线
@@ -359,7 +359,7 @@ class ChunkTaskRunnerTest {
 
         runner.run(70L);
 
-        verify(pipelineTaskDbService).finish(eq(70L), eq(PipelineTaskStatus.FAILED.name()),
+        verify(pipelineTaskDbService).finish(eq(70L), eq(PipelineTaskStatus.FAILED),
                 eq(PipelineTaskErrorCode.CHUNK_FAILED.name()),
                 eq("任务未带切片策略快照或快照已损坏，无法切片"));
         verify(chunker, never()).chunk(any());
@@ -382,7 +382,7 @@ class ChunkTaskRunnerTest {
 
         runner.run(70L);
 
-        verify(pipelineTaskDbService).finish(eq(70L), eq(PipelineTaskStatus.FAILED.name()),
+        verify(pipelineTaskDbService).finish(eq(70L), eq(PipelineTaskStatus.FAILED),
                 eq(PipelineTaskErrorCode.CHUNK_EMPTY.name()), any());
         verify(fileStorage, never()).putObject(any(byte[].class));
         // IService 的 save/saveBatch 为默认方法，never+匹配器会触发 InvalidUseOfMatchers，用无交互断言
@@ -418,7 +418,7 @@ class ChunkTaskRunnerTest {
         ArgumentCaptor<ChunkContext> contextCaptor = ArgumentCaptor.forClass(ChunkContext.class);
         verify(chunker).chunk(contextCaptor.capture());
         assertNull(contextCaptor.getValue().getDocument());
-        verify(pipelineTaskDbService).finish(70L, PipelineTaskStatus.SUCCESS.name(), null, null);
+        verify(pipelineTaskDbService).finish(70L, PipelineTaskStatus.SUCCESS, null, null);
     }
 
     @Test

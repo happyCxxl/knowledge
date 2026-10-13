@@ -175,7 +175,7 @@ class StructureTaskRunnerTest {
         assertEquals(StorageType.MINIO.getCode(), captor.getValue().getStorageType());
         assertEquals(SOURCE_ID, captor.getValue().getStorageSourceId());
         assertEquals("artifacts", captor.getValue().getBucket());
-        verify(pipelineTaskDbService).finish(60L, PipelineTaskStatus.SUCCESS.name(), null, null);
+        verify(pipelineTaskDbService).finish(60L, PipelineTaskStatus.SUCCESS, null, null);
         verify(pipelineTaskDbService).updateProductId(60L, 70L);
     }
 
@@ -190,7 +190,7 @@ class StructureTaskRunnerTest {
         runner.run(60L);
 
         ArgumentCaptor<String> errorMsg = ArgumentCaptor.forClass(String.class);
-        verify(pipelineTaskDbService).finish(eq(60L), eq(PipelineTaskStatus.FAILED.name()),
+        verify(pipelineTaskDbService).finish(eq(60L), eq(PipelineTaskStatus.FAILED),
                 eq(PipelineTaskErrorCode.STRUCTURE_FAILED.name()), errorMsg.capture());
         assertTrue(errorMsg.getValue().contains(PipelineTaskStatus.FAILED.name()), errorMsg.getValue());
         // 门禁在读取产物本体之前：不读对象、不进组装管线
@@ -220,7 +220,7 @@ class StructureTaskRunnerTest {
 
         // 部分成功在放行集内：产物照常落库、任务落成功终态
         verify(pipelineProductDbService).save(any(KbPipelineProduct.class));
-        verify(pipelineTaskDbService).finish(60L, PipelineTaskStatus.SUCCESS.name(), null, null);
+        verify(pipelineTaskDbService).finish(60L, PipelineTaskStatus.SUCCESS, null, null);
     }
 
     @Test
@@ -240,7 +240,7 @@ class StructureTaskRunnerTest {
 
         runner.run(60L);
 
-        verify(pipelineTaskDbService).finish(eq(60L), eq(PipelineTaskStatus.FAILED.name()),
+        verify(pipelineTaskDbService).finish(eq(60L), eq(PipelineTaskStatus.FAILED),
                 eq(PipelineTaskErrorCode.TASK_STORAGE_MISMATCH.name()), any());
         verify(fileStorage, never()).putObject(any(byte[].class));
         verify(pipelineProductDbService, never()).save(any());
@@ -261,7 +261,7 @@ class StructureTaskRunnerTest {
 
         runner.run(60L);
 
-        verify(pipelineTaskDbService).finish(eq(60L), eq(PipelineTaskStatus.FAILED.name()),
+        verify(pipelineTaskDbService).finish(eq(60L), eq(PipelineTaskStatus.FAILED),
                 eq(PipelineTaskErrorCode.STRUCTURE_EMPTY.name()), any());
         verify(pipelineProductDbService, never()).save(any());
         verify(fileStorage, never()).putObject(any(byte[].class));
@@ -276,7 +276,7 @@ class StructureTaskRunnerTest {
         runner.run(60L);
 
         // 上游引用缺失与"空树"、"上游不可读"三类失败原因对用户可区分
-        verify(pipelineTaskDbService).finish(eq(60L), eq(PipelineTaskStatus.FAILED.name()),
+        verify(pipelineTaskDbService).finish(eq(60L), eq(PipelineTaskStatus.FAILED),
                 eq(PipelineTaskErrorCode.TASK_UPSTREAM_MISSING.name()), any());
         verify(fileStorage, never()).getObject(any());
     }
@@ -294,7 +294,7 @@ class StructureTaskRunnerTest {
         runner.run(60L);
 
         ArgumentCaptor<String> errorMsg = ArgumentCaptor.forClass(String.class);
-        verify(pipelineTaskDbService).finish(eq(60L), eq(PipelineTaskStatus.FAILED.name()),
+        verify(pipelineTaskDbService).finish(eq(60L), eq(PipelineTaskStatus.FAILED),
                 eq(PipelineTaskErrorCode.STRUCTURE_FAILED.name()), errorMsg.capture());
         // 无消息的异常不落 "null"，退化为类名，不看日志也能判断异常类型
         assertEquals("IllegalStateException", errorMsg.getValue());
@@ -313,7 +313,7 @@ class StructureTaskRunnerTest {
         runner.run(60L);
 
         ArgumentCaptor<String> errorMsg = ArgumentCaptor.forClass(String.class);
-        verify(pipelineTaskDbService).finish(eq(60L), eq(PipelineTaskStatus.FAILED.name()),
+        verify(pipelineTaskDbService).finish(eq(60L), eq(PipelineTaskStatus.FAILED),
                 eq(PipelineTaskErrorCode.STRUCTURE_UPSTREAM_UNREADABLE.name()), errorMsg.capture());
         // 业务异常（上游文件已不存在）按"上游不可读"归口，且直接用它的原因文案
         assertEquals(ErrorCode.FILE_NOT_FOUND.getMessage(), errorMsg.getValue());
@@ -329,7 +329,7 @@ class StructureTaskRunnerTest {
         runner.run(60L);
 
         ArgumentCaptor<String> errorMsg = ArgumentCaptor.forClass(String.class);
-        verify(pipelineTaskDbService).finish(eq(60L), eq(PipelineTaskStatus.FAILED.name()),
+        verify(pipelineTaskDbService).finish(eq(60L), eq(PipelineTaskStatus.FAILED),
                 eq(PipelineTaskErrorCode.STRUCTURE_UPSTREAM_UNREADABLE.name()), errorMsg.capture());
         assertEquals("上游解析产物读取失败: IllegalStateException", errorMsg.getValue());
     }

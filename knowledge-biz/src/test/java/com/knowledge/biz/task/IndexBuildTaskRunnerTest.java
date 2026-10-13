@@ -169,7 +169,7 @@ class IndexBuildTaskRunnerTest {
 
         assertEquals(IndexVersionStatus.FAILED.name(), version.getStatus());
         assertTrue(version.getBuildError().contains("缺少组合产物"), version.getBuildError());
-        verify(pipelineTaskDbService).finish(1L, PipelineTaskStatus.FAILED.name(),
+        verify(pipelineTaskDbService).finish(1L, PipelineTaskStatus.FAILED,
                 PipelineTaskErrorCode.INDEX_INCOMPLETE.name(), version.getBuildError());
         verify(milvusIndexPort, never()).ensureCollection(anyString(), any(Integer.class));
         verify(milvusIndexPort, never()).listChunkIds(anyString());
@@ -190,7 +190,7 @@ class IndexBuildTaskRunnerTest {
 
         assertEquals(IndexVersionStatus.FAILED.name(), version.getStatus());
         assertTrue(version.getBuildError().contains("血统与组合预处理策略不符"), version.getBuildError());
-        verify(pipelineTaskDbService).finish(1L, PipelineTaskStatus.FAILED.name(),
+        verify(pipelineTaskDbService).finish(1L, PipelineTaskStatus.FAILED,
                 PipelineTaskErrorCode.INDEX_INCOMPLETE.name(), version.getBuildError());
     }
 
@@ -209,7 +209,7 @@ class IndexBuildTaskRunnerTest {
 
         assertEquals(IndexVersionStatus.FAILED.name(), version.getStatus());
         assertTrue(version.getBuildError().contains("维度不一致"), version.getBuildError());
-        verify(pipelineTaskDbService).finish(1L, PipelineTaskStatus.FAILED.name(),
+        verify(pipelineTaskDbService).finish(1L, PipelineTaskStatus.FAILED,
                 PipelineTaskErrorCode.INDEX_DIMENSION_MISMATCH.name(), version.getBuildError());
     }
 
@@ -231,7 +231,7 @@ class IndexBuildTaskRunnerTest {
         verify(milvusIndexPort, never()).drop(anyString());
         assertEquals(IndexVersionStatus.FAILED.name(), version.getStatus());
         assertTrue(version.getBuildError().contains("一致性校验失败"), version.getBuildError());
-        verify(pipelineTaskDbService).finish(1L, PipelineTaskStatus.FAILED.name(),
+        verify(pipelineTaskDbService).finish(1L, PipelineTaskStatus.FAILED,
                 PipelineTaskErrorCode.INDEX_CONSISTENCY_FAILED.name(), version.getBuildError());
         verify(indexSetService, never()).publish(anyLong());
     }
@@ -252,7 +252,7 @@ class IndexBuildTaskRunnerTest {
 
         assertEquals(IndexVersionStatus.FAILED.name(), version.getStatus());
         assertTrue(version.getBuildError().contains("集合初始化失败"), version.getBuildError());
-        verify(pipelineTaskDbService).finish(1L, PipelineTaskStatus.FAILED.name(),
+        verify(pipelineTaskDbService).finish(1L, PipelineTaskStatus.FAILED,
                 PipelineTaskErrorCode.INDEX_BUILD_FAILED.name(), "维度不一致");
     }
 
@@ -273,7 +273,7 @@ class IndexBuildTaskRunnerTest {
         assertNotNull(version.getValidatedAt());
         assertEquals(1, version.getChunkCount());
         assertEquals(1, version.getVectorCount());
-        verify(pipelineTaskDbService).finish(1L, PipelineTaskStatus.SUCCESS.name(), null, null);
+        verify(pipelineTaskDbService).finish(1L, PipelineTaskStatus.SUCCESS, null, null);
         verify(indexSetService).publish(100L);
     }
 
@@ -291,7 +291,7 @@ class IndexBuildTaskRunnerTest {
         runner.run(1L);
 
         assertEquals(IndexVersionStatus.READY.name(), version.getStatus());
-        verify(pipelineTaskDbService).finish(1L, PipelineTaskStatus.SUCCESS.name(), null, null);
+        verify(pipelineTaskDbService).finish(1L, PipelineTaskStatus.SUCCESS, null, null);
         verify(indexSetService, never()).publish(anyLong());
     }
 
@@ -343,7 +343,7 @@ class IndexBuildTaskRunnerTest {
         assertEquals(IndexVersionStatus.READY.name(), version.getStatus());
         assertEquals(1, version.getChunkCount());
         assertEquals(1, version.getVectorCount());
-        verify(pipelineTaskDbService).finish(1L, PipelineTaskStatus.SUCCESS.name(), null, null);
+        verify(pipelineTaskDbService).finish(1L, PipelineTaskStatus.SUCCESS, null, null);
         verify(indexSetService, never()).publish(anyLong());
     }
 
@@ -372,7 +372,7 @@ class IndexBuildTaskRunnerTest {
         runner.run(1L);
 
         assertEquals(IndexVersionStatus.READY.name(), version.getStatus());
-        verify(pipelineTaskDbService).finish(1L, PipelineTaskStatus.SUCCESS.name(), null, null);
+        verify(pipelineTaskDbService).finish(1L, PipelineTaskStatus.SUCCESS, null, null);
         verify(indexSetService, never()).publish(anyLong());
     }
 }

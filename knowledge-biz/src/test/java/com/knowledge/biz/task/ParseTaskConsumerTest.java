@@ -136,7 +136,7 @@ class ParseTaskConsumerTest {
         consumer.stop();
         release.countDown();
 
-        verify(pipelineTaskDbService).finish(eq(1L), eq(PipelineTaskStatus.FAILED.name()),
+        verify(pipelineTaskDbService).finish(eq(1L), eq(PipelineTaskStatus.FAILED),
                 eq(PipelineTaskErrorCode.TASK_SHUTDOWN_INTERRUPTED.name()), eq("服务停机中断，任务未完成"));
     }
 
@@ -155,7 +155,7 @@ class ParseTaskConsumerTest {
         Thread.sleep(500);
         consumer.stop();
 
-        verify(pipelineTaskDbService, never()).finish(any(), eq(PipelineTaskStatus.FAILED.name()),
+        verify(pipelineTaskDbService, never()).finish(any(), eq(PipelineTaskStatus.FAILED),
                 eq(PipelineTaskErrorCode.TASK_SHUTDOWN_INTERRUPTED.name()), anyString());
     }
 
@@ -176,8 +176,8 @@ class ParseTaskConsumerTest {
 
         // 停机只回写在跑任务：未被分发的 QUEUED 任务不受影响
         verify(runner, never()).run(2L);
-        verify(pipelineTaskDbService, never()).finish(eq(2L), anyString(), anyString(), anyString());
-        verify(pipelineTaskDbService).finish(eq(1L), eq(PipelineTaskStatus.FAILED.name()),
+        verify(pipelineTaskDbService, never()).finish(eq(2L), any(), anyString(), anyString());
+        verify(pipelineTaskDbService).finish(eq(1L), eq(PipelineTaskStatus.FAILED),
                 eq(PipelineTaskErrorCode.TASK_SHUTDOWN_INTERRUPTED.name()), eq("服务停机中断，任务未完成"));
     }
 }

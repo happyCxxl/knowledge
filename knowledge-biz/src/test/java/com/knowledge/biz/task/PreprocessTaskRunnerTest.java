@@ -208,7 +208,7 @@ class PreprocessTaskRunnerTest {
         assertEquals(StorageType.MINIO.getCode(), productCaptor.getValue().getStorageType());
         assertEquals("artifacts", productCaptor.getValue().getBucket());
 
-        verify(pipelineTaskDbService).finish(60L, PipelineTaskStatus.SUCCESS.name(), null, null);
+        verify(pipelineTaskDbService).finish(60L, PipelineTaskStatus.SUCCESS, null, null);
         verify(pipelineTaskDbService).updateProductId(60L, 70L);
         verify(stepLogDbService, times(9)).save(any());
     }
@@ -252,7 +252,7 @@ class PreprocessTaskRunnerTest {
 
         runner.run(60L);
 
-        verify(pipelineTaskDbService).finish(eq(60L), eq(PipelineTaskStatus.FAILED.name()),
+        verify(pipelineTaskDbService).finish(eq(60L), eq(PipelineTaskStatus.FAILED),
                 eq(PipelineTaskErrorCode.TASK_UPSTREAM_MISSING.name()), any());
         verify(fileStorage, never()).putObject(any(byte[].class));
     }
@@ -269,7 +269,7 @@ class PreprocessTaskRunnerTest {
         runner.run(60L);
 
         ArgumentCaptor<String> errorMsg = ArgumentCaptor.forClass(String.class);
-        verify(pipelineTaskDbService).finish(eq(60L), eq(PipelineTaskStatus.FAILED.name()),
+        verify(pipelineTaskDbService).finish(eq(60L), eq(PipelineTaskStatus.FAILED),
                 eq(PipelineTaskErrorCode.PREPROCESS_FAILED.name()), errorMsg.capture());
         assertTrue(errorMsg.getValue().contains(PipelineTaskStatus.FAILED.name()), errorMsg.getValue());
         // 门禁在读取产物本体之前：不读对象、不进预处理管线
@@ -289,7 +289,7 @@ class PreprocessTaskRunnerTest {
 
         runner.run(60L);
 
-        verify(pipelineTaskDbService).finish(eq(60L), eq(PipelineTaskStatus.FAILED.name()),
+        verify(pipelineTaskDbService).finish(eq(60L), eq(PipelineTaskStatus.FAILED),
                 eq(PipelineTaskErrorCode.PREPROCESS_FAILED.name()),
                 eq("任务未带预处理策略快照或快照已损坏，无法预处理"));
         // 守卫在读取上游产物本体之前：坏快照不读对象、不进管线
@@ -313,7 +313,7 @@ class PreprocessTaskRunnerTest {
 
         runner.run(60L);
 
-        verify(pipelineTaskDbService).finish(eq(60L), eq(PipelineTaskStatus.FAILED.name()),
+        verify(pipelineTaskDbService).finish(eq(60L), eq(PipelineTaskStatus.FAILED),
                 eq(PipelineTaskErrorCode.PREPROCESS_EMPTY.name()), any());
         verify(fileStorage, never()).putObject(any(byte[].class));
         verify(pipelineProductDbService, never()).save(any());
