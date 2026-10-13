@@ -106,8 +106,8 @@ public class ParseTaskRunner {
         KbPipelineProduct product = productPersistence.persist(task, PipelineStage.PARSE, null,
                 JsonUtil.toJsonStr(parseResult.getCapabilitySnapshot()), parseResult);
         stepLogPersistence.save(task.getId(), outcome.getStepLogs());
-        log.info("===> ParseTaskRunner 解析完成, taskId={}, fileResultId={}, status={}, artifactId={}",
-                task.getId(), fileResult.getId(), outcome.getSuggestedStatus(), product.getArtifactId());
+        TaskRunnerSupport.logPersisted(log, "ParseTaskRunner 解析完成", task, fileResult.getId(), outcome,
+                product.getArtifactId());
     }
 
     /** 失败终态回写：统一留痕（带 taskId + 错误码）。 */

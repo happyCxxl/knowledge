@@ -148,11 +148,11 @@ public class AssemblerPipeline implements DocumentAssemblerPort {
                     : "无任何可组装元素（空树；其中 " + normalize.unmappedElementCount() + " 个元素因类型未识别被跳过）";
             outcome.fail(PipelineTaskErrorCode.STRUCTURE_EMPTY.name(), emptyMessage);
         } else {
-            outcome.setSuggestedStatus(PipelineTaskStatus.SUCCESS.name());
+            outcome.setSuggestedStatus(PipelineTaskStatus.SUCCESS);
         }
         log.info("===> AssemblerPipeline 组装完成, taskId={}, fileResultId={}, elements={}, status={}, warningCount={}",
                 context.getTaskId(), context.getFileResultId(), document.getElements().size(),
-                outcome.getSuggestedStatus(), document.getQuality().getWarnings().size());
+                outcome.getSuggestedStatus().name(), document.getQuality().getWarnings().size());
         for (QualityWarning warning : document.getQuality().getWarnings()) {
             log.warn("===> AssemblerPipeline 组装告警, taskId={}, code={}, message={}",
                     context.getTaskId(), warning.getCode(), warning.getMessage());

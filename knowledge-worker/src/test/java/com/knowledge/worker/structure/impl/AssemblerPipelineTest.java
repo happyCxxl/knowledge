@@ -141,7 +141,7 @@ class AssemblerPipelineTest {
                 parseResult(paragraph("p1", "投标保证金为人民币叁佰万元整。"), custom("u1", UNKNOWN_TYPE, "图注内容")),
                 context());
 
-        assertEquals(PipelineTaskStatus.SUCCESS.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskStatus.SUCCESS, outcome.getSuggestedStatus());
         List<UnifiedElement> elements = outcome.getDocument().getElements();
         assertEquals(1, elements.size());
         assertEquals("投标保证金为人民币叁佰万元整。", elements.getFirst().getText());
@@ -167,7 +167,7 @@ class AssemblerPipelineTest {
         AssembleOutcome outcome = pipeline.assemble(
                 parseResult(custom("u1", UNKNOWN_TYPE, "图注内容")), context());
 
-        assertEquals(PipelineTaskStatus.FAILED.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskStatus.FAILED, outcome.getSuggestedStatus());
         assertEquals(PipelineTaskErrorCode.STRUCTURE_EMPTY.name(), outcome.getErrorCode());
         assertTrue(outcome.getErrorMsg().contains("类型未识别"), outcome.getErrorMsg());
     }
@@ -177,7 +177,7 @@ class AssemblerPipelineTest {
         AssembleOutcome outcome = pipeline.assemble(
                 parseResult(paragraph("p1", "正文内容一"), paragraph("p2", "正文内容二")), context());
 
-        assertEquals(PipelineTaskStatus.SUCCESS.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskStatus.SUCCESS, outcome.getSuggestedStatus());
         assertEquals(0, warningMessages(outcome, QualityWarningCode.ELEMENT_TYPE_UNMAPPED).size());
     }
 
@@ -187,7 +187,7 @@ class AssemblerPipelineTest {
         AssembleOutcome outcome = pipeline.assemble(
                 parseResult(XLSX_MIME, sheetTable("t-1", "评分表", true)), context());
 
-        assertEquals(PipelineTaskStatus.SUCCESS.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskStatus.SUCCESS, outcome.getSuggestedStatus());
         assertEquals(0, warningMessages(outcome, QualityWarningCode.PROVENANCE_MISSING).size());
     }
 

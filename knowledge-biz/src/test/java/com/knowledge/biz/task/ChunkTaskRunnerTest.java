@@ -158,7 +158,7 @@ class ChunkTaskRunnerTest {
 
     private ChunkOutcome successOutcome() {
         ChunkOutcome outcome = new ChunkOutcome();
-        outcome.setSuggestedStatus(PipelineTaskStatus.SUCCESS.name());
+        outcome.setSuggestedStatus(PipelineTaskStatus.SUCCESS);
         ChunkSet chunkSet = new ChunkSet();
         chunkSet.setChunkSetId("cs-doc-10-chunk-hybrid-v1");
         chunkSet.setChunkCount(2);
@@ -375,7 +375,7 @@ class ChunkTaskRunnerTest {
         when(fileStorage.getObject(ObjectRef.of(SOURCE_ID, StorageType.MINIO.getCode(), "artifacts", "abc".repeat(22))))
                 .thenReturn(json(view()));
         ChunkOutcome outcome = new ChunkOutcome();
-        outcome.setSuggestedStatus(PipelineTaskStatus.FAILED.name());
+        outcome.setSuggestedStatus(PipelineTaskStatus.FAILED);
         outcome.setErrorCode(PipelineTaskErrorCode.CHUNK_EMPTY.name());
         outcome.setErrorMsg("无可切内容（元素均被剔除或无文本）");
         when(chunker.chunk(any(ChunkContext.class))).thenReturn(outcome);

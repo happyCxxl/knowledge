@@ -68,7 +68,7 @@ class EmbedPipelineTest {
 
         EmbedOutcome outcome = pipeline.embed(context);
 
-        assertEquals(PipelineTaskStatus.FAILED.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskStatus.FAILED, outcome.getSuggestedStatus());
         assertEquals(PipelineTaskErrorCode.EMBED_MODEL_INCOMPATIBLE.name(), outcome.getErrorCode());
         assertEquals(0, gateway.calls);
     }
@@ -83,7 +83,7 @@ class EmbedPipelineTest {
         EmbedOutcome outcome = pipeline.embed(context);
 
         // 告警只标记不阻断：跳过窗口校验产生告警 → PARTIAL_SUCCESS（平台口径：PARTIAL_SUCCESS 保留告警）
-        assertEquals(PipelineTaskStatus.PARTIAL_SUCCESS.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskStatus.PARTIAL_SUCCESS, outcome.getSuggestedStatus());
         assertTrue(outcome.getWarnings().stream().anyMatch(w -> w.contains("不可推算")));
         assertEquals(1, gateway.calls);
     }
@@ -92,7 +92,7 @@ class EmbedPipelineTest {
     void emptyChunkSetShouldFailEmbedEmpty() {
         EmbedOutcome outcome = pipeline.embed(context(new ChunkSet(), strategy("text-embedding-v4", true), List.of()));
 
-        assertEquals(PipelineTaskStatus.FAILED.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskStatus.FAILED, outcome.getSuggestedStatus());
         assertEquals(PipelineTaskErrorCode.EMBED_EMPTY.name(), outcome.getErrorCode());
     }
 
@@ -106,7 +106,7 @@ class EmbedPipelineTest {
 
         EmbedOutcome outcome = pipeline.embed(context);
 
-        assertEquals(PipelineTaskStatus.SUCCESS.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskStatus.SUCCESS, outcome.getSuggestedStatus());
         assertEquals(2, outcome.getEmbeddingSet().getRecordCount());
         assertEquals(EmbedRecordStatus.SKIPPED.name(), outcome.getEmbeddingSet().getRecords().get(0).getStatus());
         assertEquals(1, gateway.calls);
@@ -121,7 +121,7 @@ class EmbedPipelineTest {
 
         EmbedOutcome outcome = pipeline.embed(context);
 
-        assertEquals(PipelineTaskStatus.SUCCESS.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskStatus.SUCCESS, outcome.getSuggestedStatus());
         assertEquals(EmbedRecordStatus.SKIPPED.name(), outcome.getEmbeddingSet().getRecords().get(0).getStatus());
         assertEquals(List.of("有内容"), gateway.lastTexts());
     }
@@ -136,7 +136,7 @@ class EmbedPipelineTest {
 
         EmbedOutcome outcome = pipeline.embed(context);
 
-        assertEquals(PipelineTaskStatus.SUCCESS.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskStatus.SUCCESS, outcome.getSuggestedStatus());
         assertEquals(1, gateway.calls);
         assertEquals(0, outcome.getEmbeddingSet().getCachedCount());
         assertEquals("es-cs-doc-1-embed-default-v1", outcome.getEmbeddingSet().getEmbeddingSetId());
@@ -155,7 +155,7 @@ class EmbedPipelineTest {
 
         EmbedOutcome outcome = pipeline.embed(context);
 
-        assertEquals(PipelineTaskStatus.SUCCESS.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskStatus.SUCCESS, outcome.getSuggestedStatus());
         assertEquals(1, gateway.calls); // 只有第二段走网关
         assertEquals(List.of("第二段"), gateway.lastTexts());
         EmbeddingSet set = outcome.getEmbeddingSet();
@@ -177,7 +177,7 @@ class EmbedPipelineTest {
 
         EmbedOutcome outcome = pipeline.embed(context);
 
-        assertEquals(PipelineTaskStatus.SUCCESS.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskStatus.SUCCESS, outcome.getSuggestedStatus());
         assertEquals(0, gateway.calls); // 全部回溯命中
         assertEquals(2, outcome.getEmbeddingSet().getCachedCount());
         assertEquals(EmbedRecordStatus.CACHED.name(), outcome.getEmbeddingSet().getRecords().get(1).getStatus());
@@ -193,7 +193,7 @@ class EmbedPipelineTest {
 
         assertEquals(0, gateway.calls);
         assertEquals(1, outcome.getEmbeddingSet().getCachedCount());
-        assertEquals(PipelineTaskStatus.SUCCESS.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskStatus.SUCCESS, outcome.getSuggestedStatus());
     }
 
     @Test
@@ -220,7 +220,7 @@ class EmbedPipelineTest {
 
         EmbedOutcome outcome = pipeline.embed(context);
 
-        assertEquals(PipelineTaskStatus.FAILED.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskStatus.FAILED, outcome.getSuggestedStatus());
         assertEquals(PipelineTaskErrorCode.EMBED_CONSISTENCY_FAILED.name(), outcome.getErrorCode());
     }
 
@@ -233,7 +233,7 @@ class EmbedPipelineTest {
         EmbedOutcome outcome = pipeline.embed(context);
 
         assertEquals(2, gateway.calls);
-        assertEquals(PipelineTaskStatus.SUCCESS.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskStatus.SUCCESS, outcome.getSuggestedStatus());
     }
 
     @Test
@@ -243,7 +243,7 @@ class EmbedPipelineTest {
 
         EmbedOutcome outcome = pipeline.embed(context);
 
-        assertEquals(PipelineTaskStatus.FAILED.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskStatus.FAILED, outcome.getSuggestedStatus());
         assertEquals(PipelineTaskErrorCode.EMBED_FAILED.name(), outcome.getErrorCode());
         assertEquals("任务未带向量化策略快照，无法向量化", outcome.getErrorMsg());
         assertNull(outcome.getEmbeddingSet());
@@ -258,7 +258,7 @@ class EmbedPipelineTest {
 
         EmbedOutcome outcome = pipeline.embed(context);
 
-        assertEquals(PipelineTaskStatus.FAILED.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskStatus.FAILED, outcome.getSuggestedStatus());
         assertEquals(PipelineTaskErrorCode.EMBED_FAILED.name(), outcome.getErrorCode());
         assertEquals(EmbedRecordStatus.FAILED.name(), outcome.getEmbeddingSet().getRecords().get(0).getStatus());
     }
@@ -275,7 +275,7 @@ class EmbedPipelineTest {
 
         EmbedOutcome outcome = pipeline.embed(context);
 
-        assertEquals(PipelineTaskStatus.PARTIAL_SUCCESS.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskStatus.PARTIAL_SUCCESS, outcome.getSuggestedStatus());
         assertEquals(EmbedRecordStatus.SUCCESS.name(), outcome.getEmbeddingSet().getRecords().get(0).getStatus());
         assertEquals(EmbedRecordStatus.FAILED.name(), outcome.getEmbeddingSet().getRecords().get(1).getStatus());
     }

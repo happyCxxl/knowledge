@@ -149,7 +149,7 @@ class PreprocessTaskRunnerTest {
 
     private PreprocessOutcome successOutcome() {
         PreprocessOutcome outcome = new PreprocessOutcome();
-        outcome.setSuggestedStatus(PipelineTaskStatus.SUCCESS.name());
+        outcome.setSuggestedStatus(PipelineTaskStatus.SUCCESS);
         PreprocessView view = new PreprocessView();
         view.setViewId("pv-doc-10-preproc-default-v1");
         outcome.setView(view);
@@ -306,7 +306,7 @@ class PreprocessTaskRunnerTest {
         when(fileStorage.getObject(ObjectRef.of(SOURCE_ID, StorageType.MINIO.getCode(), "artifacts", "abc".repeat(22))))
                 .thenReturn(Objects.requireNonNull(JsonUtil.toJsonStr(document())).getBytes(StandardCharsets.UTF_8));
         PreprocessOutcome outcome = new PreprocessOutcome();
-        outcome.setSuggestedStatus(PipelineTaskStatus.FAILED.name());
+        outcome.setSuggestedStatus(PipelineTaskStatus.FAILED);
         outcome.setErrorCode(PipelineTaskErrorCode.PREPROCESS_EMPTY.name());
         outcome.setErrorMsg("上游统一结构无任何可处理元素");
         when(preprocessor.preprocess(any(PreprocessContext.class))).thenReturn(outcome);

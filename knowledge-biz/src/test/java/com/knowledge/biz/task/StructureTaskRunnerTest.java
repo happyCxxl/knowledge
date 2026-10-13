@@ -125,7 +125,7 @@ class StructureTaskRunnerTest {
 
     private AssembleOutcome successOutcome() {
         AssembleOutcome outcome = new AssembleOutcome();
-        outcome.setSuggestedStatus(PipelineTaskStatus.SUCCESS.name());
+        outcome.setSuggestedStatus(PipelineTaskStatus.SUCCESS);
         outcome.setDocument(new UnifiedDocument());
         return outcome;
     }
@@ -254,7 +254,7 @@ class StructureTaskRunnerTest {
         when(fileStorage.getObject(ObjectRef.of(SOURCE_ID, StorageType.MINIO.getCode(), "artifacts", "abc".repeat(22))))
                 .thenReturn(JsonUtil.toJsonStr(new ParseResult()).getBytes(StandardCharsets.UTF_8));
         AssembleOutcome outcome = new AssembleOutcome();
-        outcome.setSuggestedStatus(PipelineTaskStatus.FAILED.name());
+        outcome.setSuggestedStatus(PipelineTaskStatus.FAILED);
         outcome.setErrorCode(PipelineTaskErrorCode.STRUCTURE_EMPTY.name());
         outcome.setErrorMsg("无任何可组装元素（空树）");
         when(documentAssembler.assemble(any(ParseResult.class), any(AssembleContext.class))).thenReturn(outcome);

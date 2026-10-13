@@ -58,8 +58,8 @@ public class StorageSourceServiceImpl implements StorageSourceService {
     private static final String AUDIT_OBJECT_TYPE = AuditObjectType.STORAGE_SOURCE.key();
 
     /** 影响面统计的任务状态：未落终态、切换后不可继续执行的任务 */
-    private static final List<String> IMPACT_STATUSES =
-            List.of(PipelineTaskStatus.QUEUED.name(), PipelineTaskStatus.RUNNING.name());
+    private static final List<PipelineTaskStatus> IMPACT_STATUSES =
+            List.of(PipelineTaskStatus.QUEUED, PipelineTaskStatus.RUNNING);
 
     private final KbStorageSourceDbService storageSourceDbService;
     private final KbPipelineTaskDbService pipelineTaskDbService;

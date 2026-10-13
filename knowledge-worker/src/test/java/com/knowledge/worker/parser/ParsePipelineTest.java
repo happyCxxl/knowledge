@@ -272,7 +272,7 @@ class ParsePipelineTest {
 
         ParseOutcome outcome = pipeline.run(context("application/pdf"));
 
-        assertEquals(PipelineTaskStatus.SUCCESS.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskStatus.SUCCESS, outcome.getSuggestedStatus());
         assertEquals(0, outcome.getFailedUnits());
         assertNotNull(outcome.getParseResult().getCapabilitySnapshot());
         assertEquals(3, outcome.getStepLogs().size());
@@ -291,7 +291,7 @@ class ParsePipelineTest {
 
         ParseOutcome outcome = pipeline.run(context("application/pdf"));
 
-        assertEquals(PipelineTaskStatus.PARTIAL_SUCCESS.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskStatus.PARTIAL_SUCCESS, outcome.getSuggestedStatus());
         assertEquals(1, outcome.getFailedUnits());
         assertEquals(1, outcome.getParseResult().getQuality().getScannedPages().size());
         assertEquals(1, outcome.getParseResult().getQuality().getWarnings().size());
@@ -304,7 +304,7 @@ class ParsePipelineTest {
 
         ParseOutcome outcome = pipeline.run(context("application/pdf"));
 
-        assertEquals(PipelineTaskStatus.FAILED.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskStatus.FAILED, outcome.getSuggestedStatus());
         assertEquals(PipelineTaskErrorCode.SCANNED_UNSUPPORTED.name(), outcome.getErrorCode());
     }
 
@@ -321,7 +321,7 @@ class ParsePipelineTest {
 
         ParseOutcome outcome = pipeline.run(context("application/pdf"));
 
-        assertEquals(PipelineTaskStatus.FAILED.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskStatus.FAILED, outcome.getSuggestedStatus());
         assertEquals(PipelineTaskErrorCode.RATIO_BELOW_THRESHOLD.name(), outcome.getErrorCode());
     }
 
@@ -333,7 +333,7 @@ class ParsePipelineTest {
 
         ParseOutcome outcome = pipeline.run(context("application/pdf"));
 
-        assertEquals(PipelineTaskStatus.PARTIAL_SUCCESS.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskStatus.PARTIAL_SUCCESS, outcome.getSuggestedStatus());
         assertEquals(1, outcome.getFailedUnits());
         assertNull(outcome.getErrorCode(), () -> "errorCode=" + outcome.getErrorCode());
     }
@@ -348,7 +348,7 @@ class ParsePipelineTest {
 
         ParseOutcome outcome = pipeline.run(context("application/pdf"));
 
-        assertEquals(PipelineTaskStatus.FAILED.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskStatus.FAILED, outcome.getSuggestedStatus());
         assertEquals(PipelineTaskErrorCode.RATIO_BELOW_THRESHOLD.name(), outcome.getErrorCode());
     }
 
@@ -359,7 +359,7 @@ class ParsePipelineTest {
 
         ParseOutcome outcome = pipeline.run(context("application/pdf"));
 
-        assertEquals(PipelineTaskStatus.FAILED.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskStatus.FAILED, outcome.getSuggestedStatus());
     }
 
     /** 短文档规则可关：单元门槛置 0 后回到占比口径 */
@@ -371,7 +371,7 @@ class ParsePipelineTest {
 
         ParseOutcome outcome = pipeline.run(context("application/pdf"));
 
-        assertEquals(PipelineTaskStatus.FAILED.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskStatus.FAILED, outcome.getSuggestedStatus());
     }
 
     /** 坏页比例达门槛：加一条维度汇总告警；干净文档不加 */
@@ -419,7 +419,7 @@ class ParsePipelineTest {
 
         ParseOutcome outcome = pipeline.run(context("application/pdf"));
 
-        assertEquals(PipelineTaskStatus.SUCCESS.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskStatus.SUCCESS, outcome.getSuggestedStatus());
         assertEquals(0, outcome.getFailedUnits());
         assertEquals(1, outcome.getParseResult().getQuality().getWarnings().size());
         assertEquals("TABLE_RULE_FALLBACK", outcome.getParseResult().getQuality().getWarnings().getFirst().getCode());
@@ -435,7 +435,7 @@ class ParsePipelineTest {
 
         ParseOutcome outcome = pipeline.run(context("application/pdf"));
 
-        assertEquals(PipelineTaskStatus.SUCCESS.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskStatus.SUCCESS, outcome.getSuggestedStatus());
         assertEquals(0, outcome.getFailedUnits());
         assertEquals("LAYOUT_RULE_FALLBACK", outcome.getParseResult().getQuality().getWarnings().getFirst().getCode());
     }
@@ -450,7 +450,7 @@ class ParsePipelineTest {
 
         ParseOutcome outcome = pipeline.run(context("application/pdf"));
 
-        assertEquals(PipelineTaskStatus.SUCCESS.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskStatus.SUCCESS, outcome.getSuggestedStatus());
         assertEquals(0, outcome.getFailedUnits());
         assertEquals("IMAGE_TEXT_UNRECOGNIZED", outcome.getParseResult().getQuality().getWarnings().getFirst().getCode());
     }
@@ -464,7 +464,7 @@ class ParsePipelineTest {
 
         ParseOutcome outcome = pipeline.run(context("application/pdf"));
 
-        assertEquals(PipelineTaskStatus.SUCCESS.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskStatus.SUCCESS, outcome.getSuggestedStatus());
         assertEquals(0, outcome.getParseResult().getQuality().getWarnings().size());
     }
 
@@ -479,7 +479,7 @@ class ParsePipelineTest {
 
         ParseOutcome outcome = pipeline.run(context("application/pdf"));
 
-        assertEquals(PipelineTaskStatus.PARTIAL_SUCCESS.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskStatus.PARTIAL_SUCCESS, outcome.getSuggestedStatus());
         assertEquals(1, outcome.getFailedUnits());
         assertEquals(1, outcome.getParseResult().getQuality().getFailedPages().size());
         assertEquals("GARBLED_PAGE", outcome.getParseResult().getQuality().getWarnings().getFirst().getCode());
@@ -497,7 +497,7 @@ class ParsePipelineTest {
 
         ParseOutcome outcome = pipeline.run(context("application/pdf"));
 
-        assertEquals(PipelineTaskStatus.PARTIAL_SUCCESS.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskStatus.PARTIAL_SUCCESS, outcome.getSuggestedStatus());
         assertEquals(1, outcome.getFailedUnits());
         assertEquals("CID_MAPPING_FAILED_PAGE",
                 outcome.getParseResult().getQuality().getWarnings().getFirst().getCode());
@@ -515,7 +515,7 @@ class ParsePipelineTest {
 
         ParseOutcome outcome = pipeline.run(context("application/pdf"));
 
-        assertEquals(PipelineTaskStatus.SUCCESS.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskStatus.SUCCESS, outcome.getSuggestedStatus());
         assertEquals(0, outcome.getFailedUnits());
         assertEquals(1, outcome.getParseResult().getQuality().getWarnings().size());
         assertEquals("VECTOR_PAGE_SUSPECTED",
@@ -551,7 +551,7 @@ class ParsePipelineTest {
 
         ParseOutcome outcome = pipeline.run(context("application/pdf"));
 
-        assertEquals(PipelineTaskStatus.SUCCESS.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskStatus.SUCCESS, outcome.getSuggestedStatus());
         assertEquals(0, outcome.getFailedUnits());
         assertEquals(1, outcome.getParseResult().getQuality().getWarnings().size());
         assertEquals("IMAGE_PAGE_SUSPECTED", outcome.getParseResult().getQuality().getWarnings().getFirst().getCode());
@@ -568,7 +568,7 @@ class ParsePipelineTest {
 
         ParseOutcome outcome = pipeline.run(context("application/pdf"));
 
-        assertEquals(PipelineTaskStatus.SUCCESS.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskStatus.SUCCESS, outcome.getSuggestedStatus());
         assertEquals(0, outcome.getFailedUnits());
         assertEquals(1, outcome.getParseResult().getQuality().getBlankPages().size());
         assertEquals("BLANK_PAGE", outcome.getParseResult().getQuality().getWarnings().getFirst().getCode());
@@ -581,7 +581,7 @@ class ParsePipelineTest {
 
         ParseOutcome outcome = pipeline.run(context("application/pdf"));
 
-        assertEquals(PipelineTaskStatus.FAILED.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskStatus.FAILED, outcome.getSuggestedStatus());
         assertEquals(PipelineTaskErrorCode.PARSE_CORRUPTED.name(), outcome.getErrorCode());
     }
 
@@ -592,7 +592,7 @@ class ParsePipelineTest {
 
         ParseOutcome outcome = pipeline.run(context("application/pdf"));
 
-        assertEquals(PipelineTaskStatus.FAILED.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskStatus.FAILED, outcome.getSuggestedStatus());
         assertEquals(PipelineTaskErrorCode.SCANNED_UNSUPPORTED.name(), outcome.getErrorCode());
     }
 
@@ -603,7 +603,7 @@ class ParsePipelineTest {
 
         ParseOutcome outcome = pipeline.run(context("application/pdf"));
 
-        assertEquals(PipelineTaskStatus.SUCCESS.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskStatus.SUCCESS, outcome.getSuggestedStatus());
         assertEquals(0, outcome.getFailedUnits());
         assertEquals("IMAGE_PAGE_SUSPECTED", outcome.getParseResult().getQuality().getWarnings().getFirst().getCode());
     }
@@ -614,7 +614,7 @@ class ParsePipelineTest {
         ParseOutcome outcome = pipeline(fakeParser(List.of(imageOnlyUnit(1)), List.of()))
                 .run(context("application/pdf"));
 
-        assertEquals(PipelineTaskStatus.FAILED.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskStatus.FAILED, outcome.getSuggestedStatus());
         assertEquals(PipelineTaskErrorCode.SCANNED_UNSUPPORTED.name(), outcome.getErrorCode());
     }
 
@@ -625,7 +625,7 @@ class ParsePipelineTest {
 
         ParseOutcome outcome = pipeline(fakeParser(metrics, List.of())).run(context("application/pdf"));
 
-        assertEquals(PipelineTaskStatus.SUCCESS.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskStatus.SUCCESS, outcome.getSuggestedStatus());
         assertEquals(0, outcome.getFailedUnits());
         assertEquals(1, outcome.getParseResult().getQuality().getBlankPages().size());
     }
@@ -636,7 +636,7 @@ class ParsePipelineTest {
 
         ParseOutcome outcome = pipeline.run(context("application/msword"));
 
-        assertEquals(PipelineTaskStatus.FAILED.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskStatus.FAILED, outcome.getSuggestedStatus());
         assertEquals(PipelineTaskErrorCode.PARSE_FAILED.name(), outcome.getErrorCode());
     }
 }

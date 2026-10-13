@@ -128,9 +128,9 @@ public class EmbedPipeline implements EmbedderPort {
             return outcome;
         }
         outcome.setSuggestedStatus(batchResult.failedBatches > 0 || !outcome.getWarnings().isEmpty()
-                ? PipelineTaskStatus.PARTIAL_SUCCESS.name() : PipelineTaskStatus.SUCCESS.name());
+                ? PipelineTaskStatus.PARTIAL_SUCCESS : PipelineTaskStatus.SUCCESS);
         log.info("===> EmbedPipeline 向量化完成, fileResultId={}, status={}, recordCount={}, cachedCount={}, warningCount={}",
-                context.getFileResultId(), outcome.getSuggestedStatus(), records.size(),
+                context.getFileResultId(), outcome.getSuggestedStatus().name(), records.size(),
                 cachedCount, outcome.getWarnings().size());
         return outcome;
     }

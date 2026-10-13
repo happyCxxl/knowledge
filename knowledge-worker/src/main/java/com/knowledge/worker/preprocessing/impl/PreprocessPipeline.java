@@ -144,9 +144,9 @@ public class PreprocessPipeline implements PreprocessorPort {
         outcome.setStepLogs(buildStepLogs(ordered, stats, strategy, viewElements.size(),
                 outcome.getWarnings().size(), assemblyMillis));
         outcome.setSuggestedStatus(ruleFailure
-                ? PipelineTaskStatus.PARTIAL_SUCCESS.name() : PipelineTaskStatus.SUCCESS.name());
+                ? PipelineTaskStatus.PARTIAL_SUCCESS : PipelineTaskStatus.SUCCESS);
         log.info("===> PreprocessPipeline 预处理完成, fileResultId={}, elements={}, status={}, warningCount={}",
-                context.getFileResultId(), viewElements.size(), outcome.getSuggestedStatus(),
+                context.getFileResultId(), viewElements.size(), outcome.getSuggestedStatus().name(),
                 outcome.getWarnings().size());
         return outcome;
     }

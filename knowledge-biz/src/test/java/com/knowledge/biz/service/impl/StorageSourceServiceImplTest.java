@@ -343,8 +343,8 @@ class StorageSourceServiceImplTest {
     void previewShouldCountImpactWithoutPersisting() {
         when(storageSourceDbService.getById(LOCAL_ID)).thenReturn(localRow(LOCAL_ID, "本地磁盘", false));
         when(storageRouter.currentSourceId()).thenReturn(OTHER_ID);
-        when(pipelineTaskDbService.listByStatuses(List.of(PipelineTaskStatus.QUEUED.name(),
-                PipelineTaskStatus.RUNNING.name())))
+        when(pipelineTaskDbService.listByStatuses(List.of(PipelineTaskStatus.QUEUED,
+                PipelineTaskStatus.RUNNING)))
                 .thenReturn(List.of(task(10L, PipelineTaskStatus.QUEUED), task(11L, PipelineTaskStatus.RUNNING),
                         task(12L, PipelineTaskStatus.QUEUED)));
         when(chainStorageSupport.chainSourceIdsOf(List.of(10L, 11L, 12L)))
@@ -406,8 +406,8 @@ class StorageSourceServiceImplTest {
     void switchShouldPersistRegisterAndAudit() {
         when(storageSourceDbService.getById(LOCAL_ID)).thenReturn(localRow(LOCAL_ID, "本地磁盘", false));
         when(storageRouter.currentSourceId()).thenReturn(OTHER_ID);
-        when(pipelineTaskDbService.listByStatuses(List.of(PipelineTaskStatus.QUEUED.name(),
-                PipelineTaskStatus.RUNNING.name())))
+        when(pipelineTaskDbService.listByStatuses(List.of(PipelineTaskStatus.QUEUED,
+                PipelineTaskStatus.RUNNING)))
                 .thenReturn(List.of(task(10L, PipelineTaskStatus.QUEUED)));
         when(chainStorageSupport.chainSourceIdsOf(List.of(10L)))
                 .thenReturn(Map.of(10L, OTHER_ID));

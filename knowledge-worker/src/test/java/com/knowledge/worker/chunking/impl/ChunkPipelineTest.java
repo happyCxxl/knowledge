@@ -150,7 +150,7 @@ class ChunkPipelineTest {
 
         ChunkOutcome outcome = pipeline().chunk(context);
 
-        assertEquals(PipelineTaskStatus.FAILED.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskStatus.FAILED, outcome.getSuggestedStatus());
         assertEquals(PipelineTaskErrorCode.CHUNK_FAILED.name(), outcome.getErrorCode());
         assertEquals("任务未带切片策略快照，无法切片", outcome.getErrorMsg());
         assertNull(outcome.getChunkSet());
@@ -176,7 +176,7 @@ class ChunkPipelineTest {
 
         ChunkOutcome outcome = pipeline().chunk(context(view(elements), document(structures)));
 
-        assertEquals(PipelineTaskStatus.SUCCESS.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskStatus.SUCCESS, outcome.getSuggestedStatus());
         ChunkSet chunkSet = outcome.getChunkSet();
         assertEquals("cs-doc-10-chunk-hybrid-v1", chunkSet.getChunkSetId());
         assertEquals(6, outcome.getStepLogs().size());
@@ -333,7 +333,7 @@ class ChunkPipelineTest {
     void emptyViewShouldFailWithChunkEmpty() {
         ChunkOutcome outcome = pipeline().chunk(context(view(new ArrayList<>()), document(new ArrayList<>())));
 
-        assertEquals(PipelineTaskStatus.FAILED.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskStatus.FAILED, outcome.getSuggestedStatus());
         assertEquals(PipelineTaskErrorCode.CHUNK_EMPTY.name(), outcome.getErrorCode());
     }
 
@@ -344,7 +344,7 @@ class ChunkPipelineTest {
 
         ChunkOutcome outcome = pipeline().chunk(context(view(elements), document(new ArrayList<>())));
 
-        assertEquals(PipelineTaskStatus.FAILED.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskStatus.FAILED, outcome.getSuggestedStatus());
         assertEquals(PipelineTaskErrorCode.CHUNK_EMPTY.name(), outcome.getErrorCode());
     }
 
@@ -357,7 +357,7 @@ class ChunkPipelineTest {
 
         ChunkOutcome outcome = pipeline.chunk(context(view(elements), document(new ArrayList<>())));
 
-        assertEquals(PipelineTaskStatus.PARTIAL_SUCCESS.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskStatus.PARTIAL_SUCCESS, outcome.getSuggestedStatus());
         assertTrue(outcome.getWarnings().stream().anyMatch(w -> w.contains("TABLE")));
         // 正文片照产（异常只影响该切片器产物）
         assertEquals(1, outcome.getChunkSet().getChunkCount());

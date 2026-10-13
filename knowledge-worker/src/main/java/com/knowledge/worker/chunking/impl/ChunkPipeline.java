@@ -129,9 +129,9 @@ public class ChunkPipeline implements ChunkerPort {
         outcome.setChunkSet(chunkSet);
         outcome.setStepLogs(buildStepLogs(stats, strategy));
         outcome.setSuggestedStatus(ruleFailure
-                ? PipelineTaskStatus.PARTIAL_SUCCESS.name() : PipelineTaskStatus.SUCCESS.name());
+                ? PipelineTaskStatus.PARTIAL_SUCCESS : PipelineTaskStatus.SUCCESS);
         log.info("===> ChunkPipeline 切片完成, fileResultId={}, chunkCount={}, status={}, warningCount={}",
-                context.getFileResultId(), ordered.size(), outcome.getSuggestedStatus(),
+                context.getFileResultId(), ordered.size(), outcome.getSuggestedStatus().name(),
                 outcome.getWarnings().size());
         return outcome;
     }

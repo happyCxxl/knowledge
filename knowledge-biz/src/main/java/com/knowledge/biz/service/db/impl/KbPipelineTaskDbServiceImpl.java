@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.knowledge.biz.mapper.KbPipelineTaskMapper;
 import com.knowledge.biz.service.db.KbPipelineTaskDbService;
 import com.knowledge.common.domain.entity.KbPipelineTask;
+import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.enums.task.PipelineTaskStatus;
 import com.knowledge.common.utils.NullUtil;
 import com.knowledge.infra.persistence.InfraDbServiceImpl;
@@ -60,13 +61,13 @@ public class KbPipelineTaskDbServiceImpl extends InfraDbServiceImpl<KbPipelineTa
     }
 
     @Override
-    public List<KbPipelineTask> listByStatuses(List<String> statuses) {
+    public List<KbPipelineTask> listByStatuses(List<PipelineTaskStatus> statuses) {
         if (NullUtil.isNull(statuses) || statuses.isEmpty()) {
             return List.of();
         }
         LambdaQueryWrapper<KbPipelineTask> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.select(KbPipelineTask::getId, KbPipelineTask::getFileResultId, KbPipelineTask::getStatus)
-                .in(KbPipelineTask::getStatus, statuses)
+                .in(KbPipelineTask::getStatus, statuses.stream().map(Enum::name).toList())
                 .orderByAsc(KbPipelineTask::getId);
         return list(queryWrapper);
     }
@@ -116,12 +117,12 @@ public class KbPipelineTaskDbServiceImpl extends InfraDbServiceImpl<KbPipelineTa
     }
 
     @Override
-    public List<KbPipelineTask> listQueuedByStages(List<String> stages, int limit) {
+    public List<KbPipelineTask> listQueuedByStages(List<PipelineStage> stages, int limit) {
         if (NullUtil.isNull(stages) || stages.isEmpty()) {
             return List.of();
         }
         LambdaQueryWrapper<KbPipelineTask> queryWrapper = new LambdaQueryWrapper<>();
-        queryWrapper.in(KbPipelineTask::getStage, stages)
+        queryWrapper.in(KbPipelineTask::getStage, stages.stream().map(Enum::name).toList())
                 .eq(KbPipelineTask::getStatus, PipelineTaskStatus.QUEUED.name())
                 .orderByAsc(KbPipelineTask::getId)
                 .last("LIMIT " + limit);

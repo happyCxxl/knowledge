@@ -176,7 +176,7 @@ public class ChunkTaskRunner {
 
         stepLogPersistence.save(task.getId(), outcome.getStepLogs());
         log.info("===> ChunkTaskRunner 切片完成, taskId={}, fileResultId={}, status={}, chunkCount={}, artifactId={}",
-                task.getId(), fileResult.getId(), outcome.getSuggestedStatus(), chunkSet.getChunkCount(),
+                task.getId(), fileResult.getId(), outcome.getSuggestedStatus().name(), chunkSet.getChunkCount(),
                 product.getArtifactId());
     }
 

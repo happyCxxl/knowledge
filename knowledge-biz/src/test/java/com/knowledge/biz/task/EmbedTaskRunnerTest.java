@@ -175,7 +175,7 @@ class EmbedTaskRunnerTest {
 
     private EmbedOutcome successOutcome() {
         EmbedOutcome outcome = new EmbedOutcome();
-        outcome.setSuggestedStatus(PipelineTaskStatus.SUCCESS.name());
+        outcome.setSuggestedStatus(PipelineTaskStatus.SUCCESS);
         EmbeddingSet set = new EmbeddingSet();
         set.setEmbeddingSetId("es-cs-doc-10-embed-default-v1");
         set.setFileResultId(10L);
@@ -359,7 +359,7 @@ class EmbedTaskRunnerTest {
     void pipelineFailureShouldFinishFailed() {
         stubClaimAndUpstream();
         EmbedOutcome failed = new EmbedOutcome();
-        failed.setSuggestedStatus(PipelineTaskStatus.FAILED.name());
+        failed.setSuggestedStatus(PipelineTaskStatus.FAILED);
         failed.setErrorCode(PipelineTaskErrorCode.EMBED_CONSISTENCY_FAILED.name());
         failed.setErrorMsg("维度不一致");
         when(embedder.embed(any(EmbedContext.class))).thenReturn(failed);
@@ -431,7 +431,7 @@ class EmbedTaskRunnerTest {
         stubClaimAndUpstream();
         stubPersist();
         EmbedOutcome outcome = successOutcome();
-        outcome.setSuggestedStatus(PipelineTaskStatus.PARTIAL_SUCCESS.name());
+        outcome.setSuggestedStatus(PipelineTaskStatus.PARTIAL_SUCCESS);
         when(embedder.embed(any(EmbedContext.class))).thenReturn(outcome);
 
         runner.run(70L);

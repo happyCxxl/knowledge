@@ -16,8 +16,8 @@ import java.util.List;
 @Data
 public abstract class StageOutcome {
 
-    /** 建议任务状态（PipelineTaskStatus 枚举名：SUCCESS/PARTIAL_SUCCESS/FAILED） */
-    private String suggestedStatus;
+    /** 建议任务状态 */
+    private PipelineTaskStatus suggestedStatus;
 
     /** 失败错误码（PipelineTaskErrorCode 枚举名；成功为空） */
     private String errorCode;
@@ -33,7 +33,7 @@ public abstract class StageOutcome {
 
     /** 失败快捷置位：建议状态 FAILED + 错误码 + 错误信息。 */
     public void fail(String errorCode, String errorMsg) {
-        this.suggestedStatus = PipelineTaskStatus.FAILED.name();
+        this.suggestedStatus = PipelineTaskStatus.FAILED;
         this.errorCode = errorCode;
         this.errorMsg = errorMsg;
     }

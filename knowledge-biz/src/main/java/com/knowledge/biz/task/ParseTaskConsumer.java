@@ -98,9 +98,9 @@ public class ParseTaskConsumer {
                 }
                 // 消息内容仅参考（DB 是唯一账本）：被叫醒才扫库领批
                 List<KbPipelineTask> batch = pipelineTaskDbService.listQueuedByStages(
-                        List.of(PipelineStage.PARSE.name(), PipelineStage.STRUCTURE.name(),
-                                PipelineStage.PREPROCESS.name(), PipelineStage.CHUNK.name(),
-                                PipelineStage.EMBED.name()),
+                        List.of(PipelineStage.PARSE, PipelineStage.STRUCTURE,
+                                PipelineStage.PREPROCESS, PipelineStage.CHUNK,
+                                PipelineStage.EMBED),
                         properties.getClaimBatchSize());
                 for (KbPipelineTask task : batch) {
                     if (!running) {

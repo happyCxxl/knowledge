@@ -126,8 +126,8 @@ public class StructureTaskRunner {
         KbPipelineProduct product = productPersistence.persist(task, PipelineStage.STRUCTURE, parseProduct.getId(),
                 JsonUtil.toJsonStr(Map.of("schemaVersion", UnifiedDocument.SCHEMA_VERSION)), document);
         stepLogPersistence.save(task.getId(), outcome.getStepLogs());
-        log.info("===> StructureTaskRunner 组装完成, taskId={}, fileResultId={}, status={}, artifactId={}",
-                task.getId(), task.getFileResultId(), outcome.getSuggestedStatus(), product.getArtifactId());
+        TaskRunnerSupport.logPersisted(log, "StructureTaskRunner 组装完成", task, task.getFileResultId(), outcome,
+                product.getArtifactId());
     }
 
     private void finishFailed(Long taskId, String errorCode, String errorMsg) {

@@ -117,7 +117,7 @@ class ParseTaskRunnerTest {
 
     private ParseOutcome successOutcome() {
         ParseOutcome outcome = new ParseOutcome();
-        outcome.setSuggestedStatus(PipelineTaskStatus.SUCCESS.name());
+        outcome.setSuggestedStatus(PipelineTaskStatus.SUCCESS);
         outcome.setUnitCount(3);
         ParseResult parseResult = new ParseResult();
         parseResult.setResultId(10L);
@@ -191,7 +191,7 @@ class ParseTaskRunnerTest {
         when(pipelineTaskDbService.claim(20L)).thenReturn(1);
         stubFileChain();
         ParseOutcome outcome = new ParseOutcome();
-        outcome.setSuggestedStatus(PipelineTaskStatus.FAILED.name());
+        outcome.setSuggestedStatus(PipelineTaskStatus.FAILED);
         outcome.setErrorCode(PipelineTaskErrorCode.SCANNED_UNSUPPORTED.name());
         outcome.setErrorMsg("扫描件暂不支持（OCR 预留）");
         when(parsePipeline.run(any(ParseContext.class))).thenReturn(outcome);

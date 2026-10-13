@@ -207,7 +207,7 @@ public class EmbedTaskRunner {
 
         stepLogPersistence.save(task.getId(), outcome.getStepLogs());
         log.info("===> EmbedTaskRunner 向量化完成, taskId={}, fileResultId={}, status={}, recordCount={}, cachedCount={}, artifactId={}",
-                task.getId(), fileResult.getId(), outcome.getSuggestedStatus(),
+                task.getId(), fileResult.getId(), outcome.getSuggestedStatus().name(),
                 embeddingSet.getRecordCount(), embeddingSet.getCachedCount(), product.getArtifactId());
     }
 

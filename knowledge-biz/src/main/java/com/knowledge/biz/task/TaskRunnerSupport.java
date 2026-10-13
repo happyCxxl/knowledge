@@ -14,6 +14,7 @@ import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
 import com.knowledge.common.utils.NullUtil;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
 
 import java.util.function.Function;
 
@@ -217,15 +218,26 @@ public final class TaskRunnerSupport {
     public static void complete(KbPipelineTaskDbService pipelineTaskDbService,
                                 StepLogPersistence stepLogPersistence, Long taskId,
                                 StageOutcome outcome, Runnable onSuccess, FailedFinisher onFailure) {
-        String suggested = outcome.getSuggestedStatus();
-        if (PipelineTaskStatus.SUCCESS.name().equals(suggested)
-                || PipelineTaskStatus.PARTIAL_SUCCESS.name().equals(suggested)) {
-            onSuccess.run();
-            pipelineTaskDbService.finish(taskId, PipelineTaskStatus.valueOf(suggested), null, null);
-        } else {
-            stepLogPersistence.save(taskId, outcome.getStepLogs());
-            onFailure.finish(taskId, outcome.getErrorCode(), outcome.getErrorMsg());
+        switch (outcome.getSuggestedStatus()) {
+            case SUCCESS, PARTIAL_SUCCESS -> {
+                onSuccess.run();
+                pipelineTaskDbService.finish(taskId, outcome.getSuggestedStatus(), null, null);
+            }
+            default -> {
+                stepLogPersistence.save(taskId, outcome.getStepLogs());
+                onFailure.finish(taskId, outcome.getErrorCode(), outcome.getErrorMsg());
+            }
         }
+    }
+
+    /**
+     * 完成日志（落库收尾共用）：label 传完整前缀（如 "ParseTaskRunner 解析完成"），logger 用调用方自己的，
+     * 日志类别与文案仍留在各执行器上。
+     */
+    public static void logPersisted(Logger log, String label, KbPipelineTask task, Long fileResultId,
+                                    StageOutcome outcome, String artifactId) {
+        log.info("===> {}, taskId={}, fileResultId={}, status={}, artifactId={}",
+                label, task.getId(), fileResultId, outcome.getSuggestedStatus().name(), artifactId);
     }
 
     /** 失败回写动作（各执行器自持回写口径）。 */

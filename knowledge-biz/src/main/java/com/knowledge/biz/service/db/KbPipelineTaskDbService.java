@@ -1,6 +1,7 @@
 package com.knowledge.biz.service.db;
 
 import com.knowledge.common.domain.entity.KbPipelineTask;
+import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.enums.task.PipelineTaskStatus;
 import com.knowledge.infra.persistence.InfraDbService;
 
@@ -52,10 +53,10 @@ public interface KbPipelineTaskDbService extends InfraDbService<KbPipelineTask> 
     /**
      * 查指定状态的任务（id 升序；只取任务 ID、文件结果与状态三列）。
      *
-     * @param statuses 状态集合（PipelineTaskStatus 枚举名；为空返回空列表，不查库）
+     * @param statuses 状态集合（为空返回空列表，不查库）
      * @return 任务列表
      */
-    List<KbPipelineTask> listByStatuses(List<String> statuses);
+    List<KbPipelineTask> listByStatuses(List<PipelineTaskStatus> statuses);
 
     /**
      * 查过期未执行的 QUEUED 任务（启动补偿/低频兜底用）。
@@ -101,11 +102,11 @@ public interface KbPipelineTaskDbService extends InfraDbService<KbPipelineTask> 
     /**
      * 扫库领批（多环节）：QUEUED + 环节在给定集合内，id 升序，限量。
      *
-     * @param stages 环节集合（PipelineStage 枚举名）
+     * @param stages 环节集合（为空返回空列表，不查库）
      * @param limit  本次领取上限
      * @return 待执行任务列表
      */
-    List<KbPipelineTask> listQueuedByStages(List<String> stages, int limit);
+    List<KbPipelineTask> listQueuedByStages(List<PipelineStage> stages, int limit);
 
     /**
      * 条件更新领任务：QUEUED → RUNNING + 开始时间（防多实例重复领取）。

@@ -144,7 +144,7 @@ public class ParsePipeline {
         summarizeQuality(nativeSource, quality); // ⑥ 坏页比例达门槛时补一条维度汇总告警
 
         // 失败诊断留痕：告警明细进质量检查子步骤（落 kb_pipeline_step_log.error，可查询）
-        if (PipelineTaskStatus.FAILED.name().equals(outcome.getSuggestedStatus())) {
+        if (outcome.getSuggestedStatus() == PipelineTaskStatus.FAILED) {
             String summary = quality.getWarnings().stream()
                     .map(w -> w.getCode() + ":" + w.getMessage())
                     .collect(Collectors.joining("; "));
@@ -345,15 +345,15 @@ public class ParsePipeline {
                 && failedUnits <= properties.getShortDocumentMaxFailedUnits()
                 && contentUnits - failedUnits >= 1) {
             outcome.setSuggestedStatus(failedUnits == 0
-                    ? PipelineTaskStatus.SUCCESS.name()
-                    : PipelineTaskStatus.PARTIAL_SUCCESS.name());
+                    ? PipelineTaskStatus.SUCCESS
+                    : PipelineTaskStatus.PARTIAL_SUCCESS);
             return;
         }
         double ratio = (double) (contentUnits - failedUnits) / contentUnits;
         if (ratio >= properties.getSuccessUnitRatio()) {
             outcome.setSuggestedStatus(failedUnits == 0
-                    ? PipelineTaskStatus.SUCCESS.name()
-                    : PipelineTaskStatus.PARTIAL_SUCCESS.name());
+                    ? PipelineTaskStatus.SUCCESS
+                    : PipelineTaskStatus.PARTIAL_SUCCESS);
             return;
         }
         // 门槛不足：连每页原始指标一起打印（扫描件/乱码口径/文字占比口径）

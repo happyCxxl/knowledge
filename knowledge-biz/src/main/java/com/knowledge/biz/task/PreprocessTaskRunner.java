@@ -120,8 +120,8 @@ public class PreprocessTaskRunner {
         KbPipelineProduct product = productPersistence.persist(task, PipelineStage.PREPROCESS,
                 structureProduct.getId(), JsonUtil.toJsonStr(strategy), outcome.getView());
         stepLogPersistence.save(task.getId(), outcome.getStepLogs());
-        log.info("===> PreprocessTaskRunner 预处理完成, taskId={}, fileResultId={}, status={}, artifactId={}",
-                task.getId(), fileResult.getId(), outcome.getSuggestedStatus(), product.getArtifactId());
+        TaskRunnerSupport.logPersisted(log, "PreprocessTaskRunner 预处理完成", task, fileResult.getId(), outcome,
+                product.getArtifactId());
     }
 
     private void finishFailed(Long taskId, String errorCode, String errorMsg) {

@@ -143,7 +143,7 @@ class PreprocessPipelineTest {
 
         PreprocessOutcome outcome = pipeline().preprocess(context(document, StrategyFixtures.preprocessDefaults()));
 
-        assertEquals(PipelineTaskStatus.SUCCESS.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskStatus.SUCCESS, outcome.getSuggestedStatus());
         PreprocessView view = outcome.getView();
         assertEquals("pv-doc-10-preproc-default-v1", view.getViewId());
         assertEquals(10L, view.getFileResultId());
@@ -263,7 +263,7 @@ class PreprocessPipelineTest {
 
         PreprocessOutcome outcome = pipeline.preprocess(context(document, StrategyFixtures.preprocessDefaults()));
 
-        assertEquals(PipelineTaskStatus.PARTIAL_SUCCESS.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskStatus.PARTIAL_SUCCESS, outcome.getSuggestedStatus());
         assertTrue(outcome.getWarnings().stream().anyMatch(w -> w.contains("异常规则")));
         // 视图照产（该规则产物缺失不影响其他层）
         assertNotNull(outcome.getView());
@@ -311,7 +311,7 @@ class PreprocessPipelineTest {
 
         PreprocessOutcome outcome = pipeline().preprocess(context(document, StrategyFixtures.preprocessDefaults()));
 
-        assertEquals(PipelineTaskStatus.FAILED.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskStatus.FAILED, outcome.getSuggestedStatus());
         assertEquals(PipelineTaskErrorCode.PREPROCESS_EMPTY.name(), outcome.getErrorCode());
     }
 
@@ -324,7 +324,7 @@ class PreprocessPipelineTest {
 
         PreprocessOutcome outcome = pipeline().preprocess(context(document, null));
 
-        assertEquals(PipelineTaskStatus.FAILED.name(), outcome.getSuggestedStatus());
+        assertEquals(PipelineTaskStatus.FAILED, outcome.getSuggestedStatus());
         assertEquals(PipelineTaskErrorCode.PREPROCESS_FAILED.name(), outcome.getErrorCode());
         assertEquals("任务未带预处理策略快照，无法预处理", outcome.getErrorMsg());
         assertNull(outcome.getView());
@@ -349,7 +349,7 @@ class PreprocessPipelineTest {
             return outcome.getView().getViewId() + "|"
                     + outcome.getView().getElements().stream()
                     .map(e -> e.getElementId() + ":" + e.getStatus() + ":" + e.getNormalizedText())
-                    .reduce("", String::concat) + "|" + outcome.getSuggestedStatus();
+                    .reduce("", String::concat) + "|" + outcome.getSuggestedStatus().name();
         }
     }
 }
