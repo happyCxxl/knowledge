@@ -1,4 +1,4 @@
-package com.knowledge.biz.task;
+package com.knowledge.biz.task.runner.persistence;
 
 import com.knowledge.biz.service.db.KbPipelineProductDbService;
 import com.knowledge.biz.service.db.KbPipelineTaskDbService;

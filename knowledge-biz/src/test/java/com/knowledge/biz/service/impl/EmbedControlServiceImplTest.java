@@ -15,8 +15,8 @@ import com.knowledge.biz.service.support.FileResultAccessGuard;
 import com.knowledge.biz.service.support.EmbedVoAssembler;
 import com.knowledge.biz.service.support.StageStrategySupport;
 import com.knowledge.biz.service.support.TaskDetailSupport;
-import com.knowledge.biz.task.TaskQueueSupport;
-import com.knowledge.biz.task.TaskTriggerSupport;
+import com.knowledge.biz.task.support.TaskQueueSupport;
+import com.knowledge.biz.task.support.TaskTriggerSupport;
 import com.knowledge.biz.task.UpstreamProductGate;
 import com.knowledge.biz.testkit.SecurityTestSupport;
 import com.knowledge.common.domain.entity.KnowledgeBase;
@@ -493,7 +493,8 @@ class EmbedControlServiceImplTest {
         row.setConfigSnapshot("{\"model\":\"text-embedding-v4\"}");
         row.setStatus(status);
         return row;
-    }    @Test
+    }
+    @Test
     void otherUserFileResultShouldReject40401() {
         when(fileResultDbService.getById(10L)).thenReturn(fileResult());
         // 归属看的是知识库归属：换一个登录用户，越权与"不存在"同样返回 40401

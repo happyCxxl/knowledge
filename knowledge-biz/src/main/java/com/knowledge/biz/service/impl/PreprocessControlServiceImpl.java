@@ -8,7 +8,7 @@ import com.knowledge.biz.service.support.StageStrategySupport;
 import com.knowledge.biz.service.support.StatsSupport;
 import com.knowledge.biz.service.support.FileResultAccessGuard;
 import com.knowledge.biz.service.support.TaskDetailSupport;
-import com.knowledge.biz.task.TaskTriggerSupport;
+import com.knowledge.biz.task.support.TaskTriggerSupport;
 import com.knowledge.biz.task.UpstreamProductGate;
 import com.knowledge.common.domain.entity.KbFileResult;
 import com.knowledge.common.domain.entity.KbPipelineProduct;

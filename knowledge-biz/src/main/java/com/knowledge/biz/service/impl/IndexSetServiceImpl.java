@@ -19,7 +19,7 @@ import com.knowledge.biz.service.db.KnowledgeBaseDbService;
 import com.knowledge.biz.service.support.IndexComboReconciler;
 import com.knowledge.biz.service.support.IndexLineageResolver;
 import com.knowledge.biz.service.support.IndexRowAssembler;
-import com.knowledge.biz.task.TaskQueueSupport;
+import com.knowledge.biz.task.support.TaskQueueSupport;
 import com.knowledge.common.domain.entity.KbChunkSet;
 import com.knowledge.common.domain.entity.KbEmbeddingSet;
 import com.knowledge.common.domain.entity.KbFileResult;

@@ -72,7 +72,7 @@
 | `common/enums/chunk/ChunkRoute` / `ChunkContentType` / `ChunkKind` / `PipelineKey` | 路由（四值）/ 片类型（`SECTION` / `PARAGRAPH` / `TABLE` / `IMAGE` / `FALLBACK`）/ 切片路（三值）/ 流程层键（六项） |
 | `common/domain/chunk/Chunk` / `ChunkSet` / `ChunkOutcome`                          | 产物契约：单片（内容 / 类型 / 标题路径 / 来源 / 页码 / 父子 / 顺序 / token / 兜底原因）、集合、运行产出            |
 | `common/domain/rules/PreprocessViewRules`                                          | 跳过名单：`CHUNK_SKIP_STATUSES`（与预处理同一份口径）                                                              |
-| `biz/task/ChunkTaskRunner`                                                         | 领任务 → 读上游视图 → 调管线 → 落产物（产物 JSON + `kb_chunk_set` / `kb_chunk`）与六条子步骤 → 回写终态            |
+| `biz/task/runner/ChunkTaskRunner`                                                  | 领任务 → 读上游视图 → 调管线 → 落产物（产物 JSON + `kb_chunk_set` / `kb_chunk`）与六条子步骤 → 回写终态            |
 | `biz/service/impl/ChunkControlServiceImpl`                                         | 控制面：策略快照读取、详情与统计读取                                                                               |
 | `biz/service/support/ChunkStatsSupport`                                            | 详情统计与结论文案（按产物现算，24 个键）                                                                          |
 

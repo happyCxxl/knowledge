@@ -32,6 +32,11 @@
             <groupId>com.knowledge</groupId>
             <artifactId>knowledge-infra</artifactId>
         </dependency>
+        <!-- 文件服务：头像上传与读取走对象存储端口（FileStorage） -->
+        <dependency>
+            <groupId>com.knowledge</groupId>
+            <artifactId>knowledge-file-center</artifactId>
+        </dependency>
 
         <!-- Web 控制器与参数校验 -->
         <dependency>

@@ -21,9 +21,9 @@
         <Class name="com.knowledge.worker.input.SpillBuffer"/>
         <Bug pattern="CT_CONSTRUCTOR_THROW"/>
     </Match>
-    <!-- ParseTaskConsumer：执行池字段仅启动期同步写入、运行期只读（配合 volatile 可见性），按评审口径豁免 -->
+    <!-- PipelineTaskConsumer：执行池字段仅启动期同步写入、运行期只读（配合 volatile 可见性），按评审口径豁免 -->
     <Match>
-        <Class name="com.knowledge.biz.task.ParseTaskConsumer"/>
+        <Class name="com.knowledge.biz.task.PipelineTaskConsumer"/>
         <Bug pattern="IS2_INCONSISTENT_SYNC,UWF_FIELD_NOT_INITIALIZED_IN_CONSTRUCTOR"/>
     </Match>
     <!-- 分页查询 DTO 的页码兜底：字段由 Spring 数据绑定器反射写入、不靠构造器初始化，

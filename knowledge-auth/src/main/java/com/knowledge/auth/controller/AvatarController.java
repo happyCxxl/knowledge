@@ -1,4 +1,4 @@
-package com.knowledge.biz.web;
+package com.knowledge.auth.controller;
 
 import com.knowledge.auth.db.UserDbService;
 import com.knowledge.common.domain.entity.User;

@@ -2,6 +2,7 @@ package com.knowledge.biz.task;
 
 import com.knowledge.biz.config.TaskQueueProperties;
 import com.knowledge.biz.service.db.KbPipelineTaskDbService;
+import com.knowledge.biz.task.support.TaskQueueSupport;
 import com.knowledge.common.domain.entity.KbPipelineTask;
 import com.knowledge.common.enums.task.PipelineTaskErrorCode;
 import com.knowledge.common.enums.task.PipelineTaskStatus;

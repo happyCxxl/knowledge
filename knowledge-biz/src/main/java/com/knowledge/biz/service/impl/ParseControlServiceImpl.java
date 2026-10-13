@@ -4,7 +4,7 @@ import com.knowledge.biz.service.ParseControlService;
 import com.knowledge.biz.service.support.FileResultAccessGuard;
 import com.knowledge.biz.service.support.ParseStatsSupport;
 import com.knowledge.biz.service.support.TaskDetailSupport;
-import com.knowledge.biz.task.TaskTriggerSupport;
+import com.knowledge.biz.task.support.TaskTriggerSupport;
 import com.knowledge.common.domain.entity.KbPipelineProduct;
 import com.knowledge.common.domain.entity.KbPipelineTask;
 import com.knowledge.common.domain.parse.ParseResult;

@@ -4,6 +4,8 @@ import com.knowledge.biz.service.db.KbFileResultDbService;
 import com.knowledge.biz.service.db.KbPipelineTaskDbService;
 import com.knowledge.biz.service.db.KbSourceFileDbService;
 import com.knowledge.biz.service.support.ChainStorageSupport;
+import com.knowledge.biz.task.support.TaskQueueSupport;
+import com.knowledge.biz.task.support.TaskTriggerSupport;
 import com.knowledge.common.domain.entity.KbFileResult;
 import com.knowledge.common.domain.entity.KbPipelineTask;
 import com.knowledge.common.domain.entity.KbSourceFile;

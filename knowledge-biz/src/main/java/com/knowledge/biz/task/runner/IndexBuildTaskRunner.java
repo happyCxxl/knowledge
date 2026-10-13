@@ -1,5 +1,6 @@
-package com.knowledge.biz.task;
+package com.knowledge.biz.task.runner;
 
+import com.knowledge.biz.task.support.TaskRunnerSupport;
 import com.knowledge.common.enums.knowledge.StrategyBindingSwitch;
 import cn.hutool.core.util.StrUtil;
 import com.knowledge.biz.service.IndexSetService;

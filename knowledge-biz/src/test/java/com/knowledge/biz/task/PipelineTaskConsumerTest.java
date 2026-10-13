@@ -3,6 +3,12 @@ package com.knowledge.biz.task;
 import com.knowledge.biz.config.TaskExecutorConfig;
 import com.knowledge.biz.config.TaskQueueProperties;
 import com.knowledge.biz.service.db.KbPipelineTaskDbService;
+import com.knowledge.biz.task.runner.ChunkTaskRunner;
+import com.knowledge.biz.task.runner.EmbedTaskRunner;
+import com.knowledge.biz.task.runner.ParseTaskRunner;
+import com.knowledge.biz.task.runner.PreprocessTaskRunner;
+import com.knowledge.biz.task.runner.StructureTaskRunner;
+import com.knowledge.biz.task.support.TaskQueueSupport;
 import com.knowledge.common.domain.entity.KbPipelineTask;
 import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.enums.task.PipelineTaskErrorCode;
@@ -37,7 +43,7 @@ import static org.mockito.Mockito.when;
  * @author cxxl
  */
 @ExtendWith(MockitoExtension.class)
-class ParseTaskConsumerTest {
+class PipelineTaskConsumerTest {
 
     /** 多线程等待上限：宽裕值，避免慢机器抖动 */
     private static final long WAIT_SECONDS = 5;
@@ -62,7 +68,7 @@ class ParseTaskConsumerTest {
     private ThreadPoolTaskExecutor watchdogExecutor;
     private ThreadPoolTaskExecutor runnerExecutor;
 
-    private ParseTaskConsumer consumer;
+    private PipelineTaskConsumer consumer;
 
     @BeforeEach
     void setUp() {
@@ -71,7 +77,7 @@ class ParseTaskConsumerTest {
         properties.setClaimBatchSize(10);
         properties.setShutdownWait(Duration.ofMillis(200));
         buildExecutors();
-        consumer = new ParseTaskConsumer(taskQueue, pipelineTaskDbService, properties,
+        consumer = new PipelineTaskConsumer(taskQueue, pipelineTaskDbService, properties,
                 runner, structureRunner, preprocessRunner, chunkRunner, embedRunner,
                 watchdogExecutor, runnerExecutor);
     }

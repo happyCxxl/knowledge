@@ -1,4 +1,4 @@
-package com.knowledge.biz.task;
+package com.knowledge.biz.task.runner;
 
 import com.knowledge.biz.service.IndexSetService;
 import com.knowledge.biz.service.db.KbFileResultDbService;

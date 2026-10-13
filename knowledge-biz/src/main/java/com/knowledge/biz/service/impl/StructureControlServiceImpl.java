@@ -7,7 +7,7 @@ import com.knowledge.biz.service.support.StatsSupport;
 import com.knowledge.biz.service.support.StructureStatsSupport;
 import com.knowledge.biz.service.support.StructureVoAssembler;
 import com.knowledge.biz.service.support.TaskDetailSupport;
-import com.knowledge.biz.task.TaskTriggerSupport;
+import com.knowledge.biz.task.support.TaskTriggerSupport;
 import com.knowledge.biz.task.UpstreamProductGate;
 import com.knowledge.common.domain.entity.KbPipelineProduct;
 import com.knowledge.common.domain.entity.KbPipelineTask;

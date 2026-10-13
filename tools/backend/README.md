@@ -25,7 +25,7 @@
 - `EI_EXPOSE_REP / EI_EXPOSE_REP2`：Lombok 生成访问器与 Spring 容器注入字段对外暴露可变对象——项目通用模式，防御性拷贝与 DTO 风格冲突且无实际收益；
 - `REC_CATCH_EXCEPTION`：任务链与解析器统一捕获 Exception 归一化错误码——捕获范围即调用边界；
 - `CT_CONSTRUCTOR_THROW`（SpillBuffer）：构造期 SHA-256 算法探测失败即抛，fail-fast 防御；
-- `IS2_INCONSISTENT_SYNC / UWF_FIELD_NOT_INITIALIZED_IN_CONSTRUCTOR`（ParseTaskConsumer）：执行池字段仅启动期同步写入、运行期只读（配合 volatile 可见性）；
+- `IS2_INCONSISTENT_SYNC / UWF_FIELD_NOT_INITIALIZED_IN_CONSTRUCTOR`（PipelineTaskConsumer）：执行池字段仅启动期同步写入、运行期只读（配合 volatile 可见性）；
 - `NP_*`（PdfBoxDocumentParser.buildLine / assemblePageElements、StructureAssemblerImpl.buildOrderRelations）：Hutool ObjectUtil 判空为项目统一风格，SpotBugs 无法识别其 null 语义产生误报，判空语义与原生 null 比较运行时等价。
 - `UWF_FIELD_NOT_INITIALIZED_IN_CONSTRUCTOR`（`PageQueryDto` 的 `current` / `size`）：查询 DTO 的字段由 Spring 数据绑定器反射写入、不靠构造器初始化，页码兜底用 Hutool `ObjectUtil.isNull` 判空，SpotBugs 不识别该方法的 null 语义，把紧随其后的拆箱比较判成"未初始化字段被解引用"；`||` 短路保证解引用时必非空，按**字段**豁免（该告警主元素是字段，写 `<Method>` 匹配不上）。首页最近提交复用同一个分页 DTO，豁免随字段一起落在 `PageQueryDto` 上。
 

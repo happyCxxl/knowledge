@@ -1,4 +1,4 @@
-package com.knowledge.biz.task;
+package com.knowledge.biz.task.runner;
 
 import com.knowledge.biz.service.db.KbChunkDbService;
 import com.knowledge.biz.service.db.KbChunkSetDbService;
@@ -8,6 +8,9 @@ import com.knowledge.biz.service.db.KbPipelineStepLogDbService;
 import com.knowledge.biz.service.db.KbPipelineTaskDbService;
 import com.knowledge.biz.service.db.KbSourceFileDbService;
 import com.knowledge.biz.service.support.ChainStorageSupport;
+import com.knowledge.biz.task.runner.persistence.ProductPersistence;
+import com.knowledge.biz.task.runner.persistence.StepLogPersistence;
+import com.knowledge.biz.task.UpstreamProductGate;
 import com.knowledge.common.domain.chunk.Chunk;
 import com.knowledge.common.domain.chunk.ChunkOutcome;
 import com.knowledge.common.domain.chunk.ChunkSet;

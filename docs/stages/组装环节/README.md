@@ -48,7 +48,7 @@
 | `structure/craft/RepeatNoiseMarker`         | 工艺⑦ 重复与噪声识别（实现 `impl/craft/RepeatNoiseMarkerImpl`，产出 `MarkOutcome`）                                        |
 | `structure/craft/`（其余）                  | 产出载体：`TreeOutcome` / `NormalizeOutcome` / `MergeOutcome` / `ContinuationOutcome` / `MarkOutcome`                      |
 | `common/enums/structure/`                   | 枚举口径：`UnifiedElementType` / `RelationType` / `ElementMark` / `PageMark` / `ElementExtensionKey` / `StructureStepName` |
-| `biz/task/StructureTaskRunner`              | 领任务 → 读上游产物 → 调管线 → 写产物行与子步骤 → 回写终态（原子条件更新）                                                 |
+| `biz/task/runner/StructureTaskRunner`       | 领任务 → 读上游产物 → 调管线 → 写产物行与子步骤 → 回写终态（原子条件更新）                                                 |
 | `biz/service/support/StructureStatsSupport` | 详情页统计与结论文案（按产物现算，不落库）                                                                                 |
 
 ## 待定项

@@ -1,8 +1,12 @@
-package com.knowledge.biz.task;
+package com.knowledge.biz.task.runner;
 
 import com.knowledge.biz.service.db.KbFileResultDbService;
 import com.knowledge.biz.service.db.KbPipelineProductDbService;
 import com.knowledge.biz.service.db.KbPipelineTaskDbService;
+import com.knowledge.biz.task.runner.persistence.ProductPersistence;
+import com.knowledge.biz.task.runner.persistence.StepLogPersistence;
+import com.knowledge.biz.task.UpstreamProductGate;
+import com.knowledge.biz.task.support.TaskRunnerSupport;
 import com.knowledge.common.domain.entity.KbFileResult;
 import com.knowledge.common.domain.entity.KbPipelineProduct;
 import com.knowledge.common.domain.entity.KbPipelineTask;

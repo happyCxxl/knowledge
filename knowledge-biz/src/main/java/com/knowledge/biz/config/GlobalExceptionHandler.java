@@ -1,4 +1,4 @@
-package com.knowledge.biz.web;
+package com.knowledge.biz.config;
 
 import com.knowledge.common.dto.response.R;
 import com.knowledge.common.error.ErrorCode;

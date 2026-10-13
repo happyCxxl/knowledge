@@ -1,4 +1,4 @@
-package com.knowledge.biz.web;
+package com.knowledge.biz.listener;
 
 import com.knowledge.biz.service.db.KbAuditLogDbService;
 import com.knowledge.common.enums.knowledge.AuditActionType;

@@ -68,7 +68,7 @@
 | `common/enums/preprocess/PreprocessFieldType`     | 字段类型：金额 / 日期 / 面积 / 证书号                                                                                      |
 | `common/domain/preprocess/`                       | 产物契约：`PreprocessView` / `ViewElement` / `ViewCell` / `NormalizedField` / `TraceEntry`                                 |
 | `common/domain/rules/PreprocessViewRules`         | 剔除口径：`EXCLUDED_STATUSES` 与 `CHUNK_SKIP_STATUSES`                                                                     |
-| `biz/task/PreprocessTaskRunner`                   | 领任务 → 读上游产物 → 调管线 → 写产物行与子步骤 → 回写终态（原子条件更新）                                                 |
+| `biz/task/runner/PreprocessTaskRunner`            | 领任务 → 读上游产物 → 调管线 → 写产物行与子步骤 → 回写终态（原子条件更新）                                                 |
 | `biz/service/impl/PreprocessControlServiceImpl`   | 控制面：策略快照读取（归一化后下发）、详情与统计读取                                                                       |
 | `biz/service/support/PreprocessStatsSupport`      | 详情统计与结论文案（按产物现算，不落库）                                                                                   |
 | `biz/service/support/PreprocessVoAssembler`       | 产物 → 元素 / 轨迹 / 字段 / 单元格视图（纯映射，不查库）                                                                   |

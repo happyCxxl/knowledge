@@ -3,6 +3,12 @@ package com.knowledge.biz.task;
 import cn.hutool.core.thread.ThreadFactoryBuilder;
 import com.knowledge.biz.config.TaskQueueProperties;
 import com.knowledge.biz.service.db.KbPipelineTaskDbService;
+import com.knowledge.biz.task.runner.ChunkTaskRunner;
+import com.knowledge.biz.task.runner.EmbedTaskRunner;
+import com.knowledge.biz.task.runner.ParseTaskRunner;
+import com.knowledge.biz.task.runner.PreprocessTaskRunner;
+import com.knowledge.biz.task.runner.StructureTaskRunner;
+import com.knowledge.biz.task.support.TaskQueueSupport;
 import com.knowledge.common.domain.entity.KbPipelineTask;
 import com.knowledge.common.enums.task.PipelineStage;
 import com.knowledge.common.enums.task.PipelineTaskErrorCode;
@@ -36,7 +42,7 @@ import java.time.Duration;
  */
 @Slf4j
 @Component
-public class ParseTaskConsumer {
+public class PipelineTaskConsumer {
 
     private final TaskQueueSupport taskQueue;
     private final KbPipelineTaskDbService pipelineTaskDbService;
@@ -55,7 +61,7 @@ public class ParseTaskConsumer {
     private final Set<Long> inFlight = ConcurrentHashMap.newKeySet();
 
     /** 两个执行器 bean 同类型，构造参数按 bean 名限定（不用 Lombok 生成构造器，它不带走 @Qualifier） */
-    public ParseTaskConsumer(TaskQueueSupport taskQueue, KbPipelineTaskDbService pipelineTaskDbService,
+    public PipelineTaskConsumer(TaskQueueSupport taskQueue, KbPipelineTaskDbService pipelineTaskDbService,
                              TaskQueueProperties properties, ParseTaskRunner runner,
                              StructureTaskRunner structureRunner, PreprocessTaskRunner preprocessRunner,
                              ChunkTaskRunner chunkRunner, EmbedTaskRunner embedRunner,

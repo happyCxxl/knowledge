@@ -1,4 +1,4 @@
-package com.knowledge.biz.task;
+package com.knowledge.biz.task.runner;
 
 import cn.hutool.core.util.StrUtil;
 import com.knowledge.biz.service.IndexSetService;
@@ -9,6 +9,10 @@ import com.knowledge.biz.service.support.EmbedRowSupport;
 import com.knowledge.biz.service.db.KbFileResultDbService;
 import com.knowledge.biz.service.db.KbPipelineProductDbService;
 import com.knowledge.biz.service.db.KbPipelineTaskDbService;
+import com.knowledge.biz.task.runner.persistence.ProductPersistence;
+import com.knowledge.biz.task.runner.persistence.StepLogPersistence;
+import com.knowledge.biz.task.UpstreamProductGate;
+import com.knowledge.biz.task.support.TaskRunnerSupport;
 import com.knowledge.common.domain.chunk.ChunkSet;
 import com.knowledge.common.domain.embed.EmbedOutcome;
 import com.knowledge.common.domain.embed.EmbeddingRecord;

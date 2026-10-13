@@ -5,6 +5,7 @@ import com.knowledge.biz.service.db.KbPipelineProductDbService;
 import com.knowledge.biz.service.db.KbPipelineTaskDbService;
 import com.knowledge.biz.service.db.KbSourceFileDbService;
 import com.knowledge.biz.service.support.ChainStorageSupport;
+import com.knowledge.biz.task.runner.persistence.ProductPersistence;
 import com.knowledge.common.domain.entity.KbPipelineProduct;
 import com.knowledge.common.domain.entity.KbPipelineTask;
 import com.knowledge.common.domain.storage.ObjectRef;

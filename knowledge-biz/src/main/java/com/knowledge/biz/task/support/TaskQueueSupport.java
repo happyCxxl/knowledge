@@ -1,4 +1,4 @@
-package com.knowledge.biz.task;
+package com.knowledge.biz.task.support;
 
 import com.knowledge.biz.config.TaskQueueProperties;
 import com.knowledge.infra.redis.RedisQueueSupport;
