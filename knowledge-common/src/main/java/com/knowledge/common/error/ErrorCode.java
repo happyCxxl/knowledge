@@ -5,7 +5,7 @@ import lombok.Getter;
 /**
  * 统一错误码。
  *
- * <p>登记规则：新错误码必须在此枚举登记；编码分段：40001 参数、401xx 认证、402xx 限流、404xx 业务、40500 系统兜底。
+ * <p>登记规则：新错误码必须在此枚举登记；编码分段：40001 参数、401xx 认证、402xx 限流、404xx 业务（40460~40469 模型调用）、40500 系统兜底。
  *
  * @author cxxl
  */
@@ -139,7 +139,39 @@ public enum ErrorCode {
     STORAGE_SOURCE_PROBE_FAILED(40459, "存储数据源连接失败"),
 
     /** 系统异常 */
-    SYSTEM_ERROR(40500, "系统异常，请稍后重试");
+    SYSTEM_ERROR(40500, "系统异常，请稍后重试"),
+
+    // ===== 模型调用（40460~40469）：只承载码值与文案，模态与厂商信息由异常 detail 补齐 =====
+
+    /** 厂商未实现该模态 */
+    MODEL_MODALITY_UNSUPPORTED(40460, "模型未支持该模态"),
+
+    /** 配置里没有该厂商 */
+    MODEL_VENDOR_UNKNOWN(40461, "模型厂商未配置"),
+
+    /** 密钥无效或无权限 */
+    MODEL_AUTH_FAILED(40462, "模型鉴权失败"),
+
+    /** 参数错误或内容被审核拒绝 */
+    MODEL_BAD_REQUEST(40463, "模型请求参数或内容被拒"),
+
+    /** 厂商侧查不到该模型 */
+    MODEL_NOT_FOUND(40464, "模型不存在"),
+
+    /** 触发厂商限流 */
+    MODEL_RATE_LIMITED(40465, "模型请求被限流"),
+
+    /** 调用超时 */
+    MODEL_TIMEOUT(40466, "模型请求超时"),
+
+    /** 厂商服务端错误 */
+    MODEL_SERVER_ERROR(40467, "模型服务端错误"),
+
+    /** 网络不可达，含 DNS 解析失败与连接被拒 */
+    MODEL_UNREACHABLE(40468, "模型服务不可达"),
+
+    /** 输出未过结构校验 */
+    MODEL_OUTPUT_INVALID(40469, "模型输出结构校验失败");
 
     private final int code;
 
