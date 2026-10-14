@@ -10,7 +10,6 @@ import com.knowledge.common.utils.NullUtil;
 import com.knowledge.infra.persistence.InfraDbServiceImpl;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -51,15 +50,6 @@ public class KbModelDbServiceImpl extends InfraDbServiceImpl<KbModelMapper, KbMo
     }
 
     @Override
-    public void recordProbe(Long id, LocalDateTime probeAt, String result) {
-        this.lambdaUpdate()
-                .set(KbModel::getProbeAt, probeAt)
-                .set(KbModel::getProbeResult, result)
-                .eq(KbModel::getId, id)
-                .update();
-    }
-
-    @Override
     public void updateAll(KbModel row) {
         LambdaUpdateWrapper<KbModel> wrapper = new LambdaUpdateWrapper<>();
         wrapper.eq(KbModel::getId, row.getId());
@@ -67,7 +57,7 @@ public class KbModelDbServiceImpl extends InfraDbServiceImpl<KbModelMapper, KbMo
         clearIfNull(wrapper, KbModel::getPriceInPerM, row.getPriceInPerM());
         clearIfNull(wrapper, KbModel::getPriceOutPerM, row.getPriceOutPerM());
         clearIfNull(wrapper, KbModel::getPriceImagePerPage, row.getPriceImagePerPage());
-        clearIfNull(wrapper, KbModel::getPricePer1kCalls, row.getPricePer1kCalls());
+        clearIfNull(wrapper, KbModel::getPricePerThousandCalls, row.getPricePerThousandCalls());
         clearIfNull(wrapper, KbModel::getRpmLimit, row.getRpmLimit());
         clearIfNull(wrapper, KbModel::getTpmLimit, row.getTpmLimit());
         clearIfNull(wrapper, KbModel::getEffectiveFrom, row.getEffectiveFrom());

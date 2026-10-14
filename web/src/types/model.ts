@@ -1,4 +1,4 @@
-// 模型管理：模型目录、厂商清单、连通性测试与调用明细的类型（与后端 VO / 字典逐字段对齐）
+// 模型管理：模型目录与调用明细的类型与字典（与后端 VO / 字典逐字段对齐；厂商候选见 MODEL_VENDORS）
 
 /** 模型状态码值（kb_model.status，字典 ENABLED / DISABLED） */
 export const MODEL_STATUS = {
@@ -31,6 +31,16 @@ export const MODEL_CAPABILITY_LABELS: Record<string, string> = {
 
 /** 币种码值（kb_model.currency） */
 export const MODEL_CURRENCIES = ['CNY', 'USD'] as const;
+
+/**
+ * 厂商候选：码与后端配置 `knowledge.model.vendors` 的键一致，展示名与后端清单里的取名一致；
+ * 新增厂商时同步该配置与这份枚举，两边都不在页面里增删。
+ */
+export const MODEL_VENDORS = [
+  { code: 'dashscope', displayName: '阿里百炼' },
+  { code: 'self-ocr', displayName: '自建推理' },
+  { code: 'openai', displayName: 'OpenAI' },
+] as const;
 
 /** 调用状态码值（后端 CallStatus） */
 export const CALL_STATUS = {
@@ -82,37 +92,14 @@ export interface ModelItem {
   priceInPerM: number | null;
   priceOutPerM: number | null;
   priceImagePerPage: number | null;
-  pricePer1kCalls: number | null;
+  pricePerThousandCalls: number | null;
   currency: string;
   rpmLimit: number | null;
   tpmLimit: number | null;
   status: string;
   effectiveFrom: string | null;
   effectiveTo: string | null;
-  probeAt: string | null;
-  probeResult: string | null;
   remark: string | null;
-}
-
-/** 厂商下拉条目（对应后端 ModelVendorVO；密钥内容不下发，只有是否已配这一项结论） */
-export interface ModelVendor {
-  code: string;
-  displayName: string;
-  credentialConfigured: boolean;
-  soleVendor: boolean;
-}
-
-/** 连通性测试结果（对应后端 ModelProbeVO；失败也是 200 + 这一份结果） */
-export interface ModelProbeResult {
-  available: boolean;
-  latencyMs: number;
-  capability: string;
-  model: string | null;
-  modelVersion: string | null;
-  errorCode: string | null;
-  message: string | null;
-  probeAt: string;
-  probeResult: string;
 }
 
 /** 新增与编辑模型的请求体（对应后端 ModelSaveDto） */
@@ -125,7 +112,7 @@ export interface ModelSavePayload {
   priceInPerM: number | null;
   priceOutPerM: number | null;
   priceImagePerPage: number | null;
-  pricePer1kCalls: number | null;
+  pricePerThousandCalls: number | null;
   currency: string;
   rpmLimit: number | null;
   tpmLimit: number | null;

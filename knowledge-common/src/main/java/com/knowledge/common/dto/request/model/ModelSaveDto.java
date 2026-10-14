@@ -46,7 +46,7 @@ public class ModelSaveDto implements Serializable {
     private BigDecimal priceImagePerPage;
 
     /** 嵌入按千次单价（可空，非负） */
-    private BigDecimal pricePer1kCalls;
+    private BigDecimal pricePerThousandCalls;
 
     /** 币种（可空，留空取 CNY；取值 CNY / USD） */
     private String currency;

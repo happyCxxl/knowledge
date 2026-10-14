@@ -57,7 +57,7 @@
 | 08   | 用户管理（仅管理员）                                | `/user`                         | `../web/src/views/user/UserManagementView.vue`          | `UserController`                                                                                                                                                                                                                                                                                           | 待梳理 |
 | 09   | 个人中心                                            | `/profile`                      | `../web/src/views/profile/ProfileView.vue`              | `UserController`（个人信息与改密，仅本人）                                                                                                                                                                                                                                                                 | 已梳理 |
 | 10   | 系统设置（所有用户可见，卡片按权限）                | `/settings`                     | `../web/src/views/system/SystemSettingView.vue`         | `StorageSourceController`（存储数据源：列举存储源并启用）                                                                                                                                                                                                                                                  | 已梳理 |
-| 11   | 模型管理（仅管理员）                                | `/model`                        | `../web/src/views/model/ModelManagementView.vue`        | `ModelAdminController`（模型清单 / 新增 / 编辑 / 启停 / 试连 / 厂商只读清单）、`ModelUsageController`（用量概览与调用明细）                                                                                                                                                                                | 已梳理 |
+| 11   | 模型管理                                            | `/model`                        | `../web/src/views/model/ModelManagementView.vue`        | `ModelAdminController`（模型清单 / 新增 / 编辑 / 启停）、`ModelUsageController`（用量概览与调用明细）                                                                                                                                                                                                      | 已梳理 |
 
 顺序按用户使用动线排。一个路由里若装了互相独立的功能，会拆成多份文件；「Controller（初判）」是文件归属的初步判断，逐页梳理时以实际调用为准，可能修正。
 
@@ -191,6 +191,7 @@
 
 - `SecurityConfig`（`knowledge-auth` 的 `config` 包）：无状态（STATELESS）、关 CSRF；放行 `/auth/login`、`/auth/register` 与 swagger 路径，**其余请求一律需要认证**。
 - 角色控制走方法注解，由 `@EnableMethodSecurity` 开启。`@AdminOnly`（`../knowledge-common/src/main/java/com/knowledge/common/annotation/AdminOnly.java`）以 `@PreAuthorize` 为元注解判 `ROLE_ADMIN`，**逐个标在管理类接口的方法上**（`UserController` 的查询/新增/编辑/删除四个方法即此写法，同控制器下的个人信息接口对本人开放）。新增管理方法必须一并标注，漏标即对普通用户开放。
+- **模型管理不是管理员专项**：`ModelAdminController` 与 `ModelUsageController` 的八个方法对所有登录用户开放，方法上不标 `@AdminOnly`（口径见 `design/模型能力平台-方案设计.md` §8.1 与 `pages/模型管理/01-页面功能.md`）。
 - 过滤器写入安全上下文的权限串是 `ROLE_<role>`，必须与注解表达式对得上。
 
 ### 六、限流与登录防护
@@ -248,7 +249,7 @@
 | 二级 | 知识库管理 | `/knowledge-base` | 全部                       |
 | 二级 | 策略管理   | `/strategy`       | 全部                       |
 | 一级 | 用户管理   | `/user`           | 仅管理员                   |
-| 一级 | 模型管理   | `/model`          | 仅管理员                   |
+| 一级 | 模型管理   | `/model`          | 全部                       |
 | 一级 | 系统设置   | `/settings`       | 全部（页内卡片按权限显示） |
 | 一级 | 个人中心   | `/profile`        | 全部                       |
 

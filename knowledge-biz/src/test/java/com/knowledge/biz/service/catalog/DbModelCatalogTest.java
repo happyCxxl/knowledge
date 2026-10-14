@@ -93,7 +93,7 @@ class DbModelCatalogTest {
     @Test
     void descriptorShouldCarryCapabilitiesPricesAndEmbedSpecs() {
         KbModel embed = row(1L, "dashscope", "text-embedding-v4", "EMBEDDING");
-        embed.setPricePer1kCalls(new BigDecimal("0.000700"));
+        embed.setPricePerThousandCalls(new BigDecimal("0.000700"));
         embed.setCurrency("CNY");
         embed.setRpmLimit(600);
         embed.setEffectiveFrom(LocalDateTime.of(2026, 1, 1, 0, 0));
@@ -104,7 +104,7 @@ class DbModelCatalogTest {
         assertEquals("dashscope", descriptor.getVendorCode());
         assertEquals("text-embedding-v4", descriptor.getModelKey());
         assertEquals("dashscope-text-embedding-v4", descriptor.getDisplayName());
-        assertEquals(new BigDecimal("0.000700"), descriptor.getPricePer1kCalls());
+        assertEquals(new BigDecimal("0.000700"), descriptor.getPricePerThousandCalls());
         assertEquals(600, descriptor.getRpmLimit());
         assertTrue(descriptor.enabled());
         assertTrue(descriptor.supports(ModelCapability.EMBEDDING));

@@ -44,7 +44,7 @@ public class ModelDescriptor {
     private BigDecimal priceImagePerPage;
 
     /** 嵌入按千次单价（可空） */
-    private BigDecimal pricePer1kCalls;
+    private BigDecimal pricePerThousandCalls;
 
     /** 币种：CNY / USD */
     private String currency;
@@ -63,12 +63,6 @@ public class ModelDescriptor {
 
     /** 生效结束时间（空 = 长期有效） */
     private LocalDateTime effectiveTo;
-
-    /** 最近一次连通性测试时间（空 = 未测试过） */
-    private LocalDateTime probeAt;
-
-    /** 最近一次连通性测试结论 */
-    private String probeResult;
 
     /** 备注 */
     private String remark;

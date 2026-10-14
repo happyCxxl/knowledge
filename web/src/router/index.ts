@@ -73,11 +73,11 @@ const router = createRouter({
           meta: { title: '用户管理', adminOnly: true },
         },
         {
-          // 模型管理：厂商来自配置的模型目录维护、连通性测试与用量成本；接口都仅管理员可用
+          // 模型管理：厂商来自配置的模型目录维护、连通性测试与用量成本；页面与接口对所有登录用户开放
           path: 'model',
           name: 'ModelManagement',
           component: () => import('@/views/model/ModelManagementView.vue'),
-          meta: { title: '模型管理', adminOnly: true },
+          meta: { title: '模型管理' },
         },
         {
           // 系统设置：平台级开关，登录用户都能进；页面内各设置卡按权限自行决定是否渲染

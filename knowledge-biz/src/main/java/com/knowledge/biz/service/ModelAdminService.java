@@ -4,15 +4,13 @@ import com.knowledge.common.dto.request.model.ModelQueryDto;
 import com.knowledge.common.dto.request.model.ModelSaveDto;
 import com.knowledge.common.dto.request.model.ModelStatusDto;
 import com.knowledge.common.dto.response.model.ModelItemVO;
-import com.knowledge.common.dto.response.model.ModelProbeVO;
-import com.knowledge.common.dto.response.model.ModelVendorVO;
 
 import java.util.List;
 
 /**
- * 模型管理服务：模型目录的清单、新增、编辑、启停、连通性测试与厂商只读清单。
+ * 模型管理服务：模型目录的清单、新增、编辑与启停。
  *
- * <p>厂商连接与密钥都在配置（`knowledge.model.vendors`），本服务只读该配置的两件事：有哪些厂商、某厂商是否已配密钥；
+ * <p>厂商连接与密钥都在配置（`knowledge.model.vendors`），本服务只按该配置校验厂商码是否存在；
  * 写入只落 `kb_model` 的业务列，配置与库里的密钥都不经过本服务。校验在服务层一处完成，越线抛知识异常。
  *
  * @author cxxl
@@ -52,19 +50,4 @@ public interface ModelAdminService {
      * @return 回写后的模型
      */
     ModelItemVO updateStatus(Long id, ModelStatusDto dto);
-
-    /**
-     * 连通性测试：按模型声明的能力发一次最小真实请求，成功与失败都写回 `probe_at` / `probe_result`。
-     *
-     * @param id 主键
-     * @return 可用性、耗时、响应回传的模型标识与回写结论（失败时给出可读错误码与消息）
-     */
-    ModelProbeVO probe(Long id);
-
-    /**
-     * 厂商只读清单：配置里的厂商码、展示名、是否已配密钥与是否唯一厂商。
-     *
-     * @return 厂商条目（按厂商码升序）；配置里没有厂商时为空列表
-     */
-    List<ModelVendorVO> vendors();
 }

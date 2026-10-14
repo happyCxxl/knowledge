@@ -9,14 +9,7 @@
         </p>
       </div>
       <div class="page-actions">
-        <el-button
-          class="page-btn-primary"
-          :disabled="vendors.length === 0"
-          :title="vendors.length === 0 ? '配置里还没有厂商，请先配置 knowledge.model.vendors' : ''"
-          @click="openCreate"
-        >
-          新增模型
-        </el-button>
+        <el-button class="page-btn-primary" @click="openCreate"> 新增模型 </el-button>
       </div>
     </div>
 
@@ -131,14 +124,6 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="最近试连" min-width="150" align="center">
-            <template #default="{ row }">
-              <span v-if="row.probeAt" class="model-muted">
-                {{ formatDateTime(row.probeAt) }} · {{ row.probeResult || '无结论' }}
-              </span>
-              <span v-else class="model-muted">未测试</span>
-            </template>
-          </el-table-column>
           <el-table-column label="操作" min-width="150" align="center" fixed="right">
             <!-- 插槽里的 row 是 el-table 的 DefaultRow，交给强类型函数时逐个断言成 ModelItem -->
             <template #default="{ row }">
@@ -149,15 +134,6 @@
                 @click="openEdit(row as ModelItem)"
               >
                 编辑
-              </el-button>
-              <el-button
-                class="model-row-btn"
-                link
-                type="primary"
-                :loading="probingId === row.id"
-                @click="handleProbe(row as ModelItem)"
-              >
-                试连
               </el-button>
               <el-button
                 class="model-row-btn"
@@ -178,7 +154,6 @@
 
       <div class="page-panel-foot">
         <span>共 {{ models.length }} 条</span>
-        <span>试连发一次最小真实请求，结论写回模型行</span>
       </div>
     </div>
 
@@ -340,7 +315,7 @@
       </div>
     </div>
 
-    <!-- 新增 / 编辑：同一抽屉；厂商选项只来自配置，抽屉里没有密钥与地址字段 -->
+    <!-- 新增 / 编辑：同一抽屉；厂商选项来自前端枚举，抽屉里没有密钥与地址字段 -->
     <el-drawer
       v-model="drawerVisible"
       class="model-drawer"
@@ -355,26 +330,18 @@
         label-position="top"
         :hide-required-asterisk="true"
       >
-        <p class="model-hint">
-          厂商选项来自配置 knowledge.model.vendors；密钥与接口地址都在配置里（yml 写 ${ENV_VAR:}
-          占位）， 本页不涉及密钥。
-        </p>
-
         <el-form-item prop="vendorCode" label="厂商" class="model-form-item">
-          <el-select
-            v-model="form.vendorCode"
-            class="model-form-control"
-            placeholder="暂无已配置的厂商"
-            :disabled="vendors.length === 0"
-          >
+          <el-select v-model="form.vendorCode" class="model-form-control" placeholder="请选择厂商">
             <el-option
-              v-for="vendor in vendors"
+              v-for="vendor in MODEL_VENDORS"
               :key="vendor.code"
-              :label="vendorLabel(vendor)"
+              :label="`${vendor.displayName}（${vendor.code}）`"
               :value="vendor.code"
             />
           </el-select>
-          <p class="model-hint">只能选配置里已有的厂商，页面不新建厂商。</p>
+          <p class="model-hint">
+            候选来自前端枚举，需与后端配置 knowledge.model.vendors 的键保持一致。
+          </p>
         </el-form-item>
 
         <div class="model-form-pair">
@@ -465,9 +432,9 @@
               placeholder="留空表示不按页计价"
             />
           </el-form-item>
-          <el-form-item prop="pricePer1kCalls" label="嵌入（/ 千次）" class="model-form-item">
+          <el-form-item prop="pricePerThousandCalls" label="嵌入（/ 千次）" class="model-form-item">
             <el-input-number
-              v-model="form.pricePer1kCalls"
+              v-model="form.pricePerThousandCalls"
               class="model-form-control"
               :min="0"
               :controls="false"
@@ -551,9 +518,7 @@ import {
   getModelList,
   getModelUsageCalls,
   getModelUsageSummary,
-  getModelVendorList,
   updateModel,
-  updateModelProbe,
   updateModelStatus,
 } from '@/api/model';
 import {
@@ -563,18 +528,17 @@ import {
   MODEL_CAPABILITY_LABELS,
   MODEL_CURRENCIES,
   MODEL_STATUS,
+  MODEL_VENDORS,
   ROUTE_REASON_LABELS,
   ROUTE_REASONS,
   type ModelCallLog,
   type ModelCallLogSummary,
   type ModelItem,
-  type ModelProbeResult,
   type ModelSavePayload,
-  type ModelVendor,
 } from '@/types/model';
 import { formatDateTime } from '@/utils/date';
 
-// 模型管理页：模型清单（增删改与试连）+ 用量与成本（概览与明细）；接口层已统一处理失败提示
+// 模型管理页：模型清单（新增 / 编辑 / 启停）+ 用量与成本（概览与明细）；接口层已统一处理失败提示
 
 /** 二级视图：模型清单与用量成本 */
 const TABS = [
@@ -596,9 +560,7 @@ const capabilityFilter = ref('');
 const statusFilter = ref('');
 const keyword = ref('');
 const models = ref<ModelItem[]>([]);
-const vendors = ref<ModelVendor[]>([]);
 const loading = ref(false);
-const probingId = ref<string | null>(null);
 const togglingId = ref<string | null>(null);
 
 const drawerVisible = ref(false);
@@ -623,7 +585,7 @@ interface ModelForm {
   priceInPerM: number | null;
   priceOutPerM: number | null;
   priceImagePerPage: number | null;
-  pricePer1kCalls: number | null;
+  pricePerThousandCalls: number | null;
   currency: string;
   rpmLimit: number | null;
   tpmLimit: number | null;
@@ -642,7 +604,7 @@ const form = reactive<ModelForm>({
   priceInPerM: null,
   priceOutPerM: null,
   priceImagePerPage: null,
-  pricePer1kCalls: null,
+  pricePerThousandCalls: null,
   currency: 'CNY',
   rpmLimit: null,
   tpmLimit: null,
@@ -680,7 +642,7 @@ const formRules: FormRules = {
   priceInPerM: [NON_NEGATIVE_RULE],
   priceOutPerM: [NON_NEGATIVE_RULE],
   priceImagePerPage: [NON_NEGATIVE_RULE],
-  pricePer1kCalls: [NON_NEGATIVE_RULE],
+  pricePerThousandCalls: [NON_NEGATIVE_RULE],
   rpmLimit: [NON_NEGATIVE_RULE],
   tpmLimit: [NON_NEGATIVE_RULE],
   remark: [{ max: 512, message: '备注最长 512 字符', trigger: 'blur' }],
@@ -788,7 +750,7 @@ function priceText(item: ModelItem): string {
     );
   }
   if (item.capabilities.includes('EMBEDDING')) {
-    parts.push(`${moneyText(item.pricePer1kCalls)} ${item.currency}·千次`);
+    parts.push(`${moneyText(item.pricePerThousandCalls)} ${item.currency}·千次`);
   }
   if (item.capabilities.some((capability) => capability !== 'CHAT' && capability !== 'EMBEDDING')) {
     parts.push(`${moneyText(item.priceImagePerPage)} ${item.currency}·页`);
@@ -811,29 +773,6 @@ function usageText(item: ModelCallLog): string {
   return `${item.promptTokens} / ${item.completionTokens}`;
 }
 
-/** 厂商下拉文案：展示名与厂商码，并标出配置里有没有密钥 */
-function vendorLabel(vendor: ModelVendor): string {
-  const keyLabel = vendor.credentialConfigured ? '已配密钥' : '未配密钥';
-  return `${vendor.displayName}（${vendor.code}）· ${keyLabel}`;
-}
-
-/** 试连结论文案：可用性、耗时与模型标识；失败时给出错误码与消息 */
-function probeMessage(result: ModelProbeResult): string {
-  const parts: string[] = [result.available ? '试连可用' : '试连失败', `${result.latencyMs}ms`];
-  for (const part of [
-    result.capability,
-    result.model,
-    result.modelVersion,
-    result.errorCode,
-    result.message,
-  ]) {
-    if (part !== null && part !== '') {
-      parts.push(part);
-    }
-  }
-  return parts.join(' · ');
-}
-
 /** 结束时间是否早于开始时间（两段都可留空，留空不比较） */
 function endsBeforeStart(value: string | null): boolean {
   if (value === null || value === '' || form.effectiveFrom === null || form.effectiveFrom === '') {
@@ -849,7 +788,7 @@ function firstNegativeField(): string | null {
     ['输入单价', form.priceInPerM],
     ['输出单价', form.priceOutPerM],
     ['按页单价', form.priceImagePerPage],
-    ['按千次单价', form.pricePer1kCalls],
+    ['按千次单价', form.pricePerThousandCalls],
     ['RPM 上限', form.rpmLimit],
     ['TPM 上限', form.tpmLimit],
   ];
@@ -879,14 +818,6 @@ async function loadModels(): Promise<void> {
     // 失败提示已由接口层统一拦截
   } finally {
     loading.value = false;
-  }
-}
-
-async function loadVendors(): Promise<void> {
-  try {
-    vendors.value = await getModelVendorList();
-  } catch {
-    // 失败提示已由接口层统一拦截
   }
 }
 
@@ -926,13 +857,9 @@ function handleReset(): void {
   void loadModels();
 }
 
-/** 配置里只有一个厂商时默认选中它，没有候选时留空 */
+/** 新增时默认选中枚举里的第一个厂商 */
 function defaultVendorCode(): string {
-  const sole = vendors.value.find((vendor) => vendor.soleVendor);
-  if (sole !== undefined) {
-    return sole.code;
-  }
-  return vendors.value.length === 0 ? '' : vendors.value[0].code;
+  return MODEL_VENDORS[0].code;
 }
 
 /** 表单回到新增口径的初值 */
@@ -945,7 +872,7 @@ function resetForm(): void {
   form.priceInPerM = null;
   form.priceOutPerM = null;
   form.priceImagePerPage = null;
-  form.pricePer1kCalls = null;
+  form.pricePerThousandCalls = null;
   form.currency = MODEL_CURRENCIES[0];
   form.rpmLimit = null;
   form.tpmLimit = null;
@@ -972,7 +899,7 @@ function openEdit(item: ModelItem): void {
   form.priceInPerM = item.priceInPerM;
   form.priceOutPerM = item.priceOutPerM;
   form.priceImagePerPage = item.priceImagePerPage;
-  form.pricePer1kCalls = item.pricePer1kCalls;
+  form.pricePerThousandCalls = item.pricePerThousandCalls;
   form.currency = item.currency;
   form.rpmLimit = item.rpmLimit;
   form.tpmLimit = item.tpmLimit;
@@ -994,7 +921,7 @@ function buildPayload(): ModelSavePayload {
     priceInPerM: form.priceInPerM,
     priceOutPerM: form.priceOutPerM,
     priceImagePerPage: form.priceImagePerPage,
-    pricePer1kCalls: form.pricePer1kCalls,
+    pricePerThousandCalls: form.pricePerThousandCalls,
     currency: form.currency,
     rpmLimit: form.rpmLimit,
     tpmLimit: form.tpmLimit,
@@ -1037,24 +964,6 @@ async function handleSubmit(): Promise<void> {
   }
 }
 
-/** 试连：成功与失败都刷新清单，让最近试连列跟着结论走 */
-async function handleProbe(item: ModelItem): Promise<void> {
-  probingId.value = item.id;
-  try {
-    const result = await updateModelProbe(item.id);
-    if (result.available) {
-      ElMessage.success(probeMessage(result));
-    } else {
-      ElMessage.error(probeMessage(result));
-    }
-    await loadModels();
-  } catch {
-    // 失败提示已由接口层统一拦截
-  } finally {
-    probingId.value = null;
-  }
-}
-
 /** 启停：目标状态取反，成功后刷新清单 */
 async function handleToggleStatus(item: ModelItem): Promise<void> {
   const enabled = item.status === MODEL_STATUS.ENABLED;
@@ -1071,7 +980,6 @@ async function handleToggleStatus(item: ModelItem): Promise<void> {
 }
 
 onMounted(async () => {
-  await loadVendors();
   await loadModels();
 });
 </script>

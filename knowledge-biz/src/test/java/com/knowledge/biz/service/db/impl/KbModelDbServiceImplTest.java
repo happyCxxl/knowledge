@@ -29,7 +29,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * 模型目录数据访问单测（Mapper 打桩 + SQL 片段断言）：清单的过滤条件与排序、
- * 唯一键判定（含编辑时排除自身）、启停与探测结论的定点回写、覆盖式更新的清空列。
+ * 唯一键判定（含编辑时排除自身）、启停的定点回写、覆盖式更新的清空列。
  *
  * @author cxxl
  */
@@ -112,18 +112,6 @@ class KbModelDbServiceImplTest {
         String sql = capturedListSql();
         assertTrue(sql.contains("vendor_code"), sql);
         assertTrue(sql.contains("id"), sql);
-    }
-
-    @Test
-    void recordProbeShouldWriteBothColumns() {
-        LocalDateTime probeAt = LocalDateTime.of(2026, 10, 14, 9, 30);
-
-        dbService.recordProbe(3L, probeAt, "可用 · 320ms · qwen-max");
-
-        LambdaUpdateWrapper<KbModel> wrapper = capturedUpdateWrapper();
-        assertTrue(wrapper.getSqlSet().contains("probe_at"), wrapper.getSqlSet());
-        assertTrue(wrapper.getSqlSet().contains("probe_result"), wrapper.getSqlSet());
-        assertTrue(wrapper.getSqlSegment().contains("id"), wrapper.getSqlSegment());
     }
 
     @Test

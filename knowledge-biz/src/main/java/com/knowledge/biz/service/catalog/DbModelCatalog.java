@@ -122,15 +122,13 @@ public class DbModelCatalog extends InfraDbServiceImpl<KbModelMapper, KbModel> i
         descriptor.setPriceInPerM(row.getPriceInPerM());
         descriptor.setPriceOutPerM(row.getPriceOutPerM());
         descriptor.setPriceImagePerPage(row.getPriceImagePerPage());
-        descriptor.setPricePer1kCalls(row.getPricePer1kCalls());
+        descriptor.setPricePerThousandCalls(row.getPricePerThousandCalls());
         descriptor.setCurrency(row.getCurrency());
         descriptor.setRpmLimit(row.getRpmLimit());
         descriptor.setTpmLimit(row.getTpmLimit());
         descriptor.setStatus(row.getStatus());
         descriptor.setEffectiveFrom(row.getEffectiveFrom());
         descriptor.setEffectiveTo(row.getEffectiveTo());
-        descriptor.setProbeAt(row.getProbeAt());
-        descriptor.setProbeResult(row.getProbeResult());
         descriptor.setRemark(row.getRemark());
         if (capabilities.contains(ModelCapability.EMBEDDING)) {
             descriptor.setEmbedSpecs(embedSpecs(row.getModelKey()));

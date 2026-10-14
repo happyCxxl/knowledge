@@ -58,7 +58,7 @@ public class ModelItemVO {
     private BigDecimal priceImagePerPage;
 
     /** 按千次单价（嵌入），可空 */
-    private BigDecimal pricePer1kCalls;
+    private BigDecimal pricePerThousandCalls;
 
     /** 币种 CNY / USD */
     private String currency;
@@ -68,12 +68,6 @@ public class ModelItemVO {
 
     /** 每分钟 token 上限，可空 */
     private Integer tpmLimit;
-
-    /** 最近一次试连时间，空 = 从未测试 */
-    private LocalDateTime probeAt;
-
-    /** 最近一次试连的结论一行文本（成功与失败都写） */
-    private String probeResult;
 
     /** 备注 */
     private String remark;

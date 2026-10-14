@@ -1,41 +1,29 @@
 package com.knowledge.biz.service.impl;
 
 import com.knowledge.biz.service.db.KbModelDbService;
-import com.knowledge.common.domain.embed.EmbeddingRequest;
-import com.knowledge.common.domain.embed.EmbeddingResult;
 import com.knowledge.common.domain.entity.KbModel;
 import com.knowledge.common.domain.model.AuthType;
-import com.knowledge.common.domain.model.ChatRequest;
-import com.knowledge.common.domain.model.GenerationResult;
-import com.knowledge.common.domain.model.VisionRequest;
 import com.knowledge.common.dto.request.model.ModelQueryDto;
 import com.knowledge.common.dto.request.model.ModelSaveDto;
 import com.knowledge.common.dto.request.model.ModelStatusDto;
 import com.knowledge.common.dto.response.model.ModelItemVO;
-import com.knowledge.common.dto.response.model.ModelProbeVO;
-import com.knowledge.common.dto.response.model.ModelVendorVO;
 import com.knowledge.common.enums.knowledge.AuditActionType;
 import com.knowledge.common.enums.knowledge.AuditObjectType;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
 import com.knowledge.common.security.audit.AuditEventPublisher;
-import com.knowledge.common.utils.JsonUtil;
 import com.knowledge.model.config.ModelVendorProperties;
-import com.knowledge.model.invoke.ModelInvoker;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -50,9 +38,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 模型管理服务单测（数据访问与调用器打桩）：清单过滤与字段映射、新增与编辑的校验逐条、
- * 启停的定点回写与审计、连通性测试的成功与失败两条路径（含结论两列的回写）、
- * 厂商只读清单的内容与密钥零泄漏。
+ * 模型管理服务单测（数据访问打桩）：清单过滤与字段映射、新增与编辑的校验逐条、
+ * 启停的定点回写与审计、厂商码必须在配置里的校验。
  *
  * @author cxxl
  */
@@ -63,8 +50,6 @@ class ModelAdminServiceImplTest {
 
     private KbModelDbService kbModelDbService;
 
-    private ModelInvoker modelInvoker;
-
     private AuditEventPublisher auditEventPublisher;
 
     private ModelVendorProperties vendorProperties;
@@ -74,14 +59,13 @@ class ModelAdminServiceImplTest {
     @BeforeEach
     void setUp() {
         kbModelDbService = mock(KbModelDbService.class);
-        modelInvoker = mock(ModelInvoker.class);
         auditEventPublisher = mock(AuditEventPublisher.class);
         vendorProperties = new ModelVendorProperties();
         Map<String, ModelVendorProperties.Vendor> vendors = new LinkedHashMap<>();
         vendors.put("dashscope", vendor("sk-dashscope"));
         vendors.put("self-ocr", vendor(null));
         vendorProperties.setVendors(vendors);
-        service = new ModelAdminServiceImpl(kbModelDbService, vendorProperties, modelInvoker, auditEventPublisher);
+        service = new ModelAdminServiceImpl(kbModelDbService, vendorProperties, auditEventPublisher);
     }
 
     @Test
@@ -356,143 +340,6 @@ class ModelAdminServiceImplTest {
         verify(auditEventPublisher, never()).publish(any(), anyString(), any(), any(), any());
     }
 
-    @Test
-    void probeShouldWriteBackResultOnSuccess() {
-        when(kbModelDbService.getExistingById(1L)).thenReturn(row(1L, "dashscope", "qwen-max", "CHAT", "ENABLED"));
-        when(modelInvoker.chat(eq("dashscope"), any(ChatRequest.class)))
-                .thenReturn(generation("qwen-max", "qwen-max-2026-09-19"));
-
-        ModelProbeVO result = service.probe(1L);
-
-        assertTrue(result.isAvailable());
-        assertEquals("CHAT", result.getCapability());
-        assertEquals("qwen-max", result.getModel());
-        assertEquals("qwen-max-2026-09-19", result.getModelVersion());
-        assertNull(result.getErrorCode());
-        assertTrue(result.getLatencyMs() >= 0L);
-        assertNotNull(result.getProbeAt());
-        assertTrue(result.getProbeResult().contains("可用"), result.getProbeResult());
-        verify(kbModelDbService).recordProbe(eq(1L), eq(result.getProbeAt()), eq(result.getProbeResult()));
-    }
-
-    @Test
-    void probeShouldWriteBackResultOnFailure() {
-        when(kbModelDbService.getExistingById(1L)).thenReturn(row(1L, "dashscope", "qwen-max", "CHAT", "ENABLED"));
-        when(modelInvoker.chat(eq("dashscope"), any(ChatRequest.class)))
-                .thenThrow(new KnowledgeException(ErrorCode.MODEL_TIMEOUT, "厂商：dashscope，模型：qwen-max，原因：超时"));
-
-        ModelProbeVO result = service.probe(1L);
-
-        assertFalse(result.isAvailable());
-        assertEquals("MODEL_TIMEOUT", result.getErrorCode());
-        assertTrue(result.getMessage().contains("超时"), result.getMessage());
-        assertTrue(result.getProbeResult().contains("失败"), result.getProbeResult());
-        assertTrue(result.getProbeResult().contains("MODEL_TIMEOUT"), result.getProbeResult());
-        verify(kbModelDbService).recordProbe(eq(1L), eq(result.getProbeAt()), eq(result.getProbeResult()));
-    }
-
-    @Test
-    void probeShouldUseEmbedForEmbeddingModel() {
-        when(kbModelDbService.getExistingById(2L))
-                .thenReturn(row(2L, "dashscope", "text-embedding-v4", "EMBEDDING", "ENABLED"));
-        EmbeddingResult embedding = new EmbeddingResult();
-        embedding.setModel("text-embedding-v4");
-        when(modelInvoker.embed(eq("dashscope"), any(EmbeddingRequest.class), isNull())).thenReturn(embedding);
-
-        ModelProbeVO result = service.probe(2L);
-
-        assertTrue(result.isAvailable());
-        assertEquals("EMBEDDING", result.getCapability());
-        assertEquals("text-embedding-v4", result.getModel());
-        verify(modelInvoker, never()).chat(anyString(), any(ChatRequest.class));
-    }
-
-    @Test
-    void probeShouldUseVisionForVisionOnlyModel() {
-        when(kbModelDbService.getExistingById(4L)).thenReturn(row(4L, "self-ocr", "doc-ocr-v2", "OCR", "ENABLED"));
-        when(modelInvoker.vision(eq("self-ocr"), any(VisionRequest.class), isNull()))
-                .thenReturn(generation("doc-ocr-v2", null));
-
-        ModelProbeVO result = service.probe(4L);
-
-        assertTrue(result.isAvailable());
-        assertEquals("OCR", result.getCapability());
-        ArgumentCaptor<VisionRequest> captor = ArgumentCaptor.forClass(VisionRequest.class);
-        verify(modelInvoker).vision(eq("self-ocr"), captor.capture(), isNull());
-        assertNotNull(captor.getValue().getImageBytes());
-        assertEquals("image/png", captor.getValue().getMimeType());
-        assertEquals("doc-ocr-v2", captor.getValue().getModelKey());
-    }
-
-    @Test
-    void probeShouldRejectModelWithoutCapability() {
-        when(kbModelDbService.getExistingById(6L)).thenReturn(row(6L, "dashscope", "plain-model", "", "ENABLED"));
-
-        ModelProbeVO result = service.probe(6L);
-
-        assertFalse(result.isAvailable());
-        assertEquals(ErrorCode.MODEL_MODALITY_UNSUPPORTED.name(), result.getErrorCode());
-        verify(kbModelDbService).recordProbe(eq(6L), any(LocalDateTime.class), anyString());
-    }
-
-    @Test
-    void probeShouldRejectMissingRow() {
-        when(kbModelDbService.getExistingById(9L)).thenReturn(null);
-
-        KnowledgeException error = assertThrows(KnowledgeException.class, () -> service.probe(9L));
-
-        assertEquals(ErrorCode.MODEL_NOT_FOUND, error.getErrorCode());
-        verify(kbModelDbService, never()).recordProbe(any(), any(), anyString());
-    }
-
-    @Test
-    void vendorsShouldBeReadOnlyAndHideCredentials() {
-        List<ModelVendorVO> items = service.vendors();
-
-        assertEquals(2, items.size());
-        List<ModelVendorVO> sorted = items.stream().sorted(Comparator.comparing(ModelVendorVO::getCode)).toList();
-        ModelVendorVO dashscope = sorted.getFirst();
-        assertEquals("dashscope", dashscope.getCode());
-        assertEquals("阿里百炼", dashscope.getDisplayName());
-        assertTrue(dashscope.isCredentialConfigured());
-        assertFalse(dashscope.isSoleVendor());
-        assertEquals("self-ocr", sorted.get(1).getCode());
-        assertFalse(sorted.get(1).isCredentialConfigured());
-
-        String json = JsonUtil.toJsonStr(items);
-        assertFalse(json.contains("sk-dashscope"), json);
-        assertFalse(json.toLowerCase(Locale.ROOT).contains("apikey"), json);
-        assertFalse(json.contains("密钥值"), json);
-    }
-
-    @Test
-    void vendorsShouldBeEmptyWhenSectionAbsent() {
-        vendorProperties.setVendors(null);
-        assertTrue(service.vendors().isEmpty());
-
-        ModelVendorProperties single = new ModelVendorProperties();
-        Map<String, ModelVendorProperties.Vendor> vendors = new LinkedHashMap<>();
-        vendors.put("dashscope", vendor("sk-single"));
-        single.setVendors(vendors);
-        ModelAdminServiceImpl singleService = new ModelAdminServiceImpl(kbModelDbService, single, modelInvoker,
-                auditEventPublisher);
-
-        assertTrue(singleService.vendors().getFirst().isSoleVendor());
-    }
-
-    @Test
-    void probeShouldReportUnreadableErrorCodeForUnknownVendorOnCall() {
-        when(kbModelDbService.getExistingById(8L)).thenReturn(row(8L, "gone", "qwen-max", "CHAT", "ENABLED"));
-        when(modelInvoker.chat(eq("gone"), any(ChatRequest.class)))
-                .thenThrow(new KnowledgeException(ErrorCode.MODEL_VENDOR_UNKNOWN, "厂商：gone，已配置厂商：[dashscope]"));
-
-        ModelProbeVO result = service.probe(8L);
-
-        assertFalse(result.isAvailable());
-        assertEquals(ErrorCode.MODEL_VENDOR_UNKNOWN.name(), result.getErrorCode());
-        assertTrue(result.getProbeResult().contains("已配置厂商"), result.getProbeResult());
-    }
-
     /** 字段齐全的收参：覆盖价格四列、限额两列与生效区间 */
     private ModelSaveDto saveDto() {
         ModelSaveDto dto = new ModelSaveDto();
@@ -504,7 +351,7 @@ class ModelAdminServiceImplTest {
         dto.setPriceInPerM(new BigDecimal("20"));
         dto.setPriceOutPerM(new BigDecimal("60"));
         dto.setPriceImagePerPage(new BigDecimal("0.02"));
-        dto.setPricePer1kCalls(new BigDecimal("0.0007"));
+        dto.setPricePerThousandCalls(new BigDecimal("0.0007"));
         dto.setCurrency("CNY");
         dto.setRpmLimit(600);
         dto.setTpmLimit(120000);
@@ -534,15 +381,6 @@ class ModelAdminServiceImplTest {
         vendor.setAuthType(AuthType.BEARER);
         vendor.setApiKey(apiKey);
         return vendor;
-    }
-
-    /** 对话与视觉共用的出参 */
-    private GenerationResult generation(String model, String modelVersion) {
-        GenerationResult generation = new GenerationResult();
-        generation.setContent("pong");
-        generation.setModel(model);
-        generation.setModelVersion(modelVersion);
-        return generation;
     }
 
     /** 取最近一次落库的新增行 */

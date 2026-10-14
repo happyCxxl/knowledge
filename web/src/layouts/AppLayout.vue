@@ -351,11 +351,10 @@ const navItems: NavItem[] = [
   },
   {
     kind: 'leaf',
-    // 模型管理：模型目录维护、试连与用量成本；接口都仅管理员可用
+    // 模型管理：模型目录维护、试连与用量成本；页面与接口对所有登录用户开放
     label: '模型管理',
     path: '/model',
     iconPaths: ['M5.2 5.2h5.6v5.6H5.2z', 'M8 2.4v2.8M8 10.8v2.8M2.4 8h2.8M10.8 8h2.8'],
-    adminOnly: true,
   },
   {
     kind: 'leaf',

@@ -1,7 +1,6 @@
 package com.knowledge.biz.controller;
 
 import com.knowledge.biz.service.ModelUsageService;
-import com.knowledge.common.annotation.AdminOnly;
 import com.knowledge.common.domain.model.calllog.ModelCallLogSummary;
 import com.knowledge.common.domain.model.calllog.ModelCallLogView;
 import com.knowledge.common.dto.request.model.ModelUsageQueryDto;
@@ -17,9 +16,9 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 /**
- * 模型用量 Controller：调用明细查询与用量成本概览，两个接口都只读、仅管理员可用。
+ * 模型用量 Controller：调用明细查询与用量成本概览，两个接口都只读、对所有登录用户开放。
  *
- * <p>路径前缀按模型管理接口的规划（`/admin/model`）：仓库既有接口不带 `api` 段，本 Controller 也不带。
+ * <p>路径前缀与模型管理接口同源（`/model`）：仓库既有接口不带 `api` 段，本 Controller 也不带。
  * 概览与明细共用同一组查询条件（时间范围必填 + 租户 / 能力 / 模型 / 路由原因 / 状态可选），
  * 概览不做日聚合表，直接由明细表聚合（D16）。
  *
@@ -29,14 +28,13 @@ import java.util.List;
  */
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/admin/model/usage")
-@Tag(name = "模型用量", description = "调用明细查询与用量成本概览（仅管理员）")
+@RequestMapping("/model/usage")
+@Tag(name = "模型用量", description = "调用明细查询与用量成本概览（对所有登录用户开放）")
 public class ModelUsageController {
 
     private final ModelUsageService modelUsageService;
 
     @GetMapping("/summary")
-    @AdminOnly
     @Operation(summary = "用量与成本概览",
             description = "时间范围必填（from 含 / to 不含，yyyy-MM-dd 或 yyyy-MM-ddTHH:mm:ss）；"
                     + "返回调用总数、成功失败数、超时与限流数、未知用量条数与占比、已知 token 与成本合计；"
@@ -46,7 +44,6 @@ public class ModelUsageController {
     }
 
     @GetMapping("/calls")
-    @AdminOnly
     @Operation(summary = "调用明细查询",
             description = "时间范围必填；可选租户 / 能力 / 模型 / 路由原因 / 状态；按调用时间倒序，"
                     + "条数由 limit 收口（未传 500，上限 2000）")

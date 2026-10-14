@@ -3,7 +3,6 @@ package com.knowledge.biz.service.db;
 import com.knowledge.common.domain.entity.KbModel;
 import com.knowledge.infra.persistence.InfraDbService;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -50,15 +49,6 @@ public interface KbModelDbService extends InfraDbService<KbModel> {
      * @param row 目标行（主键必填，业务列按覆盖口径写入）
      */
     void updateAll(KbModel row);
-
-    /**
-     * 回写最近一次连通性测试结果（只动这两列）。
-     *
-     * @param id      主键
-     * @param probeAt 测试时间
-     * @param result  结论一行文本
-     */
-    void recordProbe(Long id, LocalDateTime probeAt, String result);
 
     /**
      * 回写状态（只动这一列）。

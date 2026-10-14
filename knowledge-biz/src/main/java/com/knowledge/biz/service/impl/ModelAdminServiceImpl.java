@@ -3,21 +3,12 @@ package com.knowledge.biz.service.impl;
 import cn.hutool.core.util.StrUtil;
 import com.knowledge.biz.service.ModelAdminService;
 import com.knowledge.biz.service.db.KbModelDbService;
-import com.knowledge.common.domain.embed.EmbeddingRequest;
-import com.knowledge.common.domain.embed.EmbeddingResult;
 import com.knowledge.common.domain.entity.KbModel;
-import com.knowledge.common.domain.model.ChatMessage;
-import com.knowledge.common.domain.model.ChatRequest;
-import com.knowledge.common.domain.model.GenerationResult;
-import com.knowledge.common.domain.model.MessageRole;
-import com.knowledge.common.domain.model.VisionRequest;
 import com.knowledge.common.domain.model.catalog.ModelCapability;
 import com.knowledge.common.dto.request.model.ModelQueryDto;
 import com.knowledge.common.dto.request.model.ModelSaveDto;
 import com.knowledge.common.dto.request.model.ModelStatusDto;
 import com.knowledge.common.dto.response.model.ModelItemVO;
-import com.knowledge.common.dto.response.model.ModelProbeVO;
-import com.knowledge.common.dto.response.model.ModelVendorVO;
 import com.knowledge.common.enums.knowledge.AuditActionType;
 import com.knowledge.common.enums.knowledge.AuditObjectType;
 import com.knowledge.common.error.ErrorCode;
@@ -27,7 +18,6 @@ import com.knowledge.common.security.audit.AuditEventPublisher;
 import com.knowledge.common.utils.JsonUtil;
 import com.knowledge.common.utils.NullUtil;
 import com.knowledge.model.config.ModelVendorProperties;
-import com.knowledge.model.invoke.ModelInvoker;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -39,8 +29,6 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
-import java.util.Base64;
-import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -48,14 +36,10 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 模型管理服务实现：模型目录的清单与写入、连通性测试、厂商只读清单。
+ * 模型管理服务实现：模型目录的清单与写入、启停。
  *
  * <p>校验都在本类一处完成：厂商码必须出现在配置里、唯一键不冲突、价格与限额非负、能力与状态取值在字典内、
  * 生效区间的开始早于结束。写入只落 `kb_model` 的业务列与审计，配置与密钥都不经过本类。
- *
- * <p>连通性测试按模型声明的能力选一次最小真实请求 —— 声明 `CHAT` 走对话、声明 `EMBEDDING` 走向量、
- * 只声明视觉三能力时走视觉；视觉入参的图像取一枚内置 1×1 PNG 常量（页面与解析侧都没有图像字节来源）。
- * 结论无论成败都写回 `probe_at` / `probe_result`，失败原因经错误码与消息一并返回。
  *
  * @author cxxl
  */
@@ -86,25 +70,8 @@ public class ModelAdminServiceImpl implements ModelAdminService {
     private static final int CAPABILITIES_MAX = 255;
     private static final int REMARK_MAX = 512;
 
-    /** 结论列宽上限（kb_model.probe_result） */
-    private static final int PROBE_RESULT_MAX = 255;
-
     /** 日期写法的文本长度（yyyy-MM-dd） */
     private static final int DATE_TEXT_LENGTH = 10;
-
-    /** 连通性测试的请求文本 */
-    private static final String PROBE_PROMPT = "ping";
-
-    /** 视觉模态测试用的图像：1×1 PNG（69 字节，Base64 文本） */
-    private static final String PROBE_IMAGE_BASE64 =
-            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4XmNgYGAAAAAEAAEP0q3kAAAAAElFTkSuQmCC";
-
-    /** 视觉模态测试用的媒体类型 */
-    private static final String PROBE_IMAGE_MIME_TYPE = "image/png";
-
-    /** 视觉三能力的测试优先序（按声明顺序取第一个命中的能力） */
-    private static final List<ModelCapability> VISION_PROBE_ORDER =
-            List.of(ModelCapability.TABLE_STRUCTURE, ModelCapability.OCR, ModelCapability.LAYOUT);
 
     /** 厂商展示名：配置里没有这一项，按厂商码给内置映射，认不出的回落码值本身 */
     private static final Map<String, String> VENDOR_DISPLAY_NAMES = Map.of(
@@ -118,8 +85,6 @@ public class ModelAdminServiceImpl implements ModelAdminService {
     private final KbModelDbService kbModelDbService;
 
     private final ModelVendorProperties modelVendorProperties;
-
-    private final ModelInvoker modelInvoker;
 
     private final AuditEventPublisher auditEventPublisher;
 
@@ -182,49 +147,6 @@ public class ModelAdminServiceImpl implements ModelAdminService {
         return toItem(row);
     }
 
-    @Override
-    public ModelProbeVO probe(Long id) {
-        KbModel row = requireRow(id);
-        ModelProbeVO result = new ModelProbeVO();
-        long start = System.currentTimeMillis();
-        try {
-            probeCall(row, ModelCapability.parse(row.getCapabilities()), result);
-            result.setAvailable(true);
-        } catch (KnowledgeException e) {
-            result.setAvailable(false);
-            result.setErrorCode(NullUtil.isNull(e.getErrorCode()) ? null : e.getErrorCode().name());
-            result.setMessage(e.getMessage());
-        } catch (RuntimeException e) {
-            result.setAvailable(false);
-            result.setErrorCode(ErrorCode.SYSTEM_ERROR.name());
-            result.setMessage(e.getMessage());
-        }
-        result.setLatencyMs(System.currentTimeMillis() - start);
-        result.setProbeAt(LocalDateTime.now());
-        result.setProbeResult(probeResultText(result));
-        kbModelDbService.recordProbe(id, result.getProbeAt(), result.getProbeResult());
-        log.info("===> ModelAdminServiceImpl probe 连通性测试, id={}, vendor={}, model={}, available={}, errorCode={}",
-                id, row.getVendorCode(), row.getModelKey(), result.isAvailable(), result.getErrorCode());
-        return result;
-    }
-
-    @Override
-    public List<ModelVendorVO> vendors() {
-        Map<String, ModelVendorProperties.Vendor> vendors = vendorMap();
-        boolean soleVendor = vendors.size() == 1;
-        List<ModelVendorVO> items = new ArrayList<>(vendors.size());
-        for (Map.Entry<String, ModelVendorProperties.Vendor> entry : vendors.entrySet()) {
-            ModelVendorVO item = new ModelVendorVO();
-            item.setCode(entry.getKey());
-            item.setDisplayName(vendorName(entry.getKey()));
-            item.setCredentialConfigured(credentialConfigured(entry.getValue()));
-            item.setSoleVendor(soleVendor);
-            items.add(item);
-        }
-        items.sort(Comparator.comparing(ModelVendorVO::getCode));
-        return items;
-    }
-
     /**
      * 收参校验后把业务列写进行对象：新增与编辑共用，编辑时排除自身做唯一键判定，
      * 状态与币种留空时取形参给出的回落值。
@@ -250,7 +172,7 @@ public class ModelAdminServiceImpl implements ModelAdminService {
         row.setPriceInPerM(nonNegative(dto.getPriceInPerM(), "输入单价"));
         row.setPriceOutPerM(nonNegative(dto.getPriceOutPerM(), "输出单价"));
         row.setPriceImagePerPage(nonNegative(dto.getPriceImagePerPage(), "按页单价"));
-        row.setPricePer1kCalls(nonNegative(dto.getPricePer1kCalls(), "按千次单价"));
+        row.setPricePerThousandCalls(nonNegative(dto.getPricePerThousandCalls(), "按千次单价"));
         row.setCurrency(currency(dto.getCurrency(), currencyFallback));
         row.setRpmLimit(nonNegative(dto.getRpmLimit(), "RPM 上限"));
         row.setTpmLimit(nonNegative(dto.getTpmLimit(), "TPM 上限"));
@@ -384,92 +306,6 @@ public class ModelAdminServiceImpl implements ModelAdminService {
         return row;
     }
 
-    /** 一次最小真实请求：按能力取对话 / 向量 / 视觉三组里的第一组，出参的模型与版本写在入参对象上 */
-    private void probeCall(KbModel row, Set<ModelCapability> capabilities, ModelProbeVO result) {
-        if (capabilities.contains(ModelCapability.CHAT)) {
-            result.setCapability(ModelCapability.CHAT.name());
-            GenerationResult generation = modelInvoker.chat(row.getVendorCode(), chatRequest(row.getModelKey()));
-            result.setModel(generation.getModel());
-            result.setModelVersion(generation.getModelVersion());
-            return;
-        }
-        if (capabilities.contains(ModelCapability.EMBEDDING)) {
-            result.setCapability(ModelCapability.EMBEDDING.name());
-            EmbeddingResult embedding = modelInvoker.embed(row.getVendorCode(), embeddingRequest(row.getModelKey()),
-                    null);
-            result.setModel(embedding.getModel());
-            return;
-        }
-        ModelCapability vision = visionCapability(capabilities);
-        ThrowUtil.throwIf(NullUtil.isNull(vision), ErrorCode.MODEL_MODALITY_UNSUPPORTED,
-                "模型未声明可测试的能力，模型：" + row.getModelKey());
-        result.setCapability(vision.name());
-        GenerationResult generation = modelInvoker.vision(row.getVendorCode(), visionRequest(row.getModelKey()), null);
-        result.setModel(generation.getModel());
-        result.setModelVersion(generation.getModelVersion());
-    }
-
-    /** 视觉三能力里按测试优先序取第一个命中的；都不命中返回空 */
-    private ModelCapability visionCapability(Set<ModelCapability> capabilities) {
-        for (ModelCapability candidate : VISION_PROBE_ORDER) {
-            if (capabilities.contains(candidate)) {
-                return candidate;
-            }
-        }
-        return null;
-    }
-
-    /** 对话模态的最小入参：一条用户消息，输出约束留空（TEXT 口径不校验） */
-    private ChatRequest chatRequest(String modelKey) {
-        ChatMessage message = new ChatMessage();
-        message.setRole(MessageRole.USER);
-        message.setContent(PROBE_PROMPT);
-        ChatRequest request = new ChatRequest();
-        request.setModelKey(modelKey);
-        request.setMessages(List.of(message));
-        return request;
-    }
-
-    /** 向量模态的最小入参：一条短文本 */
-    private EmbeddingRequest embeddingRequest(String modelKey) {
-        EmbeddingRequest request = new EmbeddingRequest();
-        request.setModel(modelKey);
-        request.setTexts(List.of(PROBE_PROMPT));
-        return request;
-    }
-
-    /** 视觉模态的最小入参：一枚 1×1 PNG 字节 + 媒体类型 + 短提示词 */
-    private VisionRequest visionRequest(String modelKey) {
-        VisionRequest request = new VisionRequest();
-        request.setModelKey(modelKey);
-        request.setImageBytes(Base64.getDecoder().decode(PROBE_IMAGE_BASE64));
-        request.setMimeType(PROBE_IMAGE_MIME_TYPE);
-        request.setPrompt(PROBE_PROMPT);
-        return request;
-    }
-
-    /** 回写结论一行文本：成功给可用性与耗时（带响应回传的模型标识），失败给错误码与消息 */
-    private String probeResultText(ModelProbeVO result) {
-        StringBuilder text = new StringBuilder(result.isAvailable() ? "可用" : "失败");
-        text.append(" · ").append(result.getLatencyMs()).append("ms");
-        if (result.isAvailable()) {
-            append(text, result.getModel());
-            append(text, result.getModelVersion());
-        } else {
-            append(text, result.getErrorCode());
-            append(text, result.getMessage());
-        }
-        String summary = text.toString();
-        return summary.length() <= PROBE_RESULT_MAX ? summary : summary.substring(0, PROBE_RESULT_MAX);
-    }
-
-    /** 结论文本追加一段（值为空即跳过） */
-    private void append(StringBuilder text, String part) {
-        if (NullUtil.isNotNull(part) && !part.isBlank()) {
-            text.append(" · ").append(part);
-        }
-    }
-
     /** 库表行 → 清单条目：能力串切成字典名清单，厂商展示名按内置映射补齐 */
     private ModelItemVO toItem(KbModel row) {
         ModelItemVO item = new ModelItemVO();
@@ -485,15 +321,13 @@ public class ModelAdminServiceImpl implements ModelAdminService {
         item.setPriceInPerM(row.getPriceInPerM());
         item.setPriceOutPerM(row.getPriceOutPerM());
         item.setPriceImagePerPage(row.getPriceImagePerPage());
-        item.setPricePer1kCalls(row.getPricePer1kCalls());
+        item.setPricePerThousandCalls(row.getPricePerThousandCalls());
         item.setCurrency(row.getCurrency());
         item.setRpmLimit(row.getRpmLimit());
         item.setTpmLimit(row.getTpmLimit());
         item.setStatus(row.getStatus());
         item.setEffectiveFrom(row.getEffectiveFrom());
         item.setEffectiveTo(row.getEffectiveTo());
-        item.setProbeAt(row.getProbeAt());
-        item.setProbeResult(row.getProbeResult());
         item.setRemark(row.getRemark());
         return item;
     }
@@ -510,11 +344,6 @@ public class ModelAdminServiceImpl implements ModelAdminService {
             return null;
         }
         return VENDOR_DISPLAY_NAMES.getOrDefault(vendorCode, vendorCode);
-    }
-
-    /** 是否已配密钥：只看配置里的 api-key 有没有值，密钥内容不读出本类 */
-    private boolean credentialConfigured(ModelVendorProperties.Vendor vendor) {
-        return NullUtil.isNotNull(vendor) && StrUtil.isNotBlank(vendor.getApiKey());
     }
 
     /** 状态是否启用 */
