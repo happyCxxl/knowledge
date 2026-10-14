@@ -57,6 +57,7 @@
 | 08   | 用户管理（仅管理员）                                | `/user`                         | `../web/src/views/user/UserManagementView.vue`          | `UserController`                                                                                                                                                                                                                                                                                           | 待梳理 |
 | 09   | 个人中心                                            | `/profile`                      | `../web/src/views/profile/ProfileView.vue`              | `UserController`（个人信息与改密，仅本人）                                                                                                                                                                                                                                                                 | 已梳理 |
 | 10   | 系统设置（所有用户可见，卡片按权限）                | `/settings`                     | `../web/src/views/system/SystemSettingView.vue`         | `StorageSourceController`（存储数据源：列举存储源并启用）                                                                                                                                                                                                                                                  | 已梳理 |
+| 11   | 模型管理（仅管理员）                                | `/model`                        | `../web/src/views/model/ModelManagementView.vue`        | `ModelAdminController`（模型清单 / 新增 / 编辑 / 启停 / 试连 / 厂商只读清单）、`ModelUsageController`（用量概览与调用明细）                                                                                                                                                                                | 已梳理 |
 
 顺序按用户使用动线排。一个路由里若装了互相独立的功能，会拆成多份文件；「Controller（初判）」是文件归属的初步判断，逐页梳理时以实际调用为准，可能修正。
 
@@ -72,6 +73,7 @@
 - 04-4 切片环节 → `pages/切片环节/README.md`
 - 09 个人中心 → `pages/个人中心/README.md`
 - 10 系统设置 → `pages/系统设置/README.md`
+- 11 模型管理 → `pages/模型管理/README.md`
 - 其余功能单元（04-0、05~08）梳理后在此补上
 
 ## 全局约定
@@ -246,6 +248,7 @@
 | 二级 | 知识库管理 | `/knowledge-base` | 全部                       |
 | 二级 | 策略管理   | `/strategy`       | 全部                       |
 | 一级 | 用户管理   | `/user`           | 仅管理员                   |
+| 一级 | 模型管理   | `/model`          | 仅管理员                   |
 | 一级 | 系统设置   | `/settings`       | 全部（页内卡片按权限显示） |
 | 一级 | 个人中心   | `/profile`        | 全部                       |
 

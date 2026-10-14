@@ -56,5 +56,17 @@ public enum AuditActionType {
     USER_PASSWORD_CHANGE,
 
     /** 存储数据源：切换当前启用的数据源 */
-    STORAGE_SWITCH
+    STORAGE_SWITCH,
+
+    /** 模型目录：新增模型 */
+    MODEL_CREATE,
+
+    /** 模型目录：修改模型（厂商、能力、价格、限额、生效区间） */
+    MODEL_UPDATE,
+
+    /** 模型目录：启用模型 */
+    MODEL_ENABLE,
+
+    /** 模型目录：停用模型 */
+    MODEL_DISABLE
 }

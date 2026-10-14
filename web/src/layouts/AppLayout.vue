@@ -351,6 +351,14 @@ const navItems: NavItem[] = [
   },
   {
     kind: 'leaf',
+    // 模型管理：模型目录维护、试连与用量成本；接口都仅管理员可用
+    label: '模型管理',
+    path: '/model',
+    iconPaths: ['M5.2 5.2h5.6v5.6H5.2z', 'M8 2.4v2.8M8 10.8v2.8M2.4 8h2.8M10.8 8h2.8'],
+    adminOnly: true,
+  },
+  {
+    kind: 'leaf',
     // 系统设置：平台级开关，登录用户都能进；页面内各设置卡按权限自行决定是否渲染
     label: '系统设置',
     path: '/settings',
@@ -434,6 +442,7 @@ const BACK_TARGETS: Record<string, { path: string; label: string }> = {
   RetrievalEval: { path: '/knowledge-base', label: '知识库' },
   StrategyManagement: { path: '/home', label: '首页' },
   UserManagement: { path: '/home', label: '首页' },
+  ModelManagement: { path: '/home', label: '首页' },
   SystemSetting: { path: '/home', label: '首页' },
   Profile: { path: '/home', label: '首页' },
 };

@@ -86,7 +86,7 @@ class ModelUsageControllerRoutingTest {
     void undefinedPathsShouldNotBeMapped() throws Exception {
         mockMvc.perform(get("/admin/model/usage")).andExpect(status().isNotFound());
         mockMvc.perform(get("/admin/model/usage/calls/1")).andExpect(status().isNotFound());
-        mockMvc.perform(get("/admin/model/models")).andExpect(status().isNotFound());
+        mockMvc.perform(get("/admin/model/credentials")).andExpect(status().isNotFound());
         mockMvc.perform(post("/admin/model/usage/summary")).andExpect(status().isMethodNotAllowed());
 
         verifyNoInteractions(modelUsageService);

@@ -67,6 +67,9 @@ export default defineConfig({
       // 系统设置接口（/system/storage-sources 与它的预览、启用）：/settings 是 SPA 路由而
       // /system 同时是接口前缀，同样靠 bypass 区分导航与接口；漏配的后果与上面 /home 那条相同
       '^/system/': { target: BACKEND, bypass: bypassNavigation },
+      // 模型管理接口（/admin/model/vendors、/admin/model/models 与试连、/admin/model/usage/*）：
+      // /admin 只作接口前缀，加 bypass 是为了口径统一、防未来与 SPA 路由重名
+      '^/admin/': { target: BACKEND, bypass: bypassNavigation },
     },
   },
 });

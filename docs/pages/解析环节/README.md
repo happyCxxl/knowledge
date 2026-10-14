@@ -37,7 +37,7 @@
 - **索引页与评测页按 `knowledgeBaseId` 的接口尚未做归属校验**（见 `../知识库列表/README.md` 的待定项）。
 - **`CapabilitySnapshot.table` 无人写入**：产物字段、血缘 VO 与前端展示都已就位，三个能力项（`ocr` / `layout` / `table`）恒为空 —— **取值口径已定**：`null` 即「未接入该能力」（`CapabilitySnapshot` 类注释即契约），不额外补「未接入」值，能力接入后由 provider 回填。
 - **`ParseElement.headerRepeated` 无赋值点**：字段与下游读取（组装环节续表判定）都在，字段注释已标明当前无解析器赋值；是否补写或从契约中移除，需与组装环节的续表判定一起定。
-- **解析环节的模型能力暂不接入**：`CapabilityRegistry` 与三个 provider 接口是预留位，当前零实现，规则路径（`TableCandidateDetector` / `RuleLines` / `ProjectionPageLayoutAnalyzer`）是唯一在跑的实现；接入时机与形态（sidecar / 自研）尚未决定。
+- **解析环节的模型能力已接入，与规则路径并存**：能力访问层已按 D33 拆分归位 —— HTTP 访问、连接与凭据上移平台（`knowledge.model.vendors.*`），响应到领域结构的映射留在解析侧的三个实现（`VisionTableStructureProvider` / `VisionOcrProvider` / `VisionLayoutProvider` 配 `capability/prompt/CapabilityPrompts` 与 `capability/CapabilityRequests`），统一经 `ModelGatewayPort.visionByCapability` 走平台出口。三项开关（`knowledge.parse.capability.ocr-enabled` / `layout-enabled` / `table-enabled`，默认全关）打开时按能力选型调平台，关闭时仍走规则路径（`TableCandidateDetector` / `RuleLines` / `ProjectionPageLayoutAnalyzer`）。**真实链路上的图像字节来源仍缺**：页面与区域栅格化、图像落对象存储的键约定、按页或区域取回字节登记在 `MODEL-14`，接通前视觉入参没有图像数据。
 - **分栏能力只到端口、没有实现选择**：`PageLayoutAnalyzer` 当前只有投影法规则实现，没有按开关切换实现的能力；是否补 `PageLayoutRegistry`（与 `CapabilityRegistry` / `StructureJudgeRegistry` 同范式）尚未决定。PDFBox 自带的文章线索（beads，仅当文件声明时存在）是否接入也尚未决定。
 - **解析阈值只存在于代码**：`ParseProperties` 的阈值（行容差、页级判定、表格四条、分栏六条、扫描页图片占比、Office 单元折算、图片元素面积门槛）没有落到 `application.yml`，改阈值要改代码重发版；是否落配置项尚未决定。
 - **图片未识别告警逐张产**：`OCR_IMAGE` 事实按图片逐张产（Office 与 PDF 同口径），多图文档的告警条数会很多；是否按页 / 按文档聚合尚未决定。
