@@ -3,6 +3,8 @@ package com.knowledge.model.engine;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
 import com.knowledge.model.config.ModelVendorProperties;
+import com.knowledge.model.listener.ModelCallTraceHolder;
+import com.knowledge.model.listener.UsageRecordingListener;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.embedding.EmbeddingModel;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,7 +37,8 @@ class ModelInstanceRegistryTest {
         vendors.put("dashscope", vendor("http://127.0.0.1:1/v1", "sk-dashscope"));
         vendors.put("custom", vendor("http://127.0.0.1:2/v1", "sk-custom"));
         properties.setVendors(vendors);
-        registry = new ModelInstanceRegistry(properties, new OpenAiCompatibleEngineFactory());
+        registry = new ModelInstanceRegistry(properties,
+                new OpenAiCompatibleEngineFactory(new UsageRecordingListener(), new ModelCallTraceHolder()));
     }
 
     @Test

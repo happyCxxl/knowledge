@@ -1,6 +1,9 @@
 package com.knowledge.model.engine;
 
 import com.knowledge.model.config.ModelVendorProperties;
+import com.knowledge.model.listener.ModelCallTrace;
+import com.knowledge.model.listener.ModelCallTraceHolder;
+import com.knowledge.model.listener.UsageRecordingListener;
 import com.knowledge.model.support.FakeOpenAiServer;
 import dev.langchain4j.data.embedding.Embedding;
 import dev.langchain4j.data.segment.TextSegment;
@@ -21,7 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * 引擎工厂单测（假 OpenAI 兼容端点）：请求路径、Bearer 头、模型名与配置一致；超时与重试按配置生效；
- * 留空项的默认口径取类常量。
+ * 留空项的默认口径取类常量；HTTP 客户端装饰器按真实请求次数写进调用上下文。
  *
  * @author cxxl
  */
@@ -35,7 +38,9 @@ class OpenAiCompatibleEngineFactoryTest {
             + "\"data\":[{\"object\":\"embedding\",\"index\":0,\"embedding\":[0.1,0.2]}],"
             + "\"usage\":{\"prompt_tokens\":1,\"total_tokens\":1}}";
 
-    private final OpenAiCompatibleEngineFactory factory = new OpenAiCompatibleEngineFactory();
+    private ModelCallTraceHolder traceHolder;
+
+    private OpenAiCompatibleEngineFactory factory;
 
     private FakeOpenAiServer server;
 
@@ -43,6 +48,8 @@ class OpenAiCompatibleEngineFactoryTest {
     void setUp() throws IOException {
         server = new FakeOpenAiServer();
         server.respondWith(200, CHAT_RESPONSE);
+        traceHolder = new ModelCallTraceHolder();
+        factory = new OpenAiCompatibleEngineFactory(new UsageRecordingListener(), traceHolder);
     }
 
     @AfterEach
@@ -73,6 +80,23 @@ class OpenAiCompatibleEngineFactoryTest {
         assertEquals(FakeOpenAiServer.EMBEDDING_PATH, server.lastPath());
         assertEquals("Bearer sk-test", server.lastAuthorization());
         assertTrue(server.lastBody().contains("\"text-embedding-v4\""), server.lastBody());
+        assertEquals(1, server.requestCount());
+    }
+
+    @Test
+    void boundTraceShouldCountRealHttpAttempts() {
+        ModelCallTrace trace = new ModelCallTrace();
+        traceHolder.bind(trace);
+        try {
+            factory.chatModel(vendor(10000, 2), "qwen-max").chat("ping");
+        } finally {
+            traceHolder.clear();
+        }
+
+        assertEquals(1, server.requestCount());
+        assertEquals(1, trace.attempts());
+        assertEquals(0, trace.retryCount());
+        assertNotNull(trace.lastAttemptLatencyMs());
     }
 
     @Test

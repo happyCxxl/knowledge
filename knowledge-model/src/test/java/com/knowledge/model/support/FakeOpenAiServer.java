@@ -12,7 +12,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * 本地假 OpenAI 兼容端点（测试手段）：记录请求路径、Authorization 头与请求体，按设定状态码、响应体与延迟作答。
- * 对话与向量两个路径各挂一个处理器，同一份应答配置对两者生效。
+ * 对话与向量两个路径各挂一个处理器，同一份应答配置对两者生效；可指定前若干次请求按失败应答，其余按正常应答。
  *
  * @author cxxl
  */
@@ -39,6 +39,13 @@ public final class FakeOpenAiServer implements AutoCloseable {
     private volatile String responseBody = "{}";
 
     private volatile long delayMillis;
+
+    /** 前若干次请求按失败应答作答的次数 */
+    private volatile int failureCount;
+
+    private volatile int failureStatusCode = 500;
+
+    private volatile String failureBody = "{}";
 
     public FakeOpenAiServer() throws IOException {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
@@ -83,22 +90,32 @@ public final class FakeOpenAiServer implements AutoCloseable {
         this.delayMillis = delayMillis;
     }
 
+    /** 设定前若干次请求的应答；其余请求按 respondWith 的应答配置作答（重试链路用例） */
+    public void failFirst(int failures, int statusCode, String responseBody) {
+        this.failureCount = failures;
+        this.failureStatusCode = statusCode;
+        this.failureBody = responseBody;
+    }
+
     @Override
     public void close() {
         server.stop(0);
     }
 
     private void handle(HttpExchange exchange) throws IOException {
-        requestCount.incrementAndGet();
+        int index = requestCount.incrementAndGet();
         lastPath.set(exchange.getRequestURI().getPath());
         lastAuthorization.set(exchange.getRequestHeaders().getFirst("Authorization"));
         lastBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
         if (delayMillis > 0) {
             sleep(delayMillis);
         }
-        byte[] bytes = responseBody.getBytes(StandardCharsets.UTF_8);
+        boolean failed = index <= failureCount;
+        int status = failed ? failureStatusCode : statusCode;
+        String body = failed ? failureBody : responseBody;
+        byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
         exchange.getResponseHeaders().add("Content-Type", "application/json");
-        exchange.sendResponseHeaders(statusCode, bytes.length);
+        exchange.sendResponseHeaders(status, bytes.length);
         try (OutputStream out = exchange.getResponseBody()) {
             out.write(bytes);
         }

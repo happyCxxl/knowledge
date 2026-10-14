@@ -12,6 +12,8 @@ import com.knowledge.common.exception.KnowledgeException;
 import com.knowledge.model.config.ModelVendorProperties;
 import com.knowledge.model.engine.ModelInstanceRegistry;
 import com.knowledge.model.engine.OpenAiCompatibleEngineFactory;
+import com.knowledge.model.listener.ModelCallTraceHolder;
+import com.knowledge.model.listener.UsageRecordingListener;
 import com.knowledge.model.support.FakeOpenAiServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -54,7 +56,11 @@ class OpenAiCompatibleAdapterTest {
         Map<String, ModelVendorProperties.Vendor> vendors = new LinkedHashMap<>();
         vendors.put("dashscope", vendor());
         properties.setVendors(vendors);
-        adapter = new OpenAiCompatibleAdapter(new ModelInstanceRegistry(properties, new OpenAiCompatibleEngineFactory()));
+        ModelCallTraceHolder traceHolder = new ModelCallTraceHolder();
+        adapter = new OpenAiCompatibleAdapter(
+                new ModelInstanceRegistry(properties,
+                        new OpenAiCompatibleEngineFactory(new UsageRecordingListener(), traceHolder)),
+                traceHolder);
     }
 
     @AfterEach

@@ -14,6 +14,8 @@ import com.knowledge.model.adapter.OpenAiCompatibleAdapter;
 import com.knowledge.model.config.ModelVendorProperties;
 import com.knowledge.model.engine.ModelInstanceRegistry;
 import com.knowledge.model.engine.OpenAiCompatibleEngineFactory;
+import com.knowledge.model.listener.ModelCallTraceHolder;
+import com.knowledge.model.listener.UsageRecordingListener;
 import com.knowledge.model.support.FakeOpenAiServer;
 import com.knowledge.model.validate.OutputSchemaValidator;
 import dev.langchain4j.exception.AuthenticationException;
@@ -336,9 +338,12 @@ class ModelInvokerTest {
         vendor.setMaxRetries(0);
         vendors.put(VENDOR, vendor);
         properties.setVendors(vendors);
-        ModelInstanceRegistry registry = new ModelInstanceRegistry(properties, new OpenAiCompatibleEngineFactory());
-        return new ModelInvoker(new OpenAiCompatibleAdapter(registry), new OutputSchemaValidator(),
-                new ModelErrorClassifier());
+        ModelCallTraceHolder traceHolder = new ModelCallTraceHolder();
+        OpenAiCompatibleEngineFactory engineFactory =
+                new OpenAiCompatibleEngineFactory(new UsageRecordingListener(), traceHolder);
+        ModelInstanceRegistry registry = new ModelInstanceRegistry(properties, engineFactory);
+        return new ModelInvoker(new OpenAiCompatibleAdapter(registry, traceHolder), new OutputSchemaValidator(),
+                new ModelErrorClassifier(), traceHolder);
     }
 
     /** 对话入参：单条用户消息 + 指定输出约束 */

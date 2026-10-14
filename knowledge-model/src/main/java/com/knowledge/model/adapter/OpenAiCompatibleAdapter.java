@@ -5,23 +5,25 @@ import com.knowledge.common.domain.model.ChatMessage;
 import com.knowledge.common.domain.model.ChatRequest;
 import com.knowledge.common.domain.model.GenerationResult;
 import com.knowledge.common.domain.model.MessageRole;
-import com.knowledge.common.domain.model.ModelUsage;
 import com.knowledge.common.domain.model.OutputFormat;
 import com.knowledge.common.domain.model.OutputSpec;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
 import com.knowledge.common.utils.NullUtil;
 import com.knowledge.model.engine.ModelInstanceRegistry;
+import com.knowledge.model.listener.ModelCallTrace;
+import com.knowledge.model.listener.ModelCallTraceHolder;
+import com.knowledge.model.listener.ModelUsageMapper;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.SystemMessage;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.ChatModel;
+import dev.langchain4j.model.chat.ChatRequestOptions;
 import dev.langchain4j.model.chat.request.ResponseFormat;
 import dev.langchain4j.model.chat.request.ResponseFormatType;
 import dev.langchain4j.model.chat.request.json.JsonRawSchema;
 import dev.langchain4j.model.chat.request.json.JsonSchema;
 import dev.langchain4j.model.chat.response.ChatResponse;
-import dev.langchain4j.model.output.TokenUsage;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -31,7 +33,9 @@ import java.util.Set;
 
 /**
  * OpenAI 兼容适配器：服务所有走该协议的厂商，完成「我们的契约 → LC4j 请求」与「LC4j 响应 → GenerationResult」
- * 双向映射，LC4j 类型只在本类出现。对话模态已实现，向量与视觉模态沿用 SPI 默认的未支持口径。
+ * 双向映射。LC4j 类型出现在 knowledge-model 内部的 `adapter` / `engine` / `invoke` / `listener` 四个包，
+ * 业务侧不出现。对话模态已实现，向量与视觉模态沿用 SPI 默认的未支持口径。
+ * 调用上下文经请求选项的属性表交给用量监听器。
  *
  * @author cxxl
  */
@@ -43,6 +47,8 @@ public class OpenAiCompatibleAdapter implements ModelAdapter {
     private static final String JSON_SCHEMA_NAME = "output";
 
     private final ModelInstanceRegistry instanceRegistry;
+
+    private final ModelCallTraceHolder modelCallTraceHolder;
 
     @Override
     public Set<AuthType> supportedAuthTypes() {
@@ -59,8 +65,15 @@ public class OpenAiCompatibleAdapter implements ModelAdapter {
     @Override
     public GenerationResult chat(String vendorCode, ChatRequest request) {
         ChatModel chatModel = instanceRegistry.chatModel(vendorCode, request.getModelKey());
-        ChatResponse response = chatModel.chat(toLc4jRequest(request));
+        ChatResponse response = chatModel.chat(toLc4jRequest(request), requestOptions());
         return toGenerationResult(response, request.getModelKey());
+    }
+
+    /** 请求选项：已绑定调用上下文即带上属性表，未绑定取空选项（监听器无从记录，静默跳过） */
+    private ChatRequestOptions requestOptions() {
+        ModelCallTrace trace = modelCallTraceHolder.current();
+        return NullUtil.isNull(trace) ? ChatRequestOptions.EMPTY
+                : ChatRequestOptions.builder().addListenerAttribute(ModelCallTrace.ATTRIBUTE_KEY, trace).build();
     }
 
     /** 契约 → LC4j 请求：消息列表 + 输出约束（TEXT 不设 ResponseFormat） */
@@ -121,18 +134,6 @@ public class OpenAiCompatibleAdapter implements ModelAdapter {
                 .build();
     }
 
-    /** 响应用量映射：TokenUsage 三项转 ModelUsage 三项（都可空），厂商未回 usage 即整体为 null */
-    private ModelUsage toModelUsage(TokenUsage tokenUsage) {
-        if (NullUtil.isNull(tokenUsage)) {
-            return null;
-        }
-        ModelUsage usage = new ModelUsage();
-        usage.setPromptTokens(tokenUsage.inputTokenCount());
-        usage.setCompletionTokens(tokenUsage.outputTokenCount());
-        usage.setTotalTokens(tokenUsage.totalTokenCount());
-        return usage;
-    }
-
     /**
      * 响应映射：content 取响应文本、usage 取 TokenUsage、model 取响应回传值（缺失时回填请求模型名）。
      * modelVersion 该版本响应不带，留 null。
@@ -141,7 +142,7 @@ public class OpenAiCompatibleAdapter implements ModelAdapter {
         GenerationResult result = new GenerationResult();
         AiMessage aiMessage = response.aiMessage();
         result.setContent(NullUtil.isNull(aiMessage) ? null : aiMessage.text());
-        result.setUsage(toModelUsage(response.tokenUsage()));
+        result.setUsage(ModelUsageMapper.toModelUsage(response.tokenUsage()));
         String modelName = response.modelName();
         result.setModel(NullUtil.isNull(modelName) ? modelKey : modelName);
         return result;
