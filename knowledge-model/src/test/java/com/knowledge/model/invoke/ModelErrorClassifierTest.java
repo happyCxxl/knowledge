@@ -123,6 +123,18 @@ class ModelErrorClassifierTest {
     }
 
     @Test
+    void nullPointerFromMissingResponseFieldsShouldBeOutputInvalidAndAllowFallback() {
+        NullPointerException missingData = new NullPointerException();
+        RuntimeException wrapped = new RuntimeException("向量应答缺 data", missingData);
+
+        assertEquals(ErrorCode.MODEL_OUTPUT_INVALID, classifier.classify(missingData));
+        assertEquals(ErrorCode.MODEL_OUTPUT_INVALID, classifier.classify(wrapped));
+        assertEquals(40469, classifier.classify(wrapped).getCode());
+        assertTrue(classifier.canFallback(missingData));
+        assertTrue(classifier.canFallback(wrapped));
+    }
+
+    @Test
     void networkFailuresShouldBeUnreachableAndAllowFallback() {
         RuntimeException refused = new RuntimeException(new ConnectException("Connection refused"));
         UnknownHostException unknownHost = new UnknownHostException("nope.invalid");

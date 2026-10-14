@@ -2,6 +2,9 @@ package com.knowledge.model.invoke;
 
 import cn.hutool.json.JSONUtil;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.knowledge.common.domain.embed.EmbeddingRequest;
+import com.knowledge.common.domain.embed.EmbeddingResult;
+import com.knowledge.common.domain.model.AuthType;
 import com.knowledge.common.domain.model.ChatMessage;
 import com.knowledge.common.domain.model.ChatRequest;
 import com.knowledge.common.domain.model.GenerationResult;
@@ -10,13 +13,16 @@ import com.knowledge.common.domain.model.OutputFormat;
 import com.knowledge.common.domain.model.OutputSpec;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
+import com.knowledge.model.adapter.ModelAdapter;
 import com.knowledge.model.adapter.OpenAiCompatibleAdapter;
 import com.knowledge.model.config.ModelVendorProperties;
 import com.knowledge.model.engine.ModelInstanceRegistry;
 import com.knowledge.model.engine.OpenAiCompatibleEngineFactory;
+import com.knowledge.model.listener.ModelCallTrace;
 import com.knowledge.model.listener.ModelCallTraceHolder;
 import com.knowledge.model.listener.UsageRecordingListener;
 import com.knowledge.model.support.FakeOpenAiServer;
+import com.knowledge.model.support.TestModelCatalog;
 import com.knowledge.model.validate.OutputSchemaValidator;
 import dev.langchain4j.exception.AuthenticationException;
 import dev.langchain4j.exception.ContentFilteredException;
@@ -36,6 +42,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -59,6 +66,12 @@ class ModelInvokerTest {
     /** 严格校验用 schema：name 必填且为字符串，age 为整数 */
     private static final String SCHEMA = "{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\"},"
             + "\"age\":{\"type\":\"integer\"}},\"required\":[\"name\"],\"additionalProperties\":false}";
+
+    /** 向量应答：两条向量 + 模型回显 + 用量 */
+    private static final String EMBEDDING_RESPONSE = "{\"object\":\"list\",\"model\":\"" + MODEL + "\","
+            + "\"data\":[{\"object\":\"embedding\",\"index\":0,\"embedding\":[0.1,0.2]},"
+            + "{\"object\":\"embedding\",\"index\":1,\"embedding\":[0.3,0.4]}],"
+            + "\"usage\":{\"prompt_tokens\":3,\"total_tokens\":3}}";
 
     private FakeOpenAiServer server;
 
@@ -322,9 +335,95 @@ class ModelInvokerTest {
         assertTrue(error.getMessage().contains("Requests rate limit exceeded"), error.getMessage());
     }
 
+    @Test
+    void embedShouldCallOnceAndMapVectorsDimensionModelAndRequestId() {
+        server.respondWith(200, EMBEDDING_RESPONSE);
+
+        EmbeddingResult result = invoker.embed(VENDOR, embedRequest(), new ModelCallTrace());
+
+        assertEquals(2, result.getEmbeddings().size());
+        assertEquals(2, result.getDimension());
+        assertEquals(MODEL, result.getModel());
+        assertEquals("req-embed", result.getRequestId());
+        assertEquals(1, server.requestCount());
+    }
+
+    @Test
+    void embedWithoutVectorDataShouldMapToOutputInvalid() {
+        server.respondWith(200, "{\"object\":\"list\",\"model\":\"" + MODEL + "\"}");
+
+        KnowledgeException error = assertThrows(KnowledgeException.class,
+                () -> invoker.embed(VENDOR, embedRequest(), new ModelCallTrace()));
+
+        assertEquals(ErrorCode.MODEL_OUTPUT_INVALID, error.getErrorCode());
+        assertEquals(40469, error.getCode());
+        assertTrue(invoker.canFallback(error));
+        assertEquals(1, server.requestCount());
+    }
+
+    @Test
+    void embedEmptyVectorListShouldMapToOutputInvalid() {
+        invoker = invoker(new EmptyEmbeddingAdapter());
+
+        KnowledgeException error = assertThrows(KnowledgeException.class,
+                () -> invoker.embed(VENDOR, embedRequest(), new ModelCallTrace()));
+
+        assertEquals(ErrorCode.MODEL_OUTPUT_INVALID, error.getErrorCode());
+        assertTrue(error.getMessage().contains(MODEL), error.getMessage());
+    }
+
+    @Test
+    void embedServerErrorShouldMapToServerErrorLikeChat() {
+        server.respondWith(500, errorBody("InternalError", "Internal server error"));
+
+        KnowledgeException error = assertThrows(KnowledgeException.class,
+                () -> invoker.embed(VENDOR, embedRequest(), new ModelCallTrace()));
+
+        assertEquals(ErrorCode.MODEL_SERVER_ERROR, error.getErrorCode());
+        assertInstanceOf(InternalServerException.class, error.getCause());
+        assertTrue(invoker.canFallback(error));
+    }
+
+    @Test
+    void embedFailedCallShouldRecordErrorCodeOnTrace() {
+        server.respondWith(429, errorBody("Throttling", "Requests rate limit exceeded"));
+        ModelCallTrace trace = new ModelCallTrace();
+
+        assertThrows(KnowledgeException.class, () -> invoker.embed(VENDOR, embedRequest(), trace));
+
+        assertEquals(ErrorCode.MODEL_RATE_LIMITED, trace.errorCode());
+    }
+
+    @Test
+    void embedBlankVendorCodeShouldBeRejectedBeforeRequest() {
+        KnowledgeException error = assertThrows(KnowledgeException.class,
+                () -> invoker.embed("  ", embedRequest(), new ModelCallTrace()));
+
+        assertEquals(ErrorCode.MODEL_VENDOR_UNKNOWN, error.getErrorCode());
+        assertEquals(0, server.requestCount());
+    }
+
+    @Test
+    void embedNullRequestShouldBeRejectedBeforeRequest() {
+        KnowledgeException error = assertThrows(KnowledgeException.class,
+                () -> invoker.embed(VENDOR, null, new ModelCallTrace()));
+
+        assertEquals(ErrorCode.MODEL_BAD_REQUEST, error.getErrorCode());
+        assertEquals(0, server.requestCount());
+    }
+
     /** 调用并断言抛出知识异常 */
     private KnowledgeException chatError(ChatRequest request) {
         return assertThrows(KnowledgeException.class, () -> invoker.chat(VENDOR, request));
+    }
+
+    /** 向量入参：两条文本 + 模型名 + requestId */
+    private EmbeddingRequest embedRequest() {
+        EmbeddingRequest request = new EmbeddingRequest();
+        request.setModel(MODEL);
+        request.setTexts(List.of("第一句", "第二句"));
+        request.setRequestId("req-embed");
+        return request;
     }
 
     /** 带假服务的调用器：重试为 0（失败即抛，请求次数与调用次数一致） */
@@ -341,9 +440,36 @@ class ModelInvokerTest {
         ModelCallTraceHolder traceHolder = new ModelCallTraceHolder();
         OpenAiCompatibleEngineFactory engineFactory =
                 new OpenAiCompatibleEngineFactory(new UsageRecordingListener(traceHolder), traceHolder);
-        ModelInstanceRegistry registry = new ModelInstanceRegistry(properties, engineFactory);
-        return new ModelInvoker(new OpenAiCompatibleAdapter(registry, traceHolder), new OutputSchemaValidator(),
-                new ModelErrorClassifier(), traceHolder);
+        ModelInstanceRegistry registry = new ModelInstanceRegistry(properties, engineFactory, new TestModelCatalog());
+        return invoker(new OpenAiCompatibleAdapter(registry, traceHolder));
+    }
+
+    /** 指定适配器的调用器：上下文持有器按用例新建，向量出参的结构守卫按它验证 */
+    private ModelInvoker invoker(ModelAdapter adapter) {
+        return new ModelInvoker(adapter, new OutputSchemaValidator(), new ModelErrorClassifier(),
+                new ModelCallTraceHolder());
+    }
+
+    /** 向量出参为空的适配器：验证调用器对「响应缺向量数据」的结构守卫 */
+    private static final class EmptyEmbeddingAdapter implements ModelAdapter {
+
+        @Override
+        public Set<AuthType> supportedAuthTypes() {
+            return Set.of(AuthType.BEARER);
+        }
+
+        @Override
+        public GenerationResult chat(String vendorCode, ChatRequest request) {
+            throw new KnowledgeException(ErrorCode.MODEL_MODALITY_UNSUPPORTED, "模态：chat");
+        }
+
+        @Override
+        public EmbeddingResult embed(String vendorCode, EmbeddingRequest request) {
+            EmbeddingResult result = new EmbeddingResult();
+            result.setEmbeddings(List.of());
+            result.setModel(request.getModel());
+            return result;
+        }
     }
 
     /** 对话入参：单条用户消息 + 指定输出约束 */

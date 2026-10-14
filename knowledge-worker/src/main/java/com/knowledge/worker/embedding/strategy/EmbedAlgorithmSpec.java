@@ -1,13 +1,15 @@
 package com.knowledge.worker.embedding.strategy;
 
 import cn.hutool.core.util.StrUtil;
-import com.knowledge.common.enums.embed.EmbeddingModel;
+import com.knowledge.common.domain.model.catalog.ModelCapability;
+import com.knowledge.common.domain.model.catalog.ModelDescriptor;
 import com.knowledge.common.utils.NullUtil;
 import com.knowledge.model.catalog.ModelCatalogPort;
 import com.knowledge.worker.embedding.EmbedProperties;
 
 import java.util.HashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -33,11 +35,11 @@ public final class EmbedAlgorithmSpec {
     // ---------------- 默认补齐（解析时） ----------------
 
     /**
-     * 解析后补全：模型缺失回退首个启用模型；模板/批量/执行口径补默认；目录冗余字段一律以目录为准回填。
+     * 解析后补全：模型缺失回退目录里的首个向量模型；模板/批量/执行口径补默认；目录冗余字段一律以目录为准回填。
      */
     public static EmbedStrategy normalize(EmbedStrategy strategy, EmbedProperties properties, ModelCatalogPort catalog) {
         if (StrUtil.isBlank(strategy.getModel())) {
-            strategy.setModel(EmbeddingModel.firstEnabled().key());
+            strategy.setModel(firstEmbeddingModel(catalog));
         }
         if (StrUtil.isBlank(strategy.getDocTemplate())) {
             strategy.setDocTemplate("{content}");
@@ -69,17 +71,27 @@ public final class EmbedAlgorithmSpec {
         return value.trim().toUpperCase(Locale.ROOT);
     }
 
+    /** 首个向量模型：取目录里向量编码能力的首个候选，目录为空时返回 null（由保存校验报错） */
+    private static String firstEmbeddingModel(ModelCatalogPort catalog) {
+        if (NullUtil.isNull(catalog)) {
+            return null;
+        }
+        List<ModelDescriptor> candidates = catalog.listByCapability(ModelCapability.EMBEDDING);
+        return candidates.isEmpty() ? null : candidates.getFirst().getModelKey();
+    }
+
     /** 目录冗余回填：以模型目录为准覆盖 dimension/metric/normalized/contextWindowTokens/batchLimit */
     private static void stampCatalog(EmbedStrategy strategy, ModelCatalogPort catalog) {
-        EmbeddingModel model = NullUtil.isNull(catalog) ? null : catalog.get(strategy.getModel());
-        if (NullUtil.isNull(model)) {
+        ModelDescriptor descriptor = NullUtil.isNull(catalog) ? null : catalog.findByModelKey(strategy.getModel());
+        ModelDescriptor.EmbedSpecs specs = NullUtil.isNull(descriptor) ? null : descriptor.getEmbedSpecs();
+        if (NullUtil.isNull(specs)) {
             return;
         }
-        strategy.setDimension(model.dimension());
-        strategy.setMetric(model.metric().key());
-        strategy.setNormalized(model.normalized());
-        strategy.setContextWindowTokens(model.contextWindowTokens());
-        strategy.setBatchLimit(model.batchLimit());
+        strategy.setDimension(specs.getDimension());
+        strategy.setMetric(specs.getMetric().key());
+        strategy.setNormalized(specs.getNormalized());
+        strategy.setContextWindowTokens(specs.getContextWindowTokens());
+        strategy.setBatchLimit(specs.getBatchLimit());
     }
 
     // ---------------- 保存校验（biz 调用；返回 null = 通过，否则为错误信息） ----------------
@@ -93,11 +105,11 @@ public final class EmbedAlgorithmSpec {
         if (StrUtil.isBlank(model)) {
             return "模型不能为空";
         }
-        EmbeddingModel catalogModel = NullUtil.isNull(catalog) ? null : catalog.get(model);
-        if (NullUtil.isNull(catalogModel)) {
+        ModelDescriptor descriptor = NullUtil.isNull(catalog) ? null : catalog.findByModelKey(model);
+        if (NullUtil.isNull(descriptor)) {
             return "模型不存在: " + model;
         }
-        if (!catalogModel.enabled()) {
+        if (!descriptor.enabled()) {
             return "模型未启用: " + model;
         }
         String templateError = validateTemplate(config.get("docTemplate"), "{content}", DOC_PLACEHOLDERS, "docTemplate");
@@ -204,12 +216,13 @@ public final class EmbedAlgorithmSpec {
             return null;
         }
         Map<String, Object> stamped = new HashMap<>(config);
-        EmbeddingModel model = catalog.get(String.valueOf(config.get("model")));
-        stamped.put("dimension", model.dimension());
-        stamped.put("metric", model.metric().key());
-        stamped.put("normalized", model.normalized());
-        stamped.put("contextWindowTokens", model.contextWindowTokens());
-        stamped.put("batchLimit", model.batchLimit());
+        ModelDescriptor descriptor = catalog.findByModelKey(String.valueOf(config.get("model")));
+        ModelDescriptor.EmbedSpecs specs = descriptor.getEmbedSpecs();
+        stamped.put("dimension", specs.getDimension());
+        stamped.put("metric", specs.getMetric().key());
+        stamped.put("normalized", specs.getNormalized());
+        stamped.put("contextWindowTokens", specs.getContextWindowTokens());
+        stamped.put("batchLimit", specs.getBatchLimit());
         return stamped;
     }
 }

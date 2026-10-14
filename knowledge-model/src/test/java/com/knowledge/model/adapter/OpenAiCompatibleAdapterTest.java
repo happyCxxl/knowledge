@@ -15,6 +15,7 @@ import com.knowledge.model.engine.OpenAiCompatibleEngineFactory;
 import com.knowledge.model.listener.ModelCallTraceHolder;
 import com.knowledge.model.listener.UsageRecordingListener;
 import com.knowledge.model.support.FakeOpenAiServer;
+import com.knowledge.model.support.TestModelCatalog;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -59,7 +60,8 @@ class OpenAiCompatibleAdapterTest {
         ModelCallTraceHolder traceHolder = new ModelCallTraceHolder();
         adapter = new OpenAiCompatibleAdapter(
                 new ModelInstanceRegistry(properties,
-                        new OpenAiCompatibleEngineFactory(new UsageRecordingListener(traceHolder), traceHolder)),
+                        new OpenAiCompatibleEngineFactory(new UsageRecordingListener(traceHolder), traceHolder),
+                        new TestModelCatalog()),
                 traceHolder);
     }
 

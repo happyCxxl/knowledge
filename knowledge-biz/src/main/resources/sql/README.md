@@ -6,7 +6,7 @@
 
 1. `DROP DATABASE IF EXISTS knowledge` + `CREATE DATABASE knowledge` + `USE knowledge`——库名固定为 `knowledge`，与
    `knowledge-biz/src/main/resources/application.yml` 中 `spring.datasource.url` 一致；
-2. 按依赖顺序建 21 张表（被引用的表在前，无外键约束）；
+2. 按依赖顺序建 22 张表（被引用的表在前，无外键约束）；
 3. 写入应用运行必需的初始数据（4 条环节策略版本 + 1 个管理员账号）。
 
 **脚本会删除同名库，库内原有数据全部丢弃；可重复执行，每次执行结果一致。**
@@ -35,7 +35,7 @@ docker compose up -d
 
 也可直接在客户端（Navicat / DataGrip / IDEA 数据库工具）里整体执行本文件。
 
-## 三、21 张表
+## 三、22 张表
 
 | #  | 表名                           | 一句话职责                                                                      |
 |----|--------------------------------|---------------------------------------------------------------------------------|
@@ -60,6 +60,7 @@ docker compose up -d
 | 19 | `kb_user`                      | 用户：登录账号、角色与令牌版本                                                  |
 | 20 | `kb_system_setting`            | 系统设置：键值形态的单行配置，表留在库里备用                                    |
 | 21 | `kb_storage_source`            | 存储数据源：一行一个实例（含连接参数），`is_current` 那一行决定新对象的写入位置 |
+| 22 | `kb_model`                     | 模型目录：一行一个模型，承载厂商码、能力（多值）、价格与限额；只建表，初始为空  |
 
 ## 四、初始数据
 
@@ -84,7 +85,16 @@ docker compose up -d
 这 4 条是策略管理页面的初始可选项，也是新建知识库时可直接绑定的默认策略；
 环节执行只认任务行上的策略快照（快照取自这些行），脚本漏执行时任务会明确失败，不会改用代码里写死的默认参数。
 
-其余表不插入任何数据：知识库、绑定、索引与产物均由使用过程中产生。`kb_storage_source` 初始为空，此时文件服务在后端启动时按 `application.yml` 的 `file-center` 两段参数 seed 两行（`MinIO` 与 `本地磁盘`），`file-center.storage-type` 指明的那一行是当前启用；之后当前启用读库里的 `is_current`，在「系统设置」页改过之后以库为准。`kb_system_setting` 初始为空且当前没有读写它的功能。
+### 模型目录（`kb_model`，只建表、不带初始数据）
+
+脚本只建 `kb_model` 的结构，不插入任何模型行；`kb_model` 初始为空，需按实际接入的模型补行（页面或手工 SQL）。补行时两条口径：
+
+- `vendor_code` 的取值必须出现在 `knowledge.model.vendors` 里，配错时嵌入调用在解析厂商处明确失败（`MODEL_VENDOR_UNKNOWN`，40461）；
+- 维度 / 度量 / 归一化 / 单批上限不进本表，由 `common` 的 `EmbeddingModel` 枚举承载；库里声明 `EMBEDDING` 但枚举里没有的模型名在嵌入链路上不可用（承载方式等接入清单确定后再定）。
+
+价格列（`price_*`）与容量列（`rpm_limit` / `tpm_limit`）由补行时按需填写，留空不参与判断。
+
+其余表不插入任何数据：`kb_model` 初始为空（见上），知识库、绑定、索引与产物均由使用过程中产生。`kb_storage_source` 初始为空，此时文件服务在后端启动时按 `application.yml` 的 `file-center` 两段参数 seed 两行（`MinIO` 与 `本地磁盘`），`file-center.storage-type` 指明的那一行是当前启用；之后当前启用读库里的 `is_current`，在「系统设置」页改过之后以库为准。`kb_system_setting` 初始为空且当前没有读写它的功能。
 
 ## 五、重建库之后必须清空对象存储
 

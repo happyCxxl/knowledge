@@ -4,13 +4,18 @@ import com.knowledge.common.domain.embed.EmbeddingRequest;
 import com.knowledge.common.domain.embed.EmbeddingResult;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
+import com.knowledge.model.adapter.OpenAiCompatibleAdapter;
 import com.knowledge.model.config.ModelVendorProperties;
 import com.knowledge.model.engine.ModelInstanceRegistry;
 import com.knowledge.model.engine.OpenAiCompatibleEngineFactory;
+import com.knowledge.model.invoke.ModelErrorClassifier;
+import com.knowledge.model.invoke.ModelInvoker;
 import com.knowledge.model.listener.ModelCallTrace;
 import com.knowledge.model.listener.ModelCallTraceHolder;
 import com.knowledge.model.listener.UsageRecordingListener;
 import com.knowledge.model.support.FakeOpenAiServer;
+import com.knowledge.model.support.TestModelCatalog;
+import com.knowledge.model.validate.OutputSchemaValidator;
 import dev.langchain4j.exception.InternalServerException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,7 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * 向量化提供者单测（本地假 OpenAI 兼容端点）：请求路径、Bearer 头、模型名与文本顺序，
  * 响应映射的向量条数与顺序、维度、模型回显、requestId，缺向量数据与密钥缺失的拒绝口径，
- * 以及厂商解析规则 A 与调用上下文观测三项。
+ * 「模型 → 厂商」解析（目录优先 + 单厂商兜底）与调用上下文观测四项。
  *
  * @author cxxl
  */
@@ -51,6 +56,8 @@ class DashScopeEmbeddingProviderTest {
 
     private ModelCallTraceHolder traceHolder;
 
+    private TestModelCatalog catalog;
+
     private DashScopeEmbeddingProvider provider;
 
     @BeforeEach
@@ -58,6 +65,7 @@ class DashScopeEmbeddingProviderTest {
         server = new FakeOpenAiServer();
         server.respondWith(200, EMBEDDING_RESPONSE);
         traceHolder = new ModelCallTraceHolder();
+        catalog = new TestModelCatalog().withModel(MODEL, VENDOR);
         vendorProperties = properties(Map.of(VENDOR, vendor("sk-test", 0)));
         provider = provider(vendorProperties);
     }
@@ -97,25 +105,70 @@ class DashScopeEmbeddingProviderTest {
     }
 
     @Test
-    void singleVendorShouldBeUsedWithoutVendorParameter() {
+    void responseModelShouldWinOverRequestModel() {
+        server.respondWith(200, "{\"object\":\"list\",\"model\":\"text-embedding-v4-2026\","
+                + "\"data\":[{\"object\":\"embedding\",\"index\":0,\"embedding\":[0.1,0.2]}]}");
+
+        EmbeddingResult result = provider.embed(request());
+
+        assertEquals("text-embedding-v4-2026", result.getModel());
+    }
+
+    @Test
+    void responseWithoutModelShouldFallBackToRequestModel() {
+        server.respondWith(200, "{\"object\":\"list\","
+                + "\"data\":[{\"object\":\"embedding\",\"index\":0,\"embedding\":[0.1,0.2]}]}");
+
+        EmbeddingResult result = provider.embed(request());
+
+        assertEquals(MODEL, result.getModel());
+    }
+
+    @Test
+    void vendorShouldComeFromCatalogEvenWhenAnotherVendorIsConfigured() {
         vendorProperties.setVendors(Map.of("aliyun", vendor("sk-aliyun", 0)));
 
-        EmbeddingResult result = provider(vendorProperties).embed(request());
+        IllegalStateException error = assertThrows(IllegalStateException.class,
+                () -> provider(vendorProperties).embed(request()));
+
+        assertTrue(error.getMessage().contains("knowledge.model.vendors." + VENDOR + ".api-key"), error.getMessage());
+        assertEquals(0, server.requestCount());
+    }
+
+    @Test
+    void vendorShouldFallBackToTheOnlyConfiguredVendorWhenCatalogMissesModel() {
+        vendorProperties.setVendors(Map.of("aliyun", vendor("sk-aliyun", 0)));
+        EmbeddingRequest request = request();
+        request.setModel("custom-embed");
+
+        EmbeddingResult result = provider(vendorProperties).embed(request);
 
         assertEquals(2, result.getEmbeddings().size());
         assertEquals("Bearer sk-aliyun", server.lastAuthorization());
     }
 
     @Test
-    void multipleVendorsShouldBeRejectedWithPrompt() {
-        vendorProperties.setVendors(vendors(vendor("sk-a", 0), "second", vendor("sk-b", 0)));
+    void multipleVendorsShouldResolveVendorFromCatalog() {
+        vendorProperties.setVendors(vendors(vendor("sk-dashscope", 0), "second", vendor("sk-second", 0)));
+
+        EmbeddingResult result = provider(vendorProperties).embed(request());
+
+        assertEquals(2, result.getEmbeddings().size());
+        assertEquals("Bearer sk-dashscope", server.lastAuthorization());
+        assertEquals(1, server.requestCount());
+    }
+
+    @Test
+    void unknownModelWithMultipleVendorsShouldBeRejected() {
+        vendorProperties.setVendors(vendors(vendor("sk-dashscope", 0), "second", vendor("sk-second", 0)));
+        EmbeddingRequest request = request();
+        request.setModel("no-such-model");
 
         KnowledgeException error = assertThrows(KnowledgeException.class,
-                () -> provider(vendorProperties).embed(request()));
+                () -> provider(vendorProperties).embed(request));
 
         assertEquals(ErrorCode.MODEL_VENDOR_UNKNOWN, error.getErrorCode());
-        assertTrue(error.getMessage().contains("embed 需要指定厂商，等目录片支持"), error.getMessage());
-        assertTrue(error.getMessage().contains("second"), error.getMessage());
+        assertTrue(error.getMessage().contains("no-such-model"), error.getMessage());
         assertEquals(0, server.requestCount());
     }
 
@@ -131,28 +184,34 @@ class DashScopeEmbeddingProviderTest {
     }
 
     @Test
-    void responseWithoutDataShouldThrow() {
+    void responseWithoutDataShouldMapToOutputInvalid() {
         server.respondWith(200, "{\"object\":\"list\",\"model\":\"text-embedding-v4\"}");
 
-        assertThrows(NullPointerException.class, () -> provider.embed(request()));
+        KnowledgeException error = assertThrows(KnowledgeException.class, () -> provider.embed(request()));
+
+        assertEquals(ErrorCode.MODEL_OUTPUT_INVALID, error.getErrorCode());
+        assertEquals(40469, error.getCode());
+        assertEquals(1, server.requestCount());
     }
 
     @Test
     void malformedResponseShouldThrow() {
         server.respondWith(200, "not-json");
 
-        RuntimeException error = assertThrows(RuntimeException.class, () -> provider.embed(request()));
+        KnowledgeException error = assertThrows(KnowledgeException.class, () -> provider.embed(request()));
 
-        assertNotNull(error);
+        assertEquals(ErrorCode.MODEL_OUTPUT_INVALID, error.getErrorCode());
+        assertEquals(1, server.requestCount());
     }
 
     @Test
     void serverErrorShouldThrow() {
         server.respondWith(500, "{\"error\":{\"message\":\"boom\"}}");
 
-        InternalServerException error = assertThrows(InternalServerException.class, () -> provider.embed(request()));
+        KnowledgeException error = assertThrows(KnowledgeException.class, () -> provider.embed(request()));
 
-        assertNotNull(error);
+        assertEquals(ErrorCode.MODEL_SERVER_ERROR, error.getErrorCode());
+        assertTrue(hasCause(error, InternalServerException.class), String.valueOf(error.getCause()));
         assertEquals(1, server.requestCount());
     }
 
@@ -216,7 +275,7 @@ class DashScopeEmbeddingProviderTest {
 
         traceHolder.bind(trace);
         try {
-            assertThrows(InternalServerException.class, () -> provider.embed(request()));
+            assertThrows(KnowledgeException.class, () -> provider.embed(request()));
         } finally {
             traceHolder.clear();
         }
@@ -235,12 +294,14 @@ class DashScopeEmbeddingProviderTest {
         assertEquals(1, server.requestCount());
     }
 
-    /** 带假服务端点的提供者：厂商配置、实例注册表与调用上下文持有器三者按用例装配 */
+    /** 带假服务端点的提供者：厂商配置、目录、实例注册表、调用器与调用上下文持有器按用例装配 */
     private DashScopeEmbeddingProvider provider(ModelVendorProperties properties) {
         OpenAiCompatibleEngineFactory engineFactory =
                 new OpenAiCompatibleEngineFactory(new UsageRecordingListener(traceHolder), traceHolder);
-        return new DashScopeEmbeddingProvider(properties, new ModelInstanceRegistry(properties, engineFactory),
-                traceHolder);
+        ModelInstanceRegistry registry = new ModelInstanceRegistry(properties, engineFactory, catalog);
+        ModelInvoker invoker = new ModelInvoker(new OpenAiCompatibleAdapter(registry, traceHolder),
+                new OutputSchemaValidator(), new ModelErrorClassifier(), traceHolder);
+        return new DashScopeEmbeddingProvider(properties, registry, invoker, traceHolder);
     }
 
     /** 指向假服务的厂商配置：密钥与重试按用例给值，超时取 10000 毫秒 */
@@ -276,5 +337,17 @@ class DashScopeEmbeddingProviderTest {
         request.setTexts(List.of("第一句", "第二句"));
         request.setRequestId("req-1");
         return request;
+    }
+
+    /** 异常链上是否出现该类型（含自身） */
+    private boolean hasCause(Throwable error, Class<? extends Throwable> type) {
+        Throwable node = error;
+        while (node != null) {
+            if (type.isInstance(node)) {
+                return true;
+            }
+            node = node.getCause() == node ? null : node.getCause();
+        }
+        return false;
     }
 }

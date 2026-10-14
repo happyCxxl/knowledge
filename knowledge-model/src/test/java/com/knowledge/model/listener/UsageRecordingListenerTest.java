@@ -16,6 +16,7 @@ import com.knowledge.model.engine.OpenAiCompatibleEngineFactory;
 import com.knowledge.model.invoke.ModelErrorClassifier;
 import com.knowledge.model.invoke.ModelInvoker;
 import com.knowledge.model.support.FakeOpenAiServer;
+import com.knowledge.model.support.TestModelCatalog;
 import com.knowledge.model.validate.OutputSchemaValidator;
 import dev.langchain4j.data.embedding.Embedding;
 import dev.langchain4j.data.message.AiMessage;
@@ -266,7 +267,7 @@ class UsageRecordingListenerTest {
         properties.setVendors(vendors);
         OpenAiCompatibleEngineFactory engineFactory =
                 new OpenAiCompatibleEngineFactory(new UsageRecordingListener(traceHolder), traceHolder);
-        return new ModelInstanceRegistry(properties, engineFactory);
+        return new ModelInstanceRegistry(properties, engineFactory, new TestModelCatalog());
     }
 
     /** 对话入参：单条用户消息 + TEXT 输出 */

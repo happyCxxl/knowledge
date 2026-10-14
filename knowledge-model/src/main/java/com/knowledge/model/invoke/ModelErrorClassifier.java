@@ -105,10 +105,16 @@ public class ModelErrorClassifier {
     }
 
     /**
-     * 异常链归类：解析异常归输出结构错误、超时类 IO 异常归超时、其余 IO 与地址解析异常归不可达，
-     * 都未命中即按服务端错误处理。解析异常先于 IO 归类，两代 JSON 库的解析异常都继承 IO 异常。
+     * 异常链归类：空指针归输出结构错误、解析异常归输出结构错误、超时类 IO 异常归超时、
+     * 其余 IO 与地址解析异常归不可达，都未命中即按服务端错误处理。
+     * 空指针先于其余归类：响应缺字段（例如向量应答缺 data）在下游解引用处就是这一种，
+     * 归成输出结构错误，既不退化成服务端错误，也随覆盖规则进入可降级集合。
+     * 解析异常先于 IO 归类，两代 JSON 库的解析异常都继承 IO 异常。
      */
     private ErrorCode classifyByCauseChain(Throwable cause) {
+        if (chainHas(cause, NullPointerException.class)) {
+            return ErrorCode.MODEL_OUTPUT_INVALID;
+        }
         if (chainHas(cause, JacksonException.class) || chainHas(cause, JsonProcessingException.class)) {
             return ErrorCode.MODEL_OUTPUT_INVALID;
         }

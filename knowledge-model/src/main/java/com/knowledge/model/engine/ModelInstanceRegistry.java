@@ -1,8 +1,10 @@
 package com.knowledge.model.engine;
 
+import com.knowledge.common.domain.model.catalog.ModelDescriptor;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
 import com.knowledge.common.utils.NullUtil;
+import com.knowledge.model.catalog.ModelCatalogPort;
 import com.knowledge.model.config.ModelVendorProperties;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.embedding.EmbeddingModel;
@@ -10,11 +12,15 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 模型实例注册表：按厂商码 + 模型名缓存 LC4j 实例，懒构建、命中复用。
  * 缓存键为厂商码与模型名的字符串拼接（分隔符取竖线，两类标识都不含竖线），对话与向量各一张表。
+ *
+ * <p>厂商归属优先取模型目录：按模型名查到唯一启用模型即用它的厂商码；目录未收录该模型时，
+ * 回落到「配置里只有一个厂商即用该厂商」的兜底口径（多厂商时无法判定，按未配置厂商拒绝）。
  *
  * @author cxxl
  */
@@ -28,6 +34,8 @@ public class ModelInstanceRegistry {
     private final ModelVendorProperties vendorProperties;
 
     private final OpenAiCompatibleEngineFactory engineFactory;
+
+    private final ModelCatalogPort modelCatalog;
 
     /** 对话模型实例（键 = 厂商码|模型名） */
     private final Map<String, ChatModel> chatModels = new ConcurrentHashMap<>();
@@ -49,7 +57,17 @@ public class ModelInstanceRegistry {
     }
 
     /**
-     * 向量模型实例：缓存口径与对话模型一致。
+     * 向量模型实例：厂商按模型目录解析（模型 → 厂商），缓存口径与对话模型一致。
+     *
+     * @param modelKey 模型名
+     * @return LC4j 向量模型实例
+     */
+    public EmbeddingModel embeddingModel(String modelKey) {
+        return embeddingModel(resolveVendorCode(modelKey), modelKey);
+    }
+
+    /**
+     * 向量模型实例：厂商码由形参给定，缓存口径与对话模型一致。
      *
      * @param vendorCode 厂商码
      * @param modelKey   模型名
@@ -82,6 +100,29 @@ public class ModelInstanceRegistry {
         return vendorCode + KEY_SEPARATOR + modelKey;
     }
 
+    /**
+     * 解析向量模型的厂商：目录里唯一启用模型带出厂商码即用它；目录未收录该模型时，
+     * 配置里恰好一个厂商即用该厂商，零个或多个厂商都按「模型厂商未配置」拒绝（判定不出该找哪一家）。
+     *
+     * @param modelKey 模型名
+     * @return 厂商码
+     */
+    public String resolveVendorCode(String modelKey) {
+        checkModelKey(null, modelKey);
+        ModelDescriptor descriptor = modelCatalog.findUniqueEnabledByModelKey(modelKey);
+        if (NullUtil.isNotNull(descriptor) && NullUtil.isNotNull(descriptor.getVendorCode())
+                && !descriptor.getVendorCode().isBlank()) {
+            return descriptor.getVendorCode();
+        }
+        Map<String, ModelVendorProperties.Vendor> vendors = vendorProperties.getVendors();
+        Set<String> codes = NullUtil.isNull(vendors) ? Set.of() : vendors.keySet();
+        if (codes.size() != 1) {
+            throw new KnowledgeException(ErrorCode.MODEL_VENDOR_UNKNOWN,
+                    "模型：" + modelKey + " 未在目录中唯一命中，已配置厂商：" + codes);
+        }
+        return codes.iterator().next();
+    }
+
     /** 取厂商配置；配置里没有该厂商即抛「模型厂商未配置」，消息带该厂商码与已配置厂商清单 */
     private ModelVendorProperties.Vendor vendor(String vendorCode) {
         Map<String, ModelVendorProperties.Vendor> vendors = vendorProperties.getVendors();
@@ -93,7 +134,7 @@ public class ModelInstanceRegistry {
         return vendor;
     }
 
-    /** 模型名缺失即拒绝调用 */
+    /** 模型名缺失即拒绝调用；厂商码既可为空（目录解析路径），也可为已解析出的厂商码 */
     private void checkModelKey(String vendorCode, String modelKey) {
         if (NullUtil.isNull(modelKey) || modelKey.isBlank()) {
             throw new KnowledgeException(ErrorCode.MODEL_BAD_REQUEST, "模型名不能为空，厂商：" + vendorCode);

@@ -5,6 +5,7 @@ import com.knowledge.common.exception.KnowledgeException;
 import com.knowledge.model.config.ModelVendorProperties;
 import com.knowledge.model.listener.ModelCallTraceHolder;
 import com.knowledge.model.listener.UsageRecordingListener;
+import com.knowledge.model.support.TestModelCatalog;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.embedding.EmbeddingModel;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,6 +16,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -30,6 +32,8 @@ class ModelInstanceRegistryTest {
 
     private ModelInstanceRegistry registry;
 
+    private TestModelCatalog catalog;
+
     @BeforeEach
     void setUp() {
         ModelVendorProperties properties = new ModelVendorProperties();
@@ -38,8 +42,9 @@ class ModelInstanceRegistryTest {
         vendors.put("custom", vendor("http://127.0.0.1:2/v1", "sk-custom"));
         properties.setVendors(vendors);
         ModelCallTraceHolder traceHolder = new ModelCallTraceHolder();
+        catalog = new TestModelCatalog().withModel("text-embedding-v4", "dashscope");
         registry = new ModelInstanceRegistry(properties,
-                new OpenAiCompatibleEngineFactory(new UsageRecordingListener(traceHolder), traceHolder));
+                new OpenAiCompatibleEngineFactory(new UsageRecordingListener(traceHolder), traceHolder), catalog);
     }
 
     @Test
@@ -72,13 +77,51 @@ class ModelInstanceRegistryTest {
 
     @Test
     void embeddingInstancesShouldBeCachedInTheirOwnTable() {
-        EmbeddingModel first = registry.embeddingModel("dashscope", "text-embedding-v4");
-        EmbeddingModel second = registry.embeddingModel("dashscope", "text-embedding-v4");
+        EmbeddingModel first = registry.embeddingModel("text-embedding-v4");
+        EmbeddingModel second = registry.embeddingModel("text-embedding-v4");
 
         assertSame(first, second);
         assertTrue(registry.embeddingInstanceBuilt("dashscope", "text-embedding-v4"));
         assertFalse(registry.chatInstanceBuilt("dashscope", "text-embedding-v4"));
         assertEquals(1, registry.instanceCount());
+    }
+
+    @Test
+    void embeddingVendorShouldComeFromCatalogWhenMultipleVendorsConfigured() {
+        assertEquals("dashscope", registry.resolveVendorCode("text-embedding-v4"));
+
+        EmbeddingModel model = registry.embeddingModel("text-embedding-v4");
+
+        assertNotNull(model);
+        assertTrue(registry.embeddingInstanceBuilt("dashscope", "text-embedding-v4"));
+    }
+
+    @Test
+    void embeddingVendorShouldBeRejectedWhenCatalogMissesModelAndVendorsAreAmbiguous() {
+        KnowledgeException error = assertThrows(KnowledgeException.class,
+                () -> registry.resolveVendorCode("custom-embed"));
+
+        assertEquals(ErrorCode.MODEL_VENDOR_UNKNOWN, error.getErrorCode());
+        assertTrue(error.getMessage().contains("custom-embed"), error.getMessage());
+        assertTrue(error.getMessage().contains("dashscope"), error.getMessage());
+        assertEquals(0, registry.instanceCount());
+    }
+
+    @Test
+    void embeddingVendorShouldFallBackToTheOnlyConfiguredVendor() {
+        ModelInstanceRegistry single = singleVendorRegistry();
+
+        assertEquals("only", single.resolveVendorCode("custom-embed"));
+        assertNotNull(single.embeddingModel("custom-embed"));
+        assertTrue(single.embeddingInstanceBuilt("only", "custom-embed"));
+    }
+
+    @Test
+    void blankEmbeddingModelKeyShouldBeRejected() {
+        KnowledgeException error = assertThrows(KnowledgeException.class, () -> registry.resolveVendorCode(" "));
+
+        assertEquals(ErrorCode.MODEL_BAD_REQUEST, error.getErrorCode());
+        assertEquals(0, registry.instanceCount());
     }
 
     @Test
@@ -101,6 +144,15 @@ class ModelInstanceRegistryTest {
         assertEquals(ErrorCode.MODEL_BAD_REQUEST, error.getErrorCode());
         assertTrue(error.getMessage().contains("dashscope"), error.getMessage());
         assertEquals(0, registry.instanceCount());
+    }
+
+    /** 单厂商配置的注册表：地址指向本机保留端口，实例构建不发起调用 */
+    private ModelInstanceRegistry singleVendorRegistry() {
+        ModelVendorProperties properties = new ModelVendorProperties();
+        properties.setVendors(Map.of("only", vendor("http://127.0.0.1:3/v1", "sk-only")));
+        ModelCallTraceHolder traceHolder = new ModelCallTraceHolder();
+        return new ModelInstanceRegistry(properties,
+                new OpenAiCompatibleEngineFactory(new UsageRecordingListener(traceHolder), traceHolder), catalog);
     }
 
     /** 单厂商配置：地址指向本机保留端口，实例构建不发起调用 */

@@ -86,19 +86,14 @@ class ModelVendorPropertiesTest {
     }
 
     @Test
-    void shouldFailStartupWhenMultipleVendorsConfigured() {
+    void shouldPassStartupWithMultipleVendorsConfigured() {
         ModelVendorProperties properties = new ModelVendorProperties();
         Map<String, ModelVendorProperties.Vendor> vendors = new LinkedHashMap<>();
         vendors.put("custom", vendor());
         vendors.put("dashscope", vendor());
         properties.setVendors(vendors);
 
-        KnowledgeException error = assertThrows(KnowledgeException.class, () -> validator.validate(properties));
-
-        assertEquals(ErrorCode.MODEL_VENDOR_UNKNOWN, error.getErrorCode());
-        assertTrue(error.getMessage().contains("embed 需要指定厂商，等目录片支持"), error.getMessage());
-        assertTrue(error.getMessage().contains("custom"), error.getMessage());
-        assertTrue(error.getMessage().contains("dashscope"), error.getMessage());
+        assertDoesNotThrow(() -> validator.validate(properties));
     }
 
     @Test

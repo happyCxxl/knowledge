@@ -1,5 +1,7 @@
 package com.knowledge.model.adapter;
 
+import com.knowledge.common.domain.embed.EmbeddingRequest;
+import com.knowledge.common.domain.embed.EmbeddingResult;
 import com.knowledge.common.domain.model.AuthType;
 import com.knowledge.common.domain.model.ChatMessage;
 import com.knowledge.common.domain.model.ChatRequest;
@@ -24,6 +26,8 @@ import dev.langchain4j.model.chat.request.ResponseFormatType;
 import dev.langchain4j.model.chat.request.json.JsonRawSchema;
 import dev.langchain4j.model.chat.request.json.JsonSchema;
 import dev.langchain4j.model.chat.response.ChatResponse;
+import dev.langchain4j.model.embedding.EmbeddingModel;
+import dev.langchain4j.model.embedding.response.EmbeddingResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -32,9 +36,9 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * OpenAI 兼容适配器：服务所有走该协议的厂商，完成「我们的契约 → LC4j 请求」与「LC4j 响应 → GenerationResult」
+ * OpenAI 兼容适配器：服务所有走该协议的厂商，完成「我们的契约 → LC4j 请求」与「LC4j 响应 → 出参」
  * 双向映射。LC4j 类型出现在 knowledge-model 内部的 `adapter` / `engine` / `invoke` / `listener` 四个包，
- * 业务侧不出现。对话模态已实现，向量与视觉模态沿用 SPI 默认的未支持口径。
+ * 业务侧不出现。对话与向量两个模态已实现，视觉模态沿用 SPI 默认的未支持口径。
  * 调用上下文经请求选项的属性表交给用量监听器。
  *
  * @author cxxl
@@ -67,6 +71,19 @@ public class OpenAiCompatibleAdapter implements ModelAdapter {
         ChatModel chatModel = instanceRegistry.chatModel(vendorCode, request.getModelKey());
         ChatResponse response = chatModel.chat(toLc4jRequest(request), requestOptions());
         return toGenerationResult(response, request.getModelKey());
+    }
+
+    /**
+     * 向量模态：按厂商码与请求里的模型名取实例 → 组装 LC4j 请求 → 调用 → 映射出参。
+     *
+     * @param vendorCode 厂商码
+     * @param request    向量入参（模型/文本/超时/批大小/requestId）
+     * @return 向量列表 + 维度 + 模型回显 + requestId
+     */
+    @Override
+    public EmbeddingResult embed(String vendorCode, EmbeddingRequest request) {
+        EmbeddingModel embeddingModel = instanceRegistry.embeddingModel(vendorCode, request.getModel());
+        return toEmbeddingResult(embeddingModel.embed(toLc4jEmbeddingRequest(request)), request);
     }
 
     /** 请求选项：已绑定调用上下文即带上属性表，未绑定取空选项（监听器无从记录，静默跳过） */
@@ -145,6 +162,38 @@ public class OpenAiCompatibleAdapter implements ModelAdapter {
         result.setUsage(ModelUsageMapper.toModelUsage(response.tokenUsage()));
         String modelName = response.modelName();
         result.setModel(NullUtil.isNull(modelName) ? modelKey : modelName);
+        return result;
+    }
+
+    /** 向量请求映射：一批文本按请求顺序成为输入，模型名由实例构建时的 modelName 承载 */
+    private dev.langchain4j.model.embedding.request.EmbeddingRequest toLc4jEmbeddingRequest(EmbeddingRequest request) {
+        dev.langchain4j.model.embedding.request.EmbeddingRequest.Builder builder =
+                dev.langchain4j.model.embedding.request.EmbeddingRequest.builder();
+        for (String text : NullUtil.isNull(request.getTexts()) ? List.<String>of() : request.getTexts()) {
+            builder.input(text);
+        }
+        return builder.build();
+    }
+
+    /**
+     * 向量响应映射：向量列表、维度、模型回显与 requestId 四项。
+     * model 取响应回传值（缺失时回填请求模型名），口径与对话模态一致。
+     */
+    private EmbeddingResult toEmbeddingResult(EmbeddingResponse response, EmbeddingRequest request) {
+        List<dev.langchain4j.data.embedding.Embedding> data = response.embeddings();
+        if (NullUtil.isNull(data) || data.isEmpty()) {
+            throw new KnowledgeException(ErrorCode.MODEL_OUTPUT_INVALID, "向量化响应缺少向量数据");
+        }
+        List<List<Float>> embeddings = new ArrayList<>(data.size());
+        for (dev.langchain4j.data.embedding.Embedding item : data) {
+            embeddings.add(item.vectorAsList());
+        }
+        EmbeddingResult result = new EmbeddingResult();
+        result.setEmbeddings(embeddings);
+        result.setDimension(embeddings.getFirst().size());
+        String modelName = response.modelName();
+        result.setModel(NullUtil.isNull(modelName) ? request.getModel() : modelName);
+        result.setRequestId(request.getRequestId());
         return result;
     }
 }
