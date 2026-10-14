@@ -27,6 +27,7 @@
     <bucket4j.version>8.20.0</bucket4j.version>
     <langchain4j.version>1.22.0</langchain4j.version>
     <json-schema-validator.version>3.0.8</json-schema-validator.version>
+    <jackson-annotations.version>2.22</jackson-annotations.version>
   </properties>
 
   <dependencyManagement>
@@ -88,6 +89,17 @@
         <groupId>com.networknt</groupId>
         <artifactId>json-schema-validator</artifactId>
         <version>${json-schema-validator.version}</version>
+      </dependency>
+
+      <!-- 统一钉版：json-schema-validator 3.0.8 传递 tools.jackson.core:jackson-databind 3.2.1，
+           该库类初始化要读 com.fasterxml.jackson.annotation.JsonSerializeAs（2.16 起才有），
+           Boot 3.2.5 管理的 jackson-annotations 2.15.4 内无此类，
+           调 SchemaRegistry.getSchema(...) 即抛 NoClassDefFoundError: JsonSerializeAs；
+           仅提注解版本，databind 与 core 仍随 Boot 保持 2.15.4 -->
+      <dependency>
+        <groupId>com.fasterxml.jackson.core</groupId>
+        <artifactId>jackson-annotations</artifactId>
+        <version>${jackson-annotations.version}</version>
       </dependency>
 
       <!-- MinIO Java SDK（knowledge-file-center 对象存储实现，版本钉版） -->
