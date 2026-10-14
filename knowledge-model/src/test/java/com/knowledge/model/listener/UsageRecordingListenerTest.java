@@ -13,11 +13,11 @@ import com.knowledge.model.adapter.OpenAiCompatibleAdapter;
 import com.knowledge.model.config.ModelVendorProperties;
 import com.knowledge.model.engine.ModelInstanceRegistry;
 import com.knowledge.model.engine.OpenAiCompatibleEngineFactory;
-import com.knowledge.model.invoke.ModelErrorClassifier;
 import com.knowledge.model.invoke.ModelInvoker;
 import com.knowledge.model.support.FakeOpenAiServer;
+import com.knowledge.model.support.InMemoryModelCallLogPort;
 import com.knowledge.model.support.TestModelCatalog;
-import com.knowledge.model.validate.OutputSchemaValidator;
+import com.knowledge.model.support.TestModelInvoker;
 import dev.langchain4j.data.embedding.Embedding;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.UserMessage;
@@ -246,7 +246,7 @@ class UsageRecordingListenerTest {
     /** 带假服务的调用器：监听器与 HTTP 客户端装饰器挂在模型实例上，调用上下文持有器由调用器与适配器共用同一个实例 */
     private ModelInvoker invoker(Integer maxRetries) {
         OpenAiCompatibleAdapter adapter = new OpenAiCompatibleAdapter(registry(maxRetries), traceHolder);
-        return new ModelInvoker(adapter, new OutputSchemaValidator(), new ModelErrorClassifier(), traceHolder);
+        return TestModelInvoker.of(adapter, traceHolder, new InMemoryModelCallLogPort(), new TestModelCatalog());
     }
 
     /** 带假服务的向量模型实例：与调用器共用同一个调用上下文持有器 */

@@ -6,7 +6,7 @@
 
 1. `DROP DATABASE IF EXISTS knowledge` + `CREATE DATABASE knowledge` + `USE knowledge`——库名固定为 `knowledge`，与
    `knowledge-biz/src/main/resources/application.yml` 中 `spring.datasource.url` 一致；
-2. 按依赖顺序建 22 张表（被引用的表在前，无外键约束）；
+2. 按依赖顺序建 23 张表（被引用的表在前，无外键约束）；
 3. 写入应用运行必需的初始数据（4 条环节策略版本 + 1 个管理员账号）。
 
 **脚本会删除同名库，库内原有数据全部丢弃；可重复执行，每次执行结果一致。**
@@ -35,32 +35,33 @@ docker compose up -d
 
 也可直接在客户端（Navicat / DataGrip / IDEA 数据库工具）里整体执行本文件。
 
-## 三、22 张表
+## 三、23 张表
 
-| #  | 表名                           | 一句话职责                                                                      |
-|----|--------------------------------|---------------------------------------------------------------------------------|
-| 1  | `kb_knowledge_base`            | 知识库：一个业务场景一行，承载策略绑定、默认检索规则与一级发布指针              |
-| 2  | `kb_audit_log`                 | 操作审计：管理员关键操作留痕，append-only                                       |
-| 3  | `kb_file_object`               | 文件档案：上传文件元数据（桶名、对象键、内容指纹），append-only                 |
-| 4  | `kb_source_file`               | 来源文件：文件引用与 sha256 指纹，append-only                                   |
-| 5  | `kb_file_result`               | 文件结果：一次提交一行，同文件重复提交产生多行                                  |
-| 6  | `kb_submit_log`                | 提交日志：每次提交一条（无论成败），`request_id` 为幂等键                       |
-| 7  | `kb_pipeline_task`             | 处理链任务：一次环节触发一条任务及状态机                                        |
-| 8  | `kb_pipeline_product`          | 阶段产物：产物本体在对象存储，表内存引用与血缘                                  |
-| 9  | `kb_pipeline_step_log`         | 子步骤记录：环节内每个子步骤一条及统计                                          |
-| 10 | `kb_pipeline_strategy_version` | 环节策略版本：PREPROCESS/CHUNK/EMBED/RETRIEVAL 四类策略的不可变快照             |
-| 11 | `kb_strategy_binding`          | 知识库-策略绑定：知识库按策略类型绑定一个策略版本                               |
-| 12 | `kb_chunk_set`                 | 切片产物集合：一次切片策略运行一行                                              |
-| 13 | `kb_chunk`                     | 切片：检索命中的最小单元                                                        |
-| 14 | `kb_embedding_set`             | 向量产物集合：一次 EMBED 运行一行，存引用与血缘                                 |
-| 15 | `kb_embedding_record`          | 向量记录：一个切片一条，向量本体只进集合文件                                    |
-| 16 | `kb_index_set`                 | 索引集合：一知识库一行，承载二级发布指针                                        |
-| 17 | `kb_index_version`             | 索引版本行：组合快照 + 状态机 + 发布/退役留痕                                   |
-| 18 | `kb_retrieval_run`             | 检索运行记录：四元组 + 执行时刻结果快照（评测原始数据）                         |
-| 19 | `kb_user`                      | 用户：登录账号、角色与令牌版本                                                  |
-| 20 | `kb_system_setting`            | 系统设置：键值形态的单行配置，表留在库里备用                                    |
-| 21 | `kb_storage_source`            | 存储数据源：一行一个实例（含连接参数），`is_current` 那一行决定新对象的写入位置 |
-| 22 | `kb_model`                     | 模型目录：一行一个模型，承载厂商码、能力（多值）、价格与限额；只建表，初始为空  |
+| #  | 表名                           | 一句话职责                                                                         |
+|----|--------------------------------|------------------------------------------------------------------------------------|
+| 1  | `kb_knowledge_base`            | 知识库：一个业务场景一行，承载策略绑定、默认检索规则与一级发布指针                 |
+| 2  | `kb_audit_log`                 | 操作审计：管理员关键操作留痕，append-only                                          |
+| 3  | `kb_file_object`               | 文件档案：上传文件元数据（桶名、对象键、内容指纹），append-only                    |
+| 4  | `kb_source_file`               | 来源文件：文件引用与 sha256 指纹，append-only                                      |
+| 5  | `kb_file_result`               | 文件结果：一次提交一行，同文件重复提交产生多行                                     |
+| 6  | `kb_submit_log`                | 提交日志：每次提交一条（无论成败），`request_id` 为幂等键                          |
+| 7  | `kb_pipeline_task`             | 处理链任务：一次环节触发一条任务及状态机                                           |
+| 8  | `kb_pipeline_product`          | 阶段产物：产物本体在对象存储，表内存引用与血缘                                     |
+| 9  | `kb_pipeline_step_log`         | 子步骤记录：环节内每个子步骤一条及统计                                             |
+| 10 | `kb_pipeline_strategy_version` | 环节策略版本：PREPROCESS/CHUNK/EMBED/RETRIEVAL 四类策略的不可变快照                |
+| 11 | `kb_strategy_binding`          | 知识库-策略绑定：知识库按策略类型绑定一个策略版本                                  |
+| 12 | `kb_chunk_set`                 | 切片产物集合：一次切片策略运行一行                                                 |
+| 13 | `kb_chunk`                     | 切片：检索命中的最小单元                                                           |
+| 14 | `kb_embedding_set`             | 向量产物集合：一次 EMBED 运行一行，存引用与血缘                                    |
+| 15 | `kb_embedding_record`          | 向量记录：一个切片一条，向量本体只进集合文件                                       |
+| 16 | `kb_index_set`                 | 索引集合：一知识库一行，承载二级发布指针                                           |
+| 17 | `kb_index_version`             | 索引版本行：组合快照 + 状态机 + 发布/退役留痕                                      |
+| 18 | `kb_retrieval_run`             | 检索运行记录：四元组 + 执行时刻结果快照（评测原始数据）                            |
+| 19 | `kb_user`                      | 用户：登录账号、角色与令牌版本                                                     |
+| 20 | `kb_system_setting`            | 系统设置：键值形态的单行配置，表留在库里备用                                       |
+| 21 | `kb_storage_source`            | 存储数据源：一行一个实例（含连接参数），`is_current` 那一行决定新对象的写入位置    |
+| 22 | `kb_model`                     | 模型目录：一行一个模型，承载厂商码、能力（多值）、价格与限额；只建表，初始为空     |
+| 23 | `kb_model_call_log`            | 调用明细：一行一次逻辑调用（成功与失败都落行），承载用量、单价快照、成本与路由维度 |
 
 ## 四、初始数据
 
@@ -93,6 +94,14 @@ docker compose up -d
 - 维度 / 度量 / 归一化 / 单批上限不进本表，由 `common` 的 `EmbeddingModel` 枚举承载；库里声明 `EMBEDDING` 但枚举里没有的模型名在嵌入链路上不可用（承载方式等接入清单确定后再定）。
 
 价格列（`price_*`）与容量列（`rpm_limit` / `tpm_limit`）由补行时按需填写，留空不参与判断。
+
+### 调用明细（`kb_model_call_log`，只建表、不带初始数据）
+
+调用明细由应用在调用结束后写入，脚本只建结构。三条口径：
+
+- **一次逻辑调用一行**：成功与失败都落行；同一实例内的重试与退避算一次调用，重试次数记在 `retry_count`（由真实 HTTP 层计数：尝试次数 − 1），延迟记在 `latency_ms`（一次逻辑调用的整段耗时，含内部重试与退避等待）。形参校验与调用前检查拦下的失败没有发出请求，不落行。
+- **不做日聚合表**：用量概览、成本趋势与告警直接查本表，查询必须限定时间范围并走 `idx_tenant_time` / `idx_capability_model_time`；概览的调用数、成功失败数、未知占比与成本合计都由明细上的聚合给出。
+- **未知用量记 NULL + `usage_unknown = 1`**：厂商未回 usage 时 `prompt_tokens` / `completion_tokens` / `total_tokens` 与 `cost` 全记 NULL 并置标记位（不写 -1、不写 0、不做本地估算）；确实为零写 0，未知与零不混用。单价随行留档（`unit_price_in` / `unit_price_out` / `currency`），一行成本可复算；目录里没有该模型或价格缺失时 `cost` 留空。
 
 其余表不插入任何数据：`kb_model` 初始为空（见上），知识库、绑定、索引与产物均由使用过程中产生。`kb_storage_source` 初始为空，此时文件服务在后端启动时按 `application.yml` 的 `file-center` 两段参数 seed 两行（`MinIO` 与 `本地磁盘`），`file-center.storage-type` 指明的那一行是当前启用；之后当前启用读库里的 `is_current`，在「系统设置」页改过之后以库为准。`kb_system_setting` 初始为空且当前没有读写它的功能。
 

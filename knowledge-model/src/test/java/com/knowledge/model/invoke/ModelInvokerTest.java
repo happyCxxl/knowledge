@@ -11,10 +11,15 @@ import com.knowledge.common.domain.model.GenerationResult;
 import com.knowledge.common.domain.model.MessageRole;
 import com.knowledge.common.domain.model.OutputFormat;
 import com.knowledge.common.domain.model.OutputSpec;
+import com.knowledge.common.domain.model.calllog.ModelCallLogEntry;
+import com.knowledge.common.domain.model.catalog.ModelCapability;
+import com.knowledge.common.domain.model.catalog.ModelDescriptor;
+import com.knowledge.common.enums.model.CallStatus;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
 import com.knowledge.model.adapter.ModelAdapter;
 import com.knowledge.model.adapter.OpenAiCompatibleAdapter;
+import com.knowledge.model.catalog.ModelCatalogPort;
 import com.knowledge.model.config.ModelVendorProperties;
 import com.knowledge.model.engine.ModelInstanceRegistry;
 import com.knowledge.model.engine.OpenAiCompatibleEngineFactory;
@@ -22,8 +27,8 @@ import com.knowledge.model.listener.ModelCallTrace;
 import com.knowledge.model.listener.ModelCallTraceHolder;
 import com.knowledge.model.listener.UsageRecordingListener;
 import com.knowledge.model.support.FakeOpenAiServer;
-import com.knowledge.model.support.TestModelCatalog;
-import com.knowledge.model.validate.OutputSchemaValidator;
+import com.knowledge.model.support.InMemoryModelCallLogPort;
+import com.knowledge.model.support.TestModelInvoker;
 import dev.langchain4j.exception.AuthenticationException;
 import dev.langchain4j.exception.ContentFilteredException;
 import dev.langchain4j.exception.InternalServerException;
@@ -36,6 +41,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.net.ConnectException;
 import java.net.ServerSocket;
 import java.util.ArrayList;
@@ -47,13 +53,16 @@ import java.util.Set;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * 调用器单测（假 OpenAI 兼容端点）：一次调用的请求次数、异常到错误码的映射与可降级结论、
- * 结构校验失败的口径与失败前的调用前拒绝。
+ * 结构校验失败的口径与失败前的调用前拒绝、调用结束后落调用明细的口径（成功、失败与未发出请求三态）。
  *
  * @author cxxl
  */
@@ -77,10 +86,19 @@ class ModelInvokerTest {
 
     private ModelInvoker invoker;
 
+    private InMemoryModelCallLogPort logPort;
+
+    private ModelCatalogPort catalog;
+
+    private ModelCallTraceHolder traceHolder;
+
     @BeforeEach
     void setUp() throws IOException {
         server = new FakeOpenAiServer();
         server.respondWith(200, chatResponse("pong"));
+        logPort = new InMemoryModelCallLogPort();
+        catalog = pricedCatalog();
+        traceHolder = new ModelCallTraceHolder();
         invoker = invoker(server.baseUrl(), 10000);
     }
 
@@ -412,6 +430,110 @@ class ModelInvokerTest {
         assertEquals(0, server.requestCount());
     }
 
+    @Test
+    void chatSuccessShouldWriteOneCallLogRowWithTokensAndCost() {
+        GenerationResult result = invoker.chat(VENDOR, request(OutputFormat.TEXT, null));
+
+        assertEquals("pong", result.getContent());
+        assertEquals(1, logPort.entries().size());
+        ModelCallLogEntry entry = logPort.lastEntry();
+        assertEquals(ModelCapability.CHAT, entry.getCapability());
+        assertEquals(VENDOR, entry.getVendor());
+        assertEquals(MODEL, entry.getModel());
+        assertEquals(CallStatus.SUCCESS, entry.getStatus());
+        assertNull(entry.getErrorCode());
+        assertEquals(0, entry.getUsageUnknown());
+        assertEquals(3L, entry.getPromptTokens());
+        assertEquals(2L, entry.getCompletionTokens());
+        assertEquals(5L, entry.getTotalTokens());
+        // 3 × 2.000000 / 1e6 + 2 × 8.000000 / 1e6 = 0.000022
+        assertEquals(new BigDecimal("0.000022"), entry.getCost());
+        assertEquals(new BigDecimal("2.000000"), entry.getUnitPriceIn());
+        assertEquals(new BigDecimal("8.000000"), entry.getUnitPriceOut());
+        assertEquals("CNY", entry.getCurrency());
+        assertEquals(0, entry.getRetryCount());
+        assertNotNull(entry.getLatencyMs());
+    }
+
+    @Test
+    void embedSuccessShouldWriteOneCallLogRowWithEmbeddingCapability() {
+        server.respondWith(200, EMBEDDING_RESPONSE);
+
+        invoker.embed(VENDOR, embedRequest(), new ModelCallTrace());
+
+        assertEquals(1, logPort.entries().size());
+        ModelCallLogEntry entry = logPort.lastEntry();
+        assertEquals(ModelCapability.EMBEDDING, entry.getCapability());
+        assertEquals(CallStatus.SUCCESS, entry.getStatus());
+        assertEquals(0, entry.getUsageUnknown());
+        assertEquals(3L, entry.getPromptTokens());
+        assertNull(entry.getCompletionTokens());
+        // 嵌入按千次计价，token 单价口径不适用，成本留空
+        assertNull(entry.getCost());
+        assertEquals(1, server.requestCount());
+    }
+
+    @Test
+    void rateLimitedCallShouldWriteOneFailedCallLogRow() {
+        server.respondWith(429, errorBody("Throttling", "Requests rate limit exceeded"));
+
+        chatError(request(OutputFormat.TEXT, null));
+
+        assertEquals(1, logPort.entries().size());
+        ModelCallLogEntry entry = logPort.lastEntry();
+        assertEquals(CallStatus.RATE_LIMITED, entry.getStatus());
+        assertEquals("MODEL_RATE_LIMITED", entry.getErrorCode());
+        assertEquals(1, entry.getUsageUnknown());
+        assertNull(entry.getPromptTokens());
+        assertNull(entry.getCost());
+    }
+
+    @Test
+    void serverErrorCallShouldWriteOneFailedCallLogRow() {
+        server.respondWith(500, errorBody("InternalError", "Internal server error"));
+
+        chatError(request(OutputFormat.TEXT, null));
+
+        assertEquals(CallStatus.FAILED, logPort.lastEntry().getStatus());
+        assertEquals("MODEL_SERVER_ERROR", logPort.lastEntry().getErrorCode());
+        assertEquals(1, server.requestCount());
+    }
+
+    @Test
+    void timeoutCallShouldWriteOneTimeoutCallLogRow() {
+        invoker = invoker(server.baseUrl(), 300);
+        server.delayMillis(1500);
+
+        chatError(request(OutputFormat.TEXT, null));
+
+        assertEquals(CallStatus.TIMEOUT, logPort.lastEntry().getStatus());
+        assertEquals("MODEL_TIMEOUT", logPort.lastEntry().getErrorCode());
+    }
+
+    @Test
+    void outputInvalidCallShouldWriteOneFailedCallLogRowWithUsage() {
+        server.respondWith(200, chatResponse("not-json"));
+
+        chatError(request(OutputFormat.JSON_OBJECT, null));
+
+        ModelCallLogEntry entry = logPort.lastEntry();
+        assertEquals(CallStatus.FAILED, entry.getStatus());
+        assertEquals("MODEL_OUTPUT_INVALID", entry.getErrorCode());
+        assertEquals(0, entry.getUsageUnknown());
+        assertEquals(5L, entry.getTotalTokens());
+    }
+
+    @Test
+    void rejectedBeforeRequestShouldWriteNoCallLogRow() {
+        assertThrows(KnowledgeException.class, () -> invoker.chat("  ", request(OutputFormat.TEXT, null)));
+        assertThrows(KnowledgeException.class, () -> invoker.chat(VENDOR, null));
+        assertThrows(KnowledgeException.class, () -> invoker.chat(VENDOR, request(OutputFormat.JSON_SCHEMA, "  ")));
+        assertThrows(KnowledgeException.class, () -> invoker.embed("  ", embedRequest(), new ModelCallTrace()));
+
+        assertTrue(logPort.entries().isEmpty(), "请求未发出的失败不落明细");
+        assertEquals(0, server.requestCount());
+    }
+
     /** 调用并断言抛出知识异常 */
     private KnowledgeException chatError(ChatRequest request) {
         return assertThrows(KnowledgeException.class, () -> invoker.chat(VENDOR, request));
@@ -426,7 +548,7 @@ class ModelInvokerTest {
         return request;
     }
 
-    /** 带假服务的调用器：重试为 0（失败即抛，请求次数与调用次数一致） */
+    /** 带假服务的调用器：重试为 0（失败即抛，请求次数与调用次数一致）；调用上下文持有器与适配器、监听器共用一份 */
     private ModelInvoker invoker(String baseUrl, int timeoutMs) {
         ModelVendorProperties properties = new ModelVendorProperties();
         Map<String, ModelVendorProperties.Vendor> vendors = new LinkedHashMap<>();
@@ -437,17 +559,35 @@ class ModelInvokerTest {
         vendor.setMaxRetries(0);
         vendors.put(VENDOR, vendor);
         properties.setVendors(vendors);
-        ModelCallTraceHolder traceHolder = new ModelCallTraceHolder();
         OpenAiCompatibleEngineFactory engineFactory =
                 new OpenAiCompatibleEngineFactory(new UsageRecordingListener(traceHolder), traceHolder);
-        ModelInstanceRegistry registry = new ModelInstanceRegistry(properties, engineFactory, new TestModelCatalog());
+        ModelInstanceRegistry registry = new ModelInstanceRegistry(properties, engineFactory, catalog);
         return invoker(new OpenAiCompatibleAdapter(registry, traceHolder));
     }
 
     /** 指定适配器的调用器：上下文持有器按用例新建，向量出参的结构守卫按它验证 */
     private ModelInvoker invoker(ModelAdapter adapter) {
-        return new ModelInvoker(adapter, new OutputSchemaValidator(), new ModelErrorClassifier(),
-                new ModelCallTraceHolder());
+        return TestModelInvoker.of(adapter, traceHolder, logPort, catalog);
+    }
+
+    /** 带价格快照的目录：模型 → 厂商解析与对话定价都取它 */
+    private ModelCatalogPort pricedCatalog() {
+        ModelCatalogPort pricedCatalog = mock(ModelCatalogPort.class);
+        when(pricedCatalog.findUniqueEnabledByModelKey(MODEL)).thenReturn(descriptor());
+        when(pricedCatalog.findByVendorAndModelKey(VENDOR, MODEL)).thenReturn(descriptor());
+        return pricedCatalog;
+    }
+
+    /** 目录项：对话能力 + 输入 2.000000 / 输出 8.000000（每百万 token，CNY） */
+    private ModelDescriptor descriptor() {
+        ModelDescriptor descriptor = new ModelDescriptor();
+        descriptor.setVendorCode(VENDOR);
+        descriptor.setModelKey(MODEL);
+        descriptor.setCapabilities(Set.of(ModelCapability.CHAT));
+        descriptor.setPriceInPerM(new BigDecimal("2.000000"));
+        descriptor.setPriceOutPerM(new BigDecimal("8.000000"));
+        descriptor.setCurrency("CNY");
+        return descriptor;
     }
 
     /** 向量出参为空的适配器：验证调用器对「响应缺向量数据」的结构守卫 */

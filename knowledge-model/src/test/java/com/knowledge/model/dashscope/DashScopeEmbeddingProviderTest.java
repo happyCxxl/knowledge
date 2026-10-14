@@ -8,14 +8,14 @@ import com.knowledge.model.adapter.OpenAiCompatibleAdapter;
 import com.knowledge.model.config.ModelVendorProperties;
 import com.knowledge.model.engine.ModelInstanceRegistry;
 import com.knowledge.model.engine.OpenAiCompatibleEngineFactory;
-import com.knowledge.model.invoke.ModelErrorClassifier;
 import com.knowledge.model.invoke.ModelInvoker;
 import com.knowledge.model.listener.ModelCallTrace;
 import com.knowledge.model.listener.ModelCallTraceHolder;
 import com.knowledge.model.listener.UsageRecordingListener;
 import com.knowledge.model.support.FakeOpenAiServer;
+import com.knowledge.model.support.InMemoryModelCallLogPort;
 import com.knowledge.model.support.TestModelCatalog;
-import com.knowledge.model.validate.OutputSchemaValidator;
+import com.knowledge.model.support.TestModelInvoker;
 import dev.langchain4j.exception.InternalServerException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -299,8 +299,8 @@ class DashScopeEmbeddingProviderTest {
         OpenAiCompatibleEngineFactory engineFactory =
                 new OpenAiCompatibleEngineFactory(new UsageRecordingListener(traceHolder), traceHolder);
         ModelInstanceRegistry registry = new ModelInstanceRegistry(properties, engineFactory, catalog);
-        ModelInvoker invoker = new ModelInvoker(new OpenAiCompatibleAdapter(registry, traceHolder),
-                new OutputSchemaValidator(), new ModelErrorClassifier(), traceHolder);
+        ModelInvoker invoker = TestModelInvoker.of(new OpenAiCompatibleAdapter(registry, traceHolder), traceHolder,
+                new InMemoryModelCallLogPort(), catalog);
         return new DashScopeEmbeddingProvider(properties, registry, invoker, traceHolder);
     }
 
