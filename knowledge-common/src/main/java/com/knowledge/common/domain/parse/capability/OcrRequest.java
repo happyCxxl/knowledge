@@ -3,8 +3,7 @@ package com.knowledge.common.domain.parse.capability;
 import lombok.Data;
 
 /**
- * 结构化 OCR 请求（ModelGatewayPort.structuredOcr 入参）。
- * 预留扩展暂未接入；字段随接入时定。
+ * 结构化 OCR 请求（预留类型，当前未被使用；平台侧统一走 ModelGatewayPort.vision 的模态契约，领域结构由解析侧映射）。
  *
  * @author cxxl
  */
