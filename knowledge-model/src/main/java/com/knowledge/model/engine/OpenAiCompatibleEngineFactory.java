@@ -1,0 +1,100 @@
+package com.knowledge.model.engine;
+
+import com.knowledge.common.utils.NullUtil;
+import com.knowledge.model.config.ModelVendorProperties;
+import dev.langchain4j.model.chat.ChatModel;
+import dev.langchain4j.model.embedding.EmbeddingModel;
+import dev.langchain4j.model.openai.OpenAiChatModel;
+import dev.langchain4j.model.openai.OpenAiEmbeddingModel;
+import org.springframework.stereotype.Component;
+
+import java.time.Duration;
+
+/**
+ * OpenAI 兼容引擎工厂：按厂商配置构建 LC4j 的对话模型与向量模型实例。
+ * baseUrl 留空取 DashScope 兼容端点默认值，apiKey 与模型名逐项来自配置与请求，超时与重试口径见各类常量说明。
+ *
+ * @author cxxl
+ */
+@Component
+public class OpenAiCompatibleEngineFactory {
+
+    /** baseUrl 留空时的默认地址（DashScope 兼容端点，实际地址以百炼控制台为准） */
+    static final String DEFAULT_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
+
+    /** timeout-ms 留空时的默认总超时（毫秒） */
+    static final int DEFAULT_TIMEOUT_MS = 60000;
+
+    /** 请求日志开关；不新增配置键，排障时在此临时打开 */
+    private static final boolean LOG_REQUESTS = false;
+
+    /** 响应日志开关；不新增配置键，排障时在此临时打开 */
+    private static final boolean LOG_RESPONSES = false;
+
+    /**
+     * 对话模型实例：modelName 取模型名，timeout 取单一总超时，max-retries 配了才透传。
+     * 监听器挂载点是本方法内的 builder（用量与延迟记录），当前版本未挂。
+     *
+     * @param vendor   厂商配置（baseUrl / apiKey / timeout-ms / max-retries）
+     * @param modelKey 模型名
+     * @return LC4j 对话模型实例
+     */
+    ChatModel chatModel(ModelVendorProperties.Vendor vendor, String modelKey) {
+        OpenAiChatModel.OpenAiChatModelBuilder builder = OpenAiChatModel.builder();
+        builder.baseUrl(baseUrl(vendor));
+        builder.apiKey(vendor.getApiKey());
+        builder.modelName(modelKey);
+        builder.timeout(timeout(vendor));
+        builder.logRequests(LOG_REQUESTS);
+        builder.logResponses(LOG_RESPONSES);
+        applyMaxRetries(builder, vendor);
+        return builder.build();
+    }
+
+    /**
+     * 向量模型实例：构建参数口径与对话模型一致。
+     * 监听器挂载点是本方法内的 builder（用量与延迟记录），当前版本未挂。
+     *
+     * @param vendor   厂商配置（baseUrl / apiKey / timeout-ms / max-retries）
+     * @param modelKey 模型名
+     * @return LC4j 向量模型实例
+     */
+    EmbeddingModel embeddingModel(ModelVendorProperties.Vendor vendor, String modelKey) {
+        OpenAiEmbeddingModel.OpenAiEmbeddingModelBuilder builder = OpenAiEmbeddingModel.builder()
+                .baseUrl(baseUrl(vendor))
+                .apiKey(vendor.getApiKey())
+                .modelName(modelKey)
+                .timeout(timeout(vendor))
+                .logRequests(LOG_REQUESTS)
+                .logResponses(LOG_RESPONSES);
+        applyMaxRetries(builder, vendor);
+        return builder.build();
+    }
+
+    /** 服务地址：配了取配置值，留空取 DashScope 兼容端点默认值 */
+    private String baseUrl(ModelVendorProperties.Vendor vendor) {
+        String baseUrl = vendor.getBaseUrl();
+        return NullUtil.isNull(baseUrl) || baseUrl.isBlank() ? DEFAULT_BASE_URL : baseUrl;
+    }
+
+    /** 单一总超时：配了取配置值，留空取默认 60000 毫秒 */
+    private Duration timeout(ModelVendorProperties.Vendor vendor) {
+        Integer timeoutMs = vendor.getTimeoutMs();
+        return Duration.ofMillis(NullUtil.isNull(timeoutMs) ? DEFAULT_TIMEOUT_MS : timeoutMs);
+    }
+
+    /** 重试次数：配了才透传，留空用 LC4j 默认值 */
+    private void applyMaxRetries(OpenAiChatModel.OpenAiChatModelBuilder builder, ModelVendorProperties.Vendor vendor) {
+        if (vendor.getMaxRetries() != null) {
+            builder.maxRetries(vendor.getMaxRetries());
+        }
+    }
+
+    /** 重试次数：配了才透传，留空用 LC4j 默认值 */
+    private void applyMaxRetries(OpenAiEmbeddingModel.OpenAiEmbeddingModelBuilder builder,
+                                 ModelVendorProperties.Vendor vendor) {
+        if (vendor.getMaxRetries() != null) {
+            builder.maxRetries(vendor.getMaxRetries());
+        }
+    }
+}
