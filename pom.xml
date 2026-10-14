@@ -25,6 +25,8 @@
     <milvus.version>2.5.5</milvus.version>
     <minio.version>8.5.12</minio.version>
     <bucket4j.version>8.20.0</bucket4j.version>
+    <langchain4j.version>1.22.0</langchain4j.version>
+    <json-schema-validator.version>3.0.8</json-schema-validator.version>
   </properties>
 
   <dependencyManagement>
@@ -69,6 +71,23 @@
         <groupId>com.knowledge</groupId>
         <artifactId>knowledge-vector</artifactId>
         <version>${project.version}</version>
+      </dependency>
+
+      <!-- LangChain4j 官方 BOM（knowledge-model 的模型供应商调用，版本单点钉版）；
+           只导官方线，不引 community 模块 -->
+      <dependency>
+        <groupId>dev.langchain4j</groupId>
+        <artifactId>langchain4j-bom</artifactId>
+        <version>${langchain4j.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+
+      <!-- 严格 JSON Schema 校验（模型输出结构校验，版本单点钉版） -->
+      <dependency>
+        <groupId>com.networknt</groupId>
+        <artifactId>json-schema-validator</artifactId>
+        <version>${json-schema-validator.version}</version>
       </dependency>
 
       <!-- MinIO Java SDK（knowledge-file-center 对象存储实现，版本钉版） -->

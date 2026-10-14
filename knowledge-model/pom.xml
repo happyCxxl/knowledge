@@ -41,6 +41,18 @@
             <artifactId>spring-web</artifactId>
         </dependency>
 
+        <!-- LangChain4j OpenAI 兼容调用（版本由根 pom 导入的 BOM 管理） -->
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-open-ai</artifactId>
+        </dependency>
+
+        <!-- 严格 JSON Schema 校验（模型输出结构校验） -->
+        <dependency>
+            <groupId>com.networknt</groupId>
+            <artifactId>json-schema-validator</artifactId>
+        </dependency>
+
         <!-- Lombok -->
         <dependency>
             <groupId>org.projectlombok</groupId>
