@@ -218,12 +218,17 @@ class UsageRecordingListenerTest {
         assertEquals(1, trace.attempts());
         assertEquals(0, trace.retryCount());
         assertNotNull(trace.lastAttemptLatencyMs());
+        assertNotNull(trace.latencyMs());
+        assertNotNull(trace.usage());
+        assertEquals(1, trace.usage().getPromptTokens());
+        assertNull(trace.usage().getCompletionTokens());
+        assertEquals(1, trace.usage().getTotalTokens());
         assertEquals(1, server.requestCount());
     }
 
     @Test
     void listenerShouldSkipContextWithoutTrace() {
-        UsageRecordingListener listener = new UsageRecordingListener();
+        UsageRecordingListener listener = new UsageRecordingListener(traceHolder);
         dev.langchain4j.model.chat.request.ChatRequest lc4jRequest =
                 dev.langchain4j.model.chat.request.ChatRequest.builder().messages(UserMessage.from("ping")).build();
         Map<Object, Object> attributes = Map.of();
@@ -260,7 +265,7 @@ class UsageRecordingListenerTest {
         vendors.put(VENDOR, vendor);
         properties.setVendors(vendors);
         OpenAiCompatibleEngineFactory engineFactory =
-                new OpenAiCompatibleEngineFactory(new UsageRecordingListener(), traceHolder);
+                new OpenAiCompatibleEngineFactory(new UsageRecordingListener(traceHolder), traceHolder);
         return new ModelInstanceRegistry(properties, engineFactory);
     }
 

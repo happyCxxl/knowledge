@@ -340,7 +340,7 @@ class ModelInvokerTest {
         properties.setVendors(vendors);
         ModelCallTraceHolder traceHolder = new ModelCallTraceHolder();
         OpenAiCompatibleEngineFactory engineFactory =
-                new OpenAiCompatibleEngineFactory(new UsageRecordingListener(), traceHolder);
+                new OpenAiCompatibleEngineFactory(new UsageRecordingListener(traceHolder), traceHolder);
         ModelInstanceRegistry registry = new ModelInstanceRegistry(properties, engineFactory);
         return new ModelInvoker(new OpenAiCompatibleAdapter(registry, traceHolder), new OutputSchemaValidator(),
                 new ModelErrorClassifier(), traceHolder);

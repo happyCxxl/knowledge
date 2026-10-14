@@ -13,11 +13,12 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
+import java.util.List;
 
 /**
  * OpenAI 兼容引擎工厂：按厂商配置构建 LC4j 的对话模型与向量模型实例。
  * baseUrl 留空取 DashScope 兼容端点默认值，apiKey 与模型名逐项来自配置与请求，超时与重试口径见各类常量说明。
- * 两个构建方法都挂上 HTTP 客户端装饰器，真实请求次数落在调用上下文里。
+ * 两个构建方法都挂上用量监听器与 HTTP 客户端装饰器，用量、延迟与真实请求次数落在调用上下文里。
  *
  * @author cxxl
  */
@@ -37,7 +38,7 @@ public class OpenAiCompatibleEngineFactory {
     /** 响应日志开关；不新增配置键，排障时在此临时打开 */
     private static final boolean LOG_RESPONSES = false;
 
-    /** 用量监听器：挂在对话模型实例上，记录用量、延迟与错误 */
+    /** 用量监听器：挂在对话模型与向量模型实例上，记录用量、延迟与错误 */
     private final UsageRecordingListener usageRecordingListener;
 
     /** 调用上下文持有：HTTP 客户端装饰器按它取当前线程的调用上下文 */
@@ -66,9 +67,7 @@ public class OpenAiCompatibleEngineFactory {
     }
 
     /**
-     * 向量模型实例：构建参数口径与对话模型一致，HTTP 客户端装饰器同样挂上。
-     * 向量模型的监听器接口是 EmbeddingModelListener，`listeners(...)` 收不了 ChatModelListener，
-     * 向量侧的用量监听随嵌入改造接入。
+     * 向量模型实例：构建参数口径与对话模型一致，用量监听器与 HTTP 客户端装饰器都挂在本方法内的 builder 上。
      *
      * @param vendor   厂商配置（baseUrl / apiKey / timeout-ms / max-retries）
      * @param modelKey 模型名
@@ -82,6 +81,7 @@ public class OpenAiCompatibleEngineFactory {
                 .timeout(timeout(vendor))
                 .logRequests(LOG_REQUESTS)
                 .logResponses(LOG_RESPONSES)
+                .listeners(List.of(usageRecordingListener))
                 .httpClientBuilder(countingHttpClientBuilder());
         applyMaxRetries(builder, vendor);
         return builder.build();

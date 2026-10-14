@@ -3,25 +3,37 @@ package com.knowledge.model.dashscope;
 import cn.hutool.core.util.StrUtil;
 import com.knowledge.common.domain.embed.EmbeddingRequest;
 import com.knowledge.common.domain.embed.EmbeddingResult;
+import com.knowledge.common.error.ErrorCode;
+import com.knowledge.common.exception.KnowledgeException;
 import com.knowledge.common.exception.ThrowUtil;
 import com.knowledge.common.utils.NullUtil;
+import com.knowledge.model.config.ModelVendorProperties;
+import com.knowledge.model.engine.ModelInstanceRegistry;
 import com.knowledge.model.gateway.ModelGatewayPort;
+import com.knowledge.model.listener.ModelCallTrace;
+import com.knowledge.model.listener.ModelCallTraceHolder;
+import dev.langchain4j.model.embedding.EmbeddingModel;
+import dev.langchain4j.model.embedding.response.EmbeddingResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestClient;
-import org.springframework.web.client.RestClientException;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
- * 阿里云 DashScope 向量化提供者（OpenAI 兼容协议）：POST {baseUrl}/embeddings，Bearer 鉴权。
- * 失败/空响应 → 抛 IllegalStateException（管线侧按批次重试）。
+ * 向量化提供者（OpenAI 兼容协议）：按厂商配置取 LC4j 向量模型实例，把一批文本编码成向量。
+ * 厂商从配置里的兼容协议厂商解析（规则 A），模型名取请求体的 {@code EmbeddingRequest.model}，
+ * 实例的 baseUrl / apiKey / 超时 / 重试都来自 {@code knowledge.model.vendors.<厂商码>}。
+ *
+ * <p>出参与入参逐项对应：向量列表与输入一一对应、维度取向量长度、模型回显请求里的模型名、requestId 原样带回。
+ * 调用上下文按当前线程取：调用线程已绑定即复用该上下文（多次调用累计在同一份上下文里），
+ * 未绑定即新建一份并在本次调用结束时解绑。
+ *
+ * <p>应答缺向量数据时的失败由底层实现在解引用处抛出（实测为应答缺 {@code data} 字段时的空指针），
+ * 本层不另设归类；LC4j 侧的其余异常同样原样透出。
  *
  * @author cxxl
  */
@@ -30,71 +42,74 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class DashScopeEmbeddingProvider implements ModelGatewayPort {
 
-    private final DashScopeProperties properties;
+    private final ModelVendorProperties vendorProperties;
 
-    /** 测试可注入；运行时惰性构建 */
-    private RestClient client;
+    private final ModelInstanceRegistry instanceRegistry;
+
+    /** 调用上下文持有：向量调用按它把一次调用的上下文绑在调用线程上，HTTP 客户端装饰器与监听器都按它取回 */
+    private final ModelCallTraceHolder modelCallTraceHolder;
 
     @Override
     public EmbeddingResult embed(EmbeddingRequest request) {
-        ThrowUtil.throwIf(StrUtil.isBlank(properties.getApiKey()),
-                () -> new IllegalStateException("DashScope API Key 未配置（knowledge.model.dashscope.api-key）"));
-        Map<String, Object> body = Map.of(
-                "model", request.getModel(),
-                "input", request.getTexts());
+        String vendorCode = compatibleVendorCode();
+        ModelVendorProperties.Vendor vendor = vendorProperties.getVendors().get(vendorCode);
+        ThrowUtil.throwIf(StrUtil.isBlank(vendor.getApiKey()), () -> new IllegalStateException(
+                "向量化 API Key 未配置（knowledge.model.vendors." + vendorCode + ".api-key）"));
+        EmbeddingModel embeddingModel = instanceRegistry.embeddingModel(vendorCode, request.getModel());
+        ModelCallTrace bound = modelCallTraceHolder.current();
+        ModelCallTrace trace = NullUtil.isNull(bound) ? new ModelCallTrace() : bound;
+        modelCallTraceHolder.bind(trace);
         try {
-            Map<String, Object> response = restClient().post()
-                    .uri("/embeddings")
-                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + properties.getApiKey())
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(body)
-                    .retrieve()
-                    .body(Map.class);
-            return mapResponse(response, request);
-        } catch (RestClientException e) {
-            throw new IllegalStateException("DashScope 向量化失败: " + e.getMessage(), e);
+            return toEmbeddingResult(embeddingModel.embed(toLc4jRequest(request)), request);
+        } finally {
+            if (NullUtil.isNull(bound)) {
+                modelCallTraceHolder.clear();
+            }
         }
     }
 
-    private RestClient restClient() {
-        if (NullUtil.isNotNull(client)) {
-            return client;
+    /**
+     * 解析本次嵌入使用的厂商（规则 A）：兼容协议厂商只有一个时取该厂商码；
+     * 未配置厂商抛「模型厂商未配置」，配置了多个抛同码并提示需要指定厂商。
+     *
+     * @return 厂商码
+     */
+    private String compatibleVendorCode() {
+        Map<String, ModelVendorProperties.Vendor> vendors = vendorProperties.getVendors();
+        Set<String> codes = NullUtil.isNull(vendors) ? Set.of() : vendors.keySet();
+        if (codes.isEmpty()) {
+            throw new KnowledgeException(ErrorCode.MODEL_VENDOR_UNKNOWN, "厂商：未配置，配置键：knowledge.model.vendors");
         }
-        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(properties.getConnectTimeoutMs());
-        factory.setReadTimeout(properties.getReadTimeoutMs());
-        client = RestClient.builder().baseUrl(properties.getBaseUrl()).requestFactory(factory).build();
-        return client;
+        if (codes.size() > 1) {
+            throw new KnowledgeException(ErrorCode.MODEL_VENDOR_UNKNOWN,
+                    "embed 需要指定厂商，等目录片支持；已配置厂商：" + codes);
+        }
+        return codes.iterator().next();
     }
 
-    /** 响应映射：data[].embedding 与输入一一对应；无数据/条目非法抛错 */
-    private EmbeddingResult mapResponse(Map<String, Object> response, EmbeddingRequest request) {
-        Object dataObj = NullUtil.isNull(response) ? null : response.get("data");
-        if (!(dataObj instanceof List<?> data) || data.isEmpty()) {
-            throw new IllegalStateException("DashScope 响应缺少向量数据");
+    /** 契约 → LC4j 请求：一批文本按请求顺序成为输入，模型名由实例构建时的 modelName 承载 */
+    private dev.langchain4j.model.embedding.request.EmbeddingRequest toLc4jRequest(EmbeddingRequest request) {
+        dev.langchain4j.model.embedding.request.EmbeddingRequest.Builder builder =
+                dev.langchain4j.model.embedding.request.EmbeddingRequest.builder();
+        for (String text : NullUtil.isNull(request.getTexts()) ? List.<String>of() : request.getTexts()) {
+            builder.input(text);
         }
-        List<List<Float>> embeddings = new ArrayList<>();
-        Integer dimension = null;
-        for (Object item : data) {
-            if (!(item instanceof Map<?, ?> entry)) {
-                throw new IllegalStateException("DashScope 响应条目格式非法");
-            }
-            Object embedding = entry.get("embedding");
-            if (!(embedding instanceof List<?> vector)) {
-                throw new IllegalStateException("DashScope 响应条目缺少 embedding");
-            }
-            if (NullUtil.isNull(dimension)) {
-                dimension = vector.size();
-            }
-            List<Float> floats = new ArrayList<>(vector.size());
-            for (Object value : vector) {
-                floats.add(Float.parseFloat(String.valueOf(value)));
-            }
-            embeddings.add(floats);
+        return builder.build();
+    }
+
+    /** 响应映射：向量列表、维度、模型回显与 requestId 四项口径与入参一致 */
+    private EmbeddingResult toEmbeddingResult(EmbeddingResponse response, EmbeddingRequest request) {
+        List<dev.langchain4j.data.embedding.Embedding> data = response.embeddings();
+        if (NullUtil.isNull(data) || data.isEmpty()) {
+            throw new IllegalStateException("向量化响应缺少向量数据");
+        }
+        List<List<Float>> embeddings = new ArrayList<>(data.size());
+        for (dev.langchain4j.data.embedding.Embedding item : data) {
+            embeddings.add(item.vectorAsList());
         }
         EmbeddingResult result = new EmbeddingResult();
         result.setEmbeddings(embeddings);
-        result.setDimension(dimension);
+        result.setDimension(embeddings.getFirst().size());
         result.setModel(request.getModel());
         result.setRequestId(request.getRequestId());
         return result;

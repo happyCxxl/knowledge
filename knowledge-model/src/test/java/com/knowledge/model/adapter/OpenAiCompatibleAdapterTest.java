@@ -59,7 +59,7 @@ class OpenAiCompatibleAdapterTest {
         ModelCallTraceHolder traceHolder = new ModelCallTraceHolder();
         adapter = new OpenAiCompatibleAdapter(
                 new ModelInstanceRegistry(properties,
-                        new OpenAiCompatibleEngineFactory(new UsageRecordingListener(), traceHolder)),
+                        new OpenAiCompatibleEngineFactory(new UsageRecordingListener(traceHolder), traceHolder)),
                 traceHolder);
     }
 

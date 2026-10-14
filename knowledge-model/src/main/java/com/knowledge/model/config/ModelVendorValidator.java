@@ -18,10 +18,14 @@ import java.util.Set;
 import java.util.StringJoiner;
 
 /**
- * 厂商配置启动期校验：逐个检查配置里列出的厂商，任一项不满足即终止启动。
+ * 厂商配置启动期校验：逐个检查配置里列出的厂商，再比对厂商数量，任一项不满足即终止启动。
  *
  * <p>只校验配置里列出的厂商；{@code knowledge.model.vendors} 整段缺省即直接放行，本地与 CI 无需密钥即可启动。
  * 错误信息带厂商码与配置键名。日志不打印密钥。
+ *
+ * <p>厂商数量这一项是规则 A 的启动期一层：嵌入入口暂时无法按模型解析厂商，配置里出现多个厂商即终止启动；
+ * 首次调用的兜底在 {@code DashScopeEmbeddingProvider} 内，两层消息口径一致。
+ * 目录片（MODEL-09）落地后按「模型 → 厂商」解析，本层校验取消。
  *
  * @author cxxl
  */
@@ -35,6 +39,9 @@ public class ModelVendorValidator implements ApplicationRunner {
 
     /** 超时留空时的默认值（毫秒） */
     private static final int DEFAULT_TIMEOUT_MS = 60000;
+
+    /** 兼容协议厂商数量上限：嵌入入口暂时无法按模型解析厂商，只允许一个厂商（目录片 MODEL-09 落地后取消） */
+    private static final int COMPATIBLE_VENDOR_LIMIT = 1;
 
     private final ModelVendorProperties properties;
 
@@ -59,7 +66,22 @@ public class ModelVendorValidator implements ApplicationRunner {
             validateVendor(entry.getKey(), entry.getValue());
             codes.add(entry.getKey());
         }
+        validateCompatibleVendorCount(vendors.keySet());
         log.info("模型厂商配置校验通过, vendors=[{}]", codes);
+    }
+
+    /**
+     * 规则 A 的启动期一层：配置里的厂商超过一个即终止启动，消息带已配置的厂商码清单。
+     *
+     * <p>该限制的来路是「嵌入入口暂时无法按模型解析厂商」——端口只收请求体，平台判断不出该用哪一家。
+     * 首次调用的兜底在 provider 内的 {@code compatibleVendorCode()}，两层用同一个错误码与同一句提示语。
+     * 目录片（MODEL-09）落地后由目录解析「模型 → 厂商」，本层校验与提示语一并删除。
+     *
+     * @param codes 配置里列出的厂商码
+     */
+    private void validateCompatibleVendorCount(Set<String> codes) {
+        ThrowUtil.throwIf(codes.size() > COMPATIBLE_VENDOR_LIMIT, ErrorCode.MODEL_VENDOR_UNKNOWN,
+                "embed 需要指定厂商，等目录片支持；已配置厂商：" + codes);
     }
 
     /** 校验单个厂商；厂商码缺失或配置项非法即抛 KnowledgeException */

@@ -49,7 +49,7 @@ class OpenAiCompatibleEngineFactoryTest {
         server = new FakeOpenAiServer();
         server.respondWith(200, CHAT_RESPONSE);
         traceHolder = new ModelCallTraceHolder();
-        factory = new OpenAiCompatibleEngineFactory(new UsageRecordingListener(), traceHolder);
+        factory = new OpenAiCompatibleEngineFactory(new UsageRecordingListener(traceHolder), traceHolder);
     }
 
     @AfterEach

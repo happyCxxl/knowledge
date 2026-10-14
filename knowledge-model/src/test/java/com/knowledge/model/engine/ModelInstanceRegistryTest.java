@@ -37,8 +37,9 @@ class ModelInstanceRegistryTest {
         vendors.put("dashscope", vendor("http://127.0.0.1:1/v1", "sk-dashscope"));
         vendors.put("custom", vendor("http://127.0.0.1:2/v1", "sk-custom"));
         properties.setVendors(vendors);
+        ModelCallTraceHolder traceHolder = new ModelCallTraceHolder();
         registry = new ModelInstanceRegistry(properties,
-                new OpenAiCompatibleEngineFactory(new UsageRecordingListener(), new ModelCallTraceHolder()));
+                new OpenAiCompatibleEngineFactory(new UsageRecordingListener(traceHolder), traceHolder));
     }
 
     @Test
