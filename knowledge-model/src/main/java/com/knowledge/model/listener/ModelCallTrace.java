@@ -1,15 +1,16 @@
 package com.knowledge.model.listener;
 
 import com.knowledge.common.domain.model.ModelUsage;
+import com.knowledge.common.enums.model.RouteReason;
 import com.knowledge.common.error.ErrorCode;
 
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * 一次模型调用的可变上下文：承载尝试次数、用量、延迟与错误，随一次调用创建，调用结束后读取。
- * 尝试次数由 HTTP 客户端装饰器在真实请求层写入，用量、延迟与错误由监听器写入；
- * 不作为对外契约，只在 knowledge-model 内部流转。
+ * 一次模型调用的可变上下文：承载尝试次数、用量、延迟、错误与路由原因，随一次调用创建，调用结束后读取。
+ * 尝试次数由 HTTP 客户端装饰器在真实请求层写入，用量、延迟与错误由监听器写入，
+ * 路由原因与降级来源由路由与调用链接入点写入；不作为对外契约，只在 knowledge-model 内部流转。
  *
  * @author cxxl
  */
@@ -41,6 +42,12 @@ public class ModelCallTrace {
 
     /** 失败时的原始异常；成功时为 null */
     private volatile Throwable error;
+
+    /** 路由原因；不经营由选型的调用为 null */
+    private volatile RouteReason routeReason;
+
+    /** 由哪个模型降级而来；未发生降级为 null */
+    private volatile String fallbackFrom;
 
     /** 尝试次数加一：每次真实 HTTP 请求发出前调用一次 */
     public void increaseAttempts() {
@@ -84,6 +91,16 @@ public class ModelCallTrace {
         this.error = error;
     }
 
+    /** 写入本次调用的路由原因 */
+    public void setRouteReason(RouteReason routeReason) {
+        this.routeReason = routeReason;
+    }
+
+    /** 写入本次调用的降级来源模型名 */
+    public void setFallbackFrom(String fallbackFrom) {
+        this.fallbackFrom = fallbackFrom;
+    }
+
     /** 尝试次数：真实 HTTP 请求次数 */
     public int attempts() {
         return attempts.get();
@@ -117,5 +134,15 @@ public class ModelCallTrace {
     /** 失败时的原始异常 */
     public Throwable error() {
         return error;
+    }
+
+    /** 路由原因；不经营由选型的调用为 null */
+    public RouteReason routeReason() {
+        return routeReason;
+    }
+
+    /** 由哪个模型降级而来；未发生降级为 null */
+    public String fallbackFrom() {
+        return fallbackFrom;
     }
 }

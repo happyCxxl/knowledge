@@ -186,4 +186,70 @@ class ModelErrorClassifierTest {
         assertEquals(ErrorCode.MODEL_MODALITY_UNSUPPORTED, classifier.classify(unsupported));
         assertFalse(classifier.canFallback(unsupported));
     }
+
+    @Test
+    void vendorUnhealthyShouldCoverRateLimitServerErrorTimeoutAndUnreachable() {
+        assertTrue(classifier.isVendorUnhealthy(new RateLimitException("429")));
+        assertTrue(classifier.isVendorUnhealthy(new InternalServerException("500")));
+        assertTrue(classifier.isVendorUnhealthy(new TimeoutException("408")));
+        assertTrue(classifier.isVendorUnhealthy(new UnresolvedModelServerException("dns")));
+        assertTrue(classifier.isVendorUnhealthy(new RuntimeException(new ConnectException("Connection refused"))));
+        assertTrue(classifier.isVendorUnhealthy(new UnknownHostException("nope.invalid")));
+        assertTrue(classifier.isVendorUnhealthy(new RuntimeException(new HttpTimeoutException("request timed out"))));
+        assertTrue(classifier.isVendorUnhealthy(new RetriableException("transient")));
+    }
+
+    @Test
+    void vendorHealthyShouldCoverAuthBadRequestContentFilteredNotFoundAndOutputInvalid() {
+        assertFalse(classifier.isVendorUnhealthy(new AuthenticationException("401")));
+        assertFalse(classifier.isVendorUnhealthy(new InvalidRequestException("400")));
+        assertFalse(classifier.isVendorUnhealthy(new ContentFilteredException("DataInspectionFailed")));
+        assertFalse(classifier.isVendorUnhealthy(new ModelNotFoundException("404")));
+        assertFalse(classifier.isVendorUnhealthy(new KnowledgeException(ErrorCode.MODEL_OUTPUT_INVALID, "结构不符")));
+        assertFalse(classifier.isVendorUnhealthy(new KnowledgeException(ErrorCode.MODEL_MODALITY_UNSUPPORTED, "模态")));
+        assertFalse(classifier.isVendorUnhealthy(new RuntimeException(new NullPointerException("缺 data"))));
+        assertFalse(classifier.isVendorUnhealthy(null));
+    }
+
+    /**
+     * 未识别的异常落在服务端错误这一类，按厂商侧不健康记：那一次失败无法归到请求或应答一侧，
+     * 保守地计一次失败，避免厂商侧真出问题时熔断器不收口。
+     */
+    @Test
+    void unrecognizedFailureShouldCountAsVendorUnhealthy() {
+        RuntimeException unknown = new RuntimeException("boom");
+
+        assertEquals(ErrorCode.MODEL_SERVER_ERROR, classifier.classify(unknown));
+        assertFalse(classifier.canFallback(unknown));
+        assertTrue(classifier.isVendorUnhealthy(unknown));
+    }
+
+    /**
+     * 两条口径的差异点之一：输出结构校验失败可降级，而不算厂商侧不健康。
+     * 该失败指向本次应答的结构，换模型重试有意义，熔断器的失败率不该被它推高。
+     */
+    @Test
+    void outputInvalidShouldAllowFallbackWithoutCountingAsVendorUnhealthy() {
+        KnowledgeException cause = new KnowledgeException(ErrorCode.MODEL_OUTPUT_INVALID, "输出结构不符");
+
+        assertEquals(ErrorCode.MODEL_OUTPUT_INVALID, classifier.classify(cause));
+        assertTrue(classifier.canFallback(cause));
+        assertFalse(classifier.isVendorUnhealthy(cause));
+    }
+
+    /**
+     * 两条口径的差异点之二：鉴权失败既不可降级也不算厂商侧不健康；
+     * 裸的不可重试异常在类型上是「不可重试」、码值上是服务端错误，类型先判，按厂商侧健康记。
+     */
+    @Test
+    void authFailedShouldBlockFallbackAndStayVendorHealthy() {
+        AuthenticationException auth = new AuthenticationException("401");
+        Throwable bareNonRetriable = new NonRetriableException("服务端拒绝的参数");
+
+        assertFalse(classifier.canFallback(auth));
+        assertFalse(classifier.isVendorUnhealthy(auth));
+        assertEquals(ErrorCode.MODEL_SERVER_ERROR, classifier.classify(bareNonRetriable));
+        assertFalse(classifier.canFallback(bareNonRetriable));
+        assertFalse(classifier.isVendorUnhealthy(bareNonRetriable));
+    }
 }

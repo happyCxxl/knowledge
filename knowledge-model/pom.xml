@@ -53,6 +53,12 @@
             <artifactId>json-schema-validator</artifactId>
         </dependency>
 
+        <!-- Resilience4j 熔断器（模型级健康判定；版本由根 pom 钉版，不引 starter） -->
+        <dependency>
+            <groupId>io.github.resilience4j</groupId>
+            <artifactId>resilience4j-circuitbreaker</artifactId>
+        </dependency>
+
         <!-- Lombok -->
         <dependency>
             <groupId>org.projectlombok</groupId>

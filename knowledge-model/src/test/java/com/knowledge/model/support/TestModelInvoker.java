@@ -5,14 +5,19 @@ import com.knowledge.model.calllog.ModelCallLogPort;
 import com.knowledge.model.calllog.ModelCallLogRecorder;
 import com.knowledge.model.catalog.ModelCatalogPort;
 import com.knowledge.model.catalog.StaticModelCatalog;
+import com.knowledge.model.config.ModelRouteProperties;
+import com.knowledge.model.config.ModelVendorProperties;
 import com.knowledge.model.invoke.ModelErrorClassifier;
 import com.knowledge.model.invoke.ModelInvoker;
 import com.knowledge.model.listener.ModelCallTraceHolder;
+import com.knowledge.model.route.ModelCircuitBreakers;
+import com.knowledge.model.route.ModelRouter;
+import com.knowledge.model.route.RouteStateStore;
 import com.knowledge.model.validate.OutputSchemaValidator;
 
 /**
- * 调用器装配（测试用）：按生产装配顺序把适配器、上下文持有器与调用明细端口接成一次调用的完整外壳。
- * 目录默认取静态目录（不带价格），需要价格快照的用例经重载入口传入自己的目录实现。
+ * 调用器装配（测试用）：按生产装配顺序把适配器、上下文持有器、调用明细端口与路由接成一次调用的完整外壳。
+ * 目录默认取静态目录（不带价格），需要价格快照或按能力选型的用例改走 {@link RouteFixture}。
  *
  * @author cxxl
  */
@@ -44,7 +49,13 @@ public final class TestModelInvoker {
      */
     public static ModelInvoker of(ModelAdapter adapter, ModelCallTraceHolder traceHolder, ModelCallLogPort logPort,
             ModelCatalogPort catalog) {
-        return new ModelInvoker(adapter, new OutputSchemaValidator(), new ModelErrorClassifier(), traceHolder,
-                new ModelCallLogRecorder(logPort, catalog));
+        ModelRouteProperties routeProperties = new ModelRouteProperties();
+        ModelErrorClassifier classifier = new ModelErrorClassifier();
+        RouteStateStore stateStore = new RouteStateStore(routeProperties);
+        ModelCircuitBreakers breakers = new ModelCircuitBreakers(routeProperties, classifier);
+        ModelRouter router = new ModelRouter(routeProperties, new ModelVendorProperties(), catalog, stateStore,
+                breakers);
+        return new ModelInvoker(adapter, new OutputSchemaValidator(), classifier, traceHolder,
+                new ModelCallLogRecorder(logPort, catalog), router, stateStore, breakers);
     }
 }

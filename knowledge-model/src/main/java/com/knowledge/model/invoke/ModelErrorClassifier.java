@@ -41,6 +41,11 @@ public class ModelErrorClassifier {
     private static final Set<ErrorCode> OVERRIDDEN_CODES =
             Set.of(ErrorCode.MODEL_UNREACHABLE, ErrorCode.MODEL_OUTPUT_INVALID);
 
+    /** 厂商侧不健康的错误码：限流 / 服务端错误 / 超时 / 网络不可达 */
+    private static final Set<ErrorCode> UNHEALTHY_CODES =
+            Set.of(ErrorCode.MODEL_RATE_LIMITED, ErrorCode.MODEL_SERVER_ERROR, ErrorCode.MODEL_TIMEOUT,
+                    ErrorCode.MODEL_UNREACHABLE);
+
     /**
      * 异常 → 错误码：先按异常类逐类映射，未命中的再按异常链上的解析异常、超时类 IO 异常与网络类异常归类。
      *
@@ -102,6 +107,32 @@ public class ModelErrorClassifier {
             return false;
         }
         return chainHas(cause, RetriableException.class);
+    }
+
+    /**
+     * 厂商侧是否不健康：限流（429）、服务端错误（5xx）、超时、连接失败与 DNS 不可达归不健康；
+     * 鉴权失败、参数错、内容拒绝、模型不存在与输出结构校验失败归健康（那几类指向本次请求或应答，
+     * 不指向厂商侧的可用性）。
+     *
+     * <p>口径独立于 {@link #canFallback(Throwable)}：输出结构校验失败可降级而不算厂商不健康，
+     * 两者按各自的判定面取值，请求体里的异常与调用器映射后的知识异常同样适用。
+     *
+     * <p>判定分两条：异常链上带不可重试基类的，只有网络不可达归不健康，其余（鉴权、参数、内容拒绝、
+     * 模型不存在，以及裸的不可重试异常）归健康；链上没有该基类的按 {@link #classify(Throwable)}
+     * 给出的码值判，未识别的异常落在服务端错误这一类，按不健康记。
+     *
+     * @param cause 适配器抛出的异常，或调用器映射后的知识异常
+     * @return 厂商侧不健康为 true
+     */
+    public boolean isVendorUnhealthy(Throwable cause) {
+        if (NullUtil.isNull(cause)) {
+            return false;
+        }
+        ErrorCode code = classify(cause);
+        if (chainHas(cause, NonRetriableException.class)) {
+            return code == ErrorCode.MODEL_UNREACHABLE;
+        }
+        return UNHEALTHY_CODES.contains(code);
     }
 
     /**

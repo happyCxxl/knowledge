@@ -27,7 +27,9 @@ import java.math.RoundingMode;
  * 表格结构 / 版面 / OCR 三项外部服务的计费单位未定，其 token 与 cost 一律按未知记录（D34）。
  *
  * <p>写入落点是调用结束后：成功与失败都落一行（形参与调用前检查拦下的失败不落行，那次没有发出请求）。
- * 组装或插入过程出现异常只记日志，不改变调用本身的返回与异常。
+ * 路由原因与降级来源取自调用上下文：经营由选型的调用写入本次的 route_reason，换模型重试的那次另写
+ * fallback_from（记原模型名）；不经选型的调用两列都留空。组装或插入过程出现异常只记日志，不改变调用本身的
+ * 返回与异常。
  *
  * @author cxxl
  */
@@ -104,6 +106,8 @@ public class ModelCallLogRecorder {
             entry.setLatencyMs(latencyOf(trace));
             entry.setRetryCount(NullUtil.isNull(trace) ? 0 : trace.retryCount());
             entry.setCacheHit(CACHE_MISS);
+            entry.setRouteReason(NullUtil.isNull(trace) ? null : trace.routeReason());
+            entry.setFallbackFrom(NullUtil.isNull(trace) ? null : trace.fallbackFrom());
             fillUsage(entry, capability, vendorCode, modelKey, usage);
             modelCallLogPort.record(entry);
         } catch (RuntimeException e) {

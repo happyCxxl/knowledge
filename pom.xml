@@ -26,6 +26,7 @@
     <minio.version>8.5.12</minio.version>
     <bucket4j.version>8.20.0</bucket4j.version>
     <langchain4j.version>1.22.0</langchain4j.version>
+    <resilience4j.version>2.1.0</resilience4j.version>
     <json-schema-validator.version>3.0.8</json-schema-validator.version>
     <jackson-annotations.version>2.22</jackson-annotations.version>
   </properties>
@@ -89,6 +90,15 @@
         <groupId>com.networknt</groupId>
         <artifactId>json-schema-validator</artifactId>
         <version>${json-schema-validator.version}</version>
+      </dependency>
+
+      <!-- Resilience4j 熔断器核心（模型级健康判定，版本单点钉版）；
+           只引 circuitbreaker 模块，不引 spring-boot3 starter —— 装配点在本工程内，
+           starter 会把版本与本工程的 Boot 3.2.5 绑在一起，其自动装配也不参与本工程的健康判定 -->
+      <dependency>
+        <groupId>io.github.resilience4j</groupId>
+        <artifactId>resilience4j-circuitbreaker</artifactId>
+        <version>${resilience4j.version}</version>
       </dependency>
 
       <!-- 统一钉版：json-schema-validator 3.0.8 传递 tools.jackson.core:jackson-databind 3.2.1，
