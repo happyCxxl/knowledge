@@ -6,6 +6,7 @@ import com.knowledge.common.domain.model.AuthType;
 import com.knowledge.common.domain.model.ChatRequest;
 import com.knowledge.common.domain.model.GenerationResult;
 import com.knowledge.common.domain.model.ModelUsage;
+import com.knowledge.common.domain.model.VisionRequest;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
 import com.knowledge.model.adapter.ModelAdapter;
@@ -20,7 +21,7 @@ import java.util.Set;
 
 /**
  * 可编排的假适配器（测试用）：按模型名决定这次调用成功还是失败，并按错误码给出可降级或不可降级的异常。
- * 调用过的模型名按顺序留存，供用例断言「先调了谁、后调了谁」。
+ * 三个模态共用同一份失败表与延迟表；调用过的模型名按顺序留存，供用例断言「先调了谁、后调了谁」。
  *
  * @author cxxl
  */
@@ -121,6 +122,28 @@ public class RecordingAdapter implements ModelAdapter {
         result.setDimension(DIMENSION);
         result.setModel(modelKey);
         result.setRequestId(request.getRequestId());
+        return result;
+    }
+
+    @Override
+    public GenerationResult vision(String vendorCode, VisionRequest request) {
+        String modelKey = request.getModelKey();
+        called.add(modelKey);
+        delayOf(modelKey);
+        ErrorCode failure = failures.get(modelKey);
+        if (failure != null) {
+            throw exceptionOf(failure, modelKey);
+        }
+        GenerationResult result = new GenerationResult();
+        result.setContent("{\"lines\":[]}");
+        result.setModel(modelKey);
+        if (usageReported) {
+            ModelUsage usage = new ModelUsage();
+            usage.setPromptTokens(20);
+            usage.setCompletionTokens(5);
+            usage.setTotalTokens(25);
+            result.setUsage(usage);
+        }
         return result;
     }
 

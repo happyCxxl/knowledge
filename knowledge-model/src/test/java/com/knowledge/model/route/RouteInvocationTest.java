@@ -6,6 +6,7 @@ import com.knowledge.common.domain.model.ChatMessage;
 import com.knowledge.common.domain.model.ChatRequest;
 import com.knowledge.common.domain.model.GenerationResult;
 import com.knowledge.common.domain.model.MessageRole;
+import com.knowledge.common.domain.model.VisionRequest;
 import com.knowledge.common.domain.model.calllog.ModelCallLogEntry;
 import com.knowledge.common.domain.model.catalog.ModelCapability;
 import com.knowledge.common.enums.model.CallStatus;
@@ -201,6 +202,78 @@ class RouteInvocationTest {
         assertNull(fixture.callLog().lastEntry().getFallbackFrom());
     }
 
+    @Test
+    void visionShouldPickCandidateByCapabilityAndWriteItsCapabilityColumn() {
+        RouteFixture fixture = twoVisionCandidates();
+        RecordingAdapter adapter = new RecordingAdapter();
+        ModelInvoker invoker = fixture.invoker(adapter);
+
+        GenerationResult result = invoker.visionByCapability(ModelCapability.OCR, visionRequest());
+
+        assertEquals(PRIMARY, result.getModel());
+        assertEquals(List.of(PRIMARY), adapter.called());
+        ModelCallLogEntry entry = fixture.callLog().lastEntry();
+        assertEquals(ModelCapability.OCR, entry.getCapability());
+        assertEquals(PRIMARY, entry.getModel());
+        assertEquals(VENDOR, entry.getVendor());
+        assertEquals(CallStatus.SUCCESS, entry.getStatus());
+        assertEquals(1, entry.getUsageUnknown(), "OCR 的计费单位未定，用量按未知记");
+    }
+
+    @Test
+    void visionCapabilityWithoutCandidateShouldRejectWithVendorUnknown() {
+        RouteFixture fixture = new RouteFixture();
+        fixture.withVendor(VENDOR);
+        fixture.withVisionModel(VENDOR, PRIMARY, ModelCapability.LAYOUT);
+        ModelInvoker invoker = fixture.invoker(new RecordingAdapter());
+
+        KnowledgeException error = assertThrows(KnowledgeException.class,
+                () -> invoker.visionByCapability(ModelCapability.OCR, visionRequest()));
+
+        assertEquals(ErrorCode.MODEL_VENDOR_UNKNOWN, error.getErrorCode());
+        assertTrue(fixture.callLog().entries().isEmpty(), "无候选的失败不落明细");
+    }
+
+    @Test
+    void visionFirstCandidateFailureShouldFallBackToNextCandidate() {
+        RouteFixture fixture = twoVisionCandidates();
+        RecordingAdapter adapter = new RecordingAdapter().failing(PRIMARY, ErrorCode.MODEL_SERVER_ERROR);
+        ModelInvoker invoker = fixture.invoker(adapter);
+
+        GenerationResult result = invoker.visionByCapability(ModelCapability.OCR, visionRequest());
+
+        assertEquals(SECONDARY, result.getModel());
+        assertEquals(List.of(PRIMARY, SECONDARY), adapter.called());
+        List<ModelCallLogEntry> entries = fixture.callLog().entries();
+        assertEquals(2, entries.size());
+        assertEquals(ModelCapability.OCR, entries.getFirst().getCapability());
+        assertEquals(CallStatus.FAILED, entries.getFirst().getStatus());
+        assertEquals(ModelCapability.OCR, entries.getLast().getCapability());
+        assertEquals(RouteReason.FALLBACK_FROM, entries.getLast().getRouteReason());
+        assertEquals(PRIMARY, entries.getLast().getFallbackFrom());
+    }
+
+    @Test
+    void visionNullRequestShouldBeRejectedBeforeRoutePlan() {
+        RouteFixture fixture = twoVisionCandidates();
+        ModelInvoker invoker = fixture.invoker(new RecordingAdapter());
+
+        KnowledgeException error = assertThrows(KnowledgeException.class,
+                () -> invoker.visionByCapability(ModelCapability.OCR, null));
+
+        assertEquals(ErrorCode.MODEL_BAD_REQUEST, error.getErrorCode());
+        assertTrue(fixture.callLog().entries().isEmpty());
+    }
+
+    /** 两个候选：都声明文字识别能力 */
+    private RouteFixture twoVisionCandidates() {
+        RouteFixture fixture = new RouteFixture();
+        fixture.withVendor(VENDOR);
+        fixture.withVisionModel(VENDOR, PRIMARY, ModelCapability.OCR)
+                .withVisionModel(VENDOR, SECONDARY, ModelCapability.OCR);
+        return fixture;
+    }
+
     /** 两个候选：限额都留空，占用读数只由用例构造 */
     private RouteFixture twoCandidates() {
         RouteFixture fixture = new RouteFixture();
@@ -236,6 +309,14 @@ class RouteInvocationTest {
         request.setModel(PRIMARY);
         request.setTexts(List.of("第一句", "第二句"));
         request.setRequestId("req-route");
+        return request;
+    }
+
+    /** 视觉入参：图像字节 + 提示词（模型名由选型结果回填） */
+    private VisionRequest visionRequest() {
+        VisionRequest request = new VisionRequest();
+        request.setImageBytes(new byte[]{1, 2, 3, 4});
+        request.setPrompt("按图给出逐行文本");
         return request;
     }
 }

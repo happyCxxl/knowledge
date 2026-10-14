@@ -114,14 +114,11 @@ knowledge:
     column-min-chars: 10
     column-min-page-chars: 100
     column-max-count: 4
-    # 模型能力开关与 sidecar 接入参数（三项开关默认关；地址为空即只走内置降级）
+    # 模型能力开关（三项开关默认关；厂商地址与密钥取 knowledge.model.vendors.<厂商码>）
     capability:
       ocr-enabled: false
       layout-enabled: false
       table-enabled: false
-      sidecar-base-url: ""
-      connect-timeout-millis: 1000
-      read-timeout-millis: 5000
 
 # 运维端点：只暴露健康探针与指标；health 免认证，metrics 需携带凭证（见 SecurityConfig）
 management:

@@ -10,14 +10,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 /**
- * 能力契约 JSON 单测：sidecar 按契约返回的表格结构能直接映射到 TableRegion / TableResult / TableCell，
+ * 能力契约 JSON 单测：模型按契约给出的表格结构能直接映射到 TableRegion / TableResult / TableCell，
  * 字段名与格级 bbox / 置信度是契约的一部分，改动即测试失败。
  *
  * @author cxxl
  */
 class CapabilityContractJsonTest {
 
-    /** sidecar 请求体：区域给页码、包围盒与可选 OCR 文本 */
+    /** 请求区域：页码、包围盒与可选 OCR 文本 */
     @Test
     void regionShouldRoundTripWithPageAndBBox() {
         TableRegion region = new TableRegion();
@@ -36,7 +36,7 @@ class CapabilityContractJsonTest {
         assertEquals("项目 分值", parsed.getOcrText());
     }
 
-    /** sidecar 响应体：grid + 每格 row/col span + bbox + 置信度 + 模型版本 */
+    /** 响应体：grid + 每格 row/col span + bbox + 置信度 + 模型标识 */
     @Test
     void tableResultShouldMapGridSpansBBoxAndConfidence() {
         String json = "{\"rows\":2,\"cols\":2,\"confidence\":0.93,\"crossPage\":false,"

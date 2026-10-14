@@ -19,6 +19,9 @@ public class VisionRequest {
     /** 图像字节（与 imageRef 二选一） */
     private byte[] imageBytes;
 
+    /** 随 imageBytes 一起提交的媒体类型（如 image/png / image/jpeg，可空）；携带 imageBytes 时必须给出 */
+    private String mimeType;
+
     /** 区域（可空 = 整图） */
     private ImageRegion region;
 

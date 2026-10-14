@@ -9,6 +9,7 @@ import com.knowledge.common.domain.model.GenerationResult;
 import com.knowledge.common.domain.model.MessageRole;
 import com.knowledge.common.domain.model.OutputFormat;
 import com.knowledge.common.domain.model.OutputSpec;
+import com.knowledge.common.domain.model.VisionRequest;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
 import com.knowledge.common.utils.NullUtil;
@@ -16,8 +17,12 @@ import com.knowledge.model.engine.ModelInstanceRegistry;
 import com.knowledge.model.listener.ModelCallTrace;
 import com.knowledge.model.listener.ModelCallTraceHolder;
 import com.knowledge.model.listener.ModelUsageMapper;
+import dev.langchain4j.data.image.Image;
 import dev.langchain4j.data.message.AiMessage;
+import dev.langchain4j.data.message.Content;
+import dev.langchain4j.data.message.ImageContent;
 import dev.langchain4j.data.message.SystemMessage;
+import dev.langchain4j.data.message.TextContent;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.ChatRequestOptions;
@@ -32,13 +37,14 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.Set;
 
 /**
  * OpenAI 兼容适配器：服务所有走该协议的厂商，完成「我们的契约 → LC4j 请求」与「LC4j 响应 → 出参」
  * 双向映射。LC4j 类型出现在 knowledge-model 内部的 `adapter` / `engine` / `invoke` / `listener` 四个包，
- * 业务侧不出现。对话与向量两个模态已实现，视觉模态沿用 SPI 默认的未支持口径。
+ * 业务侧不出现。三个模态（对话 / 向量 / 视觉）都走本类，出参统一为原始文本 + 通用树 + 用量 + 模型标识。
  * 调用上下文经请求选项的属性表交给用量监听器。
  *
  * @author cxxl
@@ -74,6 +80,21 @@ public class OpenAiCompatibleAdapter implements ModelAdapter {
     }
 
     /**
+     * 视觉模态：按厂商码与请求里的模型名取实例 → 组装「文本 + 图像」多模态请求 → 调用 → 映射出参。
+     * 复用对话模态那条实例获取、请求选项与响应映射路径，出参口径与 chat 一致。
+     *
+     * @param vendorCode 厂商码
+     * @param request    视觉入参（模型/图像/区域/提示词/输出约束/超时）
+     * @return 原始文本 + 通用树 + 用量 + 模型标识
+     */
+    @Override
+    public GenerationResult vision(String vendorCode, VisionRequest request) {
+        ChatModel chatModel = instanceRegistry.chatModel(vendorCode, request.getModelKey());
+        ChatResponse response = chatModel.chat(toLc4jVisionRequest(request), requestOptions());
+        return toGenerationResult(response, request.getModelKey());
+    }
+
+    /**
      * 向量模态：按厂商码与请求里的模型名取实例 → 组装 LC4j 请求 → 调用 → 映射出参。
      *
      * @param vendorCode 厂商码
@@ -102,6 +123,56 @@ public class OpenAiCompatibleAdapter implements ModelAdapter {
             builder.responseFormat(responseFormat);
         }
         return builder.build();
+    }
+
+    /** 契约 → LC4j 视觉请求：单条「图像 + 提示词」用户消息 + 输出约束（TEXT 不设 ResponseFormat） */
+    private dev.langchain4j.model.chat.request.ChatRequest toLc4jVisionRequest(VisionRequest request) {
+        dev.langchain4j.model.chat.request.ChatRequest.Builder builder =
+                dev.langchain4j.model.chat.request.ChatRequest.builder()
+                        .messages(List.of(toLc4jVisionMessage(request)));
+        ResponseFormat responseFormat = toResponseFormat(request.getOutput());
+        if (NullUtil.isNotNull(responseFormat)) {
+            builder.responseFormat(responseFormat);
+        }
+        return builder.build();
+    }
+
+    /** 视觉用户消息：图像内容取自请求里的字节或引用，提示词缺失按空串处理 */
+    private UserMessage toLc4jVisionMessage(VisionRequest request) {
+        String prompt = NullUtil.isNull(request.getPrompt()) ? "" : request.getPrompt();
+        return UserMessage.from(toImageContent(request), TextContent.from(prompt));
+    }
+
+    /**
+     * 图像内容映射：请求带字节即按 base64 组装（媒体类型取请求里的 {@code mimeType}），带引用即按 URL 组装。
+     * 字节与引用都缺即按「模型请求参数或内容被拒」拒绝；字节非空而媒体类型缺失同样拒绝，两种情形都不会发出请求。
+     */
+    private Content toImageContent(VisionRequest request) {
+        Image.Builder image = Image.builder();
+        byte[] bytes = request.getImageBytes();
+        if (NullUtil.isNotNull(bytes) && bytes.length > 0) {
+            image.base64Data(Base64.getEncoder().encodeToString(bytes)).mimeType(requireMimeType(request));
+        } else if (NullUtil.isNotNull(request.getImageRef()) && !request.getImageRef().isBlank()) {
+            image.url(request.getImageRef());
+        } else {
+            throw new KnowledgeException(ErrorCode.MODEL_BAD_REQUEST, "视觉入参缺图像：imageBytes 与 imageRef 均为空");
+        }
+        return ImageContent.from(image.build(), ImageContent.DetailLevel.AUTO);
+    }
+
+    /**
+     * 图像字节的媒体类型：缺失即按「模型请求参数或内容被拒」拒绝，消息写明缺的是媒体类型。
+     *
+     * @param request 视觉入参（已确认携带图像字节）
+     * @return 媒体类型
+     */
+    private String requireMimeType(VisionRequest request) {
+        String mimeType = request.getMimeType();
+        if (NullUtil.isNull(mimeType) || mimeType.isBlank()) {
+            throw new KnowledgeException(ErrorCode.MODEL_BAD_REQUEST,
+                    "视觉入参缺媒体类型：携带 imageBytes 时必须给出 mimeType（如 image/png / image/jpeg）");
+        }
+        return mimeType;
     }
 
     /** 消息列表映射：SYSTEM → SystemMessage、ASSISTANT → AiMessage、USER 与未标注角色 → UserMessage */

@@ -11,6 +11,7 @@ import com.knowledge.common.domain.model.GenerationResult;
 import com.knowledge.common.domain.model.MessageRole;
 import com.knowledge.common.domain.model.OutputFormat;
 import com.knowledge.common.domain.model.OutputSpec;
+import com.knowledge.common.domain.model.VisionRequest;
 import com.knowledge.common.domain.model.calllog.ModelCallLogEntry;
 import com.knowledge.common.domain.model.catalog.ModelCapability;
 import com.knowledge.common.domain.model.catalog.ModelDescriptor;
@@ -75,6 +76,12 @@ class ModelInvokerTest {
     /** 严格校验用 schema：name 必填且为字符串，age 为整数 */
     private static final String SCHEMA = "{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\"},"
             + "\"age\":{\"type\":\"integer\"}},\"required\":[\"name\"],\"additionalProperties\":false}";
+
+    /** 视觉侧严格校验用 schema：lines 必填且为对象数组 */
+    private static final String VISION_SCHEMA = "{\"type\":\"object\",\"properties\":{\"lines\":{\"type\":\"array\","
+            + "\"items\":{\"type\":\"object\",\"properties\":{\"text\":{\"type\":\"string\"}},"
+            + "\"required\":[\"text\"],\"additionalProperties\":false}}},"
+            + "\"required\":[\"lines\"],\"additionalProperties\":false}";
 
     /** 向量应答：两条向量 + 模型回显 + 用量 */
     private static final String EMBEDDING_RESPONSE = "{\"object\":\"list\",\"model\":\"" + MODEL + "\","
@@ -431,6 +438,107 @@ class ModelInvokerTest {
     }
 
     @Test
+    void visionShouldCallOnceAndReturnContentUsageAndModel() {
+        GenerationResult result = invoker.vision(VENDOR, visionRequest(OutputFormat.TEXT, null), new ModelCallTrace());
+
+        assertEquals("pong", result.getContent());
+        assertEquals(3, result.getUsage().getPromptTokens());
+        assertEquals(5, result.getUsage().getTotalTokens());
+        assertEquals(MODEL, result.getModel());
+        assertNull(result.getJson());
+        assertEquals(1, server.requestCount());
+    }
+
+    @Test
+    void visionJsonSchemaOutputShouldFillParsedTree() {
+        server.respondWith(200, chatResponse("{\"lines\":[{\"text\":\"甲\"}]}"));
+
+        GenerationResult result = invoker.vision(VENDOR, visionRequest(OutputFormat.JSON_SCHEMA, VISION_SCHEMA),
+                new ModelCallTrace());
+
+        Map<?, ?> tree = assertInstanceOf(Map.class, result.getJson());
+        assertEquals(1, ((List<?>) tree.get("lines")).size());
+        assertEquals(1, server.requestCount());
+    }
+
+    @Test
+    void visionJsonSchemaOutputViolatingSchemaShouldFailValidation() {
+        server.respondWith(200, chatResponse("{\"lines\":[{\"text\":3}]}"));
+
+        KnowledgeException error = visionError(visionRequest(OutputFormat.JSON_SCHEMA, VISION_SCHEMA));
+
+        assertEquals(ErrorCode.MODEL_OUTPUT_INVALID, error.getErrorCode());
+        assertTrue(error.getMessage().contains("schema"), error.getMessage());
+        assertEquals(1, server.requestCount());
+    }
+
+    @Test
+    void visionWithoutSchemaShouldBeRejectedBeforeRequest() {
+        KnowledgeException error = visionError(visionRequest(OutputFormat.JSON_SCHEMA, "  "));
+
+        assertEquals(ErrorCode.MODEL_BAD_REQUEST, error.getErrorCode());
+        assertEquals(0, server.requestCount());
+    }
+
+    @Test
+    void visionBlankVendorCodeShouldBeRejectedBeforeRequest() {
+        KnowledgeException error = assertThrows(KnowledgeException.class,
+                () -> invoker.vision("  ", visionRequest(OutputFormat.TEXT, null), new ModelCallTrace()));
+
+        assertEquals(ErrorCode.MODEL_VENDOR_UNKNOWN, error.getErrorCode());
+        assertEquals(0, server.requestCount());
+    }
+
+    @Test
+    void visionNullRequestShouldBeRejectedBeforeRequest() {
+        KnowledgeException error = assertThrows(KnowledgeException.class,
+                () -> invoker.vision(VENDOR, null, new ModelCallTrace()));
+
+        assertEquals(ErrorCode.MODEL_BAD_REQUEST, error.getErrorCode());
+        assertEquals(0, server.requestCount());
+    }
+
+    @Test
+    void visionRateLimitedShouldMapToRateLimitedAndAllowFallback() {
+        server.respondWith(429, errorBody("Throttling", "Requests rate limit exceeded"));
+
+        KnowledgeException error = visionError(visionRequest(OutputFormat.TEXT, null));
+
+        assertEquals(ErrorCode.MODEL_RATE_LIMITED, error.getErrorCode());
+        assertTrue(invoker.canFallback(error));
+        assertEquals(1, server.requestCount());
+    }
+
+    @Test
+    void visionSuccessShouldWriteOneCallLogRowWithTableStructureCapability() {
+        GenerationResult result = invoker.vision(VENDOR, visionRequest(OutputFormat.TEXT, null), new ModelCallTrace());
+
+        assertEquals("pong", result.getContent());
+        assertEquals(1, logPort.entries().size());
+        ModelCallLogEntry entry = logPort.lastEntry();
+        assertEquals(ModelCapability.TABLE_STRUCTURE, entry.getCapability());
+        assertEquals(VENDOR, entry.getVendor());
+        assertEquals(MODEL, entry.getModel());
+        assertEquals(CallStatus.SUCCESS, entry.getStatus());
+        // 表格结构的计费单位未定：用量与成本一律按未知记（D34）
+        assertEquals(1, entry.getUsageUnknown());
+        assertNull(entry.getTotalTokens());
+        assertNull(entry.getCost());
+        assertNotNull(entry.getLatencyMs());
+    }
+
+    @Test
+    void visionRejectedBeforeRequestShouldWriteNoCallLogRow() {
+        assertThrows(KnowledgeException.class,
+                () -> invoker.vision(VENDOR, null, new ModelCallTrace()));
+        assertThrows(KnowledgeException.class,
+                () -> invoker.vision(VENDOR, visionRequest(OutputFormat.JSON_SCHEMA, "  "), new ModelCallTrace()));
+
+        assertTrue(logPort.entries().isEmpty(), "请求未发出的失败不落明细");
+        assertEquals(0, server.requestCount());
+    }
+
+    @Test
     void chatSuccessShouldWriteOneCallLogRowWithTokensAndCost() {
         GenerationResult result = invoker.chat(VENDOR, request(OutputFormat.TEXT, null));
 
@@ -537,6 +645,25 @@ class ModelInvokerTest {
     /** 调用并断言抛出知识异常 */
     private KnowledgeException chatError(ChatRequest request) {
         return assertThrows(KnowledgeException.class, () -> invoker.chat(VENDOR, request));
+    }
+
+    /** 调用并断言抛出知识异常（视觉入参） */
+    private KnowledgeException visionError(VisionRequest request) {
+        return assertThrows(KnowledgeException.class, () -> invoker.vision(VENDOR, request, new ModelCallTrace()));
+    }
+
+    /** 视觉入参：图像字节（带媒体类型）+ 提示词 + 指定输出约束 */
+    private VisionRequest visionRequest(OutputFormat format, String schema) {
+        VisionRequest request = new VisionRequest();
+        request.setModelKey(MODEL);
+        request.setImageBytes(new byte[]{1, 2, 3, 4});
+        request.setMimeType("image/png");
+        request.setPrompt("按图给出逐行文本");
+        OutputSpec output = new OutputSpec();
+        output.setFormat(format);
+        output.setSchema(schema);
+        request.setOutput(output);
+        return request;
     }
 
     /** 向量入参：两条文本 + 模型名 + requestId */

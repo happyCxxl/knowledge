@@ -93,6 +93,7 @@ class ModelContractTest {
         VisionRequest request = new VisionRequest();
         request.setModelKey("qwen-vl-max");
         request.setImageBytes(bytes);
+        request.setMimeType("image/png");
         request.setRegion(region);
         request.setPrompt("识别表格");
         request.setOutput(output);
@@ -101,6 +102,7 @@ class ModelContractTest {
         assertEquals("qwen-vl-max", request.getModelKey());
         assertNull(request.getImageRef());
         assertSame(bytes, request.getImageBytes());
+        assertEquals("image/png", request.getMimeType());
         assertSame(region, request.getRegion());
         assertEquals("识别表格", request.getPrompt());
         assertSame(output, request.getOutput());

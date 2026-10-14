@@ -11,7 +11,7 @@ import com.knowledge.worker.parser.pdf.model.PageLine;
 import java.util.List;
 
 /**
- * 失败表 → sidecar 请求区域：把规则路径判不出结构的行块装成 {@link TableRegion}
+ * 失败表 → 能力请求区域：把规则路径判不出结构的行块装成 {@link TableRegion}
  * （页码 + 视口坐标包围盒 + 块内文本），坐标系与解析产物一致。
  *
  * @author cxxl

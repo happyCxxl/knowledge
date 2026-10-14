@@ -3,6 +3,7 @@ package com.knowledge.model.gateway;
 import com.knowledge.common.domain.embed.EmbeddingResult;
 import com.knowledge.common.domain.model.ChatRequest;
 import com.knowledge.common.domain.model.VisionRequest;
+import com.knowledge.common.domain.model.catalog.ModelCapability;
 import com.knowledge.common.error.ErrorCode;
 import com.knowledge.common.exception.KnowledgeException;
 import org.junit.jupiter.api.Test;
@@ -39,6 +40,23 @@ class ModelGatewayPortDefaultTest {
         assertEquals(ErrorCode.MODEL_MODALITY_UNSUPPORTED, error.getErrorCode());
         assertEquals(ErrorCode.MODEL_MODALITY_UNSUPPORTED.getCode(), error.getCode());
         assertEquals("模态：vision，厂商：dashscope", error.getMessage());
+    }
+
+    @Test
+    void visionByCapabilityShouldThrowUnsupportedModalityWithCapability() {
+        KnowledgeException error = assertThrows(KnowledgeException.class,
+                () -> port.visionByCapability(ModelCapability.OCR, new VisionRequest()));
+
+        assertEquals(ErrorCode.MODEL_MODALITY_UNSUPPORTED, error.getErrorCode());
+        assertEquals("模态：vision，能力：OCR", error.getMessage());
+    }
+
+    @Test
+    void resolveVendorCodeShouldThrowUnsupportedModalityWithModel() {
+        KnowledgeException error = assertThrows(KnowledgeException.class, () -> port.resolveVendorCode("qwen-max"));
+
+        assertEquals(ErrorCode.MODEL_MODALITY_UNSUPPORTED, error.getErrorCode());
+        assertEquals("厂商解析，模型：qwen-max", error.getMessage());
     }
 
     @Test

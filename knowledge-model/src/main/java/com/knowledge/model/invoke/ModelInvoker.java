@@ -5,8 +5,10 @@ import com.knowledge.common.domain.embed.EmbeddingResult;
 import com.knowledge.common.domain.model.ChatMessage;
 import com.knowledge.common.domain.model.ChatRequest;
 import com.knowledge.common.domain.model.GenerationResult;
+import com.knowledge.common.domain.model.ImageRegion;
 import com.knowledge.common.domain.model.ModelUsage;
 import com.knowledge.common.domain.model.OutputSpec;
+import com.knowledge.common.domain.model.VisionRequest;
 import com.knowledge.common.domain.model.catalog.ModelCapability;
 import com.knowledge.common.enums.model.RouteReason;
 import com.knowledge.common.error.ErrorCode;
@@ -178,8 +180,60 @@ public class ModelInvoker {
     }
 
     /**
+     * 视觉调用：厂商码由形参给出，模型名在请求体；错误码映射与前两个模态同一套。
+     * 出参结构校验按请求里的输出约束做，与对话模态同一口径（TEXT 不校验、JSON 类回填对象树）。
+     *
+     * <p>该入口不带能力信息，落明细时 {@code capability} 列固定记为 {@code TABLE_STRUCTURE}
+     * （当前只服务测试与将来的按厂商直调场景）；生产链路一律走 {@code visionByCapability(...)}，
+     * 能力列取真实能力。
+     *
+     * @param vendorCode 厂商码
+     * @param request    视觉入参（模型/图像/区域/提示词/输出约束/超时）
+     * @param trace      调用上下文；入参为空即改用本方法内新建的上下文
+     * @return 出参（原始文本 + 校验后的对象树 + 用量 + 模型标识）
+     */
+    public GenerationResult vision(String vendorCode, VisionRequest request, ModelCallTrace trace) {
+        ModelCallTrace callTrace = traceOf(trace);
+        return invoke(vendorCode, callTrace, ModelCapability.TABLE_STRUCTURE, () -> modelKey(request),
+                () -> outputSchemaValidator.checkBeforeCall(output(request)),
+                () -> visionCall(vendorCode, request, callTrace, ModelCapability.TABLE_STRUCTURE));
+    }
+
+    /**
+     * 视觉调用（按能力自动选型）：候选顺序由路由给出，厂商码取本次选中的候选，
+     * 首选失守且可降级时换下一个候选；明细里的能力列按形参给出的能力落。
+     *
+     * @param capability 能力（OCR / LAYOUT / TABLE_STRUCTURE）
+     * @param request    视觉入参（模型名由选型结果覆盖）
+     * @return 出参（原始文本 + 校验后的对象树 + 用量 + 模型标识）
+     */
+    public GenerationResult visionByCapability(ModelCapability capability, VisionRequest request) {
+        if (NullUtil.isNull(request)) {
+            throw new KnowledgeException(ErrorCode.MODEL_BAD_REQUEST, "视觉入参不能为空");
+        }
+        return runByCapability(capability, new ModelCall<>() {
+
+            @Override
+            public GenerationResult call(String vendorCode, String modelKey, ModelCallTrace trace) {
+                request.setModelKey(modelKey);
+                return visionCall(vendorCode, request, trace, capability);
+            }
+
+            @Override
+            public Runnable beforeCall() {
+                return () -> outputSchemaValidator.checkBeforeCall(output(request));
+            }
+
+            @Override
+            public String promptText() {
+                return ModelInvoker.this.visionPromptText(request);
+            }
+        });
+    }
+
+    /**
      * 一次调用的公共外壳：形参校验 → 绑定调用上下文 → 调用前检查 → 执行本次调用 → 失败映射错误码并回写上下文 → 解绑。
-     * 对话与向量共用本方法，两个模态的失败口径与明细落库口径保持一致。
+     * 三个模态共用本方法，失败口径与明细落库口径保持一致。
      *
      * <p>明细只记真实发出的调用：形参校验与调用前检查拦下的失败没有发出请求，不落行；
      * 请求发出后的失败（含超时、限流、输出结构校验失败）同样落行，状态与错误码取自本次映射结果。
@@ -226,7 +280,7 @@ public class ModelInvoker {
      * 路由状态，容量信号据此反映真实占用。
      *
      * @param capability 能力
-     * @param modelCall  单次调用的入参形状（调用体、模型名来源与调用前检查）
+     * @param modelCall  本次调用的入参形状（调用体、模型名来源、调用前检查与请求文本）
      * @return 本次调用的出参
      */
     private <T> T runByCapability(ModelCapability capability, ModelCall<T> modelCall) {
@@ -349,6 +403,22 @@ public class ModelInvoker {
         return text.toString();
     }
 
+    /** 视觉入参的请求文本：提示词与区域坐标（页码）依次相接，供厂商未回用量时粗估 token */
+    private String visionPromptText(VisionRequest request) {
+        if (NullUtil.isNull(request)) {
+            return null;
+        }
+        StringBuilder text = new StringBuilder();
+        if (NullUtil.isNotNull(request.getPrompt())) {
+            text.append(request.getPrompt());
+        }
+        ImageRegion region = request.getRegion();
+        if (NullUtil.isNotNull(region) && NullUtil.isNotNull(region.getPageNo())) {
+            text.append(' ').append(region.getPageNo());
+        }
+        return text.toString();
+    }
+
     /**
      * 是否可降级：入参取映射后的知识异常或适配器原始异常，两者结论一致。
      *
@@ -383,6 +453,26 @@ public class ModelInvoker {
         return result;
     }
 
+    /**
+     * 视觉调用体：模型名以选型结果为准，出参按请求里的输出约束做结构校验后落成功明细。
+     * 明细的能力列取形参给出的能力（按能力选型的那条入口给出本次能力，直接给厂商码的那条按表格结构记）。
+     *
+     * @param vendorCode 厂商码
+     * @param request    视觉入参
+     * @param trace      本次调用的上下文
+     * @param capability 本次调用按该能力计量
+     * @return 出参（原始文本 + 校验后的对象树 + 用量 + 模型标识）
+     */
+    private GenerationResult visionCall(String vendorCode, VisionRequest request, ModelCallTrace trace,
+            ModelCapability capability) {
+        String modelKey = modelKey(request);
+        GenerationResult generation = modelAdapter.vision(vendorCode, request);
+        generation.setJson(outputSchemaValidator.validate(output(request), generation.getContent()));
+        modelCallLogRecorder.recordSuccess(vendorCode, modelKey, capability, trace, generation.getModel(),
+                generation.getModelVersion(), generation.getUsage());
+        return generation;
+    }
+
     /** 调用上下文：入参为空即新建一份（调用结束后丢弃） */
     private ModelCallTrace traceOf(ModelCallTrace trace) {
         return NullUtil.isNull(trace) ? new ModelCallTrace() : trace;
@@ -393,8 +483,18 @@ public class ModelInvoker {
         return NullUtil.isNull(request) ? null : request.getOutput();
     }
 
+    /** 视觉入参里的输出约束；入参为空返回 null */
+    private OutputSpec output(VisionRequest request) {
+        return NullUtil.isNull(request) ? null : request.getOutput();
+    }
+
     /** 对话入参里的模型名；入参为空返回 null */
     private String modelKey(ChatRequest request) {
+        return NullUtil.isNull(request) ? null : request.getModelKey();
+    }
+
+    /** 视觉入参里的模型名；入参为空返回 null */
+    private String modelKey(VisionRequest request) {
         return NullUtil.isNull(request) ? null : request.getModelKey();
     }
 

@@ -39,7 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * @author cxxl
  */
-class DashScopeEmbeddingProviderTest {
+class DashScopeModelProviderTest {
 
     private static final String VENDOR = "dashscope";
 
@@ -58,7 +58,7 @@ class DashScopeEmbeddingProviderTest {
 
     private TestModelCatalog catalog;
 
-    private DashScopeEmbeddingProvider provider;
+    private DashScopeModelProvider provider;
 
     @BeforeEach
     void setUp() throws IOException {
@@ -295,13 +295,13 @@ class DashScopeEmbeddingProviderTest {
     }
 
     /** 带假服务端点的提供者：厂商配置、目录、实例注册表、调用器与调用上下文持有器按用例装配 */
-    private DashScopeEmbeddingProvider provider(ModelVendorProperties properties) {
+    private DashScopeModelProvider provider(ModelVendorProperties properties) {
         OpenAiCompatibleEngineFactory engineFactory =
                 new OpenAiCompatibleEngineFactory(new UsageRecordingListener(traceHolder), traceHolder);
         ModelInstanceRegistry registry = new ModelInstanceRegistry(properties, engineFactory, catalog);
         ModelInvoker invoker = TestModelInvoker.of(new OpenAiCompatibleAdapter(registry, traceHolder), traceHolder,
                 new InMemoryModelCallLogPort(), catalog);
-        return new DashScopeEmbeddingProvider(properties, registry, invoker, traceHolder);
+        return new DashScopeModelProvider(properties, registry, invoker, traceHolder);
     }
 
     /** 指向假服务的厂商配置：密钥与重试按用例给值，超时取 10000 毫秒 */

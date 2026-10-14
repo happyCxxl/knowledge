@@ -119,8 +119,8 @@ public class ParsePipeline {
                 nativeSource.getElements().size(), nativeSource.getUnitCount());
 
         // ③ 信号判定 + 内置降级处置
-        // 扩展点（预留）：接入 OCR/版面/表格能力后，在此按信号类型查 CapabilityRegistry，
-        // 把能力结果并入 result.sources 新增一路；当前无能力实现，全部信号走内置降级。
+        // 扩展点：接入 OCR/版面/表格能力后，在此按信号类型查 CapabilityRegistry，
+        // 把能力结果并入 result.sources 新增一路。
         StepLogInfo qualityLog = StepLogHelper.begin(ParseStepName.QUALITY_CHECK.value());
         List<Signal> signals = signalDetector.detect(nativeSource, context);
         int failedUnits = 0;

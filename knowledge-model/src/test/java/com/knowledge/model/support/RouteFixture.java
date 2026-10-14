@@ -221,6 +221,24 @@ public final class RouteFixture {
     }
 
     /**
+     * 登记一个启用的视觉模型：能力按形参给出（OCR / LAYOUT / TABLE_STRUCTURE），不带价格快照。
+     *
+     * @param vendorCode 厂商码
+     * @param modelKey   模型名
+     * @param capability 该模型承载的视觉能力
+     * @return 本对象（链式登记）
+     */
+    public RouteFixture withVisionModel(String vendorCode, String modelKey, ModelCapability capability) {
+        ModelDescriptor descriptor = new ModelDescriptor();
+        descriptor.setVendorCode(vendorCode);
+        descriptor.setModelKey(modelKey);
+        descriptor.setCapabilities(Set.of(capability));
+        descriptor.setStatus("ENABLED");
+        catalog.register(descriptor);
+        return this;
+    }
+
+    /**
      * 装配按能力选型的调用器：明细端口为内存实现，目录、路由、状态与熔断器共用本夹具这几份。
      *
      * @param adapter 适配器
