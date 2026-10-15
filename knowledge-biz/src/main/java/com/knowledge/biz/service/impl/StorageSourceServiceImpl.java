@@ -40,7 +40,7 @@ import java.util.Map;
 /**
  * 存储数据源服务实现：数据源清单与当前启用切换。
  *
- * <p>启动初始化在本类：表为空按 file-center 配置 seed 两行，未停用的行注册进存储路由，
+ * <p>启动初始化在本类：表为空按 config/knowledge-file.yml 的 file-center 段 seed 两行，未停用的行注册进存储路由，
  * is_current 那一行标记为当前启用（探活与启动日志都在 StorageRouter）。
  *
  * <p>设为当前启用按「连接测试 → 先清后置 is_current → 回写探测结论 → 落审计 → 替换运行时当前启用」
@@ -275,7 +275,7 @@ public class StorageSourceServiceImpl implements StorageSourceService {
         storageRouter.register(new StorageSourceDef(row.getId(), row.getName(), type, paramsOf(row)));
     }
 
-    /** 表为空时的首次初始化：按 file-center 配置落两行，配置指明的类型置为当前启用 */
+    /** 表为空时的首次初始化：按 config/knowledge-file.yml 的 file-center 段落两行，配置指明的类型置为当前启用 */
     private List<KbStorageSource> seedRows() {
         StorageType seedType = fileCenterConfig.defaultType();
         List<StorageSourceDef> defs = FileCenterDefaults.seedDefs(fileCenterConfig);

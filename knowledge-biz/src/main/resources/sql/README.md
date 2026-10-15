@@ -103,13 +103,13 @@ docker compose up -d
 - **不做日聚合表**：用量概览、成本趋势与告警直接查本表，查询必须限定时间范围并走 `idx_tenant_time` / `idx_capability_model_time`；概览的调用数、成功失败数、未知占比与成本合计都由明细上的聚合给出。
 - **未知用量记 NULL + `usage_unknown = 1`**：厂商未回 usage 时 `prompt_tokens` / `completion_tokens` / `total_tokens` 与 `cost` 全记 NULL 并置标记位（不写 -1、不写 0、不做本地估算）；确实为零写 0，未知与零不混用。单价随行留档（`unit_price_in` / `unit_price_out` / `currency`），一行成本可复算；目录里没有该模型或价格缺失时 `cost` 留空。
 
-其余表不插入任何数据：`kb_model` 初始为空（见上），知识库、绑定、索引与产物均由使用过程中产生。`kb_storage_source` 初始为空，此时文件服务在后端启动时按 `application.yml` 的 `file-center` 两段参数 seed 两行（`MinIO` 与 `本地磁盘`），`file-center.storage-type` 指明的那一行是当前启用；之后当前启用读库里的 `is_current`，在「系统设置」页改过之后以库为准。`kb_system_setting` 初始为空且当前没有读写它的功能。
+其余表不插入任何数据：`kb_model` 初始为空（见上），知识库、绑定、索引与产物均由使用过程中产生。`kb_storage_source` 初始为空，此时文件服务在后端启动时按 `config/knowledge-file.yml` 的 `file-center` 两段参数 seed 两行（`MinIO` 与 `本地磁盘`），`file-center.storage-type` 指明的那一行是当前启用；之后当前启用读库里的 `is_current`，在「系统设置」页改过之后以库为准。`kb_system_setting` 初始为空且当前没有读写它的功能。
 
 ## 五、重建库之后必须清空对象存储
 
 数据库与对象存储是两套独立存储，产物本体（解析产物、切片集合、向量集合）与上传文件都不在 MySQL 里：
 
-- 文件服务配置见 `application.yml` 的 `file-center`：`minio` 与 `local` 两段参数只在数据源表为空时充当 seed 来源（`file-center.storage-type` 指明 seed 后哪一行是当前启用）。本地形态的数据在 `local.root-dir`（默认 `./data/file-center`），MinIO 形态的数据在 `files` / `artifacts` 桶（`docker/volumes/knowledge-minio`）。记录里带了数据源 ID 与存储类型，读取按记录里的数据源走，与当前启用的是哪一行无关。
+- 文件服务配置见 `config/knowledge-file.yml` 的 `file-center`：`minio` 与 `local` 两段参数只在数据源表为空时充当 seed 来源（`file-center.storage-type` 指明 seed 后哪一行是当前启用）。本地形态的数据在 `local.root-dir`（默认 `./data/file-center`），MinIO 形态的数据在 `files` / `artifacts` 桶（`docker/volumes/knowledge-minio`）。记录里带了数据源 ID 与存储类型，读取按记录里的数据源走，与当前启用的是哪一行无关。
 - 库重建后自增主键与雪花 ID 全部重新开始，旧对象恰好可能被新记录引用到，**新库会指向旧产物**，出现内容错乱且难以排查。
 
 因此重建库（无论用 `init.sql` 还是重建容器）时必须同时清空对象存储：

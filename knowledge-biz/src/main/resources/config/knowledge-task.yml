@@ -1,0 +1,11 @@
+# 任务环节配置：队列键、唤醒超时、低频扫描与启动补偿。
+# 键的来源：knowledge-biz 的 TaskQueueProperties（前缀 knowledge.task）。
+# 本环节配置的默认值在此处维护。
+knowledge:
+  task:
+    queue-key: knowledge:task:queue
+    wakeup-timeout: 5s
+    compensate-threshold: 5m
+    low-freq-sweep-enabled: true
+    low-freq-sweep-interval: 1m
+    sweep-lock-ttl: 30s

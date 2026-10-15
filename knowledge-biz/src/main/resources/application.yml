@@ -2,6 +2,18 @@ server:
   port: 4388
 
 spring:
+  # 环节配置导入清单：逐个显式列出（spring.config.import 不支持通配符）。
+  # 顺序即覆盖顺序（后导入覆盖先导入）；清单里的文件必须存在，缺文件或名字写错时启动即报错。
+  # 新增环节：加一个 config/knowledge-<域>.yml，在此加一行。
+  # 某个环节整块搬到拥有它的模块时：文件内容与文件名不变，这一行也不用改（classpath: 在整个 classpath 上按唯一匹配定位）。
+  config:
+    import:
+      - classpath:config/knowledge-parse.yml
+      - classpath:config/knowledge-auth.yml
+      - classpath:config/knowledge-file.yml
+      - classpath:config/knowledge-task.yml
+      - classpath:config/knowledge-retrieval.yml
+      - classpath:config/knowledge-model.yml
   application:
     name: @artifactId@
   main:
@@ -27,98 +39,6 @@ knowledge:
     show-sql: false
   operation-log:
     enabled: false
-  auth:
-    jwt:
-      secret: knowledge-jwt-secret-change-me-in-production
-      # 不勾选「记住我」：短期令牌 + sessionStorage；勾选：长期令牌 + localStorage
-      ttl-days: 1
-      ttl-days-remember: 30
-    # 登录失败防护：达阈值后按「账号 + IP」或「IP」维度临时锁定（窗口自首次失败起算）
-    guard:
-      enabled: true
-      fail-threshold: 5
-      ip-fail-threshold: 20
-      lock-minutes: 15
-  file:
-    max-size: 104857600
-    enabled-formats: PDF,DOC,DOCX,XLS,XLSX,PPT,PPTX
-    temp-file-threshold: 10485760
-  task:
-    queue-key: knowledge:task:queue
-    wakeup-timeout: 5s
-    compensate-threshold: 5m
-    low-freq-sweep-enabled: true
-    low-freq-sweep-interval: 1m
-    sweep-lock-ttl: 30s
-  # 解析阈值全量默认值（与 knowledge-worker 的 ParseProperties 同名 kebab-case；配置来源 = 本文件与 ParseProperties 内置默认值）
-  parse:
-    # 大文件分窗：单窗口装配的页数
-    page-window-size: 50
-    # 大文件阈值：输入大于该字节数时落临时文件后按需读取
-    large-file-min-bytes: 8388608
-    # 扫描页判定：单页非空白字符数下限与图片覆盖占比门槛
-    scan-page-min-chars: 50
-    scan-page-image-ratio: 0.5
-    # 纯矢量页判定：无文本无图片时矢量图形覆盖率达该值即按纯矢量页处理（不计失败）
-    vector-page-min-ratio: 0.05
-    # 版面能力路由：跨栏行数（行内存在超门槛的 token 间隙）达该值才判复杂页
-    layout-model-min-spanning-lines: 2
-    layout-column-start-tolerance: 12.0
-    layout-spanning-gap-factor: 4.0
-    # Office 单元折算：Word 每多少非空白字符 = 1 个判定单元
-    office-page-chars: 3000
-    # 图片元素门槛：占页面积比（低于该比例的图片不产元素）
-    image-min-area-ratio: 0.05
-    # 乱码页判定：不可读码点占比、可打印乱码带占比、缺 Unicode 映射的 CID 字体字符占比
-    garbled-rate-threshold: 0.2
-    printable-garbled-rate-threshold: 0.3
-    cid-mapping-min-ratio: 0.3
-    # 疑似图片单元：文本 bbox 面积 ÷ 页面面积门槛
-    text-area-ratio-threshold: 0.05
-    # 成功单元占比门槛（≥ 该值 PARTIAL_SUCCESS，低于该值 FAILED）
-    success-unit-ratio: 0.9
-    # 短文档门槛：内容单元不超过该值时改看坏页绝对数（坏页不超过第二项且仍有可读单元即不判失败）
-    short-document-max-units: 3
-    short-document-max-failed-units: 1
-    # 质量维度汇总：坏页比例（失败页 ÷ 内容单元）达该值时追加一条汇总告警
-    quality-bad-page-ratio-threshold: 0.3
-    # 行聚合与段落聚合：y 容差（pt）、行距 ÷ 行高上限
-    line-ytolerance: 2.0
-    paragraph-gap-ratio: 1.5
-    # 行文本重建：显著间隙、词间空格、字距加宽占比
-    character-spacing-floor-ratio: 0.12
-    word-gap-ratio: 0.15
-    character-spacing-gap-share: 0.75
-    # 页眉页脚与页码判定
-    running-text-min-pages: 2
-    page-number-xtolerance: 5.0
-    page-number-min-pages: 2
-    page-number-isolation-ratio: 1.5
-    header-area-ratio: 0.08
-    footer-area-ratio: 0.08
-    # 表格：线网格覆盖比例、列支持度与容差、行带与行归并、假表门限、续表与表头判定
-    table-line-cover-ratio: 0.6
-    table-column-support-ratio: 0.5
-    table-column-tolerance-ratio: 0.25
-    table-alignment-min-rows: 2
-    table-row-min-columns: 3
-    table-row-inner-gap-share: 0.6
-    table-column-max-fill-ratio: 0.7
-    table-continuation-overlap-ratio: 0.5
-    table-min-filled-ratio: 0.1
-    table-header-max-numeric-ratio: 0.3
-    # 分栏：栏沟宽度与覆盖比例、每栏门槛、单页门槛、最大栏数
-    column-gutter-min-width: 10.0
-    column-gutter-max-coverage: 0.25
-    column-min-share: 0.1
-    column-min-chars: 10
-    column-min-page-chars: 100
-    column-max-count: 4
-    # 模型能力开关（三项开关默认关；厂商地址与密钥取 knowledge.model.vendors.<厂商码>）
-    capability:
-      ocr-enabled: false
-      layout-enabled: false
-      table-enabled: false
 
 # 运维端点：只暴露健康探针与指标；health 免认证，metrics 需携带凭证（见 SecurityConfig）
 management:
@@ -126,27 +46,6 @@ management:
     web:
       exposure:
         include: health,metrics
-
-# 文件服务：数据源首次初始化的缺省来源
-# 数据源表为空时按本段参数 seed 两行（MinIO / 本地磁盘），storage-type 指的那种类型置为当前启用；
-# 表里没有启用的数据源时按 storage-type 回落注册一条内置定义。连接参数的实际来源是 kb_storage_source.config_json。
-file-center:
-  storage-type: minio
-  minio:
-    endpoint: http://localhost:9000
-    access-key: minioadmin
-    secret-key: minioadmin
-    file-bucket: files
-    artifact-bucket: artifacts
-  local:
-    root-dir: ./data/file-center
-    file-dir: files
-    artifact-dir: artifacts
-
-# 检索能力分层解锁：预留能力清单（RetrievalCapability 枚举名，逗号分隔；解锁 = 加枚举名）
-retrieval:
-  capabilities:
-    enabled: ""
 
 
 #mybatis-plus:

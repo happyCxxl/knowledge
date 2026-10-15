@@ -1,0 +1,73 @@
+# 解析环节配置：PDF 与 Office 的解析阈值、质量判定参数与三项模型能力开关。
+# 键的来源：knowledge-worker 的 ParseProperties（前缀 knowledge.parse）与 CapabilityProperties（前缀 knowledge.parse.capability）。
+# 本环节配置的默认值在此处维护；配置面与代码面的一致性由 ParsePropertiesConfigTest 对账。
+knowledge:
+  # 解析阈值全量默认值（与 knowledge-worker 的 ParseProperties 同名 kebab-case；配置来源 = 本文件与 ParseProperties 内置默认值）
+  parse:
+    # 大文件分窗：单窗口装配的页数
+    page-window-size: 50
+    # 大文件阈值：输入大于该字节数时落临时文件后按需读取
+    large-file-min-bytes: 8388608
+    # 扫描页判定：单页非空白字符数下限与图片覆盖占比门槛
+    scan-page-min-chars: 50
+    scan-page-image-ratio: 0.5
+    # 纯矢量页判定：无文本无图片时矢量图形覆盖率达该值即按纯矢量页处理（不计失败）
+    vector-page-min-ratio: 0.05
+    # 版面能力路由：跨栏行数（行内存在超门槛的 token 间隙）达该值才判复杂页
+    layout-model-min-spanning-lines: 2
+    layout-column-start-tolerance: 12.0
+    layout-spanning-gap-factor: 4.0
+    # Office 单元折算：Word 每多少非空白字符 = 1 个判定单元
+    office-page-chars: 3000
+    # 图片元素门槛：占页面积比（低于该比例的图片不产元素）
+    image-min-area-ratio: 0.05
+    # 乱码页判定：不可读码点占比、可打印乱码带占比、缺 Unicode 映射的 CID 字体字符占比
+    garbled-rate-threshold: 0.2
+    printable-garbled-rate-threshold: 0.3
+    cid-mapping-min-ratio: 0.3
+    # 疑似图片单元：文本 bbox 面积 ÷ 页面面积门槛
+    text-area-ratio-threshold: 0.05
+    # 成功单元占比门槛（≥ 该值 PARTIAL_SUCCESS，低于该值 FAILED）
+    success-unit-ratio: 0.9
+    # 短文档门槛：内容单元不超过该值时改看坏页绝对数（坏页不超过第二项且仍有可读单元即不判失败）
+    short-document-max-units: 3
+    short-document-max-failed-units: 1
+    # 质量维度汇总：坏页比例（失败页 ÷ 内容单元）达该值时追加一条汇总告警
+    quality-bad-page-ratio-threshold: 0.3
+    # 行聚合与段落聚合：y 容差（pt）、行距 ÷ 行高上限
+    line-ytolerance: 2.0
+    paragraph-gap-ratio: 1.5
+    # 行文本重建：显著间隙、词间空格、字距加宽占比
+    character-spacing-floor-ratio: 0.12
+    word-gap-ratio: 0.15
+    character-spacing-gap-share: 0.75
+    # 页眉页脚与页码判定
+    running-text-min-pages: 2
+    page-number-xtolerance: 5.0
+    page-number-min-pages: 2
+    page-number-isolation-ratio: 1.5
+    header-area-ratio: 0.08
+    footer-area-ratio: 0.08
+    # 表格：线网格覆盖比例、列支持度与容差、行带与行归并、假表门限、续表与表头判定
+    table-line-cover-ratio: 0.6
+    table-column-support-ratio: 0.5
+    table-column-tolerance-ratio: 0.25
+    table-alignment-min-rows: 2
+    table-row-min-columns: 3
+    table-row-inner-gap-share: 0.6
+    table-column-max-fill-ratio: 0.7
+    table-continuation-overlap-ratio: 0.5
+    table-min-filled-ratio: 0.1
+    table-header-max-numeric-ratio: 0.3
+    # 分栏：栏沟宽度与覆盖比例、每栏门槛、单页门槛、最大栏数
+    column-gutter-min-width: 10.0
+    column-gutter-max-coverage: 0.25
+    column-min-share: 0.1
+    column-min-chars: 10
+    column-min-page-chars: 100
+    column-max-count: 4
+    # 模型能力开关（三项开关默认关；厂商地址与密钥取 knowledge.model.vendors.<厂商码>）
+    capability:
+      ocr-enabled: false
+      layout-enabled: false
+      table-enabled: false

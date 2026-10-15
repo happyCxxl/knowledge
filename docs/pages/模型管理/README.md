@@ -4,7 +4,7 @@
 
 口径的三条前提（见 `../../design/模型能力平台-方案设计.md` 的 §4.1 / §4.2 / §8）：
 
-- **厂商连接与密钥都在配置**（`knowledge.model.vendors.<厂商码>`），库里只有一张 `kb_model` 表、只存厂商码；**页面没有密钥与地址的任何入口**，厂商下拉的候选来自前端枚举（`MODEL_VENDORS`）、不可新建。
+- **厂商连接与密钥都在配置**（`knowledge.model.vendors.<厂商码>`，落在 `knowledge-biz/src/main/resources/config/knowledge-model.yml`），库里只有一张 `kb_model` 表、只存厂商码；**页面没有密钥与地址的任何入口**，厂商下拉的候选来自前端枚举（`MODEL_VENDORS`）、不可新建。
 - **限额只写在模型行上**（没有厂商级限额）；价格四列按能力对应（每百万 token / 按页 / 按千次），都能留空。
 - **路由参数在配置里**（`knowledge.model.route.*`），页面不做策略、不做灰度、不做人工优先级。
 
@@ -25,6 +25,8 @@
 ## 厂商枚举与密钥口径
 
 厂商下拉的候选来自**前端枚举**：`MODEL_VENDORS`（`../../../web/src/types/model.ts`）按「码 + 展示名」成对给出，码与后端配置 `knowledge.model.vendors` 的键一致，接入新厂商时两处同步。页面**不显示密钥状态** —— 密钥只在配置与部署环境变量里，接口与页面都没有密钥字段，也没有任何下发路径；轮换密钥与改地址走配置 + 重启。
+
+厂商连接（地址、认证方式、密钥、超时）写在 `knowledge-biz/src/main/resources/config/knowledge-model.yml`。密钥用**环境变量占位符**给出（写法 `api-key: ${DASHSCOPE_API_KEY:}`，带空默认），密钥本身不进仓库；占位符解析不出来时启动失败，错误信息带厂商码。
 
 保存模型时**厂商码必须出现在配置里**：不在配置里回 `40461`（`MODEL_VENDOR_UNKNOWN`），消息带配置键 `knowledge.model.vendors` 与当前已配置的厂商清单，避免"配错到运行期才发现"。枚举与配置不一致时，以后端配置为准。
 
